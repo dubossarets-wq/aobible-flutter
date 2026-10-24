@@ -12,6 +12,8 @@ import '../core/i18n.dart';
 import '../core/markup.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
+import '../features/shell/colors.dart' show headingColor, strongColor;
+import '../features/shell/fonts.dart' show readerTextStyle, textAlignOf;
 
 class VerseView extends ConsumerWidget {
   const VerseView({super.key, required this.item, required this.book, required this.settings, required this.pane, required this.moduleId});
@@ -27,15 +29,22 @@ class VerseView extends ConsumerWidget {
     final fs = settings.d('fontSize');
     switch (item.kind) {
       case ItemKind.chapter:
+        final title = Text(book == 'Ps' ? t('Псалом {n}', {'n': '${item.chapter}'}) : t('Глава {n}', {'n': '${item.chapter}'}), style: TextStyle(fontSize: fs * settings.d('chapterTitleSize'), fontWeight: FontWeight.w800, color: pal.text, height: 1.15));
         return Padding(
           padding: EdgeInsets.only(top: fs * 1.2, bottom: fs * 0.5),
-          child: Text(t('Глава {n}', {'n': '${item.chapter}'}), style: TextStyle(fontSize: fs * settings.d('chapterTitleSize'), fontWeight: FontWeight.w800, color: pal.text, height: 1.15)),
+          child: item.chapter != 1
+              ? title
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(Books.instance.meta(book).name, style: TextStyle(fontSize: fs * 1.35, fontWeight: FontWeight.w700, color: pal.muted, height: 1.2)),
+                  SizedBox(height: fs * 0.3),
+                  title,
+                ]),
         );
       case ItemKind.heading:
         if (!settings.get<bool>('showHeadings')) return const SizedBox.shrink();
         return Padding(
           padding: EdgeInsets.only(top: fs * 0.5, bottom: fs * 0.4),
-          child: Text(item.text, style: TextStyle(fontSize: fs * settings.d('headingSize'), fontWeight: FontWeight.w700, color: pal.text, height: 1.3)),
+          child: Text(item.text, style: readerTextStyle(settings, size: fs * settings.d('headingSize'), weight: 700).copyWith(color: headingColor(settings), height: 1.3)),
         );
       case ItemKind.verse:
         return _Verse(view: this);
@@ -80,7 +89,7 @@ class _VerseState extends ConsumerState<_Verse> {
           borderRadius: BorderRadius.circular(4),
         ),
         padding: bg != null ? const EdgeInsets.symmetric(horizontal: 4) : EdgeInsets.zero,
-        child: Text.rich(key: _key, _spans(pal, fs, decors), style: TextStyle(fontSize: fs, height: s.d('lineHeight'), color: pal.text)),
+        child: Text.rich(key: _key, _spans(pal, fs, decors), textAlign: textAlignOf(s), style: readerTextStyle(s).copyWith(color: pal.text, height: s.d('lineHeight'))),
       ),
     );
   }
@@ -101,12 +110,15 @@ class _VerseState extends ConsumerState<_Verse> {
     }
     if (s.get<bool>('showVerseNumbers')) {
       add(WidgetSpan(
-        alignment: PlaceholderAlignment.top,
+        alignment: s.get<String>('verseNumPos') == 'inline' ? PlaceholderAlignment.middle : PlaceholderAlignment.top,
         child: Padding(
           padding: EdgeInsets.only(right: fs * 0.2),
           child: Text('${v.item.verse}', style: TextStyle(fontSize: fs * s.d('verseNumSize'), color: pal.verseNum, height: 1)),
         ),
       ));
+    }
+    for (final d in decors) {
+      d.afterNumber.forEach(add);
     }
     _numberEnd = at;
     _ranges.clear();
@@ -117,12 +129,24 @@ class _VerseState extends ConsumerState<_Verse> {
       final start = at;
       add(TextSpan(text: tk.text, style: tk.italic ? const TextStyle(fontStyle: FontStyle.italic) : null));
       _ranges.add((start, at, i));
-      if (strongs && tk.tagged) add(TextSpan(text: ' ${tk.strongs.join(' ')}', style: TextStyle(fontSize: fs * 0.5, color: pal.accent)));
+      if (strongs && tk.tagged) add(_strong(tk.strongs.join(' '), fs));
     }
     for (final d in decors) {
       d.trailing.forEach(add);
     }
     return TextSpan(children: children);
+  }
+
+  // Номера Стронга: размер, цвет и положение (над строкой / в строке / под строкой) — по настройкам
+  InlineSpan _strong(String nums, double fs) {
+    final s = v.settings;
+    final style = TextStyle(fontSize: fs * s.d('strongSize'), color: strongColor(s), height: 1);
+    final pos = s.get<String>('strongPos');
+    if (pos == 'inline') return TextSpan(text: ' $nums', style: style);
+    return WidgetSpan(
+      alignment: pos == 'sub' ? PlaceholderAlignment.bottom : PlaceholderAlignment.top,
+      child: Padding(padding: EdgeInsets.only(left: fs * 0.12), child: Text(nums, style: style)),
+    );
   }
 
   static final _word = RegExp(r'[\p{L}\p{N}\-]+', unicode: true);

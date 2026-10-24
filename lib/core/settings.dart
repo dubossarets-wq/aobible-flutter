@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/shell/colors.dart' show paletteWith;
+
 class Palette {
   const Palette(this.label, {required this.bg, required this.text, required this.muted, required this.accent, required this.panel, required this.onAccent, required this.bar, required this.barText, required this.line, required this.hl, required this.verseNum, this.dark = false});
   final String label;
@@ -47,11 +49,33 @@ class Settings {
     'splitLayout': 'auto',
     'splitRatio': 0.5,
     'primaryModule': 'rst-plus',
+    // Оформление и меню (функция «Оболочка», lib/features/shell) — ключи и значения как в веб-версии
+    'fontFamily': 'system',
+    'fontWeight': 400,
+    'textWidth': 44.0, // em, на широком экране
+    'textAlign': 'left', // left | justify
+    'strongSize': 0.5, // em
+    'strongPos': 'sup', // sup | inline | sub
+    'verseNumPos': 'sup', // sup | inline
+    'uiFontSize': 15.0, // px — меню, окна, кнопки
+    'barHeight': 54.0, // px — верхняя панель
+    'animations': true,
+    'focusMode': false,
+    'bookMode': false,
+    'continuousVerses': false,
+    'showXrefButtons': true,
+    'showIllustrations': true,
+    'colorOverrides': <String, dynamic>{}, // свои цвета поверх темы: { accent: '#…', bar: '#…', strong: '#…' }
+    'commentaryFontSize': 19.0,
+    'ttsFallback': false,
+    'menu': <String, dynamic>{'help': true, 'lastBookmark': true, 'sermons': true, 'plans': true, 'listen': true, 'maps': true, 'focus': false, 'book': false, 'split': true},
   };
 
   T get<T>(String k) => (j[k] ?? defaults[k]) as T;
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
-  Palette get palette => themes[get<String>('theme')] ?? themes['light']!;
+  /// Тема со своими цветами поверх (настройка colorOverrides) — для читалки, окон и MaterialApp
+  Palette get palette => paletteWith(basePalette, (j['colorOverrides'] as Map?)?.cast<String, dynamic>() ?? const {});
+  Palette get basePalette => themes[get<String>('theme')] ?? themes['light']!;
   Settings copyWith(Map<String, dynamic> patch) => Settings({...j, ...patch});
 }
 

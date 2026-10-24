@@ -30,13 +30,34 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appName"] = "AO Bible"
+    }
+
+    // Подпись ключом загрузки Google Play (тот же, что у прежнего приложения): путь и пароль — из окружения
+    // (tool/build_play.sh), в репозиторий не попадают. Без них выпускная сборка подписывается отладочным ключом.
+    signingConfigs {
+        create("upload") {
+            val ks = System.getenv("AOB_KEYSTORE")
+            if (ks != null) {
+                storeFile = file(ks)
+                storePassword = System.getenv("AOB_KEY_PASS")
+                keyAlias = "upload"
+                keyPassword = System.getenv("AOB_KEY_PASS")
+            }
+        }
     }
 
     buildTypes {
+        // Проверочная сборка ставится рядом с приложением из Google Play (другой идентификатор и название):
+        // не нужно удалять прежнее приложение, данные людей не трогаются
+        debug {
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appName"] = "AO Bible Flutter"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (System.getenv("AOB_KEYSTORE") != null) signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
         }
     }
 }

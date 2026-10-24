@@ -19,17 +19,25 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final panes = ref.watch(panesProvider.select((l) => l.length));
+    final mapPlace = ref.watch(mapPaneProvider);
     final s = ref.watch(settingsProvider);
     final pal = s.palette;
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final layout = s.get<String>('splitLayout');
     final rows = layout == 'rows' || (layout == 'auto' && !wide);
     final children = [for (var i = 0; i < panes; i++) Expanded(child: _Pane(index: i))];
+    // Карта места — во второй половине вместо второй панели чтения (та не теряется и вернётся после закрытия)
+    final map = mapPlace != null && Hub.mapPaneBuilder != null;
+    if (map) {
+      if (children.length > 1) children.removeLast();
+      children.add(Expanded(child: Hub.mapPaneBuilder!(context, ref, mapPlace)));
+    }
+    final count = children.length;
     return Scaffold(
       backgroundColor: pal.bg,
       body: SafeArea(
         bottom: false,
-        child: panes == 1
+        child: count == 1
             ? const _Pane(index: 0)
             : rows
                 ? Column(children: [children[0], Container(height: 1, color: pal.line), children[1]])
@@ -58,7 +66,7 @@ class _Pane extends ConsumerWidget {
     final selecting = ref.watch(selectionProvider.select((m) => m[index]?.isNotEmpty ?? false));
     return Column(children: [
       if (selecting && Hub.selectionBar != null) Hub.selectionBar!(context, ref, index) else Container(
-        height: 54,
+        height: ref.watch(settingsProvider).d('barHeight'),
         color: pal.bar,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(children: [

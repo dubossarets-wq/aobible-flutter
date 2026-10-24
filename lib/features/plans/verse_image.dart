@@ -1,0 +1,365 @@
+// Картинка со стихом (VerseImageSheet.jsx): фон (фото в общественном достоянии или спокойный градиент), текст и ссылка.
+// Текст двигается одним пальцем, размер — двумя. «Поделиться» отправляет картинку, «Сохранить» кладёт в «Картинки».
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../core/books.dart';
+import '../../core/i18n.dart';
+import '../../core/settings.dart';
+import 'loc.dart';
+import 'net_cache.dart';
+import 'ui_kit.dart';
+import 'verse_text.dart';
+
+class _Gradient {
+  const _Gradient(this.id, this.title, this.stops, this.tone);
+  final String id, title, tone;
+  final List<Color> stops;
+}
+
+const _gradients = [
+  _Gradient('g-dawn', 'Рассвет', [Color(0xFF3B2A4D), Color(0xFFC0705A), Color(0xFFF1C27D)], 'dark'),
+  _Gradient('g-sea', 'Море', [Color(0xFF0F2F45), Color(0xFF1F6D86), Color(0xFF7FB7C4)], 'dark'),
+  _Gradient('g-olive', 'Олива', [Color(0xFF2C3523), Color(0xFF5D6B3C), Color(0xFFA3A46B)], 'dark'),
+  _Gradient('g-night', 'Ночь', [Color(0xFF0B1020), Color(0xFF1D2440), Color(0xFF3B3F66)], 'dark'),
+  _Gradient('g-paper', 'Бумага', [Color(0xFFF6EFE1), Color(0xFFEFE3C8), Color(0xFFE5D3AD)], 'paper'),
+  _Gradient('g-stone', 'Камень', [Color(0xFF2B2A28), Color(0xFF4A4741), Color(0xFF6D675C)], 'dark'),
+];
+
+const _sizes = {'square': Size(1080, 1080), 'post': Size(1080, 1350), 'story': Size(1080, 1920)};
+
+/// Всё, что нужно, чтобы нарисовать картинку; рисует и предпросмотр, и итоговый файл
+class _Art {
+  const _Art({required this.img, required this.gradient, required this.photoTone, required this.text, required this.ref, required this.format, required this.baseFs, required this.scale, required this.dx, required this.dy});
+  final ui.Image? img;
+  final _Gradient gradient;
+  final String photoTone;
+  final String text, ref, format;
+  final double baseFs, scale, dx, dy; // baseFs — размер букв, при котором стих помещается; scale — выбранный пальцами
+
+  Size get size => _sizes[format]!;
+
+  TextPainter _text(double fs, Color color, bool shadow) => TextPainter(
+        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'serif', fontSize: fs, height: 1.38, color: color, shadows: shadow ? const [Shadow(color: Color(0x59000000), blurRadius: 12)] : null)),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: size.width * 0.78);
+
+  void paint(Canvas canvas) {
+    final W = size.width, H = size.height;
+    final paper = img == null && gradient.tone == 'paper';
+    if (img != null) {
+      paintImage(canvas: canvas, rect: Rect.fromLTWH(0, 0, W, H), image: img!, fit: BoxFit.cover);
+      final a = photoTone == 'light' ? 0.55 : 0.38;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, W, H),
+        Paint()..shader = ui.Gradient.linear(Offset.zero, Offset(0, H), [Colors.black.withValues(alpha: a - 0.1), Colors.black.withValues(alpha: a), Colors.black.withValues(alpha: a + 0.12)], [0, 0.5, 1]),
+      );
+    } else {
+      final s = gradient.stops;
+      canvas.drawRect(Rect.fromLTWH(0, 0, W, H), Paint()..shader = ui.Gradient.linear(Offset.zero, Offset(W * 0.4, H), s, [for (var i = 0; i < s.length; i++) i / (s.length - 1)]));
+    }
+    final color = paper ? const Color(0xFF2D2418) : Colors.white;
+    final fs = math.max(14.0, baseFs * scale);
+    final tp = _text(fs, color, !paper);
+    final refSize = math.max(18.0, fs * 0.6);
+    final total = tp.height + refSize * 2.2;
+    final cx = W / 2 + dx * W;
+    final top = (H - total) / 2 + dy * H;
+    tp.paint(canvas, Offset(cx - tp.width / 2, top));
+    final lineY = top + tp.height + refSize * 0.5;
+    canvas.drawRect(Rect.fromLTWH(cx - 40, lineY, 80, 3), Paint()..color = color.withValues(alpha: 0.75));
+    final rp = TextPainter(
+      text: TextSpan(text: ref, style: TextStyle(fontSize: refSize, fontWeight: FontWeight.w700, color: color)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: W * 0.78);
+    rp.paint(canvas, Offset(cx - rp.width / 2, lineY + refSize * 0.3));
+  }
+
+  /// Размер букв, при котором стих помещается (как в веб-версии: от 74 вниз до 26)
+  static double fit(String text, String format) {
+    final size = _sizes[format]!;
+    final boxH = size.height * (format == 'story' ? 0.55 : 0.62);
+    var fs = 74.0;
+    for (;;) {
+      final tp = TextPainter(
+        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'serif', fontSize: fs, height: 1.38)),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: size.width * 0.78);
+      if (tp.height <= boxH || fs <= 26) return fs;
+      fs -= 2;
+    }
+  }
+}
+
+class _Painter extends CustomPainter {
+  _Painter(this.art);
+  final _Art art;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.scale(size.width / art.size.width);
+    art.paint(canvas);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_Painter o) => true;
+}
+
+class VerseImageSheet extends ConsumerStatefulWidget {
+  const VerseImageSheet({super.key, required this.refs, required this.moduleId});
+  final List<VerseRef> refs;
+  final String moduleId;
+
+  @override
+  ConsumerState<VerseImageSheet> createState() => _VerseImageSheetState();
+}
+
+class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
+  List<Map<String, dynamic>> _photos = [];
+  String? _bgId;
+  ui.Image? _img;
+  bool _imgFailed = false;
+  String _text = '';
+  bool _textReady = false;
+  String _format = 'post';
+  double _scale = 1, _dx = 0, _dy = 0;
+  double _baseFs = 74;
+  // начало жеста
+  double _s0 = 1, _dx0 = 0, _dy0 = 0;
+  Offset _f0 = Offset.zero;
+  bool _busy = false;
+
+  late final String _label = selectionLabel(widget.refs, full: true);
+
+  @override
+  void initState() {
+    super.initState();
+    final lines = <String>[];
+    for (final r in widget.refs) {
+      final v = verseText(widget.moduleId, r);
+      if (v != null) lines.add(v);
+    }
+    _text = lines.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    _baseFs = _Art.fit(_text, _format);
+    _textReady = true;
+    _bgId = _gradients.first.id; // пока не пришёл список фото
+    ensureDict();
+    siteJson('images/verse-bg/index.json').then((j) {
+      if (!mounted) return;
+      final list = [for (final x in (j?['images'] as List? ?? const [])) (x as Map).cast<String, dynamic>()];
+      setState(() => _photos = list);
+      _pick(list.isNotEmpty ? list.first['id'] as String : _gradients.first.id);
+    });
+  }
+
+  Map<String, dynamic>? get _photo => _photos.where((p) => p['id'] == _bgId).firstOrNull;
+  // фото не загрузилось — тот же текст на спокойном градиенте
+  _Gradient get _grad => _gradients.where((g) => g.id == _bgId).firstOrNull ?? _gradients.first;
+
+  Future<void> _pick(String id, {bool load = true}) async {
+    setState(() {
+      _bgId = id;
+      _img = null;
+      _imgFailed = false;
+    });
+    if (!load) return;
+    final p = _photos.where((p) => p['id'] == id).firstOrNull;
+    if (p == null) return;
+    final bytes = await siteFile('images/verse-bg/${p['file']}');
+    ui.Image? im;
+    if (bytes != null) {
+      try {
+        im = await decodeImageFromList(bytes);
+      } catch (_) {}
+    }
+    if (!mounted || _bgId != id) return;
+    setState(() {
+      _img = im;
+      _imgFailed = im == null;
+    });
+  }
+
+  _Art get _art => _Art(
+        img: _img,
+        gradient: _grad,
+        photoTone: '${_photo?['tone'] ?? 'dark'}',
+        text: _text,
+        ref: _label,
+        format: _format,
+        baseFs: _baseFs,
+        scale: _scale,
+        dx: _dx,
+        dy: _dy,
+      );
+
+  Future<File> _render() async {
+    final art = _art;
+    final rec = ui.PictureRecorder();
+    art.paint(Canvas(rec));
+    final image = await rec.endRecording().toImage(art.size.width.round(), art.size.height.round());
+    final data = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}${Platform.pathSeparator}${_label.replaceAll(RegExp(r'[:\s]+'), '_')}.png');
+    await f.writeAsBytes(data.buffer.asUint8List(), flush: true);
+    return f;
+  }
+
+  Future<void> _share() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final f = await _render();
+      await SharePlus.instance.share(ShareParams(files: [XFile(f.path, mimeType: 'image/png')], title: _label));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final f = await _render();
+      try {
+        final dir = Directory('/storage/emulated/0/Pictures/AO Bible')..createSync(recursive: true);
+        await f.copy('${dir.path}${Platform.pathSeparator}${f.uri.pathSegments.last}');
+        if (mounted) toast(context, t('Картинка сохранена'));
+      } catch (_) {
+        // общая папка недоступна — отдаём системному окну, оттуда можно сохранить куда угодно
+        await SharePlus.instance.share(ShareParams(files: [XFile(f.path, mimeType: 'image/png')], title: _label));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _setFormat(String f) => setState(() {
+        _format = f;
+        _baseFs = _Art.fit(_text, f);
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = ref.watch(settingsProvider).palette;
+    final size = _sizes[_format]!;
+    final photo = _photo;
+    final loading = !_textReady || _bgId == null || (photo != null && _img == null && !_imgFailed);
+    return PageFrame(
+      pal: pal,
+      title: t('Картинка со стихом'),
+      subtitle: _label,
+      child: ListView(padding: const EdgeInsets.all(16), children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+            child: AspectRatio(
+              aspectRatio: size.width / size.height,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: loading
+                    ? Center(child: CircularProgressIndicator(color: pal.accent))
+                    : LayoutBuilder(
+                        builder: (_, c) => GestureDetector(
+                          onScaleStart: (d) {
+                            _s0 = _scale;
+                            _dx0 = _dx;
+                            _dy0 = _dy;
+                            _f0 = d.localFocalPoint;
+                          },
+                          onScaleUpdate: (d) => setState(() {
+                            _dx = (_dx0 + (d.localFocalPoint.dx - _f0.dx) / c.maxWidth).clamp(-0.45, 0.45);
+                            _dy = (_dy0 + (d.localFocalPoint.dy - _f0.dy) / c.maxHeight).clamp(-0.45, 0.45);
+                            if (d.pointerCount > 1) _scale = (_s0 * d.scale).clamp(0.4, 2.2);
+                          }),
+                          child: CustomPaint(painter: _Painter(_art), size: Size.infinite),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 58,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final p in _photos) _Bg(pal: pal, on: _bgId == p['id'], onTap: () => _pick(p['id'] as String), tip: t('${p['title']}'), child: SiteImage('images/verse-bg/${p['thumb']}')),
+            for (final g in _gradients)
+              _Bg(pal: pal, on: _bgId == g.id, onTap: () => _pick(g.id, load: false), tip: t(g.title), gradient: g.stops),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        SegmentedButton<String>(
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(value: 'square', label: Text(t('Квадрат'))),
+            ButtonSegment(value: 'post', label: Text(t('Пост'))),
+            ButtonSegment(value: 'story', label: Text(tx('История@@формат картинки: вертикальная, для «историй» в соцсетях'))),
+          ],
+          selected: {_format},
+          onSelectionChanged: (s) => _setFormat(s.first),
+        ),
+        const SizedBox(height: 8),
+        Text(t('Двигайте текст пальцем, размер — двумя пальцами.'), style: TextStyle(color: pal.muted, fontSize: 13)),
+        Row(children: [
+          Text(t('Размер текста'), style: TextStyle(color: pal.muted, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          if (_scale != 1 || _dx != 0 || _dy != 0) TextButton(onPressed: () => setState(() => (_scale = 1, _dx = 0, _dy = 0)), child: Text(t('как было'))),
+          IconButton(tooltip: t('Мельче'), icon: const Icon(Icons.remove), onPressed: () => setState(() => _scale = math.max(0.4, double.parse((_scale - 0.1).toStringAsFixed(2))))),
+          IconButton(tooltip: t('Крупнее'), icon: const Icon(Icons.add), onPressed: () => setState(() => _scale = math.min(2.2, double.parse((_scale + 0.1).toStringAsFixed(2))))),
+        ]),
+        Row(children: [
+          Expanded(child: Pill(pal: pal, primary: true, icon: Icons.share_outlined, label: t('Поделиться'), onTap: loading || _busy ? null : _share)),
+          const SizedBox(width: 10),
+          Expanded(child: Pill(pal: pal, icon: Icons.download_outlined, label: t('Сохранить'), onTap: loading || _busy ? null : _save)),
+        ]),
+        if (photo != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text('${t('Фото: {title}', {'title': t('${photo['title']}')})}${photo['author'] != null ? ' — ${photo['author']}' : ''} (${photo['license']})', style: TextStyle(color: pal.muted, fontSize: 11.5)),
+          ),
+      ]),
+    );
+  }
+}
+
+class _Bg extends StatelessWidget {
+  const _Bg({required this.pal, required this.on, required this.onTap, required this.tip, this.child, this.gradient});
+  final Palette pal;
+  final bool on;
+  final VoidCallback onTap;
+  final String tip;
+  final Widget? child;
+  final List<Color>? gradient;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Tooltip(
+          message: tip,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 58,
+              height: 58,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: on ? pal.accent : Colors.transparent, width: 3),
+                gradient: gradient == null ? null : LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient!),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      );
+}

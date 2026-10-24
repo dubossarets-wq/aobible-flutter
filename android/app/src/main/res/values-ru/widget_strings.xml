@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_title">Стих дня</string>
+    <string name="widget_empty">Откройте AO Bible один раз — здесь появится стих дня.</string>
+    <string name="widget_description">Стих из Библии на каждый день</string>
+</resources>

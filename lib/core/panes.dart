@@ -22,6 +22,9 @@ class PaneState {
 /// Самое первое открытие — с начала Библии; дальше — с последнего места
 const startRef = VerseRef('Gen', 1, 1);
 
+// Панели читаются из prefs заново (перенос данных, «Мои данные») — у каждой новый nav, иначе панель не перешла бы
+int _generation = 0;
+
 class PanesNotifier extends Notifier<List<PaneState>> {
   @override
   List<PaneState> build() {
@@ -31,7 +34,7 @@ class PanesNotifier extends Notifier<List<PaneState>> {
         final list = (jsonDecode(raw) as List).cast<Map>();
         final out = [
           for (final p in list)
-            PaneState(moduleId: p['moduleId'] as String, ref: VerseRef.fromJson(p['ref']) ?? startRef),
+            PaneState(moduleId: p['moduleId'] as String, ref: VerseRef.fromJson(p['ref']) ?? startRef, nav: ++_generation),
         ];
         if (out.isNotEmpty) return out;
       } catch (_) {
@@ -78,6 +81,17 @@ class PanesNotifier extends Notifier<List<PaneState>> {
 }
 
 final panesProvider = NotifierProvider<PanesNotifier, List<PaneState>>(PanesNotifier.new);
+
+/// Карта места во второй половине экрана: место (объект функции карт) или null. Не сохраняется —
+/// после перезапуска снова чтение; вторая панель чтения под картой не теряется.
+class MapPaneNotifier extends Notifier<Object?> {
+  @override
+  Object? build() => null;
+  void open(Object place) => state = place;
+  void close() => state = null;
+}
+
+final mapPaneProvider = NotifierProvider<MapPaneNotifier, Object?>(MapPaneNotifier.new);
 
 /// Текущее место каждой панели (для шапки) — без перерисовки всего приложения
 final livePositions = <int, ValueNotifier<VerseRef>>{};

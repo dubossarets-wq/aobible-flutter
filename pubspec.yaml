@@ -77,6 +77,33 @@ flutter:
     - assets/books.json
     - assets/certs/
     - assets/i18n/
+    - assets/fonts/
+  # Шрифты текста (Google Fonts, лицензия OFL — тексты лицензий рядом в assets/fonts)
+  fonts:
+    - family: PT Serif
+      fonts:
+        - asset: assets/fonts/PTSerif-Regular.ttf
+        - asset: assets/fonts/PTSerif-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PTSerif-Italic.ttf
+          style: italic
+    - family: PT Sans
+      fonts:
+        - asset: assets/fonts/PTSans-Regular.ttf
+        - asset: assets/fonts/PTSans-Bold.ttf
+          weight: 700
+    - family: Literata
+      fonts:
+        - asset: assets/fonts/Literata-Var.ttf
+    - family: Noto Serif
+      fonts:
+        - asset: assets/fonts/NotoSerif-Var.ttf
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-Var.ttf
+    - family: IBM Plex Sans
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-Var.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -108,3 +135,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Проверочная сборка под Windows: уведомления Windows требуют ATL, которого нет в Build Tools этой машины —
+# подменяем их пустой заглушкой (tool/stubs). На Android и iOS этот пакет не используется.
+dependency_overrides:
+  flutter_local_notifications_windows:
+    path: tool/stubs/flutter_local_notifications_windows

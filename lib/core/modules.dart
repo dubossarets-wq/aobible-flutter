@@ -9,6 +9,8 @@ import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import '../features/maps/places_data.dart';
+import '../features/study/study_tables.dart';
 import 'markup.dart';
 import 'net.dart';
 
@@ -128,7 +130,8 @@ void _convert(List<int> bytes, String path, String catalogVersion) {
     ..remove('entries')
     ..remove('refs')
     ..remove('places')
-    ..remove('wordIndex');
+    ..remove('wordIndex')
+    ..remove('chapters'); // главы аудиомодуля (до 3 МБ) — в payload, не в описании
   meta['catalogVersion'] = catalogVersion;
   final type = j['type'] as String? ?? 'bible';
   if (type == 'bible') {
@@ -137,6 +140,12 @@ void _convert(List<int> bytes, String path, String catalogVersion) {
         {'id': b['id'], 'name': b['name'], 'short': b['short'], 'chapters': (b['chapters'] as List).length},
     ];
     _convertBible(db, j);
+  } else if (type == 'maps' && j['places'] is List) {
+    // «Места»: таблицы с индексом по названию и по стиху (lib/features/maps/places_data.dart)
+    convertPlaces(db, j);
+  } else if (studyTypes.contains(type)) {
+    // Словари, комментарии, параллельные места, иллюстрации: таблицы с индексами (lib/features/study/study_tables.dart)
+    buildStudyTables(db, j, type);
   } else {
     // Словари, комментарии, параллельные места, карты: исходный JSON целиком — разберём по мере переноса функций
     db.execute('CREATE TABLE payload(json TEXT)');

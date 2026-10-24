@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_title">Verse of the day</string>
+    <string name="widget_empty">Open AO Bible once — the verse of the day will appear here.</string>
+    <string name="widget_description">A Bible verse for every day</string>
+</resources>

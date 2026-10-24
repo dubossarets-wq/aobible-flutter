@@ -21,6 +21,10 @@ Future<void> main() async {
   await initI18n();
   await ModuleStore.init();
   registerFeatures();
+  onLangChanged = () {
+    Hub.reset();
+    registerFeatures();
+  };
   debugPrint('AOB start ${DateTime.now().difference(started).inMilliseconds} ms');
   runApp(const ProviderScope(child: AoBibleApp()));
 }
@@ -55,6 +59,8 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> {
     final scheme = ColorScheme.fromSeed(seedColor: pal.accent, brightness: pal.dark ? Brightness.dark : Brightness.light).copyWith(primary: pal.accent, surface: pal.panel, onPrimary: pal.onAccent);
     return MaterialApp(
       title: 'AO Bible',
+      scaffoldMessengerKey: Hub.messengerKey,
+      navigatorKey: Hub.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true),
       home: _ready ? const HomeScreen() : BootstrapScreen(onReady: () => setState(() => _ready = true)),

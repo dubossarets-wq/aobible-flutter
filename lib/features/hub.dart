@@ -22,10 +22,11 @@ class WordTap {
 
 /// Что добавить к стиху: фон (цвет выделения) и значки/пометки в конце стиха
 class VerseDecor {
-  const VerseDecor({this.background, this.trailing = const [], this.leading = const []});
+  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const []});
   final Color? background;
   final List<InlineSpan> trailing;
-  final List<InlineSpan> leading;
+  final List<InlineSpan> leading; // до номера стиха
+  final List<InlineSpan> afterNumber; // между номером и текстом (закладка, сердце, подборка — как в веб-версии)
 }
 
 /// Пункт в выборке над словом (словарь, «Карта» для места и т. п.)
@@ -75,6 +76,44 @@ class Hub {
   static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef from)? listenFrom;
   static void Function(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId)? compareTranslations;
   static final List<MoreItem> moreItems = [];
+
+  /// Карта места во второй половине экрана (вместо второй панели чтения): что рисовать (даёт функция карт);
+  /// открыть/закрыть — mapPaneProvider
+  static Widget Function(BuildContext context, WidgetRef ref, Object place)? mapPaneBuilder;
+
+  /// Круглая кнопка «Слушать» внизу панели чтения (даёт функция аудио)
+  static Widget Function(BuildContext context, WidgetRef ref, int pane)? listenFab;
+
+  /// Уведомление внизу экрана из любого места (в том числе из Hub.afterStart, где нет context)
+  static final messengerKey = GlobalKey<ScaffoldMessengerState>();
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Глава прочитана (видна до конца и на ней провели достаточно времени) — учёт для планов и статистики
+  static void Function(BuildContext context, WidgetRef ref, String book, int chapter)? onChapterRead;
+  static void toast(String text, {String? actionLabel, VoidCallback? action}) {
+    messengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text),
+        action: actionLabel != null && action != null ? SnackBarAction(label: actionLabel, onPressed: action) : null,
+      ));
+  }
+
+  /// Смена языка: подписи пунктов меню и т. п. задаются при регистрации — регистрируем заново
+  static void reset() {
+    onWordTap = null;
+    verseDecorators.clear();
+    selectionBar = null;
+    openPlans = openBookmarks = openMore = openSettings = openLibrary = openAudio = null;
+    audioBar = null;
+    wordMenuItems.clear();
+    addToSermon = openInterlinear = compareTranslations = null;
+    listenFrom = null;
+    moreItems.clear();
+    mapPaneBuilder = null;
+    listenFab = null;
+    onChapterRead = null;
+  }
 
   /// Запуск: что сделать после показа первого экрана (доустановка модулей, перенос данных, напоминания…)
   static final List<Future<void> Function(WidgetRef ref)> afterStart = [];
