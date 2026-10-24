@@ -15,6 +15,7 @@ import '../core/panes.dart';
 import '../core/i18n.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
+import 'kit.dart';
 import 'verse_view.dart';
 
 class ReaderPane extends ConsumerStatefulWidget {
@@ -208,8 +209,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> {
         ),
       ),
           // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио)
-          Positioned(left: 14, bottom: 16, child: _RoundButton(icon: Icons.chevron_left, pal: pal, onTap: () => _chapter(-1))),
-          Positioned(right: 14, bottom: 16, child: _RoundButton(icon: Icons.chevron_right, pal: pal, onTap: () => _chapter(1))),
+          Positioned(left: 14, bottom: 16, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1))),
+          Positioned(right: 14, bottom: 16, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1))),
           if (Hub.listenFab != null)
             Positioned(left: 0, right: 0, bottom: 16, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
           else if (Hub.listenFrom != null)
@@ -218,9 +219,9 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> {
               right: 0,
               bottom: 16,
               child: Center(
-                child: _RoundButton(
-                  icon: Icons.headphones_outlined,
-                  pal: pal,
+                child: RoundFab(
+                  icon: LucideIcons.headphones,
+                  tooltip: t('Слушать'),
                   onTap: () => Hub.listenFrom!(context, ref, widget.index, livePositions[widget.index]?.value ?? p.ref),
                 ),
               ),
@@ -259,25 +260,10 @@ class _BookJump extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
         onPressed: onTap,
-        icon: Icon(trailing ? Icons.chevron_right : Icons.chevron_left, size: 18),
+        icon: Icon(trailing ? LucideIcons.chevronRight : LucideIcons.chevronLeft, size: 18),
         iconAlignment: trailing ? IconAlignment.end : IconAlignment.start,
         label: Text(label),
         style: OutlinedButton.styleFrom(foregroundColor: pal.text, backgroundColor: pal.panel, side: BorderSide(color: pal.line), shape: const StadiumBorder()),
-      );
-}
-
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({required this.icon, required this.pal, required this.onTap});
-  final IconData icon;
-  final Palette pal;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Material(
-        color: pal.panel.withValues(alpha: 0.92),
-        shape: CircleBorder(side: BorderSide(color: pal.line)),
-        elevation: 2,
-        shadowColor: Colors.black26,
-        child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: SizedBox(width: 44, height: 44, child: Icon(icon, color: pal.accent))),
       );
 }
 

@@ -29,22 +29,28 @@ class VerseView extends ConsumerWidget {
     final fs = settings.d('fontSize');
     switch (item.kind) {
       case ItemKind.chapter:
-        final title = Text(book == 'Ps' ? t('Псалом {n}', {'n': '${item.chapter}'}) : t('Глава {n}', {'n': '${item.chapter}'}), style: TextStyle(fontSize: fs * settings.d('chapterTitleSize'), fontWeight: FontWeight.w800, color: pal.text, height: 1.15));
-        return Padding(
-          padding: EdgeInsets.only(top: fs * 1.2, bottom: fs * 0.5),
-          child: item.chapter != 1
-              ? title
-              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(Books.instance.meta(book).name, style: TextStyle(fontSize: fs * 1.35, fontWeight: FontWeight.w700, color: pal.muted, height: 1.2)),
-                  SizedBox(height: fs * 0.3),
-                  title,
-                ]),
+        // .book-title: 0,9 em, серый; .chapter-title: 2,1 em, 800, межстрочный 1,1, отступы .55em/.3em
+        final cs = fs * settings.d('chapterTitleSize');
+        final title = Padding(
+          padding: EdgeInsets.only(top: cs * 0.55, bottom: cs * 0.3),
+          child: Text(book == 'Ps' ? t('Псалом {n}', {'n': '${item.chapter}'}) : t('Глава {n}', {'n': '${item.chapter}'}),
+              style: readerTextStyle(settings, size: cs, weight: 800).copyWith(color: pal.text, height: 1.1, letterSpacing: -cs * 0.01)),
         );
+        if (item.chapter != 1) return title;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: EdgeInsets.only(top: fs * 0.9 * 1.4),
+            child: Text(Books.instance.meta(book).name, style: readerTextStyle(settings, size: fs * 0.9, weight: 600).copyWith(color: pal.muted)),
+          ),
+          title,
+        ]);
       case ItemKind.heading:
         if (!settings.get<bool>('showHeadings')) return const SizedBox.shrink();
+        // .section-title: 0,8 em, 650, цвет акцента (или свой), отступы 1.1em / .35em
+        final hs = fs * settings.d('headingSize');
         return Padding(
-          padding: EdgeInsets.only(top: fs * 0.5, bottom: fs * 0.4),
-          child: Text(item.text, style: readerTextStyle(settings, size: fs * settings.d('headingSize'), weight: 700).copyWith(color: headingColor(settings), height: 1.3)),
+          padding: EdgeInsets.only(top: hs * 1.1, bottom: hs * 0.35),
+          child: Text(item.text, style: readerTextStyle(settings, size: hs, weight: 650).copyWith(color: headingColor(settings), height: 1.3, letterSpacing: hs * 0.01)),
         );
       case ItemKind.verse:
         return _Verse(view: this);

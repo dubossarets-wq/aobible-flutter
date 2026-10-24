@@ -10,12 +10,15 @@ import 'books.dart';
 import 'settings.dart';
 
 class PaneState {
-  const PaneState({required this.moduleId, required this.ref, this.nav = 0});
+  const PaneState({required this.moduleId, required this.ref, this.nav = 0, this.history = const [], this.hIndex = 0});
   final String moduleId;
   final VerseRef ref; // куда перейти (при nav++); текущее место при прокрутке — в livePositions
   final int nav;
+  final List<VerseRef> history; // история переходов («←» / «→» в шапке, как в веб-версии); в памяти
+  final int hIndex;
 
-  PaneState copyWith({String? moduleId, VerseRef? ref, int? nav}) => PaneState(moduleId: moduleId ?? this.moduleId, ref: ref ?? this.ref, nav: nav ?? this.nav);
+  PaneState copyWith({String? moduleId, VerseRef? ref, int? nav, List<VerseRef>? history, int? hIndex}) =>
+      PaneState(moduleId: moduleId ?? this.moduleId, ref: ref ?? this.ref, nav: nav ?? this.nav, history: history ?? this.history, hIndex: hIndex ?? this.hIndex);
   Map<String, dynamic> toJson() => {'moduleId': moduleId, 'ref': ref.toJson()};
 }
 
@@ -47,8 +50,26 @@ class PanesNotifier extends Notifier<List<PaneState>> {
   void _save() => prefs.setString('panes', jsonEncode([for (final p in state) p.toJson()]));
 
   void navigate(int i, VerseRef to) {
-    state = [for (var k = 0; k < state.length; k++) k == i ? state[k].copyWith(ref: to, nav: state[k].nav + 1) : state[k]];
+    final p = state[i];
+    // История: текущее место (куда долистали) — на свою позицию, новое — следом; «вперёд» отбрасываем
+    final at = livePositions[i]?.value ?? p.ref;
+    final hist = p.history.isEmpty ? <VerseRef>[at] : [...p.history.take(p.hIndex + 1)];
+    hist[hist.length - 1] = at;
+    if (hist.last != to) hist.add(to);
+    state = [for (var k = 0; k < state.length; k++) k == i ? p.copyWith(ref: to, nav: p.nav + 1, history: hist, hIndex: hist.length - 1) : state[k]];
     livePositions[i]?.value = to;
+    _save();
+  }
+
+  /// «←» / «→» по истории переходов
+  void go(int i, int dir) {
+    final p = state[i];
+    final h = p.hIndex + dir;
+    if (h < 0 || h >= p.history.length) return;
+    final hist = [...p.history];
+    hist[p.hIndex] = livePositions[i]?.value ?? p.ref;
+    state = [for (var k = 0; k < state.length; k++) k == i ? p.copyWith(ref: hist[h], nav: p.nav + 1, history: hist, hIndex: h) : state[k]];
+    livePositions[i]?.value = hist[h];
     _save();
   }
 
@@ -72,7 +93,7 @@ class PanesNotifier extends Notifier<List<PaneState>> {
   /// Место при прокрутке: сохраняем без перехода (раз в полсекунды, а не на каждом кадре)
   void remember(int i, VerseRef at) {
     if (i >= state.length || state[i].ref == at) return;
-    state = [for (var k = 0; k < state.length; k++) k == i ? PaneState(moduleId: state[k].moduleId, ref: at, nav: state[k].nav) : state[k]];
+    state = [for (var k = 0; k < state.length; k++) k == i ? state[k].copyWith(ref: at) : state[k]];
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 500), _save);
   }
