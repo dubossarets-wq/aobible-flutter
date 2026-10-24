@@ -48,3 +48,17 @@ flutter test test/<ваш тест>.dart
 ## Скорость
 - Цель — быстрее веб-версии во всём: тяжёлое — в `Isolate.run`, данные — запросами к SQLite, списки — ленивые
   (`ListView.builder`), без лишних перестроек (Riverpod `select`).
+
+## Дизайн — один в один с веб-версией
+- Образец — живая веб-версия: компоненты `E:\AO Bible\src\components\*.jsx` и стили `E:\AO Bible\src\styles.css`
+  (внимание: многие правила переопределены ниже по файлу — смотрите последние правила для селектора).
+  Эталонные снимки экранов (телефон 400 px, светлая тема): папка
+  `C:\Users\stude\AppData\Local\Temp\claude\e--AO-Bible\2de710ea-f53d-4c78-909a-aa1d1c5e1a55\scratchpad\web\`.
+  Свои снимки веб-версии можно снять скриптом `…\scratchpad\webref.mjs` (Playwright, локальный сервер dist/pwa) — скопируйте
+  и допишите шаги под свои экраны (`node <скрипт>`).
+- Значки — только Lucide (`LucideIcons.*`, те же, что импортирует компонент веб-версии из lucide-react: `BookOpen` →
+  `LucideIcons.bookOpen`). Material `Icons.*` не использовать.
+- Общие элементы — `lib/ui/kit.dart`: `showAobSheet`/`AobSheet` (нижние окна), `PrefRow`, `MenuRow`, `MenuSep`, `GroupTitle`,
+  `AobButton`, `AobChip`, `AobSwitch`, `SwitchRow`, `Segmented`, `IconBtn`, `AobInput`, `RoundFab`, `mix()`, `kRadius`.
+  Не использовать Material-виджеты с чужим видом: ListTile, Switch, FilledButton, SegmentedButton, AlertDialog, NavigationBar.
+- Цвета — только из `Palette` (тема + свои цвета), смеси — `mix(a, доля, b)` как color-mix в CSS. Шрифт интерфейса 15 px, 1rem = 16 px.
