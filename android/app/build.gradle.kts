@@ -54,6 +54,11 @@ android {
             applicationIdSuffix = ".dev"
             manifestPlaceholders["appName"] = "AO Bible Flutter"
         }
+        // Проверочная сборка с настоящей скоростью (машинный код, как в выпуске) — тоже рядом с приложением из Play
+        getByName("profile") {
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appName"] = "AO Bible Flutter"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
