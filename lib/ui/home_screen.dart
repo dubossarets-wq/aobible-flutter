@@ -11,6 +11,7 @@ import '../core/settings.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
 import 'search_screen.dart';
+import '../features/hub.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -34,7 +35,10 @@ class HomeScreen extends ConsumerWidget {
                 ? Column(children: [children[0], Container(height: 1, color: pal.line), children[1]])
                 : Row(children: [children[0], Container(width: 1, color: pal.line), children[1]]),
       ),
-      bottomNavigationBar: wide ? null : _TabBar(pal: pal),
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (Hub.audioBar != null) Hub.audioBar!(context, ref),
+        if (!wide) _TabBar(pal: pal),
+      ]),
     );
   }
 }
@@ -51,8 +55,9 @@ class _Pane extends ConsumerWidget {
     if (module == null) return const SizedBox.shrink();
     final name = ModuleStore.instance.get(module)?.name ?? module;
     final initial = ref.read(panesProvider)[index].ref;
+    final selecting = ref.watch(selectionProvider.select((m) => m[index]?.isNotEmpty ?? false));
     return Column(children: [
-      Container(
+      if (selecting && Hub.selectionBar != null) Hub.selectionBar!(context, ref, index) else Container(
         height: 54,
         color: pal.bar,
         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -129,13 +134,16 @@ class _TabBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     void soon() => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Скоро'))));
+    void call(PaneAction? a) => a == null ? soon() : a(context, ref, 0);
     return NavigationBar(
       backgroundColor: pal.panel,
       selectedIndex: 2,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       onDestinationSelected: (i) {
+        if (i == 0) call(Hub.openPlans);
         if (i == 1) openSearch(context, 0);
-        if (i == 0 || i == 3 || i == 4) soon();
+        if (i == 3) call(Hub.openBookmarks);
+        if (i == 4) call(Hub.openMore);
       },
       destinations: [
         NavigationDestination(icon: const Icon(Icons.event_available_outlined), label: t('Планы')),

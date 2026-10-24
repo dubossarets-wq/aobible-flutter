@@ -127,7 +127,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> {
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
           itemBuilder: (context, i) {
             if (i == book.items.length) return SizedBox(height: MediaQuery.sizeOf(context).height * 0.45);
-            return VerseView(item: book.items[i], book: book.book, settings: s);
+            return VerseView(item: book.items[i], book: book.book, settings: s, pane: widget.index, moduleId: book.module);
           },
         ),
       ),

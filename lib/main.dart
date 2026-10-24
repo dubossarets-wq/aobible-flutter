@@ -8,6 +8,8 @@ import 'core/books.dart';
 import 'core/i18n.dart';
 import 'core/modules.dart';
 import 'core/settings.dart';
+import 'features/features.dart';
+import 'features/hub.dart';
 import 'ui/bootstrap_screen.dart';
 import 'ui/home_screen.dart';
 
@@ -18,6 +20,7 @@ Future<void> main() async {
   await Books.load();
   await initI18n();
   await ModuleStore.init();
+  registerFeatures();
   debugPrint('AOB start ${DateTime.now().difference(started).inMilliseconds} ms');
   runApp(const ProviderScope(child: AoBibleApp()));
 }
@@ -30,6 +33,21 @@ class AoBibleApp extends ConsumerStatefulWidget {
 
 class _AoBibleAppState extends ConsumerState<AoBibleApp> {
   bool _ready = ModuleStore.instance.bibles.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    // Дела после первого кадра (доустановка модулей, перенос данных, напоминания) — не задерживают показ текста
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      for (final job in Hub.afterStart) {
+        try {
+          await job(ref);
+        } catch (e) {
+          debugPrint('afterStart: $e');
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
