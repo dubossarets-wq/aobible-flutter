@@ -19,6 +19,7 @@ import '../core/panes.dart';
 import '../core/i18n.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
+import '../features/shell/background.dart' show ReaderBackground, bgStamp;
 import 'kit.dart';
 import 'verse_view.dart';
 
@@ -655,8 +656,10 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           if (e is PointerScrollEvent) SyncHub.driver = widget.index;
         },
         child: Stack(children: [
+          // Фон-картинка (Оформление → Фон) под текстом; страница поверх неё прозрачная
+          const Positioned.fill(child: ReaderBackground()),
           ColoredBox(
-            color: pal.bg,
+            color: ref.watch(settingsProvider.select((s) => bgStamp(s) != 0)) ? Colors.transparent : pal.bg,
             child: NotificationListener<ScrollNotification>(
               onNotification: _onScroll,
               child: Directionality(

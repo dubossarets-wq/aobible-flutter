@@ -87,6 +87,7 @@ class Hub {
   static PaneAction? openMore;
   static PaneAction? openSettings;
   static PaneAction? openLibrary;
+  static void Function(BuildContext context, String tab)? openLibraryTab; // вкладка: installed | catalog | import
   static PaneAction? openAudio; // «Слушать» с текущего места
   static Widget Function(BuildContext context, WidgetRef ref)? audioBar; // мини-проигрыватель над вкладками
 
@@ -150,6 +151,7 @@ class Hub {
     verseDecorators.clear();
     selectionBar = null;
     openPlans = openBookmarks = openMore = openSettings = openLibrary = openAudio = null;
+    openLibraryTab = null;
     audioBar = null;
     wordMenuItems.clear();
     addToSermon = openInterlinear = compareTranslations = null;

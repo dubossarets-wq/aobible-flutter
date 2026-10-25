@@ -53,6 +53,7 @@ void register() {
   Hub.openMore = openMore;
   Hub.openSettings = (c, r, p) => openPrefs(c);
   Hub.openLibrary = (c, r, p) => openLibrary(c);
+  Hub.openLibraryTab = (c, tab) => openLibrary(c, tab: tab);
 }
 
 /// Приветствие новому человеку, «Что нового» — после обновления. Когда приложение готово (есть перевод) и не открыто другое окно.

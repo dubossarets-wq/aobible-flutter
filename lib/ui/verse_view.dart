@@ -20,6 +20,7 @@ import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/colors.dart' show headingColor, strongColor;
 import '../features/shell/fonts.dart' show readerTextStyle, textAlignOf;
+import '../features/shell/tour_targets.dart' show tourResolvers, findElement, rectOfElement;
 import 'kit.dart';
 
 /// Пауза двойного касания (DOUBLE_TAP_MS в tapState.js)
@@ -150,6 +151,91 @@ class _Seg {
   bool selected = false;
 }
 
+// --- Цели подсветки «Инструкции» (tours.js: target) — по блокам первой панели, что сейчас на экране --------------
+
+bool _tourReady = false;
+
+Rect? _rectOf(BuildContext? c) {
+  final ro = c?.findRenderObject();
+  if (ro is! RenderBox || !ro.attached || !ro.hasSize) return null;
+  return ro.localToGlobal(Offset.zero) & ro.size;
+}
+
+/// Блоки первой панели, видимые на экране, сверху вниз
+List<(_BlockState, Rect)> _visibleBlocks() {
+  final out = <(_BlockState, Rect)>[];
+  for (final h in (_handles[0] ?? const {}).values) {
+    if (h is! _BlockState || !h.mounted) continue;
+    final b = h;
+    final r = _rectOf(b._blockKey.currentContext);
+    if (r != null && r.bottom > 80 && r.height > 0) out.add((b, r));
+  }
+  out.sort((a, b) => a.$2.top.compareTo(b.$2.top));
+  return out;
+}
+
+void _registerTourTargets() {
+  if (_tourReady) return;
+  _tourReady = true;
+  // первый видимый стих
+  tourResolvers['verse'] = () {
+    for (final (b, r) in _visibleBlocks()) {
+      if (b._verses.any((it) => it.kind == ItemKind.verse)) return r;
+    }
+    return null;
+  };
+  // первое слово первого видимого стиха
+  tourResolvers['word'] = () {
+    for (final (b, _) in _visibleBlocks()) {
+      for (final k in b._keys) {
+        final ro = k.currentContext?.findRenderObject();
+        RenderParagraph? para;
+        if (ro is RenderParagraph) {
+          para = ro;
+        } else {
+          void find(RenderObject o) {
+            if (para != null) return;
+            if (o is RenderParagraph) {
+              para = o;
+              return;
+            }
+            o.visitChildren(find);
+          }
+
+          if (ro != null) find(ro);
+        }
+        final pr = para;
+        if (pr == null || !pr.attached) continue;
+        final text = pr.text.toPlainText(includeSemanticsLabels: false, includePlaceholders: true);
+        final m = RegExp(r'\p{L}+', unicode: true).firstMatch(text);
+        if (m == null) continue;
+        final boxes = pr.getBoxesForSelection(TextSelection(baseOffset: m.start, extentOffset: m.end));
+        if (boxes.isEmpty) continue;
+        var rect = boxes.first.toRect();
+        for (final x in boxes.skip(1)) {
+          rect = rect.expandToInclude(x.toRect());
+        }
+        return pr.localToGlobal(rect.topLeft) & rect.size;
+      }
+    }
+    return null;
+  };
+  // кнопка числа параллельных мест [⇅ n]
+  tourResolvers['xref'] = () {
+    final e = findElement((e) => e.widget is Text && ((e.widget as Text).data?.startsWith('[⇅') ?? false));
+    return rectOfElement(e);
+  };
+  // строка действий под выделенным стихом
+  tourResolvers['sel-inline'] = () {
+    for (final (b, r) in _visibleBlocks()) {
+      if (!b._segs.any((x) => x.after.isNotEmpty)) continue;
+      final last = _rectOf(b._keys.isEmpty ? null : b._keys.last.currentContext);
+      return last == null ? r : Rect.fromLTRB(r.left, last.bottom, r.right, r.bottom);
+    }
+    return null;
+  };
+}
+
 class _Block extends ConsumerStatefulWidget {
   const _Block({required this.view});
   final VerseView view;
@@ -172,6 +258,7 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
   void initState() {
     super.initState();
     _register();
+    _registerTourTargets();
     _flash.addStatusListener((st) {
       if (st == AnimationStatus.completed && mounted) setState(() => _flashVerse = null); // плашка мигания снимается
     });

@@ -38,14 +38,14 @@ Future<void> onWordTap(BuildContext context, WidgetRef ref, WordTap tap) async {
 
   // Слово подсвечено (.w.active), пока открыта выборка и статья, открытая из неё. Касание слова при открытой
   // выборке попадает на подложку и только закрывает её (markClosedOnWord) — выборка заново не открывается.
-  final mine = (pane: tap.pane, ref: tap.ref, token: tap.tokenIndex);
-  activeWord.value = mine;
+  // номер слова подсветки ставит читалка при нажатии (номер слова в стихе, а не tokenIndex) — здесь только снимаем
+  final mine = activeWord.value;
   Future<void>? following; // статья, открытая выбором пункта
   try {
     await _showPopover(context, ref, tap, res, hubItems, anchor, (f) => following = f);
     if (following != null) await following;
   } finally {
-    if (activeWord.value == mine) activeWord.value = null;
+    if (mine != null && activeWord.value == mine) activeWord.value = null;
   }
 }
 

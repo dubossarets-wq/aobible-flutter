@@ -16,8 +16,8 @@ import 'xrefs_sheet.dart';
 
 VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String moduleId, ReaderItem item, String book) {
   if (item.kind != ItemKind.verse) return null;
-  final cfg = ref.watch(settingsProvider.select((s) => (s.get<bool>('showXrefButtons'), s.get<bool>('showIllustrations'), s.j['bookMode'] == true, s.j['inlineCommentaries'], s.d('fontSize'))));
-  final (showXref, showIllus, bookMode, inline, fs) = cfg;
+  final cfg = ref.watch(settingsProvider.select((s) => (s.get<bool>('showXrefButtons') && s.j['focusMode'] != true, s.get<bool>('showIllustrations'), s.j['bookMode'] == true, s.j['inlineCommentaries'], s.d('fontSize'))));
+  final (showXref, showIllus, bookMode, inline, fs) = cfg; // в режиме чтения [⇅ n] скрыты, как в веб-версии
   final key = item.chapter * 1000 + item.verse;
   final at = VerseRef(book, item.chapter, item.verse);
   final spans = <InlineSpan>[];

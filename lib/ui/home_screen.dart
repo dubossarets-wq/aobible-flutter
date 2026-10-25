@@ -13,7 +13,6 @@ import '../core/modules.dart';
 import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
-import '../features/shell/library_sheet.dart' show openLibrary;
 import 'kit.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
@@ -431,12 +430,12 @@ class _ModulePicker extends ConsumerWidget {
                     Tooltip(message: t('Основной перевод'), child: SizedBox(width: 32, height: 32, child: Center(child: CustomPaint(size: const Size(16, 16), painter: _StarPainter(pal.accent))))),
                 ]),
               ),
-            if (Hub.openLibrary != null)
+            if (Hub.openLibraryTab != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: AobButton(label: t('Другие переводы'), icon: LucideIcons.library, wide: true, onTap: () {
                   Navigator.pop(context);
-                  openLibrary(outer, tab: 'catalog'); // сразу вкладка «Каталог»
+                  Hub.openLibraryTab?.call(outer, 'catalog'); // сразу вкладка «Каталог»
                 }),
               ),
           ]),

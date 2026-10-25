@@ -53,8 +53,8 @@ dependencies:
   webview_flutter: ^4.14.1
   lucide_icons_flutter: ^4.0.1
   flutter_svg: ^2.3.0
-  flutter_tts: ^4.2.5
-
+  sherpa_onnx: 1.13.8
+  archive: ^4.5.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

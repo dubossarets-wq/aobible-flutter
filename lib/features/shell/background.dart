@@ -45,6 +45,9 @@ class UserBg {
     version.value++;
   }
 
+  /// Уже прочитанная картинка (или null) — чтобы фон не мигал при перерисовке
+  static Uint8List? get cached => _loaded ? _cache : null;
+
   static Future<Uint8List?> load() async {
     if (_loaded) return _cache;
     try {
@@ -114,6 +117,7 @@ class ReaderBackground extends ConsumerWidget {
       valueListenable: UserBg.version,
       builder: (context, _, _) => FutureBuilder<Uint8List?>(
         future: UserBg.load(),
+        initialData: UserBg.cached,
         builder: (context, snap) {
           final bytes = snap.data;
           if (bytes == null) return const SizedBox.shrink();
