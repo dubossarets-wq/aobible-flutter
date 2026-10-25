@@ -147,8 +147,10 @@ class SheetScaffold extends ConsumerWidget {
         style: TextStyle(color: pal.text, fontSize: 15),
         child: Column(children: [
           drag,
-          Expanded(child: body),
+          // вкладки лежат поверх окна: внизу тела (или под нижней панелью) — отступ под них
+          Expanded(child: tabInsetBuilder(context, (inset) => footer != null ? body : Padding(padding: EdgeInsets.only(bottom: inset), child: body))),
           if (footer != null) Container(padding: const EdgeInsets.fromLTRB(16, 10, 16, 10), decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))), child: footer),
+          if (footer != null) tabInsetBuilder(context, (inset) => SizedBox(height: inset)),
         ]),
       ),
     );

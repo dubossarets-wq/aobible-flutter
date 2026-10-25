@@ -245,7 +245,7 @@ class _WordCard extends ConsumerWidget {
                 width: double.infinity,
                 child: Directionality(
                   textDirection: heb ? TextDirection.rtl : TextDirection.ltr,
-                  child: Text(w.lemma!, textAlign: heb ? TextAlign.right : TextAlign.left, style: const TextStyle(fontSize: 18.4)),
+                  child: Text(w.lemma!, textAlign: heb ? TextAlign.right : TextAlign.left, style: TextStyle(fontFamily: heb ? 'Noto Serif Hebrew' : null, fontSize: 18.4)),
                 ),
               ),
             Text(meta, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: 12, color: pal.muted)),

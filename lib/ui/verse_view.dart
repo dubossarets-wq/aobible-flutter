@@ -412,7 +412,9 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     final pal = s.palette;
     final rtl = Directionality.of(context) == TextDirection.rtl;
     final align = s.get<String>('textAlign') == 'justify' ? TextAlign.justify : (rtl ? TextAlign.start : textAlignOf(s));
-    final style = readerTextStyle(s).copyWith(color: pal.text, height: s.d('lineHeight'));
+    // иврит — своим шрифтом, как .text-col[dir="rtl"] { font-family: var(--font-hebrew) } в веб-версии
+    final base = readerTextStyle(s).copyWith(color: pal.text, height: s.d('lineHeight'));
+    final style = rtl ? base.copyWith(fontFamily: 'Noto Serif Hebrew', fontFamilyFallback: const ['Noto Serif'], fontVariations: null) : base;
     final hl = v.mark?.query != null;
     Widget paint(double hlOpacity) => Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PlatePainter(seg.key, seg.plates, _flash, hlOpacity))));
     final text = Text.rich(key: seg.key, seg.span, textAlign: align, style: style);
@@ -530,7 +532,8 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
       vr.end = at;
 
       // Подложки этого стиха
-      final bgColor = selected ? (cont ? mix(pal.accent, 0.16, pal.panel) : pal.line) : decors.map((d) => d.background).whereType<Color>().firstOrNull;
+      // выделенный стих — 9 % акцента поверх страницы, как .verse.selected в веб-версии (не цвет линии: в «Контрасте» он тёмный)
+      final bgColor = selected ? (cont ? mix(pal.accent, 0.16, pal.panel) : mix(pal.accent, 0.09, pal.bg)) : decors.map((d) => d.background).whereType<Color>().firstOrNull;
       if (cont) {
         if (bgColor != null) cur.plates.add(_Plate(vr.start, textEnd, bgColor, unify: true));
       } else {

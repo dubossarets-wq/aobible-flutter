@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../plans/loc.dart';
+import '../shell/tour_targets.dart' show tourKey;
 import '../plans/ui_kit.dart';
 import '../plans/verse_text.dart';
 import 'sermon_store.dart';
@@ -66,7 +67,7 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
         title: t('Добавлено'),
         scroll: false,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child: Column(key: tourKey('sermon-done'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: Center(
               child: Container(
@@ -105,16 +106,18 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
       subtitle: _label,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // .sermon-new: подпись и «поле + Создать», промежуток 6
-        Text(sermons.isNotEmpty ? t('Новая проповедь') : t('Назовите проповедь'), style: TextStyle(fontWeight: FontWeight.w500, color: pal.text)),
-        const SizedBox(height: 6),
-        // IntrinsicHeight: окно прокручивается, высота не ограничена — stretch тянется до высоты поля
-        IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(child: PlainInput(controller: _title, autofocus: sermons.isEmpty, hint: t('Например: Благодать Божья'), onSubmitted: (_) => _createAndAdd())),
-            const SizedBox(width: 8),
-            AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _createAndAdd),
-          ]),
-        ),
+        Column(key: tourKey('sermon-new'), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(sermons.isNotEmpty ? t('Новая проповедь') : t('Назовите проповедь'), style: TextStyle(fontWeight: FontWeight.w500, color: pal.text)),
+          const SizedBox(height: 6),
+          // IntrinsicHeight: окно прокручивается, высота не ограничена — stretch тянется до высоты поля
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: PlainInput(controller: _title, autofocus: sermons.isEmpty, hint: t('Например: Благодать Божья'), onSubmitted: (_) => _createAndAdd())),
+              const SizedBox(width: 8),
+              AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _createAndAdd),
+            ]),
+          ),
+        ]),
         if (sermons.isNotEmpty) ...[
           const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
           GroupTitle(t('Или выберите проповедь')),

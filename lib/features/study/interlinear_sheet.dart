@@ -229,7 +229,7 @@ class _Cell extends ConsumerWidget {
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Directionality(textDirection: hebrew ? TextDirection.rtl : TextDirection.ltr, child: Text(w.text, style: TextStyle(fontSize: hebrew ? 24 : 21.6, height: 1.25, color: pal.text))),
+              Directionality(textDirection: hebrew ? TextDirection.rtl : TextDirection.ltr, child: Text(w.text, style: TextStyle(fontFamily: hebrew ? 'Noto Serif Hebrew' : null, fontSize: hebrew ? 24 : 21.6, height: 1.25, color: pal.text))),
               Text(tr.isEmpty ? ' ' : tr, style: TextStyle(fontSize: 12.48, color: pal.muted, fontStyle: FontStyle.italic)), // .il-tr
               Text(
                 w.gloss.isEmpty ? ' ' : w.gloss,

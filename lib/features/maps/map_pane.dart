@@ -174,7 +174,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
             tooltip: _clean ? t('Показать все наложения') : t('Только карта и точка'),
             icon: LucideIcons.layers,
             size: 21,
-            color: _clean ? mix(pal.accent, 0.55, Colors.white) : fg,
+            color: _clean ? barOnColor(pal) : fg,
             onTap: !_ready
                 ? null
                 : () {
@@ -190,7 +190,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
             tooltip: _sat ? t('Обычная карта') : t('Спутник'),
             icon: _sat ? LucideIcons.map : LucideIcons.satellite,
             size: 21,
-            color: _sat ? mix(pal.accent, 0.55, Colors.white) : fg,
+            color: _sat ? barOnColor(pal) : fg,
             onTap: !_ready
                 ? null
                 : () {

@@ -393,7 +393,7 @@ class StrongEntry extends ConsumerWidget {
       if (lemma != null && lemma.isNotEmpty)
         Align(
           alignment: isHeb ? Alignment.centerRight : Alignment.centerLeft,
-          child: Directionality(textDirection: dir, child: Text(lemma, style: TextStyle(fontSize: 36.8, height: 1.25, color: pal.text))),
+          child: Directionality(textDirection: dir, child: Text(lemma, style: TextStyle(fontFamily: isHeb ? 'Noto Serif Hebrew' : null, fontSize: 36.8, height: 1.25, color: pal.text))),
         ),
       const SizedBox(height: 12),
       _Facts(facts),

@@ -21,6 +21,12 @@ import 'search_screen.dart';
 /// Какая нижняя вкладка сейчас открыта: plans, search, bible, saved, more (activeTab в TabBar.jsx)
 final tabActive = ValueNotifier<String>('bible');
 
+/// Главный экран на месте (не первая загрузка) — только тогда показываются нижние вкладки
+final homeMounted = ValueNotifier<bool>(false);
+
+/// Высота вкладок: 4 + капсула 64 + 12 + системный отступ снизу
+double tabBarHeight(BuildContext context) => 80 + MediaQuery.paddingOf(context).bottom;
+
 // Короткое название перевода для верхней панели — не длиннее 5 знаков (moduleShort.js).
 // Длинным названиям — общепринятые сокращения, остальным — первые 5 знаков первого слова.
 const _shortNames = <String, String>{
@@ -54,6 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     tabActive.value = 'bible';
+    WidgetsBinding.instance.addPostFrameCallback((_) => homeMounted.value = true);
     ModuleStore.instance.changes.addListener(_repair);
     WidgetsBinding.instance.addPostFrameCallback((_) => _repair());
   }
@@ -61,6 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     ModuleStore.instance.changes.removeListener(_repair);
+    Future.microtask(() => homeMounted.value = false);
     super.dispose();
   }
 
@@ -103,7 +111,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           body: SafeArea(bottom: false, child: slots.length == 1 ? slots.first : _Split(columns: columns, first: slots[0], second: slots[1])),
           bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
             if (Hub.audioBar != null) Hub.audioBar!(context, ref),
-            if (!wide) const _FocusHide(down: true, child: _TabBar()),
+            // сами вкладки лежат поверх навигатора (TabBarOverlay); здесь — место под них, чтобы не закрывать чтение
+            if (!wide) _FocusHide(down: true, child: SizedBox(height: tabBarHeight(context))),
           ]),
         ),
       ),
@@ -125,11 +134,14 @@ class _FocusHide extends ConsumerWidget {
     final anim = ref.watch(settingsProvider.select((s) => s.get<bool>('animations')));
     final selecting = ref.watch(selectionProvider.select((m) => pane == null ? m.values.any((v) => v.isNotEmpty) : (m[pane]?.isNotEmpty ?? false)));
     final current = ModalRoute.of(context)?.isCurrent ?? true;
-    return ValueListenableBuilder<bool>(
+    return ValueListenableBuilder<int>(
+      valueListenable: sheetsOpen,
+      child: child,
+      builder: (_, open, child) => ValueListenableBuilder<bool>(
       valueListenable: focusHidden,
       child: child,
       builder: (_, hidden, child) {
-        final hide = focusMode && hidden && !selecting && current;
+        final hide = focusMode && hidden && !selecting && current && open == 0;
         final d = anim ? const Duration(milliseconds: 250) : Duration.zero;
         return ClipRect(
           child: AnimatedAlign(
@@ -141,6 +153,7 @@ class _FocusHide extends ConsumerWidget {
           ),
         );
       },
+      ),
     );
   }
 }
@@ -535,14 +548,17 @@ class _TabBarState extends ConsumerState<_TabBar> {
   int? _hover; // плашка идёт за пальцем
   Route<dynamic>? _bound; // окно, открытое с вкладки
 
-  void _call(PaneAction? a) => a == null ? Hub.toast(t('Скоро')) : a(context, ref, 0);
+  // Вкладки лежат выше навигатора: окна открываем и закрываем через контекст самого навигатора
+  BuildContext get _nav => Hub.navigatorKey.currentContext ?? context;
+
+  void _call(PaneAction? a) => a == null ? Hub.toast(t('Скоро')) : a(_nav, ref, 0);
 
   void _run(String id) {
     switch (id) {
       case 'plans':
         _call(Hub.openPlans);
       case 'search':
-        openSearch(context, 0);
+        openSearch(_nav, 0);
       case 'saved':
         _call(Hub.openBookmarks);
       case 'more':
@@ -552,12 +568,14 @@ class _TabBarState extends ConsumerState<_TabBar> {
 
   // «Библия» или повторное нажатие на открытую вкладку закрывает окно; остальные открывают своё окно поверх чтения
   void _open(String id) {
-    if (id == 'bible' || tabActive.value == id) return closeAllSheets(context);
-    final before = topRoute(context);
+    if (id == 'bible' || tabActive.value == id) return closeAllSheets(_nav);
+    // нажали вкладку при открытых окнах: сперва закрываем их все, потом открываем раздел
+    if (sheetsOpen.value > 0 || topRoute(_nav) is PopupRoute) closeAllSheets(_nav);
+    final before = topRoute(_nav);
     _run(id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final after = topRoute(context);
+      final after = topRoute(_nav);
       if (after == before || after is! PopupRoute) return;
       _bound = after;
       tabActive.value = id;
@@ -666,6 +684,31 @@ class _TabBarState extends ConsumerState<_TabBar> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Нижние вкладки поверх навигатора (.tabbar поверх .sheet): остаются видимыми и нажимаемыми над открытыми окнами,
+/// затемнение окон их не перекрывает. Только на узком экране, когда главный экран на месте.
+class TabBarOverlay extends StatelessWidget {
+  const TabBarOverlay({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: homeMounted,
+      builder: (context, mounted, _) {
+        // с клавиатурой вкладки прячутся (окно поднимается над ней)
+        final show = mounted && mq.size.width < 900 && mq.viewInsets.bottom == 0;
+        final inset = show ? tabBarHeight(context) : 0.0;
+        if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
+        return Stack(fit: StackFit.expand, children: [
+          child,
+          if (show) const Positioned(left: 0, right: 0, bottom: 0, child: _FocusHide(down: true, child: _TabBar())),
+        ]);
+      },
     );
   }
 }

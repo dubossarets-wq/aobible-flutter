@@ -54,7 +54,8 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
 
   // Фон: цвет выделения (45 % и 42 % прозрачности — как в веб-версии), иначе лёгкий розовый у любимого стиха
   Color? bg = hl != null
-      ? hl.color.withValues(alpha: hl.id == '1' || hl.id == '6' ? 0.45 : 0.42)
+      // в тёмных темах жёлтый — 36 %: на 45 % светлый текст терял контраст (ниже 4.5 по WCAG)
+      ? hl.color.withValues(alpha: hl.id == '1' ? (pal.dark ? 0.36 : 0.45) : hl.id == '6' ? 0.45 : 0.42)
       : fl.contains('f')
           ? loveColor.withValues(alpha: 0.09)
           : null;

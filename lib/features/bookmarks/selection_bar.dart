@@ -17,6 +17,7 @@ import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../shell/tour_targets.dart' show tourKey;
 import '../study/compare_sheet.dart' show openCompare;
 import 'marks.dart';
 import 'sheets.dart';
@@ -83,8 +84,9 @@ class _SelectionBar extends ConsumerWidget {
 
     // .tb-icon: круглая кнопка; на панели шире 400 px — 44×44, уже — 36 (container query в styles.css)
     final wide = MediaQuery.sizeOf(context).width >= 400;
-    final onColor = mix(pal.accent, 0.55, Colors.white); // .toolbar .tb-icon.on
-    Widget tb(Widget Function(Color c) icon, String tip, VoidCallback? f, {bool on = false}) => Tooltip(
+    final onColor = barOnColor(pal); // .toolbar .tb-icon.on — заметен и на светлой панели
+    Widget tb(Widget Function(Color c) icon, String tip, VoidCallback? f, {bool on = false, Key? key}) => Tooltip(
+          key: key,
           message: tip,
           child: SizedBox(
             width: wide ? 44 : 36,
@@ -92,14 +94,14 @@ class _SelectionBar extends ConsumerWidget {
             child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: f, child: Center(child: icon(on ? onColor : pal.barText)))),
           ),
         );
-    Widget lucide(IconData i, double size, String tip, VoidCallback f, {bool on = false}) => tb((c) => Icon(i, size: size, color: c), tip, f, on: on);
+    Widget lucide(IconData i, double size, String tip, VoidCallback f, {bool on = false, Key? key}) => tb((c) => Icon(i, size: size, color: c), tip, f, on: on, key: key);
 
     return Container(
       height: 54,
       padding: const EdgeInsets.only(left: 8, right: 4),
       decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, const Color(0x40000000)), offset: const Offset(0, 1))]),
       child: Row(children: [
-        lucide(LucideIcons.x, 24, t('Готово, снять выделение'), done),
+        lucide(LucideIcons.x, 24, t('Готово, снять выделение'), done, key: pane == 0 ? tourKey('sel-done') : null), // цель инструкции
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(left: 4),
@@ -108,24 +110,14 @@ class _SelectionBar extends ConsumerWidget {
               builder: (context, box) => FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: math.max(box.maxWidth - 40, 60)),
+                // число выделенных стихов в кружке убрано по просьбе владельца — подпись «Быт. 1:7–9» и так его показывает
+                child: Semantics(
+                  label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: math.max(box.maxWidth, 60)),
                     child: Text(selectionLabel(refs), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(color: pal.barText, fontWeight: FontWeight.w500, fontSize: wide ? 16.8 : 15.2)),
                   ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 22),
-                      height: 22,
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)),
-                      child: Text('${refs.length}', style: TextStyle(color: pal.onAccent, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
-                    ),
-                  ),
-                ]),
+                ),
               ),
             ),
           ),
@@ -163,7 +155,10 @@ class _SelectionBar extends ConsumerWidget {
           done();
         }, on: hasNote),
         lucide(bm ? LucideIcons.bookmarkCheck : LucideIcons.bookmark, 21, bm ? t('Убрать закладку') : t('Закладка: продолжить отсюда'), toggleBm, on: bm),
+        // «Копировать» — значком на панели (раньше — в меню «⋯»)
+        lucide(LucideIcons.copy, 20, t('Копировать'), copy),
         PopupMenuButton<VoidCallback>(
+          key: pane == 0 ? tourKey('sel-more') : null, // цель инструкции
           tooltip: t('Ещё действия'),
           color: pal.panel,
           shape: _menuShape(pal),
@@ -189,7 +184,6 @@ class _SelectionBar extends ConsumerWidget {
               if (Hub.compareTranslations != null) item(LucideIcons.bookCopy, t('Сравнить переводы'), () => Hub.compareTranslations!(c, r, refs, moduleId)),
               if (refs.length == 1 && Hub.openXrefs != null) item(LucideIcons.link2, t('Параллельные места'), () => Hub.openXrefs!(c, r, pane, first)),
               if (Hub.listenFrom != null) item(LucideIcons.headphones, t('Слушать отсюда'), () => Hub.listenFrom!(c, r, pane, first)),
-              item(LucideIcons.copy, t('Копировать'), copy),
               if (Hub.openVerseImage != null) item(LucideIcons.image, t('Картинка со стихом'), () => Hub.openVerseImage!(c, r, refs, moduleId)),
               item(LucideIcons.share2, t('Поделиться'), share),
             ];

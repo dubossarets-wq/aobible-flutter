@@ -17,7 +17,7 @@ void register() {
   Hub.openBookmarks = openBookmarksPage;
   Hub.onVerseDoubleTap = onVerseDoubleTap;
   Hub.addFavoritePart = addFavoritePart;
-  Hub.moreItems.addAll(moreItems());
+  // «Закладка на это место» / «К последней закладке» (с подписью места) — в меню «Ещё» самой оболочки (more_sheet.dart)
   // register() вызывается заново при смене языка: задания запуска не дублируем. Копия — раньше переноса из старого приложения
   Hub.afterStart
     ..remove(bootBackup)

@@ -22,6 +22,19 @@ Color mix(Color a, double p, Color b) {
 
 const double kRadius = 12; // --radius
 
+/// Включённый значок на панели инструментов (.toolbar .tb-icon.on): на тёмной панели — акцент, осветлённый белым;
+/// на светлой («Мята», «Лаванда», «Закат») осветлённый сливался с панелью — там полный акцент, если он отличим от текста
+Color barOnColor(Palette pal) {
+  final light = pal.bar.computeLuminance() > 0.5;
+  final x = pal.accent.computeLuminance(), y = pal.barText.computeLuminance();
+  final distinct = (x > y ? (x + 0.05) / (y + 0.05) : (y + 0.05) / (x + 0.05)) > 1.5; // в «Светлой» акцент почти как текст
+  return light && distinct ? pal.accent : mix(pal.accent, 0.55, Colors.white);
+}
+
+/// Текст цвета акцента на плашке «акцент 12 %» (номер Стронга, выбранный раздел): чуть ближе к цвету текста —
+/// иначе в тёплых темах контраст ниже 4.5 (WCAG)
+Color accentOnTint(Palette pal) => mix(pal.accent, 0.85, pal.text);
+
 /// Палитра текущей темы (со своими цветами)
 Palette paletteOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.palette));
 
@@ -67,6 +80,39 @@ Route<dynamic>? topRoute(BuildContext context) {
 
 /// Закрыть все открытые окна (нижние окна, окна изучения, меню) — до экрана чтения
 void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) => r is! PopupRoute);
+
+/// Высота нижних вкладок вместе с отступами (0 — вкладок нет: широкий экран, первая загрузка).
+/// Вкладки лежат поверх окон (.tabbar поверх .sheet), поэтому внизу окон — отступ такой высоты
+/// (html.has-tabbar .sheet-body { padding-bottom: 20px + --tabbar-h }).
+final tabBarInset = ValueNotifier<double>(0);
+
+/// Сколько нижних окон (и меню) сейчас открыто — вкладки в режиме чтения не прячутся, пока окно открыто
+final sheetsOpen = ValueNotifier<int>(0);
+
+/// Следит за окнами: считает открытые PopupRoute (подключается в MaterialApp.navigatorObservers)
+class SheetObserver extends NavigatorObserver {
+  void _set(int d) => Future.microtask(() => sheetsOpen.value = (sheetsOpen.value + d).clamp(0, 99));
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PopupRoute) _set(1);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PopupRoute) _set(-1);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PopupRoute) _set(-1);
+  }
+}
+
+/// Отступ под вкладки для окна (с клавиатурой вкладки спрятаны — отступа нет)
+Widget tabInsetBuilder(BuildContext context, Widget Function(double inset) build) => ValueListenableBuilder<double>(
+      valueListenable: tabBarInset,
+      builder: (c, v, _) => build(MediaQuery.viewInsetsOf(c).bottom > 0 ? 0 : v),
+    );
 
 class _Nested extends InheritedWidget {
   const _Nested({required this.nested, required super.child});
@@ -133,7 +179,13 @@ class AobSheet extends ConsumerWidget {
             IconBtn(icon: LucideIcons.x, tooltip: t('Закрыть'), onTap: onClose ?? () => closeAllSheets(context)),
           ]),
         ),
-        Expanded(child: scroll ? SingleChildScrollView(child: body) : body),
+        // внизу — отступ под вкладки, лежащие поверх окна
+        Expanded(
+          child: tabInsetBuilder(
+            context,
+            (inset) => scroll ? SingleChildScrollView(child: Column(children: [body, SizedBox(height: inset)])) : Padding(padding: EdgeInsets.only(bottom: inset), child: body),
+          ),
+        ),
       ]),
     );
   }

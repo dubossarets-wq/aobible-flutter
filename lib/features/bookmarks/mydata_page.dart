@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/i18n.dart';
 import '../../ui/kit.dart';
+import '../shell/tour_targets.dart' show tourKey;
 import 'ui.dart';
 import 'userdata.dart';
 
@@ -78,10 +79,10 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
     TextStyle note() => TextStyle(fontSize: 14.7, height: 1.5, color: pal.muted);
 
     // .pref-btns: кнопки в ряд, у каждой не уже 180 px — на узком экране переносятся
-    Widget btns(List<Widget> children) => LayoutBuilder(
+    Widget btns(List<Widget> children, {Key? key}) => LayoutBuilder(
           builder: (_, c) {
             final two = c.maxWidth >= 2 * 180 + 8;
-            return Wrap(spacing: 8, runSpacing: 8, children: [for (final w in children) SizedBox(width: two ? (c.maxWidth - 8) / 2 : c.maxWidth, child: w)]);
+            return Wrap(key: key, spacing: 8, runSpacing: 8, children: [for (final w in children) SizedBox(width: two ? (c.maxWidth - 8) / 2 : c.maxWidth, child: w)]);
           },
         );
 
@@ -97,7 +98,7 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
             btns([
               AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.download, label: t('Сохранить в файл'), onTap: _save),
               AobButton(wide: true, icon: LucideIcons.upload, label: t('Восстановить из файла'), onTap: _pick),
-            ]),
+            ], key: tourKey('pref-btns')), // цель инструкции
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(fontSize: 15, height: 1.4, color: Color(0xffb4412f)))),
             if (d != null)
               Container(

@@ -139,6 +139,7 @@ bool _selected(TourApi a) => a.ref.read(selectionProvider)[0]?.isNotEmpty ?? fal
 bool _second(TourApi a) => a.ref.read(panesProvider).length > 1;
 bool _mapOpen(TourApi a) => a.ref.read(mapPaneProvider) != null;
 bool _wordPop() => hasType('_Popover');
+bool _menuPopup() => hasText(t('Картинка со стихом'));
 bool _menuOpen() => hasText(t('Ещё')) && sheetOpen();
 
 void _openMenu(TourApi a, bool phone) {
@@ -147,16 +148,22 @@ void _openMenu(TourApi a, bool phone) {
 
 /// Пункт меню ⋮ / листа «Ещё» по подписи — для подсветки
 Rect? _menuItem(String text) {
-  if (!sheetOpen()) return null;
   final label = t(text);
-  final e = findElement((e) => e.widget is Text && ((e.widget as Text).data ?? '') == label);
+  final e = findElement((e) => e.widget is Text && ((e.widget as Text).data ?? '') == label, first: false); // верхний слой: меню — поверх окон
   final r = rectOfElement(e);
   return r == null ? null : Rect.fromLTRB(r.left - 44, r.top - 12, r.right + 16, r.bottom + 12);
 }
 
 /// Подсвечиваемое место, заданное функцией: id 'menu:<подпись>' ищет пункт меню по подписи, 'pref:<подпись>' — строку настроек
 Rect? _special(String id) {
-  if (id.startsWith('menu:') || id.startsWith('pref:')) return _menuItem(id.substring(id.indexOf(':') + 1));
+  if (id.startsWith('menu:') || id.startsWith('pref:')) {
+    // «pref:А|Б|В» — подписи по очереди: берём первую найденную (на iOS нет «Проверить обновления»)
+    for (final x in id.substring(id.indexOf(':') + 1).split('|')) {
+      final r = _menuItem(x);
+      if (r != null) return r;
+    }
+    return null;
+  }
   return null;
 }
 
@@ -169,8 +176,8 @@ Rect? stepRect(TourStep s) {
 final tourDefs = <TourDef>[
   TourDef('read', LucideIcons.bookOpen, 'Перейти к книге, главе, стиху', 'Основное', (phone) => [
     TourStep('Нажмите — откроется список книг.', target: 'tb-ref', next: (a) => a.click(targetRect('tb-ref'))),
-    TourStep('Цвет — это раздел: Пятикнижие, пророки, Евангелия… Выберите книгу, главу и стих.', target: 'sheet', before: (a) => sheetOpen() ? null : a.openSheet('nav'), until: (a) => !sheetOpen()),
-    TourStep('Или впишите ссылку, например «Ин 3:16», и нажмите стрелку.', target: 'sheet', before: (a) => sheetOpen() ? null : a.openSheet('nav'), until: (a) => !sheetOpen()),
+    TourStep('Цвет — это раздел: Пятикнижие, пророки, Евангелия… Выберите книгу, главу и стих.', target: 'nav-grid', before: (a) => sheetOpen() ? null : a.openSheet('nav'), until: (a) => !sheetOpen()),
+    TourStep('Или впишите ссылку, например «Ин 3:16», и нажмите стрелку.', target: 'ref-form', before: (a) => sheetOpen() ? null : a.openSheet('nav'), until: (a) => !sheetOpen()),
     TourStep('Стрелка «назад» вернёт туда, где вы были.', target: 'tb-hist', before: (a) => a.closeSheet()),
   ]),
   TourDef('word', LucideIcons.mousePointerClick, 'Значение слова', 'Основное', (phone) => [
@@ -178,32 +185,33 @@ final tourDefs = <TourDef>[
     TourStep(
       'Вот словари с этим словом. Нажмите на любой — откроется статья.',
       target: 'word-pop',
+      next: (a) => a.click(targetRect('word-pop-item')),
       before: (a) => !_wordPop() && !sheetOpen() ? a.click(targetRect('word')) : null,
       until: (a) => sheetOpen() || _mapOpen(a),
     ),
-    TourStep('Это статья (или карта, если выбрали место). Закрыть — крестик вверху справа.', target: 'sheet', until: (a) => !sheetOpen() && !_mapOpen(a)),
+    TourStep('Это статья (или карта, если выбрали место). Закрыть — крестик вверху справа.', target: 'sheet-close', until: (a) => !sheetOpen() && !_mapOpen(a)),
     TourStep('Снять выделение — нажмите в любом другом месте.', before: (a) => a.reset()),
   ]),
   TourDef('verse', LucideIcons.highlighter, 'Действия со стихом', 'Основное', (phone) => [
     TourStep('Зажмите стих на полсекунды — он выделится.', target: 'verse', next: (a) => a.selectVerse(), until: _selected),
     TourStep('Вверху — действия: перевод рядом, комментарии, цвет, заметка, закладка. «⋯» — ещё.', target: 'selection-bar', before: (a) => a.selectVerse()),
     TourStep('Под стихом — «Слушать» и «В проповедь».', target: 'sel-inline', before: (a) => a.selectVerse()),
-    TourStep('Галочка слева вверху снимает выделение. Нажмите её.', target: 'selection-bar', until: (a) => !_selected(a)),
+    TourStep('Галочка слева вверху снимает выделение. Нажмите её.', target: 'sel-done', until: (a) => !_selected(a)),
     TourStep('Совет: дважды коснитесь стиха — он станет любимым (сердечко).', before: (a) => a.reset()),
   ]),
   TourDef('xref', LucideIcons.link2, 'Параллельные места', 'Основное', (phone) => [
     TourStep('Число после стиха — сколько у него параллельных мест. Нажмите на него.', target: 'xref', next: (a) => a.click(targetRect('xref')), until: (a) => sheetOpen()),
     TourStep('Здесь места Библии о том же. Нажмите на любое — оно откроется на второй половине экрана.', target: 'sheet', before: (a) => !sheetOpen() ? a.click(targetRect('xref')) : null, until: (a) => !sheetOpen() && _second(a)),
-    TourStep('Место открылось внизу (или справа). Закрыть — крестик вверху.', target: 'tb-split', until: (a) => !_second(a) && !sheetOpen()),
+    TourStep('Место открылось внизу (или справа). Закрыть — крестик вверху.', target: 'tb-split-close', until: (a) => !_second(a) && !sheetOpen()),
   ]),
   TourDef('split', LucideIcons.columns2, 'Два перевода рядом', 'Основное', (phone) => [
     TourStep('Эта кнопка делит экран надвое — в каждой части свой перевод. Нажмите её.', target: 'tb-split', next: (a) => !_second(a) ? a.click(targetRect('tb-split')) : null, until: _second),
-    TourStep('Перевод меняется кнопкой с его названием.', target: 'tb-module'),
+    TourStep('Перевод меняется кнопкой с его названием.', target: 'tb-module-2'),
     TourStep('Крестик на месте той же кнопки закрывает вторую часть.', target: 'tb-split', until: (a) => !_second(a)),
   ]),
   TourDef('search', LucideIcons.search, 'Поиск', 'Основное', (phone) => [
     TourStep('Нажмите на лупу.', target: phone ? 'tab-search' : 'tb-search', next: (a) => a.openSheet('search'), until: (a) => sheetOpen()),
-    TourStep('Введите слово — места появятся сразу. Или ссылку: «Ин 3:16».', target: 'sheet', before: (a) => sheetOpen() ? null : a.openSheet('search')),
+    TourStep('Введите слово — места появятся сразу. Или ссылку: «Ин 3:16».', target: 'sheet-input', before: (a) => sheetOpen() ? null : a.openSheet('search')),
   ]),
   TourDef('saved', LucideIcons.heart, 'Закладки, заметки, любимые', 'Мои записи', (phone) => [
     TourStep(phone ? 'Откройте «Ещё» — правая кнопка на нижней панели.' : 'Откройте меню — три точки вверху справа.', target: phone ? 'tab-more' : 'tb-more', next: (a) => _openMenu(a, phone), until: (a) => _menuOpen()),
@@ -214,9 +222,9 @@ final tourDefs = <TourDef>[
   ]),
   TourDef('sermons', LucideIcons.scrollText, 'Проповеди', 'Мои записи', (phone) => [
     TourStep('Зажмите стих, который понравился.', target: 'verse', next: (a) => a.selectVerse(), until: _selected),
-    TourStep('Нажмите «В проповедь».', target: 'sel-inline', before: (a) => a.selectVerse(), next: (a) => a.click(byTextRect(t('В проповедь'))), until: (a) => hasType('SermonAddSheet')),
-    TourStep('Впишите название и нажмите «Создать» — или выберите проповедь из списка. Стих добавится сам.', target: 'sheet', until: (a) => hasText(t('Открыть проповедь'))),
-    TourStep('Стих добавлен. «Открыть проповедь» — посмотреть её, «Читать дальше» — вернуться к чтению.', target: 'sheet', until: (a) => !hasText(t('Открыть проповедь'))),
+    TourStep('Нажмите «В проповедь».', target: 'sel-sermon', before: (a) => a.selectVerse(), next: (a) => a.click(targetRect('sel-sermon') ?? byTextRect(t('В проповедь'))), until: (a) => hasType('SermonAddSheet')),
+    TourStep('Впишите название и нажмите «Создать» — или выберите проповедь из списка. Стих добавится сам.', target: 'sermon-new', until: (a) => hasText(t('Открыть проповедь'))),
+    TourStep('Стих добавлен. «Открыть проповедь» — посмотреть её, «Читать дальше» — вернуться к чтению.', target: 'sermon-done', until: (a) => !hasText(t('Открыть проповедь'))),
     TourStep(phone ? 'Все проповеди — «Ещё» → «Проповеди».' : 'Все проповеди — в меню ⋮ → «Проповеди».', target: 'menu:Проповеди', before: (a) {
       a.reset();
       Timer(const Duration(milliseconds: 150), () => _openMenu(a, phone));
@@ -236,8 +244,11 @@ final tourDefs = <TourDef>[
   ]),
   TourDef('image', LucideIcons.image, 'Картинка со стихом', 'Чтение', (phone) => [
     TourStep('Зажмите стих.', target: 'verse', next: (a) => a.selectVerse(), until: _selected),
-    TourStep('Нажмите «⋯» — там «Картинка со стихом».', target: 'selection-bar', before: (a) => a.selectVerse()),
-    TourStep('Нажмите «Картинка со стихом».', target: 'menu:Картинка со стихом'),
+    TourStep('Нажмите «⋯» — там «Картинка со стихом».', target: 'sel-more', before: (a) => a.selectVerse(), next: (a) => _menuPopup() ? null : a.click(targetRect('sel-more')), until: (a) => _menuPopup()),
+    TourStep('Нажмите «Картинка со стихом».', target: 'menu:Картинка со стихом', before: (a) {
+      a.selectVerse();
+      if (!_menuPopup()) Timer(const Duration(milliseconds: 150), () => _menuPopup() ? null : a.click(targetRect('sel-more')));
+    }, next: (a) => a.click(_menuItem('Картинка со стихом'))),
     TourStep('Выберите фон и формат. Двигайте текст пальцем, меняйте размер двумя. «Поделиться» — отправить.', target: 'sheet'),
   ]),
   TourDef('font', LucideIcons.type, 'Размер букв и оформление', 'Настройка', (phone) => [
@@ -255,11 +266,11 @@ final tourDefs = <TourDef>[
   ]),
   TourDef('data', LucideIcons.hardDrive, 'Перенос на другой телефон', 'Настройка', (phone) => [
     TourStep('Настройки → «Мои данные».', target: 'pref:Мои данные', before: (a) => a.openSheet('prefs'), next: (a) => a.click(_menuItem('Мои данные'))),
-    TourStep('«Сохранить в файл» — и отправьте в облако или мессенджер. На новом телефоне — «Восстановить из файла».', target: 'sheet'),
+    TourStep('«Сохранить в файл» — и отправьте в облако или мессенджер. На новом телефоне — «Восстановить из файла».', target: 'pref-btns'),
   ]),
   TourDef('updates', LucideIcons.refreshCw, 'Обновления', 'Настройка', (phone) => [
     TourStep('Приложение обновляется само — записи и настройки остаются.'),
-    TourStep('Здесь можно проверить обновления и вернуться к прежней версии.', target: 'pref:Что нового', before: (a) => a.openSheet('prefs')),
+    TourStep('Здесь можно проверить обновления и вернуться к прежней версии.', target: 'pref:Проверить обновления|Обновить приложение|Что нового', before: (a) => a.openSheet('prefs')),
   ]),
 ];
 
@@ -381,16 +392,18 @@ class _TourOverlayState extends ConsumerState<TourOverlay> with SingleTickerProv
     _frame++;
     final size = MediaQuery.sizeOf(context);
     final top = MediaQuery.paddingOf(context).top;
-    final W = size.width, H = size.height - MediaQuery.viewInsetsOf(context).bottom;
+    // нижние вкладки лежат поверх окон (и выше инструкции): кнопки «Назад / Далее» ставим над ними
+    final tabs = tabBarInset.value;
+    final W = size.width, Hf = size.height - MediaQuery.viewInsetsOf(context).bottom, H = Hf - tabs;
     final raw = stepRect(step);
     _goalRaw = step.target == null ? null : raw;
     final has = step.target != null && raw != null;
     final Rect goal = has
         ? Rect.fromLTRB(
             (raw.left - _pad).clamp(4, W - 4).toDouble(),
-            (raw.top - _pad).clamp(4, H - 4).toDouble(),
+            (raw.top - _pad).clamp(4, Hf - 4).toDouble(),
             (raw.right + _pad).clamp(4, W - 4).toDouble(),
-            (raw.bottom + _pad).clamp(4, H - 4).toDouble(),
+            (raw.bottom + _pad).clamp(4, Hf - 4).toDouble(),
           )
         : Rect.fromLTWH(W / 2, H / 2, 0, 0); // места нет — затемнён весь экран
     final ctrlH = (_ctrlKey.currentContext?.size?.height) ?? 110;
@@ -398,7 +411,7 @@ class _TourOverlayState extends ConsumerState<TourOverlay> with SingleTickerProv
     // Кнопки — внизу, а если место в нижней части экрана или доходит до низа — наверху
     final wantTop = has ? (goal.top + goal.bottom) / 2 > H * 0.6 || goal.bottom > H - ctrlH - 16 : false;
     final limTop = wantTop ? top + 10 + ctrlH + 10 : top + 10;
-    final limBot = wantTop ? H - 10 : H - MediaQuery.paddingOf(context).bottom - 12 - ctrlH - 10;
+    final limBot = wantTop ? H - 10 : H - (tabs > 0 ? 0 : MediaQuery.paddingOf(context).bottom) - 12 - ctrlH - 10;
     double y;
     String? side;
     if (!has) {
@@ -521,7 +534,7 @@ class _TourOverlayState extends ConsumerState<TourOverlay> with SingleTickerProv
               ),
           ]),
         ),
-        Positioned(left: left, top: _ctrlTop ? MediaQuery.paddingOf(context).top + 10 : null, bottom: _ctrlTop ? null : bottom + 12, child: ctrl),
+        Positioned(left: left, top: _ctrlTop ? MediaQuery.paddingOf(context).top + 10 : null, bottom: _ctrlTop ? null : (tabBarInset.value > 0 ? tabBarInset.value : bottom) + 12, child: ctrl),
       ]),
     );
   }

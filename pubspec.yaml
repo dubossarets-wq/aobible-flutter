@@ -55,6 +55,7 @@ dependencies:
   flutter_svg: ^2.3.0
   sherpa_onnx: 1.13.8
   archive: ^4.5.2
+  just_audio_windows: 0.2.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -107,6 +108,10 @@ flutter:
     - family: IBM Plex Sans
       fonts:
         - asset: assets/fonts/IBMPlexSans-Var.ttf
+    # иврит (оригинал ВЗ в читалке, подстрочник, словари) — Noto Serif Hebrew, SIL OFL 1.1
+    - family: Noto Serif Hebrew
+      fonts:
+        - asset: assets/fonts/NotoSerifHebrew-Var.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

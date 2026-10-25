@@ -11,6 +11,7 @@ import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../shell/tour_targets.dart' show tourKey;
 import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'lexicon.dart';
@@ -182,12 +183,13 @@ class _PopoverState extends ConsumerState<_Popover> {
   }
 
   /// .wp-item: как пункт меню — отступы 11/10/11/12, скругление 0.6·radius, подсветка нажатия accent 12%
-  Widget _item(Palette pal, List<Widget> children, VoidCallback? onTap) {
+  Widget _item(Palette pal, List<Widget> children, VoidCallback? onTap, {Key? key}) {
     final row = Padding(
       padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
       child: Row(children: children),
     );
     return Material(
+      key: key,
       type: MaterialType.transparency,
       borderRadius: BorderRadius.circular(kRadius * 0.6),
       clipBehavior: Clip.antiAlias,
@@ -232,7 +234,7 @@ class _PopoverState extends ConsumerState<_Popover> {
     for (final x in widget.before) {
       rows.add(place(x));
     }
-    for (final it in items) {
+    for (final (i, it) in items.indexed) {
       final isNum = RegExp(r'^[HG]\d').hasMatch(it.key);
       rows.add(_item(pal, [
         if (isNum)
@@ -240,7 +242,7 @@ class _PopoverState extends ConsumerState<_Popover> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.bg), borderRadius: BorderRadius.circular(7)),
-            child: Text(it.key, style: tabular.copyWith(fontSize: 14.08, fontWeight: FontWeight.w700, color: pal.accent)),
+            child: Text(it.key, style: tabular.copyWith(fontSize: 14.08, fontWeight: FontWeight.w700, color: accentOnTint(pal))),
           )
         else
           Text(it.label.isEmpty ? it.key : it.label, style: tabular.copyWith(fontWeight: FontWeight.w600)),
@@ -248,7 +250,7 @@ class _PopoverState extends ConsumerState<_Popover> {
         Expanded(child: Text(it.module.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: base.copyWith(color: pal.text))),
         const SizedBox(width: 10),
         go,
-      ], () => widget.onChoose(it.module, it.key)));
+      ], () => widget.onChoose(it.module, it.key), key: i == 0 ? tourKey('word-pop-item') : null)); // цель инструкции
     }
     for (final x in widget.after) {
       rows.add(place(x));

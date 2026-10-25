@@ -8,11 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
-import '../../core/panes.dart';
 import '../../core/settings.dart';
-import '../../ui/kit.dart' show LucideIcons;
 import '../hub.dart';
-import '../shell/shell.dart' show appVersion, menuFlag;
+import '../shell/shell.dart' show appVersion;
 import 'marks.dart';
 import 'userdata.dart';
 
@@ -67,51 +65,6 @@ void addFavoritePart(BuildContext context, WidgetRef ref, VerseRef at, String mo
   ref.read(marksProvider.notifier).setFavoritePart(at, text, from < to ? from : to, from < to ? to : from);
   Hub.toast(t('♥ Часть стиха — в любимых'));
 }
-
-// --- меню «Ещё» ---
-
-/// Меню не знает, из какой панели открыто: берём ту, которой человек касался последней
-int _pane(WidgetRef ref) {
-  final n = ref.read(panesProvider).length;
-  return SyncHub.driver < n ? SyncHub.driver : 0;
-}
-
-VerseRef _here(WidgetRef ref, int pane) => livePositions[pane]?.value ?? ref.read(panesProvider)[pane].ref;
-
-bool _marked(WidgetRef ref) {
-  final marks = ref.watch(marksProvider);
-  final panes = ref.watch(panesProvider);
-  if (panes.isEmpty) return false;
-  return marks.isBookmarked(_here(ref, _pane(ref)));
-}
-
-void _toggleBookmark(BuildContext context, WidgetRef ref, int pane) {
-  final panes = ref.read(panesProvider);
-  final p = pane < panes.length ? pane : 0;
-  final at = _here(ref, p);
-  final marks = ref.read(marksProvider);
-  final was = marks.isBookmarked(at);
-  final text = was ? '' : (verseText(panes[p].moduleId, at) ?? '');
-  ref.read(marksProvider.notifier).toggleBookmark(at, text.length <= 160 ? text : text.substring(0, 160));
-  Hub.toast(was ? t('Закладка удалена') : t('Закладка: {ref}', {'ref': Books.instance.formatRef(at.book, at.chapter, at.verse)}));
-}
-
-List<MoreItem> moreItems() => [
-      MoreItem(id: 'bookmark-here', icon: LucideIcons.bookmark, label: t('Закладка на это место'), order: 1, visible: (ref) => !_marked(ref), run: _toggleBookmark),
-      MoreItem(id: 'bookmark-off', icon: LucideIcons.bookmarkCheck, label: t('Убрать закладку'), order: 1, visible: _marked, run: _toggleBookmark),
-      MoreItem(
-        id: 'bookmark-last',
-        icon: LucideIcons.circlePlay,
-        label: t('К последней закладке'),
-        order: 2,
-        visible: (ref) => menuFlag(ref.watch(settingsProvider), 'lastBookmark') && ref.watch(marksProvider.select((m) => m.bookmarks.isNotEmpty)),
-        run: (context, ref, pane) {
-          // Самая новая закладка — первая в списке
-          final last = refOf(ref.read(marksProvider).bookmarks.first);
-          if (last != null) ref.read(panesProvider.notifier).navigate(pane < ref.read(panesProvider).length ? pane : 0, last);
-        },
-      ),
-    ];
 
 // --- автокопия данных при первом запуске новой версии ---
 

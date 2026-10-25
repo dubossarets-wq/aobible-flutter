@@ -348,7 +348,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
                       constraints: const BoxConstraints(minHeight: 44),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       alignment: Alignment.center,
-                      child: Text(t(s.$2), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: _scope == s.$1 ? pal.accent : pal.text)),
+                      child: Text(t(s.$2), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: _scope == s.$1 ? accentOnTint(pal) : pal.text)),
                     ),
                   ),
                 ),

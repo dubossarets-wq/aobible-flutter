@@ -231,7 +231,7 @@ class _StrongSearchCardState extends ConsumerState<StrongSearchCard> {
         Text('${t('Номер Стронга')} ${widget.num}', style: TextStyle(fontSize: 13.44, fontWeight: FontWeight.w700, color: pal.accent)),
         if (lemma != null && lemma.isNotEmpty) ...[
           const SizedBox(height: 3),
-          Directionality(textDirection: heb ? TextDirection.rtl : TextDirection.ltr, child: Text(lemma, style: TextStyle(fontSize: 24, height: 1.2, color: pal.text))),
+          Directionality(textDirection: heb ? TextDirection.rtl : TextDirection.ltr, child: Text(lemma, style: TextStyle(fontFamily: heb ? 'Noto Serif Hebrew' : null, fontSize: 24, height: 1.2, color: pal.text))),
         ],
         if (e?['xlit'] != null) ...[const SizedBox(height: 3), Text('${e!['xlit']}', style: TextStyle(color: pal.muted))],
         if (def != null && def.isNotEmpty) ...[

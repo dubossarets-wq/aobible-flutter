@@ -69,10 +69,46 @@ RegExp _tipRe(String template) {
   return RegExp('^${parts.join('.*')}\$', dotAll: true);
 }
 
-Rect? byTooltip(String template, {bool prefix = false}) {
+/// last — взять последний найденный (верхний слой / вторая панель), а не первый
+Rect? byTooltip(String template, {bool prefix = false, bool last = false}) {
   final re = prefix ? RegExp('^${RegExp.escape(template)}') : _tipRe(template);
-  final e = _cached('tip:$template$prefix', (e) => e.widget is Tooltip && re.hasMatch(((e.widget as Tooltip).message ?? '')));
+  final e = _cached('tip:$template$prefix$last', (e) => e.widget is Tooltip && re.hasMatch(((e.widget as Tooltip).message ?? '')), first: !last);
   return rectOfElement(e);
+}
+
+/// Есть ли у элемента предок, для которого test верен
+bool _inside(Element e, bool Function(Widget w) test) {
+  var found = false;
+  e.visitAncestorElements((a) {
+    if (test(a.widget)) {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
+/// Поле ввода вместе с рамкой вокруг него (.ref-form, input): поднимаемся от TextField, пока предок не выше 64 px
+Rect? _fieldBox(Element? tf) {
+  final first = rectOfElement(tf);
+  if (tf == null || first == null) return null;
+  var best = first;
+  tf.visitAncestorElements((a) {
+    final ar = rectOfElement(a);
+    if (ar == null || ar.height > 64 || ar.height < best.height - 0.5) return false;
+    if (ar.contains(best.topLeft) && ar.contains(best.bottomRight)) best = ar;
+    return true;
+  });
+  return best;
+}
+
+/// Пересечение с открытым окном: длинная сетка не должна выходить за экран
+Rect? _clipToSheet(Rect? r) {
+  final s = sheetRect();
+  if (r == null || s == null) return r;
+  final c = r.intersect(s);
+  return c.width <= 0 || c.height <= 0 ? null : c;
 }
 
 /// Подпись внизу экрана (вкладки нижней панели): Text с точным текстом в нижней четверти
@@ -126,6 +162,24 @@ Rect? targetRect(String id) {
       return byTooltip(t('Назад по истории'));
     case 'tb-split':
       return byTooltip(t('Читать параллельно')) ?? byTooltip(t('Закрыть вторую панель'));
+    case 'tb-module-2':
+      // .pane-slot.second .tb-module: кнопка перевода второй панели (она в дереве последняя), иначе первой
+      return byTooltip(t('Перевод: {name}. Сменить перевод'), last: true);
+    case 'nav-grid':
+      // .sheet .num-grid / .book-cat: сетка книг, глав или стихов в окне «Перейти»
+      return _clipToSheet(rectOfElement(_cached('nav-grid', (e) => e.widget is Wrap && _inside(e, (w) => w.runtimeType.toString() == 'NavigatorSheet'))));
+    case 'ref-form':
+      // .sheet .ref-form: строка «Книга или ссылка» со стрелкой
+      return _fieldBox(_cached('ref-form', (e) => e.widget is TextField && _inside(e, (w) => w.runtimeType.toString() == 'NavigatorSheet')));
+    case 'sheet-input':
+      // .sheet input: поле ввода в верхнем окне (поиск)
+      return _fieldBox(_cached('sheet-input', (e) => e.widget is TextField && _inside(e, (w) => w is AobSheet), first: false));
+    case 'sheet-close':
+      // .sheet [aria-label="Закрыть"] || .map-pane: крестик верхнего окна, а у карты — «Закрыть карту»
+      return byTooltip(t('Закрыть'), last: true) ?? byTooltip(t('Закрыть карту'));
+    case 'tb-split-close':
+      // второй части нет — подсвечено открытое окно (как «($('.pane-slot.second') ? tb-split : $('.sheet'))»)
+      return byTooltip(t('Закрыть вторую панель')) ?? sheetRect();
     case 'tb-search':
       return byTooltip(t('Поиск'));
     case 'tb-more':

@@ -17,6 +17,7 @@ import 'features/features.dart';
 import 'features/hub.dart';
 import 'ui/bootstrap_screen.dart';
 import 'ui/home_screen.dart';
+import 'ui/kit.dart' show SheetObserver;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,11 +84,12 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       title: 'AO Bible',
       scaffoldMessengerKey: Hub.messengerKey,
       navigatorKey: Hub.navigatorKey,
+      navigatorObservers: [SheetObserver()],
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true),
       // Строка состояния и нижняя системная панель — цвета темы. Через AnnotatedRegion: MaterialApp сам ставит
       // светлые/тёмные значки при каждой сборке, прямой вызов SystemChrome проиграл бы ему
-      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(value: systemBarsStyle(pal), child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(value: systemBarsStyle(pal), child: TabBarOverlay(child: child ?? const SizedBox.shrink())),
       home: _ready ? const HomeScreen() : BootstrapScreen(onReady: () => setState(() => _ready = true)),
     );
   }

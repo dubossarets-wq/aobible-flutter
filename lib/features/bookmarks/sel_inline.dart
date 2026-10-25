@@ -9,6 +9,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../shell/tour_targets.dart' show tourKey;
 
 /// onDone — снять выделение; onPart — начать выбор части стиха (если читалка это умеет, иначе кнопки нет)
 Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int pane, required String moduleId, required List<VerseRef> refs, required VoidCallback onDone, VoidCallback? onPart}) {
@@ -17,8 +18,9 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
   final narrow = MediaQuery.sizeOf(context).width <= 430; // на узком экране значки в кнопках скрыты
 
   // .sel-inline .btn: фон panel, рамка line, скругление 9, отступы 10×6, шрифт 13,8 (0,86rem), значок 16
-  Widget btn(IconData icon, String label, VoidCallback f) => Expanded(
+  Widget btn(IconData icon, String label, VoidCallback f, {Key? key}) => Expanded(
         child: Material(
+          key: key,
           color: pal.panel,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line)),
           clipBehavior: Clip.antiAlias,
@@ -60,7 +62,7 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
       btn(LucideIcons.scrollText, t('В проповедь'), () {
         Hub.addToSermon!(context, ref, refs, moduleId);
         onDone();
-      }),
+      }, key: pane == 0 ? tourKey('sel-sermon') : null), // цель инструкции
     if (refs.length == 1 && onPart != null) btn(LucideIcons.textSelect, t('Часть стиха'), onPart),
     if (Hub.openInterlinear != null)
       btn(LucideIcons.wholeWord, t('Подстрочник'), () {
