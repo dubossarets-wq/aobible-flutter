@@ -1299,5 +1299,18 @@
  "Под словами — значения по словарю, а не перевод.": "Unter den Wörtern stehen Wörterbuchbedeutungen, keine Übersetzung.",
  "Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.": "Die Septuaginta ist das griechische Alte Testament (Ausg. H. B. Swete). Unter dem Wort: Lesung, Bedeutung und Strong-Nummer. Tippen Sie auf ein Wort, um das Wörterbuch zu öffnen.",
  "В подстрочнике Ветхого Завета — вкладка «Септуагинта»: греческий текст Ветхого Завета (издание Свита), под каждым словом — его значение по словарю Стронга. Текст загружается сам при первом выборе.": "In der Interlinearübersetzung des Alten Testaments gibt es den Reiter „Septuaginta“: den griechischen Text des Alten Testaments (Ausgabe von Swete), unter jedem Wort seine Bedeutung aus dem Strong-Wörterbuch. Der Text wird bei der ersten Auswahl automatisch geladen.",
- "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Neu in der Bibliothek: die Septuaginta (LXX) — das griechische Alte Testament mit Strong-Nummern in synodaler Verszählung, lesbar neben der Synodalübersetzung."
+ "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Neu in der Bibliothek: die Septuaginta (LXX) — das griechische Alte Testament mit Strong-Nummern in synodaler Verszählung, lesbar neben der Synodalübersetzung.",
+ "Фотографии": "Fotos",
+ "Подряд": "Der Reihe nach",
+ "Параллельно": "Parallel",
+ "Свои книги": "Eigene Bücher",
+ "Притчи": "Sprüche",
+ "Выберите книги": "Bücher wählen",
+ "Разделы и глав в день": "Abschnitte und Kapitel pro Tag",
+ "{n} гл. в день": "{n} Kap. pro Tag",
+ "Короткие разделы начинаются заново, пока идут длинные.": "Kurze Abschnitte beginnen von vorn, solange die langen weiterlaufen.",
+ "Каждый день — понемногу из каждого раздела.": "Jeden Tag ein wenig aus jedem Abschnitt.",
+ "{list} параллельно": "{list} parallel",
+ "{books} и ещё {n}": "{books} und {n} weitere",
+ "Выбрано книг: {n}": "Ausgewählte Bücher: {n}"
 }

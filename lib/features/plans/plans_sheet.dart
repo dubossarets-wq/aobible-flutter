@@ -1,6 +1,7 @@
 // Планы чтения (PlansSheet.jsx): «Стих дня», активные планы с кольцом прогресса и кнопкой «Читать», напоминание,
 // сколько прочитано (кольцо «доля Библии», дни подряд, неделя), готовые планы с обложками и свой план.
 // Размеры и цвета — по styles.css (.plan-card, .read-hero, .plan-tile, .custom-plan…).
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -55,11 +56,52 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   String? _pick;
   late final _daysCtl = TextEditingController(text: '$_days');
   final _detailKey = GlobalKey();
+  // Свой план: режим, свои книги и разделы запоминаются (ключи веб-версии, JSON как в localStorage)
+  String _mode = 'seq';
+  List<String> _own = [];
+  Map<String, int> _streams = {'ot': 1, 'nt': 1, 'ps': 1};
+  int _parDays = 0; // сколько дней выйдет у параллельного плана
+
+  List<String> get _ownOrdered => [for (final b in Books.instance.all) if (_own.contains(b.id)) b.id];
+
+  void _loadCustom() {
+    try {
+      final m = prefs.getString('customPlanMode');
+      if (m != null) _mode = jsonDecode(m) == 'par' ? 'par' : 'seq';
+      final o = prefs.getString('customPlanBooks');
+      if (o != null) _own = [for (final x in jsonDecode(o) as List) '$x'];
+      final s = prefs.getString('customPlanStreams');
+      if (s != null) _streams = {for (final e in (jsonDecode(s) as Map).entries) '${e.key}': ((e.value as num).toInt()).clamp(1, 10)};
+    } catch (_) {}
+    _recalc();
+  }
+
+  void _recalc() => _parDays = _mode == 'par' ? parallelDays(streamList(_streams, _ownOrdered), chapterList) : 0;
+
+  void _setMode(String m) => setState(() {
+        _mode = m;
+        prefs.setString('customPlanMode', jsonEncode(m));
+        _recalc();
+      });
+
+  void _setStreams(Map<String, int> s) => setState(() {
+        _streams = s;
+        prefs.setString('customPlanStreams', jsonEncode(s));
+        _recalc();
+      });
+
+  void _toggleBook(String id) => setState(() {
+        _own = _own.contains(id) ? [for (final x in _own) if (x != id) x] : [..._own, id];
+        prefs.setString('customPlanBooks', jsonEncode(_own));
+        _recalc();
+      });
+
 
   @override
   void initState() {
     super.initState();
     ensureDict();
+    _loadCustom();
     fetchPlanIndex().then((i) => mounted ? setState(() => _index = i) : null, onError: (e) => mounted ? setState(() => _err = '$e'.replaceFirst('Exception: ', '')) : null);
   }
 
@@ -104,16 +146,32 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     }
   }
 
+  // «Исаия, Деяния» или «Исаия, Деяния и ещё 3»
+  String _ownLabel() {
+    final names = [for (final id in _ownOrdered) Books.instance.meta(id).name];
+    return names.length > 2 ? t('{books} и ещё {n}', {'books': names.take(2).join(', '), 'n': '${names.length - 2}'}) : names.join(', ');
+  }
+
   Future<void> _startCustom() async {
     final n = _days.clamp(7, 730);
     setState(() => _busy = 'custom');
     try {
-      final scope = planScopes.firstWhere((s) => s.id == _scope);
       await Future<void>.delayed(const Duration(milliseconds: 30)); // дать перерисоваться индикатору
-      final readings = makeCustomPlan(scope.books(), n);
+      if (_mode == 'par') {
+        final list = streamList(_streams, _ownOrdered);
+        final readings = makeParallelPlan(list, chapterList);
+        if (readings.isEmpty) throw Exception(t('Выберите книги'));
+        final names = [for (final x in list) x.key == 'own' ? _ownLabel() : t(planStreams.firstWhere((s) => s.key == x.key).short)].join(' + ');
+        _add({'planId': 'custom', 'name': t('{list} параллельно', {'list': names}), 'readings': readings});
+        return;
+      }
+      final books = _scope == 'own' ? _ownOrdered : planScopes.firstWhere((s) => s.id == _scope).books();
+      if (books.isEmpty) throw Exception(t('Выберите книги'));
+      final readings = makeCustomPlan(books, n);
       if (readings.isEmpty) throw Exception(t('Не удалось составить план'));
       // Глав меньше, чем дней (Евангелия за 730 дней) — дней столько, сколько глав
-      _add({'planId': 'custom', 'name': t('{scope} за {n} дн.', {'scope': t(scope.label), 'n': '${readings.length}'}), 'readings': readings});
+      final label = _scope == 'own' ? _ownLabel() : t(planScopes.firstWhere((s) => s.id == _scope).label);
+      _add({'planId': 'custom', 'name': t('{scope} за {n} дн.', {'scope': label, 'n': '${readings.length}'}), 'readings': readings});
     } catch (e) {
       if (mounted) toast(context, '$e'.replaceFirst('Exception: ', ''));
     } finally {
@@ -227,80 +285,115 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     );
   }
 
-  // Свой план — отдельной карточкой: что читать, за сколько дней, начать (.custom-plan)
-  Widget _customPlan(Palette pal, int days) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.panel),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: mix(pal.accent, 0.14, pal.panel)),
-              child: Icon(LucideIcons.calendarPlus, size: 22, color: pal.accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(t('Свой план'), style: TextStyle(fontSize: 16.8, fontWeight: FontWeight.w700, height: 1.25, color: pal.text)),
-                Padding(padding: const EdgeInsets.only(top: 2), child: Text(t('Главы делятся на дни поровну по числу стихов.'), style: TextStyle(fontSize: 13.4, color: pal.muted, height: 1.35))),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 14),
-          Text(t('Что читать'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted)),
-          const SizedBox(height: 10),
-          LayoutBuilder(builder: (_, c) {
-            final w = (c.maxWidth - 8) / 2;
-            return Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final (i, s) in planScopes.indexed)
-                SizedBox(
-                  width: i == 0 ? c.maxWidth : w,
-                  child: Material(
-                    color: _scope == s.id ? mix(pal.accent, 0.12, pal.bg) : pal.bg,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _scope == s.id ? pal.accent : pal.line, width: _scope == s.id ? 2 : 1)),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => setState(() => _scope = s.id),
-                      child: Container(
-                        constraints: const BoxConstraints(minHeight: 44),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        alignment: Alignment.center,
-                        child: Text(t(s.label), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: _scope == s.id ? pal.accent : pal.text)),
-                      ),
+  // Свой план — отдельной карточкой: режим, что читать, за сколько дней, начать (.custom-plan)
+  Widget _customPlan(Palette pal, int days) {
+    final par = _mode == 'par';
+    final needOwn = (par ? _streams.containsKey('own') : _scope == 'own') && _own.isEmpty;
+    final startLabel = par ? (_parDays > 0 ? t('Начать на {n} дн.', {'n': '$_parDays'}) : t('Выберите книги')) : t('Начать на {n} дн.', {'n': '$days'});
+    final off = _busy != null || needOwn || (par && _parDays == 0);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.panel),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: mix(pal.accent, 0.14, pal.panel)),
+            child: Icon(LucideIcons.calendarPlus, size: 22, color: pal.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(t('Свой план'), style: TextStyle(fontSize: 16.8, fontWeight: FontWeight.w700, height: 1.25, color: pal.text)),
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text(par ? t('Каждый день — понемногу из каждого раздела.') : t('Главы делятся на дни поровну по числу стихов.'), style: TextStyle(fontSize: 13.4, color: pal.muted, height: 1.35))),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Segmented<String>(value: _mode, onChanged: _setMode, options: [('seq', t('Подряд')), ('par', t('Параллельно'))]),
+        const SizedBox(height: 10),
+        if (par) ..._parallelBody(pal) else ..._seqBody(pal, days),
+        const SizedBox(height: 14),
+        _busy == 'custom' ? BusyButton(label: startLabel) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: startLabel, onTap: off ? null : _startCustom),
+      ]),
+    );
+  }
+
+  Widget _label(Palette pal, String s) => Text(s, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted));
+
+  // «Подряд»: раздел или свои книги за N дней
+  List<Widget> _seqBody(Palette pal, int days) => [
+        _label(pal, t('Что читать')),
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (_, c) {
+          final w = (c.maxWidth - 8) / 2;
+          final items = [for (final s in planScopes) (s.id, s.label), ('own', 'Свои книги')];
+          return Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final (i, s) in items.indexed)
+              SizedBox(
+                width: i == 0 ? c.maxWidth : w,
+                child: Material(
+                  color: _scope == s.$1 ? mix(pal.accent, 0.12, pal.bg) : pal.bg,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _scope == s.$1 ? pal.accent : pal.line, width: _scope == s.$1 ? 2 : 1)),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => setState(() => _scope = s.$1),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      alignment: Alignment.center,
+                      child: Text(t(s.$2), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: _scope == s.$1 ? pal.accent : pal.text)),
                     ),
                   ),
                 ),
-            ]);
-          }),
-          const SizedBox(height: 12),
-          Text(t('За сколько дней'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted)),
-          const SizedBox(height: 10),
-          Row(children: [
-            _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), onTap: () => _setDays(days - 1)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: PlainInput(
-                controller: _daysCtl,
-                height: 44,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 17.6, fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()]),
-                onChanged: (v) => setState(() => _days = int.tryParse(v) ?? 90),
-                onSubmitted: (_) => _setDays(_days),
               ),
+          ]);
+        }),
+        if (_scope == 'own') ...[const SizedBox(height: 10), _BookPicker(pal: pal, value: _own, onToggle: _toggleBook)],
+        const SizedBox(height: 12),
+        _label(pal, t('За сколько дней')),
+        const SizedBox(height: 10),
+        Row(children: [
+          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), onTap: () => _setDays(days - 1)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: PlainInput(
+              controller: _daysCtl,
+              height: 44,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 17.6, fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()]),
+              onChanged: (v) => setState(() => _days = int.tryParse(v) ?? 90),
+              onSubmitted: (_) => _setDays(_days),
             ),
-            const SizedBox(width: 8),
-            _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => _setDays(days + 1)),
-          ]),
-          const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => _setDays(n)),
-          ]),
-          const SizedBox(height: 14),
-          _busy == 'custom' ? BusyButton(label: t('Начать на {n} дн.', {'n': '$days'})) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Начать на {n} дн.', {'n': '$days'}), onTap: _busy != null ? null : _startCustom),
+          ),
+          const SizedBox(width: 8),
+          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => _setDays(days + 1)),
         ]),
-      );
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => _setDays(n)),
+        ]),
+      ];
+
+  // «Параллельно»: разделы с галочкой и числом глав в день (.cp-streams)
+  List<Widget> _parallelBody(Palette pal) => [
+        _label(pal, t('Разделы и глав в день')),
+        const SizedBox(height: 10),
+        for (final s in planStreams) ...[
+          _StreamRow(
+            pal: pal,
+            label: t(s.label),
+            per: _streams[s.key],
+            onToggle: () => _setStreams(_streams.containsKey(s.key) ? {for (final e in _streams.entries) if (e.key != s.key) e.key: e.value} : {..._streams, s.key: 1}),
+            onPer: (d) => _setStreams({..._streams, s.key: ((_streams[s.key] ?? 1) + d).clamp(1, 10)}),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (_streams.containsKey('own')) ...[_BookPicker(pal: pal, value: _own, onToggle: _toggleBook), const SizedBox(height: 10)],
+        Text(t('Короткие разделы начинаются заново, пока идут длинные.'), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
+      ];
 }
 
 /// .cp-presets .chip: плашка выше обычной (min-height 36, отступы 6/14)
@@ -327,19 +420,23 @@ class _Preset extends StatelessWidget {
       );
 }
 
-/// .cp-step: квадрат 44×44 со значком 18
+/// .cp-step: квадрат 44×44 со значком 18 (small — 34×34, скругление 10); выключенный — прозрачность 0,4
 class _Step extends StatelessWidget {
-  const _Step({required this.pal, required this.icon, required this.tip, required this.onTap});
+  const _Step({required this.pal, required this.icon, required this.tip, required this.onTap, this.size = 44, this.radius = 12, this.iconSize = 18});
   final Palette pal;
   final IconData icon;
   final String tip;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final double size, radius, iconSize;
   @override
-  Widget build(BuildContext context) => Material(
-        color: pal.bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: pal.line)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: SizedBox(width: 44, height: 44, child: Icon(icon, size: 18, color: pal.text)))),
+  Widget build(BuildContext context) => Opacity(
+        opacity: onTap == null ? 0.4 : 1,
+        child: Material(
+          color: pal.bg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius), side: BorderSide(color: pal.line)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: SizedBox(width: size, height: size, child: Icon(icon, size: iconSize, color: pal.text)))),
+        ),
       );
 }
 
@@ -716,4 +813,101 @@ class _ReadHeroState extends State<_ReadHero> {
       ]),
     );
   }
+}
+
+/// .cp-stream: строка раздела — галочка, название и «− N гл. в день +»
+class _StreamRow extends StatelessWidget {
+  const _StreamRow({required this.pal, required this.label, required this.per, required this.onToggle, required this.onPer});
+  final Palette pal;
+  final String label;
+  final int? per; // null — раздел выключен
+  final VoidCallback onToggle;
+  final void Function(int delta) onPer;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = per != null;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsets.fromLTRB(4, 4, 6, 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: on ? mix(pal.accent, 0.55, pal.line) : pal.line),
+        color: on ? mix(pal.accent, 0.07, pal.bg) : pal.bg,
+      ),
+      child: Row(children: [
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: on ? pal.accent : null, border: Border.all(color: on ? pal.accent : mix(pal.muted, 0.6, Colors.transparent), width: 1.5)),
+                  child: on ? Icon(LucideIcons.check, size: 14, color: pal.onAccent) : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text(label, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.text))),
+              ]),
+            ),
+          ),
+        ),
+        if (on) ...[
+          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), size: 34, radius: 10, iconSize: 16, onTap: per! <= 1 ? null : () => onPer(-1)),
+          const SizedBox(width: 6),
+          Text(t('{n} гл. в день', {'n': '$per'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
+          const SizedBox(width: 6),
+          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), size: 34, radius: 10, iconSize: 16, onTap: per! >= 10 ? null : () => onPer(1)),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Свои книги для плана: сетка коротких названий по Заветам, нажатие — выбрать или убрать (.cp-books)
+class _BookPicker extends StatelessWidget {
+  const _BookPicker({required this.pal, required this.value, required this.onToggle});
+  final Palette pal;
+  final List<String> value;
+  final void Function(String id) onToggle;
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final (i, g) in [('OT', 'Ветхий Завет'), ('NT', 'Новый Завет')].indexed) ...[
+          if (i > 0) const SizedBox(height: 10),
+          Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(t(g.$2), style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: pal.muted))),
+          LayoutBuilder(builder: (_, c) {
+            // repeat(auto-fill, minmax(54px, 1fr)), промежуток 6
+            final cols = math.max(1, ((c.maxWidth + 6) / 60).floor());
+            final w = (c.maxWidth - 6 * (cols - 1)) / cols;
+            return Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final b in Books.instance.all.where((b) => b.testament == g.$1))
+                SizedBox(
+                  width: w,
+                  child: Tooltip(
+                    message: Books.instance.meta(b.id).name,
+                    child: Material(
+                      color: value.contains(b.id) ? pal.accent : pal.bg,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: value.contains(b.id) ? pal.accent : pal.line)),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => onToggle(b.id),
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                          alignment: Alignment.center,
+                          child: Text(Books.instance.meta(b.id).short.replaceFirst(RegExp(r'\.$'), ''), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: value.contains(b.id) ? pal.onAccent : pal.text)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ]);
+          }),
+        ],
+        if (value.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(t('Выбрано книг: {n}', {'n': '${value.length}'}), style: TextStyle(fontSize: 13.1, color: pal.muted))),
+      ]);
 }

@@ -107,11 +107,14 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
         // .sermon-new: подпись и «поле + Создать», промежуток 6
         Text(sermons.isNotEmpty ? t('Новая проповедь') : t('Назовите проповедь'), style: TextStyle(fontWeight: FontWeight.w500, color: pal.text)),
         const SizedBox(height: 6),
-        Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(child: PlainInput(controller: _title, autofocus: sermons.isEmpty, hint: t('Например: Благодать Божья'), onSubmitted: (_) => _createAndAdd())),
-          const SizedBox(width: 8),
-          AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _createAndAdd),
-        ]),
+        // IntrinsicHeight: окно прокручивается, высота не ограничена — stretch тянется до высоты поля
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: PlainInput(controller: _title, autofocus: sermons.isEmpty, hint: t('Например: Благодать Божья'), onSubmitted: (_) => _createAndAdd())),
+            const SizedBox(width: 8),
+            AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _createAndAdd),
+          ]),
+        ),
         if (sermons.isNotEmpty) ...[
           const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
           GroupTitle(t('Или выберите проповедь')),

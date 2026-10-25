@@ -97,3 +97,19 @@ List<List<String>> makeCustomPlan(List<String> bookIds, int days) {
   }
   return splitChapters(chapters, days);
 }
+
+/// Главы книг по порядку: [(ref: 'Isa.1', n: стихов)] — по основному переводу
+List<({String ref, int n})> chapterList(List<String> bookIds) {
+  final store = ModuleStore.instance;
+  final mods = store.bibles;
+  final mod = mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.firstOrNull;
+  if (mod == null) return [];
+  final db = store.db(mod.id);
+  final chapters = <({String ref, int n})>[];
+  for (final id in bookIds) {
+    for (final r in db.select('SELECT chapter, COUNT(*) AS n FROM verses WHERE book = ? GROUP BY chapter ORDER BY chapter', [id])) {
+      chapters.add((ref: '$id.${r['chapter']}', n: r['n'] as int));
+    }
+  }
+  return chapters;
+}

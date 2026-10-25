@@ -280,3 +280,73 @@ List<List<String>> splitChapters(List<({String ref, int n})> chapters, int days)
   }
   return readings.where((r) => r.isNotEmpty).toList();
 }
+
+// --- Параллельное чтение (PlansSheet: «Свой план» → «Параллельно»; src/core/plans.js: STREAMS, streamList, makeParallelPlan) ---
+
+/// Раздел параллельного плана. ВЗ и НЗ — «широкие»: книги узких разделов в них не повторяются.
+class PlanStream {
+  const PlanStream(this.key, this.label, this.short, this.wide);
+  final String key, label, short;
+  final bool wide;
+
+  List<String> books(List<String> own) => switch (key) {
+        'ot' => [for (final b in Books.instance.all) if (b.testament == 'OT') b.id],
+        'nt' => [for (final b in Books.instance.all) if (b.testament == 'NT') b.id],
+        'ps' => ['Ps'],
+        'prov' => ['Prov'],
+        'gospels' => ['Matt', 'Mark', 'Luke', 'John'],
+        _ => own,
+      };
+}
+
+const planStreams = <PlanStream>[
+  PlanStream('ot', 'Ветхий Завет', 'ВЗ', true),
+  PlanStream('nt', 'Новый Завет', 'НЗ', true),
+  PlanStream('ps', 'Псалтирь', 'Псалтирь', false),
+  PlanStream('prov', 'Притчи', 'Притчи', false),
+  PlanStream('gospels', 'Евангелия', 'Евангелия', false),
+  PlanStream('own', 'Свои книги', 'Свои книги', false),
+];
+
+class StreamSel {
+  const StreamSel(this.key, this.perDay, this.books);
+  final String key;
+  final int perDay;
+  final List<String> books;
+}
+
+/// Книги разделов без повторов: книги включённых узких разделов (Псалтирь, Евангелия, свои) не читаются ещё раз в ВЗ/НЗ.
+/// on — { ключ раздела: глав в день }
+List<StreamSel> streamList(Map<String, int> on, List<String> own) {
+  final keys = [for (final s in planStreams) if (on[s.key] != null) s];
+  final narrow = {for (final s in keys) if (!s.wide) ...s.books(own)};
+  return [for (final s in keys) StreamSel(s.key, on[s.key]!, s.wide ? [for (final b in s.books(const [])) if (!narrow.contains(b)) b] : s.books(own))];
+}
+
+/// Сколько дней выйдет: по самому длинному разделу
+int parallelDays(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters) {
+  var days = 0;
+  for (final x in streams) {
+    final n = chapters(x.books).length;
+    if (n > 0 && x.perDay > 0) days = math.max(days, (n / x.perDay).ceil());
+  }
+  return math.min(3650, days);
+}
+
+/// Дни параллельного плана: [['Gen.1', 'Matt.1', 'Ps.1'], …]; короткий раздел начинается заново; длина — по самому длинному
+List<List<String>> makeParallelPlan(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters) {
+  final ok = <({int per, List<({String ref, int n})> ch})>[];
+  for (final x in streams) {
+    final ch = chapters(x.books);
+    if (x.perDay > 0 && ch.isNotEmpty) ok.add((per: x.perDay, ch: ch));
+  }
+  if (ok.isEmpty) return [];
+  final days = math.min(3650, ok.map((x) => (x.ch.length / x.per).ceil()).reduce(math.max));
+  return [
+    for (var d = 0; d < days; d++)
+      {
+        for (final x in ok)
+          for (var k = 0; k < math.min(x.per, x.ch.length); k++) x.ch[(d * x.per + k) % x.ch.length].ref,
+      }.toList(),
+  ];
+}

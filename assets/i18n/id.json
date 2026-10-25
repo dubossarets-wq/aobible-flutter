@@ -1291,5 +1291,18 @@
  "Под словами — значения по словарю, а не перевод.": "Di bawah kata ada arti dari kamus, bukan terjemahan.",
  "Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.": "Septuaginta adalah Perjanjian Lama dalam bahasa Yunani (edisi H. B. Swete). Di bawah kata: cara baca, arti, dan nomor Strong. Ketuk kata untuk membuka kamus.",
  "В подстрочнике Ветхого Завета — вкладка «Септуагинта»: греческий текст Ветхого Завета (издание Свита), под каждым словом — его значение по словарю Стронга. Текст загружается сам при первом выборе.": "Di terjemahan interlinear Perjanjian Lama ada tab “Septuaginta”: teks Yunani Perjanjian Lama (edisi Swete), di bawah setiap kata artinya menurut kamus Strong. Teks diunduh otomatis saat pertama kali dipilih.",
- "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Baru di perpustakaan: Septuaginta (LXX), Perjanjian Lama Yunani dengan nomor Strong dalam penomoran Sinodal, yang bisa dibaca berdampingan dengan Terjemahan Sinodal."
+ "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Baru di perpustakaan: Septuaginta (LXX), Perjanjian Lama Yunani dengan nomor Strong dalam penomoran Sinodal, yang bisa dibaca berdampingan dengan Terjemahan Sinodal.",
+ "Фотографии": "Foto",
+ "Подряд": "Berurutan",
+ "Параллельно": "Paralel",
+ "Свои книги": "Kitab pilihan",
+ "Притчи": "Amsal",
+ "Выберите книги": "Pilih kitab",
+ "Разделы и глав в день": "Bagian dan pasal per hari",
+ "{n} гл. в день": "{n} psl. per hari",
+ "Короткие разделы начинаются заново, пока идут длинные.": "Bagian pendek diulang dari awal selama bagian panjang berlanjut.",
+ "Каждый день — понемногу из каждого раздела.": "Setiap hari — sedikit dari setiap bagian.",
+ "{list} параллельно": "{list} paralel",
+ "{books} и ещё {n}": "{books} dan {n} lagi",
+ "Выбрано книг: {n}": "Kitab dipilih: {n}"
 }

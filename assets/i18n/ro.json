@@ -1307,5 +1307,18 @@
  "Под словами — значения по словарю, а не перевод.": "Sub cuvinte sunt sensuri din dicționar, nu o traducere.",
  "Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.": "Septuaginta — Vechiul Testament în greacă (ed. H. B. Swete). Sub cuvânt: citirea, sensul și numărul Strong. Atingeți un cuvânt — se deschide dicționarul.",
  "В подстрочнике Ветхого Завета — вкладка «Септуагинта»: греческий текст Ветхого Завета (издание Свита), под каждым словом — его значение по словарю Стронга. Текст загружается сам при первом выборе.": "În traducerea interliniară a Vechiului Testament există fila „Septuaginta”: textul grec al Vechiului Testament (ediția Swete), sub fiecare cuvânt — sensul lui după dicționarul Strong. Textul se descarcă singur la prima alegere.",
- "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Nou în bibliotecă: Septuaginta (LXX) — Vechiul Testament grec cu numere Strong în numerotarea sinodală, care poate fi citit alături de traducerea sinodală."
+ "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Nou în bibliotecă: Septuaginta (LXX) — Vechiul Testament grec cu numere Strong în numerotarea sinodală, care poate fi citit alături de traducerea sinodală.",
+ "Фотографии": "Fotografii",
+ "Подряд": "Pe rând",
+ "Параллельно": "În paralel",
+ "Свои книги": "Cărțile mele",
+ "Притчи": "Proverbe",
+ "Выберите книги": "Alegeți cărțile",
+ "Разделы и глав в день": "Secțiuni și capitole pe zi",
+ "{n} гл. в день": "{n} cap. pe zi",
+ "Короткие разделы начинаются заново, пока идут длинные.": "Secțiunile scurte reîncep cât timp continuă cele lungi.",
+ "Каждый день — понемногу из каждого раздела.": "În fiecare zi — puțin din fiecare secțiune.",
+ "{list} параллельно": "{list} în paralel",
+ "{books} и ещё {n}": "{books} și încă {n}",
+ "Выбрано книг: {n}": "Cărți alese: {n}"
 }

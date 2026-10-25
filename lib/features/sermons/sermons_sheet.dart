@@ -129,11 +129,14 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
             )
           : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 20), children: [
               // .ref-form: поле и кнопка «Создать» в одну строку, промежуток 8
-              Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Expanded(child: PlainInput(controller: _title, hint: t('Название новой проповеди'), onSubmitted: (_) => _create())),
-                const SizedBox(width: 8),
-                AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _create),
-              ]),
+              // IntrinsicHeight: в списке высота не ограничена — stretch тянется до высоты поля
+              IntrinsicHeight(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: PlainInput(controller: _title, hint: t('Название новой проповеди'), onSubmitted: (_) => _create())),
+                  const SizedBox(width: 8),
+                  AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _create),
+                ]),
+              ),
               const SizedBox(height: 12),
               if (sermons.isEmpty)
                 // .empty

@@ -1315,5 +1315,18 @@
  "Под словами — значения по словарю, а не перевод.": "Pod slovy jsou významy ze slovníku, ne překlad.",
  "Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.": "Septuaginta — řecký Starý zákon (vyd. H. B. Swete). Pod slovem: čtení, význam a Strongovo číslo. Klepněte na slovo — otevře se slovník.",
  "В подстрочнике Ветхого Завета — вкладка «Септуагинта»: греческий текст Ветхого Завета (издание Свита), под каждым словом — его значение по словарю Стронга. Текст загружается сам при первом выборе.": "V meziřádkovém překladu Starého zákona je karta „Septuaginta“: řecký text Starého zákona (Sweteovo vydání), pod každým slovem jeho význam ze Strongova slovníku. Text se stáhne sám při prvním výběru.",
- "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "V knihovně je Septuaginta (LXX): řecký Starý zákon se Strongovými čísly v synodálním číslování; lze ji číst vedle Synodálního překladu."
+ "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "V knihovně je Septuaginta (LXX): řecký Starý zákon se Strongovými čísly v synodálním číslování; lze ji číst vedle Synodálního překladu.",
+ "Фотографии": "Fotografie",
+ "Подряд": "Postupně",
+ "Параллельно": "Souběžně",
+ "Свои книги": "Vlastní knihy",
+ "Притчи": "Přísloví",
+ "Выберите книги": "Vyberte knihy",
+ "Разделы и глав в день": "Oddíly a kapitol denně",
+ "{n} гл. в день": "{n} kap. denně",
+ "Короткие разделы начинаются заново, пока идут длинные.": "Krátké oddíly začínají znovu, dokud pokračují dlouhé.",
+ "Каждый день — понемногу из каждого раздела.": "Každý den kousek z každého oddílu.",
+ "{list} параллельно": "{list} souběžně",
+ "{books} и ещё {n}": "{books} a další {n}",
+ "Выбрано книг: {n}": "Vybráno knih: {n}"
 }

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:in_app_update/in_app_update.dart';
 
 import '../../core/i18n.dart';
@@ -13,6 +14,7 @@ import '../hub.dart';
 import 'about_sheet.dart';
 import 'appearance_sheet.dart';
 import 'colors.dart';
+import 'flags.dart';
 import 'fonts.dart';
 import 'help_sheet.dart';
 import 'library_sheet.dart';
@@ -26,11 +28,8 @@ final List<Widget Function(BuildContext context, WidgetRef ref)> audioSettingsEx
 
 Future<void> openPrefs(BuildContext context) => showAppSheet(context, (_) => PrefsSheet(opener: context));
 
-/// Флаг-эмодзи из кода страны
-String flagEmoji(String cc) => cc.toUpperCase().codeUnits.map((c) => String.fromCharCode(0x1F1E6 + c - 65)).join();
 
-/// Круглый флажок (Flag.jsx, .flag): середина флага, обрезка кругом, тонкая обводка. В веб-версии флаги нарисованы
-/// своими упрощёнными картинками (Windows не рисует эмодзи-флаги); здесь — эмодзи-флаг системы, обрезанный кругом.
+/// Круглый флажок (Flag.jsx, .flag): рисунок из flags.dart, обрезка кругом, тонкая обводка (как в веб-версии).
 class Flag extends ConsumerWidget {
   const Flag(this.code, {super.key, this.size = 30});
   final String code;
@@ -38,13 +37,14 @@ class Flag extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dark = paletteOf(ref).dark;
+    final svg = flagSvg(code);
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: const BoxDecoration(shape: BoxShape.circle),
       foregroundDecoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: dark ? const Color(0x38FFFFFF) : const Color(0x2E000000))),
-      child: FittedBox(fit: BoxFit.cover, child: Text(flagEmoji(code), style: const TextStyle(fontSize: 100, height: 1))),
+      child: svg == null ? null : SvgPicture.string(svg, width: size, height: size),
     );
   }
 }

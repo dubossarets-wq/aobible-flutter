@@ -1299,5 +1299,18 @@
  "Под словами — значения по словарю, а не перевод.": "Chini ya maneno kuna maana za kamusi, si tafsiri.",
  "Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.": "Septuaginta ni Agano la Kale la Kigiriki (toleo la H. B. Swete). Chini ya neno: usomaji, maana na namba ya Strong. Gusa neno kufungua kamusi.",
  "В подстрочнике Ветхого Завета — вкладка «Септуагинта»: греческий текст Ветхого Завета (издание Свита), под каждым словом — его значение по словарю Стронга. Текст загружается сам при первом выборе.": "Katika tafsiri ya neno kwa neno ya Agano la Kale kuna kichupo “Septuaginta”: maandishi ya Kigiriki ya Agano la Kale (toleo la Swete), chini ya kila neno — maana yake kwa kamusi ya Strong. Maandishi hupakuliwa yenyewe unapoyachagua mara ya kwanza.",
- "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Mpya katika maktaba: Septuaginta (LXX) — Agano la Kale la Kigiriki lenye namba za Strong kwa mpangilio wa mistari wa Sinodi, linaloweza kusomwa sambamba na tafsiri ya Sinodi."
+ "В библиотеке — Септуагинта (LXX): греческий Ветхий Завет с номерами Стронга в синодальной нумерации, его можно читать рядом с синодальным переводом.": "Mpya katika maktaba: Septuaginta (LXX) — Agano la Kale la Kigiriki lenye namba za Strong kwa mpangilio wa mistari wa Sinodi, linaloweza kusomwa sambamba na tafsiri ya Sinodi.",
+ "Фотографии": "Picha",
+ "Подряд": "Kwa mfuatano",
+ "Параллельно": "Sambamba",
+ "Свои книги": "Vitabu vyangu",
+ "Притчи": "Mithali",
+ "Выберите книги": "Chagua vitabu",
+ "Разделы и глав в день": "Sehemu na sura kwa siku",
+ "{n} гл. в день": "sura {n} kwa siku",
+ "Короткие разделы начинаются заново, пока идут длинные.": "Sehemu fupi huanza upya wakati ndefu zinaendelea.",
+ "Каждый день — понемногу из каждого раздела.": "Kila siku — kidogo kutoka kila sehemu.",
+ "{list} параллельно": "{list} sambamba",
+ "{books} и ещё {n}": "{books} na {n} zaidi",
+ "Выбрано книг: {n}": "Vitabu vilivyochaguliwa: {n}"
 }

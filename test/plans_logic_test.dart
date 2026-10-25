@@ -163,4 +163,57 @@ void main() {
     expect(fmtDay(DateTime(2026, 10, 5)), '5 окт.');
     expect(fmtDay(DateTime(2026, 10, 5), full: true, year: true), '5 октября 2026');
   });
+
+  group('параллельный план', () {
+    // Число глав в книгах (как в русском каноне): ВЗ — 929, НЗ — 260, из них Псалтирь — 150
+    const counts = {
+      'Gen': 50, 'Exod': 40, 'Lev': 27, 'Num': 36, 'Deut': 34, 'Josh': 24, 'Judg': 21, 'Ruth': 4, '1Sam': 31, '2Sam': 24, '1Kgs': 22, '2Kgs': 25,
+      '1Chr': 29, '2Chr': 36, 'Ezra': 10, 'Neh': 13, 'Esth': 10, 'Job': 42, 'Ps': 150, 'Prov': 31, 'Eccl': 12, 'Song': 8, 'Isa': 66, 'Jer': 52,
+      'Lam': 5, 'Ezek': 48, 'Dan': 12, 'Hos': 14, 'Joel': 3, 'Amos': 9, 'Obad': 1, 'Jonah': 4, 'Mic': 7, 'Nah': 3, 'Hab': 3, 'Zeph': 3, 'Hag': 2,
+      'Zech': 14, 'Mal': 4, 'Matt': 28, 'Mark': 16, 'Luke': 24, 'John': 21, 'Acts': 28, 'Rom': 16, '1Cor': 16, '2Cor': 13, 'Gal': 6, 'Eph': 6,
+      'Phil': 4, 'Col': 4, '1Thess': 5, '2Thess': 3, '1Tim': 6, '2Tim': 4, 'Titus': 3, 'Phlm': 1, 'Heb': 13, 'Jas': 5, '1Pet': 5, '2Pet': 3,
+      '1John': 5, '2John': 1, '3John': 1, 'Jude': 1, 'Rev': 22,
+    };
+    List<({String ref, int n})> chapters(List<String> books) => [
+          for (final b in books)
+            for (var c = 1; c <= (counts[b] ?? 0); c++) (ref: '$b.$c', n: 10),
+        ];
+
+    setUp(() async => Books.load());
+
+    test('книги узких разделов не повторяются в ВЗ и НЗ', () {
+      final l = streamList({'ot': 1, 'nt': 1, 'ps': 1, 'gospels': 1, 'own': 1}, ['Isa', 'Acts']);
+      expect(l.map((x) => x.key), ['ot', 'nt', 'ps', 'gospels', 'own']);
+      expect(l[0].books, isNot(contains('Ps')));
+      expect(l[0].books, isNot(contains('Isa')));
+      expect(l[0].books.first, 'Gen');
+      expect(l[1].books, isNot(contains('John')));
+      expect(l[1].books, isNot(contains('Acts')));
+      expect(l[2].books, ['Ps']);
+      expect(l[4].books, ['Isa', 'Acts']);
+      // без узких разделов ВЗ и НЗ целиком
+      final w = streamList({'ot': 1, 'nt': 1}, const []);
+      expect(w[0].books, contains('Ps'));
+      expect(w[1].books, contains('John'));
+    });
+
+    test('ВЗ + НЗ + Псалтирь по 1 главе — 779 дней, первый день Быт 1, Мф 1, Пс 1', () {
+      final list = streamList({'ot': 1, 'nt': 1, 'ps': 1}, const []);
+      final plan = makeParallelPlan(list, chapters);
+      expect(plan.length, 779);
+      expect(parallelDays(list, chapters), 779);
+      expect(plan.first, ['Gen.1', 'Matt.1', 'Ps.1']);
+      // НЗ (260 глав) начинается заново, Псалтирь (150) — тоже
+      expect(plan[260][1], 'Matt.1');
+      expect(plan[150][2], 'Ps.1');
+    });
+
+    test('несколько глав в день; пустой выбор — пустой план', () {
+      final plan = makeParallelPlan(streamList({'nt': 3}, const []), chapters);
+      expect(plan.length, 87);
+      expect(plan.first, ['Matt.1', 'Matt.2', 'Matt.3']);
+      expect(makeParallelPlan(streamList({'own': 1}, const []), chapters), isEmpty);
+      expect(parallelDays(streamList({'own': 1}, const []), chapters), 0);
+    });
+  });
 }

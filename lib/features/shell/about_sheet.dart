@@ -10,6 +10,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../plans/net_cache.dart' show siteJson;
 import 'colors.dart';
 import 'library_sheet.dart' show moduleSections;
 import 'sheet.dart';
@@ -80,10 +81,15 @@ class AboutSheet extends ConsumerStatefulWidget {
 class _AboutSheetState extends ConsumerState<AboutSheet> {
   late String _tab = widget.tab;
   List<CatalogEntry>? _cat;
+  List<Map<String, dynamic>> _photos = []; // фото стиха дня, планов и картинок со стихом
 
   @override
   void initState() {
     super.initState();
+    siteJson('images/verse-bg/index.json').then((j) {
+      final l = ((j?['images'] as List?) ?? const []).map((e) => (e as Map).cast<String, dynamic>()).toList();
+      if (mounted) setState(() => _photos = l);
+    }, onError: (_) {});
     ModuleStore.instance.catalog().then((c) {
       if (mounted) setState(() => _cat = c.where((m) => !m.unavailable).toList());
     }, onError: (_) {
@@ -184,6 +190,18 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
                 ]),
             ]),
         ],
+      if (_photos.isNotEmpty) ...[
+        _h4(t('Фотографии'), pal),
+        for (final p in _photos)
+          _li([
+            Text(t('${p['title'] ?? p['id']}'), style: const TextStyle(fontWeight: FontWeight.w700)),
+            _line([
+              Text(p['author'] != null ? '${p['author']} · ' : '', style: small),
+              if (p['license'] != null) (licenseUrl('${p['license']}') != null ? _link('${p['license']}', licenseUrl('${p['license']}')!, pal) : Text('${p['license']}', style: small)),
+            ]),
+            if (p['source'] != null) _line([Text('${t('Источник:')} ', style: small), _link('${p['source']}'.replaceFirst('https://', ''), '${p['source']}', pal)]),
+          ]),
+      ],
       _h4(t('Программы и службы'), pal),
       for (final x in _thirdParty)
         _li([

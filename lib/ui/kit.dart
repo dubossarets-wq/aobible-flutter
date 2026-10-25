@@ -94,7 +94,7 @@ class AobSheet extends ConsumerWidget {
     final back = onBack ?? (_Nested.of(context) ? () => Navigator.of(context).maybePop() : null);
     return Material(
       color: pal.panel,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadius + 6)),
+      borderRadius: _Nested.of(context) ? BorderRadius.zero : const BorderRadius.vertical(top: Radius.circular(kRadius + 6)), // окно на весь экран — без скругления
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         // полоска — только у окна, которое можно потянуть; у окна на весь экран — просто отступ сверху
