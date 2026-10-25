@@ -161,15 +161,8 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
             ),
         ];
       case 'audio':
-        body = [
-          SwitchField(
-            label: t('ИИ-диктор, когда нет записи'),
-            hint: t('Если живой записи нет, главу прочитает синтезированный голос'),
-            value: s.get<bool>('ttsFallback'),
-            onChanged: (v) => ref.read(settingsProvider.notifier).set({'ttsFallback': v}),
-          ),
-          for (final b in audioSettingsExtras) b(context, ref),
-        ];
+        // диктор и книги без интернета — от функции аудио (audioSettingsExtras)
+        body = [for (final b in audioSettingsExtras) b(context, ref)];
       default:
         final rows = <Widget Function(bool last)>[
           // «Language» по-английски — чтобы найти строку, даже если случайно выбран незнакомый язык
@@ -191,7 +184,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
           (last) => PrefRow(icon: LucideIcons.bookOpenCheck, title: t('Инструкция'), sub: t('Пошаговые подсказки'), onTap: () => openHelp(context), last: last),
           (last) => PrefRow(icon: LucideIcons.palette, title: t('Оформление'), sub: t('Тема, шрифт, размер букв'), onTap: () => openAppearance(context), last: last),
           (last) => PrefRow(icon: LucideIcons.ellipsisVertical, title: wide ? t('Меню ⋮') : t('Меню «Ещё»'), sub: wide ? t('Выбрать пункты меню') : t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu'), last: last),
-          (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('ИИ-диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
+          (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('Диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
           (last) => PrefRow(icon: LucideIcons.library, title: t('Библиотека модулей'), sub: t('Переводы, словари, аудиокниги'), onTap: () => openLibrary(context), last: last),
           if (myData != null) (last) => PrefRow(icon: LucideIcons.hardDrive, title: t('Мои данные'), sub: t('Сохранить и перенести на новый телефон'), onTap: () => myData.run(widget.opener, ref, 0), last: last),
           (last) => PrefRow(icon: LucideIcons.sparkles, title: t('Что нового'), sub: t('Последнее обновление'), onTap: () => openNews(context), last: last),

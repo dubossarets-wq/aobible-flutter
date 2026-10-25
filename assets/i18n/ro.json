@@ -1320,5 +1320,21 @@
  "Каждый день — понемногу из каждого раздела.": "În fiecare zi — puțin din fiecare secțiune.",
  "{list} параллельно": "{list} în paralel",
  "{books} и ещё {n}": "{books} și încă {n}",
- "Выбрано книг: {n}": "Cărți alese: {n}"
+ "Выбрано книг: {n}": "Cărți alese: {n}",
+ "Диктор": "Crainic",
+ "Прочитать голосом диктора?": "Citim cu vocea crainicului?",
+ "Скачать голос ({n} МБ)": "Descarcă vocea ({n} MB)",
+ "Голос не скачался. Проверьте интернет.": "Vocea nu s-a descărcat. Verificați internetul.",
+ "Диктор не смог прочитать главу.": "Crainicul nu a putut citi capitolul.",
+ "Диктор: Дмитрий": "Crainic: Dmitri",
+ "Голос скачан · {size} МБ": "Voce descărcată · {size} MB",
+ "Голос не скачан · {n} МБ": "Voce nedescărcată · {n} MB",
+ "Скачиваю голос… {n}%": "Se descarcă vocea… {n}%",
+ "Распаковываю голос…": "Se despachetează vocea…",
+ "Читать диктором, когда нет записи": "Citește crainicul când nu există înregistrare",
+ "Если живой записи нет, главу прочитает голос диктора — на телефоне, без интернета": "Dacă nu există o înregistrare vie, capitolul va fi citit de vocea crainicului — pe telefon, fără internet",
+ "Голос диктора удалён": "Vocea crainicului a fost ștearsă",
+ "Удалить голос диктора": "Șterge vocea crainicului",
+ "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Vocea crainicului „Dmitri” (Piper, ru_RU-dmitri)",
+ "Диктор, книги без интернета": "Crainic, cărți fără internet"
 }

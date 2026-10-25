@@ -177,9 +177,9 @@ void main() {
         }
         expect((c.read(settingsProvider).j['menu'] as Map)['maps'], isNotNull);
         await back(tester);
+        // «Аудио»: строки диктора и книг без интернета даёт функция аудио; здесь — что страница открывается и закрывается
         await tapText(tester, 'Аудио');
-        await tester.tap(find.textContaining('ИИ-диктор, когда нет записи'));
-        await tester.pumpAndSettle();
+        expect(find.byTooltip('Назад'), findsOneWidget);
         await back(tester);
         for (final label in ['Инструкция', 'Оформление', 'Библиотека модулей', 'Что нового', 'О приложении']) {
           await tapText(tester, label, last: label == 'Оформление');

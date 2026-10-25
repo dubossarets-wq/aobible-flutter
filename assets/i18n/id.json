@@ -1304,5 +1304,21 @@
  "Каждый день — понемногу из каждого раздела.": "Setiap hari — sedikit dari setiap bagian.",
  "{list} параллельно": "{list} paralel",
  "{books} и ещё {n}": "{books} dan {n} lagi",
- "Выбрано книг: {n}": "Kitab dipilih: {n}"
+ "Выбрано книг: {n}": "Kitab dipilih: {n}",
+ "Диктор": "Pembaca",
+ "Прочитать голосом диктора?": "Bacakan dengan suara pembaca?",
+ "Скачать голос ({n} МБ)": "Unduh suara ({n} MB)",
+ "Голос не скачался. Проверьте интернет.": "Suara gagal diunduh. Periksa internet.",
+ "Диктор не смог прочитать главу.": "Pembaca tidak dapat membacakan pasal ini.",
+ "Диктор: Дмитрий": "Pembaca: Dmitri",
+ "Голос скачан · {size} МБ": "Suara terunduh · {size} MB",
+ "Голос не скачан · {n} МБ": "Suara belum diunduh · {n} MB",
+ "Скачиваю голос… {n}%": "Mengunduh suara… {n}%",
+ "Распаковываю голос…": "Mengekstrak suara…",
+ "Читать диктором, когда нет записи": "Gunakan pembaca saat tidak ada rekaman",
+ "Если живой записи нет, главу прочитает голос диктора — на телефоне, без интернета": "Jika tidak ada rekaman langsung, pasal akan dibacakan suara pembaca — di ponsel, tanpa internet",
+ "Голос диктора удалён": "Suara pembaca dihapus",
+ "Удалить голос диктора": "Hapus suara pembaca",
+ "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Suara pembaca “Dmitri” (Piper, ru_RU-dmitri)",
+ "Диктор, книги без интернета": "Pembaca, kitab tanpa internet"
 }

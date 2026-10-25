@@ -1312,5 +1312,21 @@
  "Каждый день — понемногу из каждого раздела.": "Kila siku — kidogo kutoka kila sehemu.",
  "{list} параллельно": "{list} sambamba",
  "{books} и ещё {n}": "{books} na {n} zaidi",
- "Выбрано книг: {n}": "Vitabu vilivyochaguliwa: {n}"
+ "Выбрано книг: {n}": "Vitabu vilivyochaguliwa: {n}",
+ "Диктор": "Msomaji",
+ "Прочитать голосом диктора?": "Isomwe kwa sauti ya msomaji?",
+ "Скачать голос ({n} МБ)": "Pakua sauti ({n} MB)",
+ "Голос не скачался. Проверьте интернет.": "Sauti haikupakuliwa. Angalia intaneti.",
+ "Диктор не смог прочитать главу.": "Msomaji hakuweza kusoma sura hii.",
+ "Диктор: Дмитрий": "Msomaji: Dmitri",
+ "Голос скачан · {size} МБ": "Sauti imepakuliwa · {size} MB",
+ "Голос не скачан · {n} МБ": "Sauti haijapakuliwa · {n} MB",
+ "Скачиваю голос… {n}%": "Inapakua sauti… {n}%",
+ "Распаковываю голос…": "Inafungua sauti…",
+ "Читать диктором, когда нет записи": "Tumia msomaji wakati hakuna rekodi",
+ "Если живой записи нет, главу прочитает голос диктора — на телефоне, без интернета": "Ikiwa hakuna rekodi halisi, sura itasomwa kwa sauti ya msomaji — kwenye simu, bila intaneti",
+ "Голос диктора удалён": "Sauti ya msomaji imefutwa",
+ "Удалить голос диктора": "Futa sauti ya msomaji",
+ "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Sauti ya msomaji «Dmitri» (Piper, ru_RU-dmitri)",
+ "Диктор, книги без интернета": "Msomaji, vitabu bila intaneti"
 }

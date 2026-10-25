@@ -12,6 +12,7 @@ import '../../ui/kit.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
 import 'audio_player.dart';
+import 'narrator_ui.dart';
 
 const rates = [0.75, 1.0, 1.25, 1.5];
 String rateText(double r) => '${r == r.roundToDouble() ? r.toInt() : r}×';
@@ -75,12 +76,12 @@ class _AudioBarState extends ConsumerState<AudioBar> {
       builder: (context, a, _) {
         if (!a.active) return const SizedBox.shrink();
         final left = sleepLeftMinutes(a.sleep);
-        final sub = a.error != null
+        final sub = a.error != null && !a.offer
             ? a.error!
-            : [if (left != null) t('сон через {n} мин', {'n': '$left'}) else if (a.sleep?.kind == 'chapter') t('до конца главы')].join(' · ');
+            : [if (a.narrated) t('Диктор'), if (left != null) t('сон через {n} мин', {'n': '$left'}) else if (a.sleep?.kind == 'chapter') t('до конца главы')].join(' · ');
         final r = a.ref;
         void expand() => a.canExpand ? openAudioPlayer(context) : null;
-        final recorded = a.source != null && r != null;
+        final recorded = a.source != null && !a.narrated && r != null;
         return SafeArea(
           top: false,
           bottom: false,
@@ -113,6 +114,9 @@ class _AudioBarState extends ConsumerState<AudioBar> {
                           const SizedBox(height: 10),
                         ]),
                       ),
+                    if (a.offer)
+                      NarratorOffer(pal: pal, error: a.error)
+                    else
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: expand,

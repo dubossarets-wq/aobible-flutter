@@ -363,12 +363,30 @@ void main() {
 
   // ===== ЗАПИСИ НЕТ ==============================================================================================
 
-  testWidgets('нет записи: заглушка диктора не читает, человек видит прежнее сообщение', (tester) async {
+  testWidgets('нет записи, голос не скачан: предложение диктора с кнопками', (tester) async {
+    await pumpApp(tester, variants.first, (ctx) => const SizedBox(), bottom: const AudioBar());
+    await tester.runAsync(() => AudioEngine.I.listenFrom(c, 0, 'rst-plus', const VerseRef('Gen', 1, 1)));
+    await spin(tester, 300);
+    expect(AudioEngine.I.s.offer, true);
+    expect(find.textContaining('Для этой главы нет аудиозаписи.', findRichText: true), findsOneWidget);
+    expect(find.textContaining('Прочитать голосом диктора?', findRichText: true), findsOneWidget);
+    expect(find.text('Скачать голос (36 МБ)'), findsOneWidget);
+    expect(find.text('Не нужно'), findsOneWidget);
+    expect(find.textContaining('ИИ'), findsNothing);
+    await tester.tap(find.text('Не нужно'));
+    await spin(tester, 300);
+    expect(AudioEngine.I.s.active, false); // «Не нужно» закрывает проигрыватель
+    await finish(tester);
+  });
+
+  testWidgets('нет записи, диктор выключен: прежнее сообщение', (tester) async {
+    await prefs.setBool('narratorOn', false);
+    addTearDown(() => prefs.remove('narratorOn'));
     await pumpApp(tester, variants.first, (ctx) => const SizedBox(), bottom: const AudioBar());
     await tester.runAsync(() => AudioEngine.I.listenFrom(c, 0, 'rst-plus', const VerseRef('Gen', 1, 1)));
     await spin(tester, 300);
     expect(find.text('Для этой главы нет аудиозаписи.'), findsOneWidget);
-    expect(find.textContaining('диктор'), findsNothing);
+    expect(AudioEngine.I.s.offer, false);
     await finish(tester);
   });
 

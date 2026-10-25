@@ -1318,5 +1318,21 @@
  "Каждый день — понемногу из каждого раздела.": "Todo dia, um pouco de cada seção.",
  "{list} параллельно": "{list} em paralelo",
  "{books} и ещё {n}": "{books} e mais {n}",
- "Выбрано книг: {n}": "Livros escolhidos: {n}"
+ "Выбрано книг: {n}": "Livros escolhidos: {n}",
+ "Диктор": "Narrador",
+ "Прочитать голосом диктора?": "Ler com a voz do narrador?",
+ "Скачать голос ({n} МБ)": "Baixar voz ({n} MB)",
+ "Голос не скачался. Проверьте интернет.": "A voz não foi baixada. Verifique a internet.",
+ "Диктор не смог прочитать главу.": "O narrador não conseguiu ler o capítulo.",
+ "Диктор: Дмитрий": "Narrador: Dmitri",
+ "Голос скачан · {size} МБ": "Voz baixada · {size} MB",
+ "Голос не скачан · {n} МБ": "Voz não baixada · {n} MB",
+ "Скачиваю голос… {n}%": "Baixando voz… {n}%",
+ "Распаковываю голос…": "Descompactando voz…",
+ "Читать диктором, когда нет записи": "Usar o narrador quando não há gravação",
+ "Если живой записи нет, главу прочитает голос диктора — на телефоне, без интернета": "Se não houver gravação de um leitor, o capítulo será lido pela voz do narrador — no telefone, sem internet",
+ "Голос диктора удалён": "Voz do narrador removida",
+ "Удалить голос диктора": "Remover a voz do narrador",
+ "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Voz do narrador «Dmitri» (Piper, ru_RU-dmitri)",
+ "Диктор, книги без интернета": "Narrador, livros sem internet"
 }

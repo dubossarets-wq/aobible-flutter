@@ -58,6 +58,8 @@ const _thirdParty = <(String, String, String, String)>[
   ('Riverpod', 'Remi Rousselet', 'MIT', 'https://riverpod.dev'),
   ('SQLite / sqlite3.dart', 'SQLite Consortium; Simon Binder', 'Public Domain / MIT', 'https://sqlite.org'),
   ('just_audio, audio_service', 'Ryan Heise', 'MIT', 'https://pub.dev/packages/just_audio'),
+  ('sherpa-onnx', 'k2-fsa', 'Apache-2.0', 'https://github.com/k2-fsa/sherpa-onnx'),
+  ('Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)', 'Piper / rhasspy', 'CC0', 'https://huggingface.co/rhasspy/piper-voices'),
   ('MapLibre GL', 'MapLibre contributors', 'BSD-3-Clause', 'https://maplibre.org'),
   ('OpenFreeMap / OpenStreetMap', '© OpenStreetMap contributors', 'ODbL', 'https://openfreemap.org'),
   ('Sentinel-2 cloudless 2016 (EOX)', 'EOX IT Services GmbH; contains modified Copernicus Sentinel data 2016', 'CC BY 4.0', 'https://s2maps.eu'),
@@ -204,7 +206,7 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
       _h4(t('Программы и службы'), pal),
       for (final x in _thirdParty)
         _li([
-          Text(x.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(t(x.$1), style: const TextStyle(fontWeight: FontWeight.w700)),
           _line([Text('${x.$2} · ${x.$3} · ', style: small), _link(x.$4.replaceFirst('https://', ''), x.$4, pal)]),
         ]),
     ];

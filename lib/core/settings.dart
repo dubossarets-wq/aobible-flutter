@@ -90,7 +90,6 @@ class Settings {
     'showIllustrations': true,
     'colorOverrides': <String, dynamic>{}, // свои цвета поверх темы: { accent: '#…', bar: '#…', strong: '#…' }
     'commentaryFontSize': 19.0,
-    'ttsFallback': false,
     'menu': <String, dynamic>{'help': true, 'lastBookmark': true, 'sermons': true, 'plans': true, 'listen': true, 'maps': true, 'focus': false, 'book': false, 'split': true},
   };
 

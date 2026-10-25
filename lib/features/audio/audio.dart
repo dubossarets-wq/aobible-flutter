@@ -11,6 +11,9 @@ import 'audio_fab.dart';
 import 'audio_engine.dart';
 import 'audio_listen.dart';
 import 'audio_settings.dart';
+import 'narrator.dart';
+import 'narrator_ui.dart';
+import '../shell/prefs_sheet.dart' show audioSettingsExtras;
 
 export 'audio_fab.dart' show ListenFab;
 export 'audio_settings.dart' show AudioOfflineList, AudioSettingsPage, openAudioSettings;
@@ -42,4 +45,14 @@ void register() {
     run: (context, ref, pane) => openAudioSettings(context),
   ));
   Hub.afterStart.add(autoInstallAudio);
+
+  // Диктор: стоит ли голос — узнаём сразу; строка и переключатель — в Настройки → «Аудио»
+  NarratorVoice.I.refresh().catchError((Object _) {});
+  audioSettingsExtras
+    ..clear() // register() вызывается заново при смене языка — без повторов
+    ..add((context, ref) => NarratorSettings(pal: paletteOf(ref)))
+    ..add((context, ref) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          GroupTitle(t('Книги без интернета')),
+          AudioOfflineList(pal: paletteOf(ref)),
+        ])); // как в веб-версии
 }

@@ -605,7 +605,7 @@ void main() {
       AudioState(active: true, playing: on, pane: 0, moduleId: 'rst-plus', ref: at, source: 'aud1', rate: 1, volume: 1);
 
   for (final v in variants) {
-    testWidgets('аудио [${v.name}]: кнопка «Слушать» без записи — сообщение в мини-проигрывателе', (tester) async {
+    testWidgets('аудио [${v.name}]: кнопка «Слушать» без записи — предложение диктора в мини-проигрывателе', (tester) async {
       await boot(tester, v, (ctx, ref) {}, extra: const Positioned(right: 14, bottom: 90, child: ListenFab(pane: 0)));
       expect(find.byTooltip('Слушать с Gen 1:1'), findsNothing); // подпись по книгам перевода
       final fab = find.byType(ListenFab);
@@ -613,7 +613,7 @@ void main() {
       await tester.tap(fab);
       await spin(tester, 400);
       expect(AudioEngine.I.s.active, true);
-      expect(AudioEngine.I.s.error, 'Для этой главы нет аудиозаписи.');
+      expect(AudioEngine.I.s.offer, true); // голос диктора не скачан — предлагаем
       expect(find.byType(ListenFab), findsOneWidget); // кнопка прячется сама (active)
       await finish(tester);
     });
