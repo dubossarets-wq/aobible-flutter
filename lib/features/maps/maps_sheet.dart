@@ -74,6 +74,17 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
     super.dispose();
   }
 
+  String? _foundFor;
+  List<Place> _foundList = const [];
+  List<Place> _found() {
+    if (_q.text != _foundFor) {
+      _foundFor = _q.text;
+      _foundList = PlaceStore.search(_foundFor!);
+    }
+    return _foundList;
+  }
+
+
   void _goVerse(String osis) {
     final v = parseOsis(osis);
     if (v == null) return;
@@ -112,7 +123,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
   }
 
   Widget _list(Palette pal) {
-    final found = PlaceStore.search(_q.text);
+    final found = _found(); // запрос к базе — только когда изменилась строка поиска, а не на каждую перестройку
     final query = _q.text.trim();
     return CustomScrollView(slivers: [
       if (_placeCount > 0)

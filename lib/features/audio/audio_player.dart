@@ -590,7 +590,14 @@ class _SleepPickerState extends State<SleepPicker> {
                 ),
               ),
             ),
-            Text(fmtMin(_min), style: TextStyle(fontSize: timeSize, fontWeight: FontWeight.w300, height: 1, letterSpacing: -0.02 * timeSize, color: pal.accent, fontFeatures: const [ui.FontFeature.tabularFigures()])),
+            // Крупный текст телефона (×1.3) не помещался рядом с кнопкой — время ужимается, а не вылезает за край
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(fmtMin(_min), style: TextStyle(fontSize: timeSize, fontWeight: FontWeight.w300, height: 1, letterSpacing: -0.02 * timeSize, color: pal.accent, fontFeatures: const [ui.FontFeature.tabularFigures()])),
+              ),
+            ),
           ]),
         ),
         // .sp-more: слева, перенос строк, отступ сверху 14

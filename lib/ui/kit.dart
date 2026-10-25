@@ -2,6 +2,7 @@
 // BottomSheet.jsx). Значки — Lucide (как lucide-react в веб-версии): LucideIcons.<имя в camelCase>.
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -395,6 +396,13 @@ class SwitchRow extends ConsumerWidget {
 }
 
 /// .segmented: серая подложка, выбранный — белая «таблетка» с тенью и текстом цвета акцента
+double _textWidth(String text, TextStyle style, TextScaler scale) {
+  final tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout();
+  final w = tp.width;
+  tp.dispose();
+  return w;
+}
+
 class Segmented<T> extends ConsumerWidget {
   const Segmented({super.key, required this.options, required this.value, required this.onChanged});
   final List<(T, String)> options;
@@ -414,8 +422,7 @@ class Segmented<T> extends ConsumerWidget {
       child: LayoutBuilder(builder: (context, c) {
         // ширина по жирному начертанию — выбор варианта не сдвигает соседей
         final basis = [
-          for (final (_, label) in options)
-            (TextPainter(text: TextSpan(text: label, style: style(true)), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout()).width + 16.5,
+          for (final (_, label) in options) _textWidth(label, style(true), scale) + 16.5,
         ];
         const gap = 2.0;
         final total = basis.fold<double>(0, (a, b) => a + b) + gap * (options.length - 1);
@@ -641,8 +648,7 @@ SnackBar aobSnackBar(Palette pal, String text, {String? actionLabel, VoidCallbac
 
 /// Расширить на поля окна (16 с каждой стороны): линия вкладок и ряд плашек — от края до края
 Widget _bleed(Widget child) => LayoutBuilder(
-      // не внутри вертикального списка (там высота не ограничена): вкладки окна — в закреплённой части
-      builder: (context, box) => OverflowBox(minWidth: box.maxWidth + 32, maxWidth: box.maxWidth + 32, child: child),
+      builder: (context, box) => OverflowBox(minWidth: box.maxWidth + 32, maxWidth: box.maxWidth + 32, fit: OverflowBoxFit.deferToChild, child: child),
     );
 
 /// Вкладки разделов (.tabs): на всю ширину, поровну; выбранная — цвета акцента с линией 2 px, число — мельче, серое.
@@ -683,8 +689,7 @@ class AobTabs<T> extends ConsumerWidget {
 
     final bar = LayoutBuilder(builder: (context, box) {
       final need = tabs.fold<double>(0, (a, x) {
-        final tp = TextPainter(text: TextSpan(text: '${x.$2}${x.$3 != null ? ' ${x.$3}' : ''}', style: label), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout();
-        return a + tp.width + 24;
+        return a + _textWidth('${x.$2}${x.$3 != null ? ' ${x.$3}' : ''}', label, scale) + 24;
       });
       final inner = box.maxWidth - 32;
       return Container(

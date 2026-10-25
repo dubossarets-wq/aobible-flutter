@@ -22,13 +22,14 @@ class BookmarksPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final m = ref.watch(marksProvider);
+    // Только числа на вкладках: правка текста заметки или цвета не перестраивает всё окно
+    final (nb, nf, nn, nh, nc) = ref.watch(marksProvider.select((m) => (m.bookmarks.length, m.favorites.length, m.notes.length, m.highlights.length, m.collections.length)));
     final tabs = [
-      (t('Закладки'), m.bookmarks.length),
-      (t('Любимые стихи'), m.favorites.length),
-      (t('Заметки'), m.notes.length),
-      (t('Выделения'), m.highlights.length),
-      (t('Подборки'), m.collections.length),
+      (t('Закладки'), nb),
+      (t('Любимые стихи'), nf),
+      (t('Заметки'), nn),
+      (t('Выделения'), nh),
+      (t('Подборки'), nc),
     ];
     // Свой ScaffoldMessenger/Scaffold: уведомление «Отменить» должно быть видно поверх окна, а не под ним
     return ScaffoldMessenger(
@@ -132,11 +133,13 @@ class _BookmarksTab extends ConsumerWidget {
             child: Row(children: [
               Icon(LucideIcons.circlePlay, size: 26, color: pal.accent),
               const SizedBox(width: 12),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(t('Продолжить чтение'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
-                const SizedBox(height: 2),
-                Text('${Books.instance.meta(cur.book).name} ${cur.chapter}:${cur.verse}', style: TextStyle(fontSize: 15, color: pal.muted)),
-              ]),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(t('Продолжить чтение'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
+                  const SizedBox(height: 2),
+                  Text('${Books.instance.meta(cur.book).name} ${cur.chapter}:${cur.verse}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, color: pal.muted)),
+                ]),
+              ),
             ]),
           ),
         ),
@@ -281,18 +284,18 @@ class _HighlightsTabState extends ConsumerState<_HighlightsTab> {
   Widget build(BuildContext context) {
     final pal = paletteOf(ref);
     final store = ref.read(marksProvider.notifier);
-    final m = ref.watch(marksProvider);
-    if (m.highlights.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.highlighter, title: t('Выделений пока нет'), text: t('Зажмите стих и нажмите маркер.'))]);
+    final (highlights, hlLabels) = ref.watch(marksProvider.select((m) => (m.highlights, m.hlLabels)));
+    if (highlights.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.highlighter, title: t('Выделений пока нет'), text: t('Зажмите стих и нажмите маркер.'))]);
     final counts = <String, int>{};
-    for (final c in m.highlights.values) {
+    for (final c in highlights.values) {
       counts[c] = (counts[c] ?? 0) + 1;
     }
     final list = [
-      for (final e in m.highlights.entries)
+      for (final e in highlights.entries)
         if (parseKey(e.key) != null && (_color == 'all' || e.value == _color)) (parseKey(e.key)!, e.value),
     ]..sort((a, b) => byBible(a.$1, b.$1));
     final module = _moduleOf(ref, widget.pane);
-    String label(HlColor c) => m.hlLabels[c.id]?.trim().isNotEmpty == true ? m.hlLabels[c.id]!.trim() : t(c.name);
+    String label(HlColor c) => hlLabels[c.id]?.trim().isNotEmpty == true ? hlLabels[c.id]!.trim() : t(c.name);
 
     void unmark((VerseRef, String) x) {
       store.setHighlight([x.$1], null);

@@ -24,10 +24,9 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final panes = ref.watch(panesProvider.select((l) => l.length));
     final mapPlace = ref.watch(mapPaneProvider);
-    final s = ref.watch(settingsProvider);
-    final pal = s.palette;
+    final pal = paletteOf(ref);
     final wide = MediaQuery.sizeOf(context).width >= 900;
-    final layout = s.get<String>('splitLayout');
+    final layout = ref.watch(settingsProvider.select((s) => s.get<String>('splitLayout')));
     final rows = layout == 'rows' || (layout == 'auto' && !wide);
     final children = [for (var i = 0; i < panes; i++) Expanded(child: _Pane(index: i))];
     // Карта места — во второй половине вместо второй панели чтения (та не теряется и вернётся после закрытия)
@@ -61,8 +60,8 @@ class _Pane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final pal = s.palette;
+    final pal = paletteOf(ref);
+    final barHeight = ref.watch(settingsProvider.select((s) => s.d('barHeight')));
     final module = ref.watch(panesProvider.select((l) => index < l.length ? l[index].moduleId : null));
     final split = ref.watch(panesProvider.select((l) => l.length > 1));
     final hist = ref.watch(panesProvider.select((l) => index < l.length ? (l[index].hIndex, l[index].history.length) : (0, 0)));
@@ -91,7 +90,7 @@ class _Pane extends ConsumerWidget {
         Hub.selectionBar!(context, ref, index)
       else
         Container(
-          height: s.d('barHeight'),
+          height: barHeight,
           decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
           padding: const EdgeInsets.only(left: 8, right: 4),
           child: Row(children: [
@@ -181,7 +180,9 @@ String _refLabel(BuildContext context, VerseRef r, double maxWidth) {
       maxLines: 1,
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    if (tp.width + 41 <= maxWidth) return full; // 41 — поля плашки и стрелка
+    final fits = tp.width + 41 <= maxWidth; // 41 — поля плашки и стрелка
+    tp.dispose();
+    if (fits) return full;
   }
   return b.formatRef(r.book, r.chapter, r.verse);
 }

@@ -45,7 +45,7 @@ class _WelcomeSheetState extends ConsumerState<WelcomeSheet> {
       gap: 10,
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       // .welcome-actions: «Назад / Пропустить» слева, главная кнопка справа
-      footer: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      footer: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, runSpacing: 8, children: [ // Wrap: при крупном шрифте кнопки переносятся, а не вылезают за край
         AobButton(label: _i > 0 ? t('Назад') : t('Пропустить'), onTap: _i > 0 ? () => setState(() => _i--) : () => Navigator.of(context).maybePop()),
         AobButton(kind: BtnKind.primary, label: last ? t('Начать чтение') : t('Далее'), onTap: last ? () => Navigator.of(context).maybePop() : () => setState(() => _i++)),
       ]),

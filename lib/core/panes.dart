@@ -31,6 +31,7 @@ int _generation = 0;
 class PanesNotifier extends Notifier<List<PaneState>> {
   @override
   List<PaneState> build() {
+    ref.onDispose(() => _saveTimer?.cancel()); // отложенное сохранение не должно сработать после закрытия
     final raw = prefs.getString('panes');
     if (raw != null) {
       try {
@@ -83,6 +84,7 @@ class PanesNotifier extends Notifier<List<PaneState>> {
   void toggleSplit({String? moduleId}) {
     if (state.length > 1) {
       state = [state.first.copyWith(ref: livePositions[0]?.value ?? state.first.ref)];
+      livePositions.remove(1); // место закрытой панели не должно «прилипнуть» к следующей второй панели
     } else {
       final at = livePositions[0]?.value ?? state.first.ref;
       state = [state.first.copyWith(ref: at), PaneState(moduleId: moduleId ?? state.first.moduleId, ref: at)];

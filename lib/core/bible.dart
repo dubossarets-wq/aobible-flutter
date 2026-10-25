@@ -152,7 +152,7 @@ Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? 
       }
       return out;
     } finally {
-      db.dispose();
+      db.close();
     }
   });
 }

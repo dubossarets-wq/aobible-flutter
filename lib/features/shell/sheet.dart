@@ -8,9 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
+import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../plans/net_cache.dart' show siteJson;
 
 /// Контекст под MaterialApp (с Navigator и ScaffoldMessenger): нужен, когда окно или уведомление
 /// показывают из фоновой работы, где есть только WidgetRef от корня приложения.
@@ -71,6 +73,7 @@ class AppSheet extends ConsumerWidget {
             ?fixed,
             Expanded(
               child: ListView.separated(
+                key: ValueKey(title), // другая страница окна («Меню «Ещё»», подраздел «Оформления») — с самого верха, а не с прежнего места прокрутки
                 padding: padding.copyWith(bottom: padding.bottom + mq.padding.bottom),
                 itemCount: children.length,
                 separatorBuilder: (_, _) => SizedBox(height: gap),
@@ -191,16 +194,21 @@ class SegBar<T> extends ConsumerWidget {
     final pal = paletteOf(ref);
     return LayoutBuilder(builder: (context, box) {
       final scaler = MediaQuery.textScalerOf(context);
+      // ширины считаем один раз за построение; TextPainter освобождаем
       double natural(String text) {
         final tp = TextPainter(text: TextSpan(text: text, style: const TextStyle(fontSize: 13.2, fontWeight: FontWeight.w600)), textDirection: TextDirection.ltr, textScaler: scaler, maxLines: 1)..layout();
-        return tp.width + 16 + 22; // поля по 8 и запас на значок
+        final w = tp.width + 16 + 22; // поля по 8 и запас на значок
+        tp.dispose();
+        return w;
       }
+
+      final widths = [for (final o in options) natural(o.$3)];
 
       final inner = box.maxWidth - 6;
       final lines = <List<int>>[[]];
       var used = 0.0;
       for (var i = 0; i < options.length; i++) {
-        final w = natural(options[i].$3);
+        final w = widths[i];
         if (lines.last.isNotEmpty && used + w + 2 > inner) {
           lines.add([]);
           used = 0;
@@ -211,7 +219,7 @@ class SegBar<T> extends ConsumerWidget {
       Widget cell(int i) {
         final on = options[i].$1 == value;
         return Expanded(
-          flex: natural(options[i].$3).round(),
+          flex: widths[i].round(),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onChanged(options[i].$1),
@@ -452,7 +460,8 @@ class _ConfirmButtonState extends State<ConfirmButton> {
   @override
   Widget build(BuildContext context) {
     if (!_armed) return AobButton(label: widget.label, icon: widget.icon, small: widget.small, onTap: () => setState(() => _armed = true));
-    return Row(mainAxisSize: MainAxisSize.min, children: [
+    // Wrap: при крупном шрифте «Отмена» уходит на вторую строку, а не за край окна
+    return Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
       AobButton(
         label: widget.confirmText,
         kind: BtnKind.danger,
@@ -462,7 +471,6 @@ class _ConfirmButtonState extends State<ConfirmButton> {
           widget.onConfirm();
         },
       ),
-      const SizedBox(width: 8),
       AobButton(label: t('Отмена'), small: widget.small, onTap: () => setState(() => _armed = false)),
     ]);
   }
@@ -502,3 +510,7 @@ class Loading extends ConsumerWidget {
     );
   }
 }
+
+/// Сетевые источники окон «Библиотека» и «О приложении»: в тестах подменяются данными
+Future<List<CatalogEntry>> Function() loadCatalog = () => ModuleStore.instance.catalog();
+Future<Map<String, dynamic>?> Function(String path) loadSiteJson = siteJson;

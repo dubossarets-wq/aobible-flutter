@@ -120,6 +120,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
   String _lang = 'all';
   Map<String, String>? _texts;
   late final List<InstalledModule> _ordered;
+  final _diffs = <String, List<(String, bool)>>{}; // разница с открытым переводом считается один раз (иначе — на каждое нажатие плашки языка)
 
   @override
   void initState() {
@@ -199,7 +200,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         } else if (!isCur && current != null && (texts[widget.moduleId] ?? '').isNotEmpty && b.language == current.language) {
           text = Text.rich(
             TextSpan(children: [
-              for (final (s, d) in diffWords(texts[widget.moduleId]!, tx))
+              for (final (s, d) in _diffs[b.id] ??= diffWords(texts[widget.moduleId]!, tx))
                 TextSpan(text: s, style: d ? const TextStyle(backgroundColor: Color(0x61F2A65A)) : null), // mark.diff: #f2a65a 38%
             ]),
             style: const TextStyle(fontSize: 16.32, height: 1.5),

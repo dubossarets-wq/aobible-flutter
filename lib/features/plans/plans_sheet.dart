@@ -138,6 +138,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     setState(() => _busy = m.id);
     try {
       final p = await fetchPlan(m.file);
+      if ((p['readings'] as List?)?.isEmpty ?? true) throw Exception(t('План не загрузился')); // пустой план окно не покажет
       _add({'planId': p['id'], 'name': p['name'], 'readings': p['readings'], 'calendar': p['calendar'] == true});
     } catch (e) {
       if (mounted) toast(context, '$e'.replaceFirst('Exception: ', ''));
@@ -540,6 +541,18 @@ class _ActivePlanState extends State<_ActivePlan> {
     final p = widget.plan;
     final all = readingsOf(p);
     final total = all.length;
+    // Повреждённый план без дней (из старой копии данных) — только название и «удалить», иначе clamp(0, -1) роняет окно
+    if (total == 0) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: pal.bg),
+        child: Row(children: [
+          Expanded(child: Text(t('${p['name']}'), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text))),
+          ConfirmIcon(icon: LucideIcons.trash2, size: 15, confirmText: t('Удалить'), tooltip: t('Удалить план'), onConfirm: widget.onRemove),
+        ]),
+      );
+    }
     final today = planToday(p);
     final day = _day.clamp(0, total - 1);
     final doneCount = ((p['done'] as Map?) ?? const {}).length;

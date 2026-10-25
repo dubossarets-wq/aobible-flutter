@@ -1,6 +1,8 @@
 // Общие мелочи для окон закладок: уведомления, нижнее окно, дата, кнопка «Удалить → Удалить / Отмена»,
 // строка списка со смахиванием (SwipeRow.jsx + .list-row), пустой список (Empty из ui.jsx), закрашенные значки.
 // Окна — showAobSheet/AobSheet из kit.dart, кнопки — AobButton, значки — Lucide.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,6 +79,13 @@ class ConfirmButton extends StatefulWidget {
 
 class _ConfirmButtonState extends State<ConfirmButton> {
   bool _armed = false;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,13 +96,14 @@ class _ConfirmButtonState extends State<ConfirmButton> {
         small: widget.small,
         onTap: () {
           setState(() => _armed = true);
-          Future.delayed(const Duration(seconds: 4), () => mounted ? setState(() => _armed = false) : null);
+          _timer?.cancel();
+          _timer = Timer(const Duration(seconds: 4), () => mounted ? setState(() => _armed = false) : null);
         },
       );
     }
-    return Row(mainAxisSize: MainAxisSize.min, children: [
+    // Wrap: на узкой полосе или при крупном шрифте «Отмена» переходит на вторую строку, а не за край
+    return Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
       AobButton(label: widget.confirmLabel, kind: BtnKind.danger, small: widget.small, onTap: widget.onConfirm),
-      const SizedBox(width: 8),
       AobButton(label: t('Отмена'), small: widget.small, onTap: () => setState(() => _armed = false)),
     ]);
   }

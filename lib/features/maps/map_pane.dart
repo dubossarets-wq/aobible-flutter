@@ -31,6 +31,18 @@ final _fillLike = RegExp(r'^(background|park|water|landcover|landuse)(_|$)');
 final _notFill = RegExp('name|label|shadow|building|aeroway|boundary');
 bool isFillLayer(String id) => _fillLike.hasMatch(id) && !_notFill.hasMatch(id);
 
+/// Сама карта: MapLibre. Подменяется в тестах заглушкой (платформенного окна карты в тестах нет)
+Widget Function(LatLng target, double zoom, void Function(MapLibreMapController) onCreated, VoidCallback onStyle) mapViewBuilder = (target, zoom, onCreated, onStyle) => MapLibreMap(
+      styleString: mapStyle,
+      initialCameraPosition: CameraPosition(target: target, zoom: zoom),
+      onMapCreated: onCreated,
+      onStyleLoadedCallback: onStyle,
+      compassEnabled: false,
+      tiltGesturesEnabled: false,
+      logoEnabled: false,
+      scaleControlEnabled: true,
+    );
+
 class MapPaneView extends ConsumerStatefulWidget {
   const MapPaneView({super.key, required this.place, required this.onClose, required this.onOpenVerse});
   final Place place;
@@ -74,6 +86,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
     if (c == null) return;
     final at = LatLng(widget.place.lat, widget.place.lng);
     await c.setGeoJsonSource('place-pt', _point());
+    if (!mounted) return;
     final up = CameraUpdate.newLatLngZoom(at, zoomFor(widget.place.type));
     if (animate) {
       await c.animateCamera(up, duration: const Duration(milliseconds: 900));
@@ -90,6 +103,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
     if (c == null || !_ready || box == null || !box.hasSize) return;
     final side = _areaW >= 640;
     await c.animateCamera(CameraUpdate.newLatLng(LatLng(widget.place.lat, widget.place.lng)), duration: const Duration(milliseconds: 1));
+    if (!mounted) return;
     final dx = side ? -(box.size.width + 20) / 2 : 0.0;
     final dy = side ? 0.0 : (box.size.height + 20) / 2;
     await c.animateCamera(CameraUpdate.scrollBy(dx, dy), duration: const Duration(milliseconds: 300));
@@ -98,12 +112,13 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
   Future<void> _onStyle() async {
     final c = _c;
     if (c == null) return;
+    final pal = ref.read(settingsProvider).palette; // до первого await: после него виджета уже может не быть
     final ids = (await c.getLayerIds()).cast<String>();
+    if (!mounted) return;
     final first = ids.length > 1 ? ids[1] : null;
     await c.addSource('satellite', const RasterSourceProperties(tiles: [satelliteTiles], tileSize: 256, maxzoom: 13, attribution: satelliteCredit));
     await c.addRasterLayer('satellite', 'satellite', const RasterLayerProperties(), belowLayerId: first);
     await c.addGeoJsonSource('place-pt', _point());
-    final pal = ref.read(settingsProvider).palette;
     await c.addCircleLayer(
       'place-pt',
       'place-pt',
@@ -122,16 +137,16 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
   Future<void> _applyLayers() async {
     final c = _c;
     if (c == null || !_ready) return;
-    await c.setLayerVisibility('satellite', _sat);
-    for (final id in _styleLayers) {
-      final keep = _clean ? (!_sat && isFillLayer(id)) : !(_sat && isFillLayer(id));
-      await c.setLayerVisibility(id, keep);
-    }
+    // все вызовы уходят сразу (порядок на канале сохраняется) — а не по одному с ожиданием ответа на каждый слой
+    await Future.wait([
+      c.setLayerVisibility('satellite', _sat),
+      for (final id in _styleLayers) c.setLayerVisibility(id, _clean ? (!_sat && isFillLayer(id)) : !(_sat && isFillLayer(id))),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final pal = ref.watch(settingsProvider).palette;
+    final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final place = widget.place;
     final size = MediaQuery.sizeOf(context);
     // На низкой половине экрана (телефон) карточка сначала свёрнута — видна карта
@@ -140,7 +155,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
     // .map-pane .toolbar: шапка панели (высота barHeight, цвет bar, тень-линия), кнопки 40×40
     return Column(children: [
       Container(
-        height: ref.watch(settingsProvider).d('barHeight'),
+        height: ref.watch(settingsProvider.select((s) => s.d('barHeight'))),
         decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
         padding: const EdgeInsets.only(left: 8, right: 4),
         child: Row(children: [
@@ -200,16 +215,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
             Positioned.fill(
               child: ColoredBox(
                 color: const Color(0xFFDFE6E9),
-                child: MapLibreMap(
-                  styleString: mapStyle,
-                  initialCameraPosition: CameraPosition(target: LatLng(place.lat, place.lng), zoom: zoomFor(place.type)),
-                  onMapCreated: (c) => _c = c,
-                  onStyleLoadedCallback: _onStyle,
-                  compassEnabled: false,
-                  tiltGesturesEnabled: false,
-                  logoEnabled: false,
-                  scaleControlEnabled: true,
-                ),
+                child: mapViewBuilder(LatLng(place.lat, place.lng), zoomFor(place.type), (c) => _c = c, _onStyle),
               ),
             ),
             // Подпись источников — сверху и всегда видна (условие CC BY и ODbL); внизу её закрывали бы карточка и меню

@@ -82,34 +82,30 @@ final planScopes = <PlanScope>[
   PlanScope('ps', 'Псалтирь', () => ['Ps']),
 ];
 
-/// Главы выбранных книг поровну по дням (по числу стихов — чтобы дни были ровными)
-List<List<String>> makeCustomPlan(List<String> bookIds, int days) {
-  final store = ModuleStore.instance;
-  final mods = store.bibles;
-  final mod = mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.firstOrNull;
-  if (mod == null) return [];
-  final db = store.db(mod.id);
-  final chapters = <({String ref, int n})>[];
-  for (final id in bookIds) {
-    for (final r in db.select('SELECT chapter, COUNT(*) AS n FROM verses WHERE book = ? GROUP BY chapter ORDER BY chapter', [id])) {
-      chapters.add((ref: '$id.${r['chapter']}', n: r['n'] as int));
-    }
-  }
-  return splitChapters(chapters, days);
+/// Главы по книгам одного перевода — запоминаем: «Свой план → Параллельно» пересчитывает дни при каждом нажатии,
+/// а запрос по всем книгам Заветов на главном потоке заметен. Содержимое модуля за сеанс не меняется
+/// (при переустановке меняется версия каталога — она часть ключа).
+final _chapterCache = <String, List<({String ref, int n})>>{};
+
+List<({String ref, int n})> _bookChapters(InstalledModule mod, String book) {
+  final key = '${mod.id}|${mod.meta['catalogVersion']}|$book';
+  return _chapterCache[key] ??= [
+    for (final r in ModuleStore.instance.db(mod.id).select('SELECT chapter, COUNT(*) AS n FROM verses WHERE book = ? GROUP BY chapter ORDER BY chapter', [book]))
+      (ref: '$book.${r['chapter']}', n: r['n'] as int),
+  ];
 }
+
+InstalledModule? _planModule() {
+  final mods = ModuleStore.instance.bibles;
+  return mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.firstOrNull;
+}
+
+/// Главы выбранных книг поровну по дням (по числу стихов — чтобы дни были ровными)
+List<List<String>> makeCustomPlan(List<String> bookIds, int days) => splitChapters(chapterList(bookIds), days);
 
 /// Главы книг по порядку: [(ref: 'Isa.1', n: стихов)] — по основному переводу
 List<({String ref, int n})> chapterList(List<String> bookIds) {
-  final store = ModuleStore.instance;
-  final mods = store.bibles;
-  final mod = mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.firstOrNull;
+  final mod = _planModule();
   if (mod == null) return [];
-  final db = store.db(mod.id);
-  final chapters = <({String ref, int n})>[];
-  for (final id in bookIds) {
-    for (final r in db.select('SELECT chapter, COUNT(*) AS n FROM verses WHERE book = ? GROUP BY chapter ORDER BY chapter', [id])) {
-      chapters.add((ref: '$id.${r['chapter']}', n: r['n'] as int));
-    }
-  }
-  return chapters;
+  return [for (final id in bookIds) ..._bookChapters(mod, id)];
 }

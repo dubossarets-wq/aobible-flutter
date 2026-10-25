@@ -151,7 +151,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       _catErr = null;
     });
     try {
-      final c = await ModuleStore.instance.catalog();
+      final c = await loadCatalog();
       if (mounted) setState(() => _catalog = c);
     } catch (e) {
       if (mounted) setState(() => _catErr = '${t('Не удалось подключиться к серверу. Проверьте интернет.')}\n$e');

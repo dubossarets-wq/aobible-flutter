@@ -33,15 +33,20 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> {
     });
     try {
       final cat = await ModuleStore.instance.catalog();
+      if (!mounted) return;
       final id = ref.read(settingsProvider).get<String>('primaryModule');
       final e = cat.firstWhere((m) => m.id == id, orElse: () => cat.firstWhere((m) => m.id == 'rst-plus'));
-      await ModuleStore.instance.install(e, onProgress: (p, l) => setState(() {
-            _p = p;
-            _label = '${e.name}: ${t(l)}';
-          }));
-      widget.onReady();
+      await ModuleStore.instance.install(e, onProgress: (p, l) {
+        if (!mounted) return; // окно могли закрыть, пока шла загрузка
+        setState(() {
+          _p = p;
+          _label = '${e.name}: ${t(l)}';
+        });
+      });
+      if (mounted) widget.onReady();
     } catch (err) {
       debugPrint('bootstrap: $err');
+      if (!mounted) return;
       setState(() => _error = t('Не удалось подключиться к серверу. Проверьте интернет.'));
     }
   }

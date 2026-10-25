@@ -129,6 +129,7 @@ class AudioEngine {
 
   ProviderContainer? _c;
   AudioPlayer? _player;
+  final _subs = <StreamSubscription<Object?>>[]; // подписки на события плеера — снимаются вместе с ним
   AoAudioHandler? _handler;
   AudioChapter? _timing;
   String? _timingKey, _timingPack, _loadedUrl;
@@ -278,6 +279,7 @@ class AudioEngine {
     _unwatchLive();
     _timing = null;
     _timingKey = null;
+    _releasePlayer();
     time.value = const TimeSnap(0, 0);
     _set((x) => x.copyWith(active: false, playing: false, loading: false, sleep: null, ref: null, error: null));
     _handler?.playbackState.add(PlaybackState(processingState: AudioProcessingState.idle, playing: false));
@@ -390,6 +392,21 @@ class AudioEngine {
     _player?.pause();
   }
 
+  /// Закрыли аудио: подписки снимаем, плеер освобождаем (держать декодер и поток позиции без дела незачем) —
+  /// при следующем запуске _ensurePlayer создаст новый
+  void _releasePlayer() {
+    final p = _player;
+    if (p == null) return;
+    _player = null;
+    _loadedUrl = null;
+    _timingPack = null;
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
+    p.dispose().catchError((Object e) => debugPrint('плеер не освободился: $e'));
+  }
+
   void _unawaitedPlay(AudioPlayer p) {
     p.play().catchError((Object e) {
       _fail(e);
@@ -401,18 +418,18 @@ class AudioEngine {
     if (hit != null) return hit;
     final p = _player = AudioPlayer();
     await p.setVolume(s.volume);
-    p.positionStream.listen(_onPosition);
-    p.processingStateStream.listen((st) {
+    _subs.add(p.positionStream.listen(_onPosition));
+    _subs.add(p.processingStateStream.listen((st) {
       if (st == ProcessingState.completed) _onCompleted();
       final busy = st == ProcessingState.loading || st == ProcessingState.buffering;
       if (s.active && s.playing && s.loading != busy && !_switching) _set((x) => x.copyWith(loading: busy));
-    });
+    }));
     // Звонок или другое приложение остановили звук — кнопка показывает паузу
-    p.playingStream.listen((playing) {
+    _subs.add(p.playingStream.listen((playing) {
       if (!playing && s.active && s.playing && !_switching && p.processingState != ProcessingState.completed && _timing != null) {
         _set((x) => x.copyWith(playing: false));
       }
-    });
+    }));
     if (_handler == null) {
       try {
         _handler = await AudioService.init(

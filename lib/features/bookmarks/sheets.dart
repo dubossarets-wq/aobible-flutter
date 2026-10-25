@@ -54,10 +54,12 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
           ),
           if (existing != null)
             Padding(padding: const EdgeInsets.only(top: 12), child: Text(t('Создана {date}', {'date': fmtDate(existing['at'], year: true)}), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted))),
+          _DisposeWith(ctl),
         ]);
       },
     ),
-    footer: (ctx) => Row(children: [
+    // Wrap, а не Row: «Удалить → Удалить / Отмена» + «Сохранить» на узком экране или при крупном шрифте переносятся
+    footer: (ctx) => Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 8, children: [
       if (existing != null)
         ConfirmButton(
           icon: LucideIcons.trash2,
@@ -69,7 +71,6 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
             Navigator.pop(ctx);
           },
         ),
-      const Spacer(),
       AobButton(
         kind: BtnKind.primary,
         icon: LucideIcons.save,
@@ -81,7 +82,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
         },
       ),
     ]),
-  ).whenComplete(ctl.dispose);
+  );
 }
 
 /// «В подборку»: добавить стихи в существующую подборку или создать новую
@@ -163,11 +164,33 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                   ]),
                 ),
               ),
+            _DisposeWith(ctl),
           ]);
         },
       ),
     ),
-  ).whenComplete(ctl.dispose);
+  );
+}
+
+/// Контроллер поля закрывается вместе с окном: Future showModalBottomSheet завершается в момент закрытия, а поле
+/// ещё перерисовывается до конца анимации — dispose по whenComplete роняет «controller was used after being disposed».
+/// Виджет ставится после поля: при удалении ветки поле освобождается раньше.
+class _DisposeWith extends StatefulWidget {
+  const _DisposeWith(this.ctl);
+  final TextEditingController ctl;
+  @override
+  State<_DisposeWith> createState() => _DisposeWithState();
+}
+
+class _DisposeWithState extends State<_DisposeWith> {
+  @override
+  void dispose() {
+    widget.ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 String _cut(String s, int n) => s.length <= n ? s : s.substring(0, n);

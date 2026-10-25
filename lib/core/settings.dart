@@ -13,6 +13,28 @@ class Palette {
   final String label;
   final Color bg, text, muted, accent, panel, onAccent, bar, barText, line, hl, verseNum;
   final bool dark;
+
+  // Сравнение по значению: paletteWith() каждый раз собирает новый объект, а без == подписки
+  // `select((s) => s.palette)` перестраивали бы экран при любой смене любой настройки
+  @override
+  bool operator ==(Object other) =>
+      other is Palette &&
+      other.label == label &&
+      other.dark == dark &&
+      other.bg == bg &&
+      other.text == text &&
+      other.muted == muted &&
+      other.accent == accent &&
+      other.panel == panel &&
+      other.onAccent == onAccent &&
+      other.bar == bar &&
+      other.barText == barText &&
+      other.line == line &&
+      other.hl == hl &&
+      other.verseNum == verseNum;
+
+  @override
+  int get hashCode => Object.hash(label, dark, bg, text, muted, accent, panel, onAccent, bar, barText, line, hl, verseNum);
 }
 
 Color _c(int v) => Color(0xFF000000 | v);

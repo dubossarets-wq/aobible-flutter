@@ -10,7 +10,6 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
-import '../plans/net_cache.dart' show siteJson;
 import 'colors.dart';
 import 'library_sheet.dart' show moduleSections;
 import 'sheet.dart';
@@ -86,11 +85,11 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
   @override
   void initState() {
     super.initState();
-    siteJson('images/verse-bg/index.json').then((j) {
+    loadSiteJson('images/verse-bg/index.json').then((j) {
       final l = ((j?['images'] as List?) ?? const []).map((e) => (e as Map).cast<String, dynamic>()).toList();
       if (mounted) setState(() => _photos = l);
     }, onError: (_) {});
-    ModuleStore.instance.catalog().then((c) {
+    loadCatalog().then((c) {
       if (mounted) setState(() => _cat = c.where((m) => !m.unavailable).toList());
     }, onError: (_) {
       if (mounted) setState(() => _cat = []);

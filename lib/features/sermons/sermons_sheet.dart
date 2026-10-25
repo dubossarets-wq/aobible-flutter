@@ -250,6 +250,7 @@ class _EditorState extends ConsumerState<_Editor> {
     _fill();
     if (widget.scrollTo != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return; // окно могли закрыть до первого кадра
         final c = _keys[widget.scrollTo]?.currentContext;
         if (c != null) Scrollable.ensureVisible(c, alignment: 0.4);
         setState(() => _flash = widget.scrollTo);
@@ -303,6 +304,7 @@ class _EditorState extends ConsumerState<_Editor> {
     final sermon = ref.watch(sermonsProvider).where((s) => s['id'] == widget.sermon['id']).firstOrNull ?? widget.sermon;
     final blocks = blocksOf(sermon);
     final verses = blocks.where(isVerse).length;
+    _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим
     return ReorderableListView.builder(
       scrollController: _scroll,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -664,6 +666,14 @@ class _PulpitState extends ConsumerState<Pulpit> {
     // .pulpit-body: боковые поля max(20, (100% − 46em) / 2)
     final side = ((width - 46 * _size) / 2).clamp(20.0, double.infinity).toDouble();
     final bottom = MediaQuery.paddingOf(context).bottom + MediaQuery.sizeOf(context).height * 0.4;
+    final items = <Widget>[
+      // h1: 1.5em, по центру
+      Padding(padding: EdgeInsets.only(bottom: _size * 0.9), child: Text('${s['title']}', textAlign: TextAlign.center, style: TextStyle(fontSize: _size * 1.5, fontWeight: FontWeight.w700, height: 1.2, color: pal.text))),
+      if (date.isNotEmpty) Padding(padding: EdgeInsets.only(bottom: _size * 0.84), child: Text(date, textAlign: TextAlign.center, style: TextStyle(fontSize: _size * 0.7, color: pal.muted))),
+      for (final b in blocksOf(s)) ..._block(pal, b),
+      // .pulpit-end
+      Padding(padding: EdgeInsets.only(top: _size * 0.8 * 2), child: Center(child: Text(t('Аминь'), style: TextStyle(fontSize: _size * 0.8, color: pal.muted)))),
+    ];
     return Scaffold(
       backgroundColor: pal.bg,
       body: Column(children: [
@@ -706,17 +716,12 @@ class _PulpitState extends ConsumerState<Pulpit> {
               _pts.remove(e.pointer);
               if (_pts.length < 2) setState(() {});
             },
-            child: ListView(
+            // Лениво: при щипке перестраивается только видимое, а не вся проповедь
+            child: ListView.builder(
               physics: _pts.length >= 2 ? const NeverScrollableScrollPhysics() : null,
               padding: EdgeInsets.fromLTRB(side, 24, side, bottom),
-              children: [
-                // h1: 1.5em, по центру
-                Padding(padding: EdgeInsets.only(bottom: _size * 0.9), child: Text('${s['title']}', textAlign: TextAlign.center, style: TextStyle(fontSize: _size * 1.5, fontWeight: FontWeight.w700, height: 1.2, color: pal.text))),
-                if (date.isNotEmpty) Padding(padding: EdgeInsets.only(bottom: _size * 0.84), child: Text(date, textAlign: TextAlign.center, style: TextStyle(fontSize: _size * 0.7, color: pal.muted))),
-                for (final b in blocksOf(s)) ..._block(pal, b),
-                // .pulpit-end
-                Padding(padding: EdgeInsets.only(top: _size * 0.8 * 2), child: Center(child: Text(t('Аминь'), style: TextStyle(fontSize: _size * 0.8, color: pal.muted)))),
-              ],
+              itemCount: items.length,
+              itemBuilder: (_, i) => items[i],
             ),
           ),
         ),

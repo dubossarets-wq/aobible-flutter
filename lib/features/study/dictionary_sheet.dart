@@ -316,7 +316,11 @@ class _DictRow extends ConsumerWidget {
               ]),
             ),
             const SizedBox(width: 12),
-            Text(r.found.length > 1 ? t('{n} статьи', {'n': '${r.found.length}'}) : kind, style: TextStyle(color: pal.muted, fontSize: 12.8)),
+            // не шире 120 px и в две строки: при крупном шрифте подпись не выталкивает название словаря за край
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Text(r.found.length > 1 ? t('{n} статьи', {'n': '${r.found.length}'}) : kind, textAlign: TextAlign.right, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted, fontSize: 12.8)),
+            ),
           ]),
         ),
       ),

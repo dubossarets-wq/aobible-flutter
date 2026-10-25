@@ -3,6 +3,7 @@
 // закрывается свайпом вниз, крестиком или нажатием на фон. «Назад» — к окну, из которого открыли (оно лежит под этим).
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
@@ -252,7 +253,16 @@ class FilterChips extends StatelessWidget {
   final List<Widget> children;
   @override
   // от края до края окна; у края, за которым есть ещё плашки, — затухание (FadeRow из kit.dart)
-  Widget build(BuildContext context) => FadeRow(bleed: true, padding: const EdgeInsets.only(bottom: 2), children: children);
+  // Ряд стоит внутри вертикального списка (высота не ограничена): kit-овский bleed там ломается (OverflowBox
+  // становится бесконечной высоты), поэтому расширяем сами — OverflowBox по размеру ребёнка
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) => OverflowBox(
+          fit: OverflowBoxFit.deferToChild,
+          minWidth: box.maxWidth + 32,
+          maxWidth: box.maxWidth + 32,
+          child: FadeRow(padding: const EdgeInsets.fromLTRB(16, 0, 16, 2), children: children),
+        ),
+      );
 }
 
 class ChipWrap extends StatelessWidget {

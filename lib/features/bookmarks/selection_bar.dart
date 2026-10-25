@@ -3,6 +3,8 @@
 // в подборку, сравнить переводы, слушать, копировать, поделиться).
 // hostContext/hostRef — от панели чтения: сама строка исчезает, как только выделение снято, а окна и
 // функции из Hub должны жить дольше неё.
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,7 +34,7 @@ class _SelectionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pal = ref.watch(settingsProvider).palette;
+    final pal = paletteOf(ref); // только палитра: прочие настройки панель не перестраивают
     final sel = ref.watch(selectionProvider.select((m) => m[pane] ?? const <VerseRef>{}));
     final marks = ref.watch(marksProvider);
     final moduleId = ref.watch(panesProvider.select((l) => pane < l.length ? l[pane].moduleId : 'rst-plus'));
@@ -100,21 +102,31 @@ class _SelectionBar extends ConsumerWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(left: 4),
-            child: Row(children: [
-              Flexible(child: Text(selectionLabel(refs), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(color: pal.barText, fontWeight: FontWeight.w500, fontSize: wide ? 16.8 : 15.2))),
-              const SizedBox(width: 8),
-              Semantics(
-                label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 22),
-                  height: 22,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)),
-                  child: Text('${refs.length}', style: TextStyle(color: pal.onAccent, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
-                ),
+            // Под подпись остаётся мало места (8 кнопок по 44 px): подпись и число сжимаются вместе, а не вылезают за край
+            child: LayoutBuilder(
+              builder: (context, box) => FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: math.max(box.maxWidth - 40, 60)),
+                    child: Text(selectionLabel(refs), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(color: pal.barText, fontWeight: FontWeight.w500, fontSize: wide ? 16.8 : 15.2)),
+                  ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 22),
+                      height: 22,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)),
+                      child: Text('${refs.length}', style: TextStyle(color: pal.onAccent, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+                    ),
+                  ),
+                ]),
               ),
-            ]),
+            ),
           ),
         ),
         lucide(LucideIcons.languages, 22, t('Читать параллельно'), () {
@@ -134,6 +146,7 @@ class _SelectionBar extends ConsumerWidget {
           shadowColor: const Color(0x38000000),
           menuPadding: EdgeInsets.zero,
           padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 112, maxWidth: 360), // ряд цветов шире стандартных 280 px
           position: PopupMenuPosition.under,
           onSelected: (id) {
             r.read(marksProvider.notifier).setHighlight(refs, id.isEmpty ? null : id);
