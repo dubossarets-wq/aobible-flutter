@@ -24,9 +24,11 @@ class WordTap {
 
 /// Что добавить к стиху: фон (цвет выделения) и значки/пометки в конце стиха
 class VerseDecor {
-  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const [], this.below});
+  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const [], this.below, this.parts = const []});
   final Color? background;
   final Widget? below; // под текстом стиха, на всю ширину колонки (строка действий под выделенным стихом)
+  /// Любимые части стиха: диапазоны слов (индексы слов в стихе, включительно) — читалка подчёркивает их, как .fav-part
+  final List<(int, int)> parts;
   final List<InlineSpan> trailing;
   final List<InlineSpan> leading; // до номера стиха
   final List<InlineSpan> afterNumber; // между номером и текстом (закладка, сердце, подборка — как в веб-версии)
@@ -54,6 +56,22 @@ class MoreItem {
 
 typedef VerseDecorator = VerseDecor? Function(BuildContext context, WidgetRef ref, int pane, String moduleId, ReaderItem item, String book);
 typedef PaneAction = void Function(BuildContext context, WidgetRef ref, int pane);
+
+/// Выбор части стиха (PartInline в веб-версии): стих, первое и последнее слово (null — ещё не выбрано)
+class PartSelection {
+  const PartSelection(this.pane, this.ref, this.moduleId, {this.from, this.to});
+  final int pane;
+  final VerseRef ref;
+  final String moduleId;
+  final int? from;
+  final int? to;
+}
+
+/// Слово под выборкой или статьёй (.w.active): читалка подсвечивает его, пока выборка открыта
+final activeWord = ValueNotifier<({int pane, VerseRef ref, int token})?>(null);
+
+/// Идёт выбор части стиха (null — нет): кнопка «Часть стиха» ставит, читалка ведёт выбор слов
+final partSelection = ValueNotifier<PartSelection?>(null);
 
 class Hub {
   // Чтение
@@ -91,6 +109,18 @@ class Hub {
 
   /// Круглая кнопка «Слушать» внизу панели чтения (даёт функция аудио)
   static Widget Function(BuildContext context, WidgetRef ref, int pane)? listenFab;
+
+  // --- Жесты читалки и «Часть стиха» (ChapterView.jsx, BibleReader.jsx) ---
+  /// Двойное касание стиха — в любимые / из любимых, с пульсом сердечка (закладки)
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String moduleId)? onVerseDoubleTap;
+  /// Нажатие на номер Стронга в тексте — статья словаря сразу на всю высоту (изучение)
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String strongNum)? openStrong;
+  /// «Часть стиха»: выбранные слова from..to (индексы слов) — в любимые частью (закладки)
+  static void Function(BuildContext context, WidgetRef ref, VerseRef at, String moduleId, int from, int to, String text)? addFavoritePart;
+  /// «Часть стиха» → «В проповедь»: фрагмент текста (проповеди)
+  static void Function(BuildContext context, WidgetRef ref, VerseRef at, String moduleId, String fragment)? addFragmentToSermon;
+  /// Режим плана в панели (PlanView): что рисовать вместо читалки, когда planMode[pane] задан (планы)
+  static Widget Function(BuildContext context, WidgetRef ref, int pane)? planView;
 
   /// Поиск по номеру Стронга (G26, H7225): карточка — слово оригинала, значение, все места (даёт функция изучения).
   /// filter — часть Библии из настроек поиска; onOpen — открыть место; onArticle — статья словаря (null — не показывать)
@@ -130,6 +160,11 @@ class Hub {
     moreItems.clear();
     mapPaneBuilder = null;
     listenFab = null;
+    onVerseDoubleTap = null;
+    openStrong = null;
+    addFavoritePart = null;
+    addFragmentToSermon = null;
+    planView = null;
     strongSearchCard = null;
     onChapterRead = null;
   }

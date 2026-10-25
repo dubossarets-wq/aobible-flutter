@@ -50,7 +50,9 @@ class PanesNotifier extends Notifier<List<PaneState>> {
 
   void _save() => prefs.setString('panes', jsonEncode([for (final p in state) p.toJson()]));
 
-  void navigate(int i, VerseRef to) {
+  /// Переход. highlight — слово из поиска: подсвечивается в тексте 8 с (как в веб-версии), стих мигает (flash)
+  void navigate(int i, VerseRef to, {String? highlight, bool flash = true}) {
+    readerMarks.value = {...readerMarks.value, i: (ref: to, highlight: highlight, flash: flash, stamp: DateTime.now().millisecondsSinceEpoch)};
     final p = state[i];
     // История: текущее место (куда долистали) — на свою позицию, новое — следом; «вперёд» отбрасываем
     final at = livePositions[i]?.value ?? p.ref;
@@ -118,6 +120,26 @@ final mapPaneProvider = NotifierProvider<MapPaneNotifier, Object?>(MapPaneNotifi
 
 /// Текущее место каждой панели (для шапки) — без перерисовки всего приложения
 final livePositions = <int, ValueNotifier<VerseRef>>{};
+
+/// Пометки последнего перехода панели: какой стих мигнуть и какое слово подсветить (ChapterView.jsx: flash, highlight).
+/// Читалка показывает их stamp-ом один раз: подсветка слова гаснет через 8 с, мигание стиха — короткое
+final readerMarks = ValueNotifier<Map<int, ({VerseRef ref, String? highlight, bool flash, int stamp})>>({});
+
+/// Режим чтения (focusMode): читалка при прокрутке вниз ставит true — шапка и нижние вкладки прячутся; вверх — false
+final focusHidden = ValueNotifier<bool>(false);
+
+/// Панель в режиме плана (PlanView в веб-версии: лента отрывков дня вместо обычной читалки). uid плана и день.
+/// Ставит и снимает функция планов; главный экран рисует вместо читалки Hub.planView
+final planMode = ValueNotifier<Map<int, ({String uid, int day})>>({});
+void setPlanMode(int pane, ({String uid, int day})? v) {
+  final m = {...planMode.value};
+  if (v == null) {
+    m.remove(pane);
+  } else {
+    m[pane] = v;
+  }
+  planMode.value = m;
+}
 ValueNotifier<VerseRef> livePosition(int i, VerseRef initial) => livePositions.putIfAbsent(i, () => ValueNotifier(initial));
 
 /// Синхронная прокрутка: ведущая панель — та, которую человек трогал последней

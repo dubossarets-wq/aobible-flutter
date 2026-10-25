@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -82,6 +83,9 @@ class ModuleStore {
   List<InstalledModule> get bibles => installed.where((m) => m.type == 'bible').toList();
   InstalledModule? get(String id) => _installed[id];
 
+  /// Растёт при каждой установке, удалении, импорте, включении/выключении модуля — подписчики перечитывают список
+  final changes = ValueNotifier<int>(0);
+
   /// Открытая база модуля (только чтение; держим открытой — повторные запросы мгновенны)
   Database db(String id) => _open[id] ??= sqlite3.open(_installed[id]!.path, mode: OpenMode.readOnly);
 
@@ -101,6 +105,7 @@ class ModuleStore {
     _open.remove(e.id)?.close();
     await File(tmp).rename(target);
     _scan();
+    changes.value++;
     onProgress?.call(1, 'Готово');
   }
 
@@ -108,6 +113,7 @@ class ModuleStore {
     _open.remove(id)?.close();
     final m = _installed.remove(id);
     if (m != null) await File(m.path).delete();
+    changes.value++;
   }
 }
 
