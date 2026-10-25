@@ -1,6 +1,6 @@
 // Библиотека модулей (ModuleLibrary.jsx): установленные и каталог, поиск, фильтры по виду и языку (языки без модулей
-// не показываем), скачать / обновить / удалить, основной перевод. Не перенесено: импорт из файла и свой каталог
-// (в ModuleStore пока нет разбора файлов и переключения адреса), включение/отключение небиблейских модулей.
+// не показываем), скачать / обновить / удалить, основной перевод, вкладка «Импорт» (library_import.dart), свой каталог
+// («Источник каталога»), включение и выключение небиблейских модулей (переключатель и свайп).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +9,7 @@ import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import 'colors.dart';
+import 'library_import.dart';
 import 'sheet.dart';
 
 Future<void> openLibrary(BuildContext context, {String tab = 'installed'}) => showAppSheet(context, (_) => LibrarySheet(tab: tab));
@@ -50,7 +51,7 @@ String langName(String code) {
   return _langNames[code] ?? code.toUpperCase();
 }
 
-String fmtSize(int bytes) => bytes >= 1048576 ? '${(bytes / 1048576).toStringAsFixed(bytes >= 10485760 ? 0 : 1)} ${t('МБ')}' : '${(bytes / 1024).round()} ${t('КБ')}';
+String fmtSize(int bytes) => bytes >= 1048576 ? '${(bytes / 1048576).toStringAsFixed(bytes >= 10485760 ? 0 : 1)} ${t('МБ')}' : '${(bytes / 1024).round().clamp(1, 1 << 30)} ${t('КБ')}';
 
 /// Строка списка: описание модуля из каталога и/или установленного
 class _Item {
@@ -130,6 +131,9 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   final _search = TextEditingController();
   List<CatalogEntry>? _catalog;
   String? _catErr;
+  String _source = ''; // свой каталог (адрес); пусто — встроенный
+  final _url = TextEditingController();
+  bool _srcOpen = false;
   final Map<String, (double, String)> _busy = {};
   String? _open;
 
@@ -142,6 +146,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   @override
   void dispose() {
     _search.dispose();
+    _url.dispose();
     super.dispose();
   }
 
@@ -151,10 +156,10 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       _catErr = null;
     });
     try {
-      final c = await loadCatalog();
+      final c = _source.isEmpty ? await loadCatalog() : await ModuleStore.instance.catalog(url: _source);
       if (mounted) setState(() => _catalog = c);
     } catch (e) {
-      if (mounted) setState(() => _catErr = '${t('Не удалось подключиться к серверу. Проверьте интернет.')}\n$e');
+      if (mounted) setState(() => _catErr = _source.isEmpty ? '${t('Не удалось подключиться к серверу. Проверьте интернет.')}\n$e' : '$e');
     }
   }
 
@@ -199,11 +204,12 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     final store = ModuleStore.instance;
     final byCat = {for (final c in _catalog ?? <CatalogEntry>[]) c.id: c};
     final base = _tab == 'installed'
-        ? [for (final i in store.installed) _Item({...?byCat[i.id]?.json, ...i.meta}, installed: i, cat: byCat[i.id])]
+        ? [for (final i in store.allInstalled) _Item({...?byCat[i.id]?.json, ...i.meta}, installed: i, cat: byCat[i.id])]
         : [for (final c in _catalog ?? <CatalogEntry>[]) _Item(c.json, installed: store.get(c.id), cat: c)];
     final q = _q.trim().toLowerCase().replaceAll('ё', 'е');
     // Числа у языков — с учётом выбранного вида и строки поиска; языков без модулей не показываем
     final langItems = base.where((m) => (_filter == 'all' || m.type == _filter) && _matches(m, q)).toList();
+    final isImport = _tab == 'import';
     final lang = _lang != 'all' && !langItems.any((m) => m.language == _lang) ? 'all' : _lang;
     final list = base.where((m) => (lang == 'all' || m.language == lang) && _matches(m, q)).toList()..sort((a, b) => langRank(a.language).compareTo(langRank(b.language)));
     final counts = {for (final e in moduleSections) e.$1: list.where((m) => m.type == e.$1).length};
@@ -222,7 +228,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       for (final e in moduleSections)
         if ((_filter == 'all' || e.$1 == _filter) && list.any((m) => m.type == e.$1)) (e.$1, e.$2, list.where((m) => m.type == e.$1).toList()),
     ];
-    final empty = groups.isEmpty && !(_tab == 'catalog' && _catalog == null);
+    final empty = !isImport && groups.isEmpty && !(_tab == 'catalog' && _catalog == null);
 
     return AppSheet(
       title: t('Библиотека модулей'),
@@ -231,30 +237,33 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         padding: const EdgeInsets.only(top: 12, bottom: 6),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           AobTabs<String>(
-            tabs: [('installed', t('Установленные'), null), ('catalog', t('Каталог'), null)],
+            tabs: [('installed', t('Установленные'), null), ('catalog', t('Каталог'), null), ('import', t('Импорт'), null)],
             value: _tab,
             onChanged: (v) => setState(() => _tab = v),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AobInput(controller: _search, hint: t('Поиск: Лопухин, Стронг, KJV…'), onChanged: (v) => setState(() => _q = v)),
-          ),
-          const SizedBox(height: 12),
-          chips([
-            AobChip(label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
-            for (final e in moduleSections) AobChip(label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
-          ]),
-          if (langCodes.length >= 2) ...[
+          if (!isImport) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AobInput(controller: _search, hint: t('Поиск: Лопухин, Стронг, KJV…'), onChanged: (v) => setState(() => _q = v)),
+            ),
             const SizedBox(height: 12),
             chips([
-              AobChip(label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
-              for (final c in langCodes) AobChip(label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
+              AobChip(label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+              for (final e in moduleSections) AobChip(label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
             ]),
+            if (langCodes.length >= 2) ...[
+              const SizedBox(height: 12),
+              chips([
+                AobChip(label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
+                for (final c in langCodes) AobChip(label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
+              ]),
+            ],
           ],
         ]),
       ),
       children: [
+        if (isImport) ImportTab(onDone: () => setState(() => _tab = 'installed')),
         if (_tab == 'catalog' && _catErr != null) ...[
           Text(_catErr!, style: TextStyle(color: _danger(pal), height: 1.4)),
           Align(alignment: Alignment.centerLeft, child: AobButton(icon: LucideIcons.refreshCw, label: t('Повторить'), small: true, onTap: _loadCatalog)),
@@ -275,6 +284,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
               ],
             ]),
           ),
+        if (!isImport)
         for (final g in groups)
           if (g.$3.isNotEmpty)
             // .nav-group: заголовок h4 и список в рамке; зазор 8
@@ -294,6 +304,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
                 ]),
               ),
             ]),
+        if (_tab == 'catalog') _sourceFold(pal),
       ],
     );
   }
@@ -322,6 +333,17 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         onTap: isPrimary ? null : () => _primary(m),
         child: isPrimary ? _FilledStar(color: pal.accent) : Icon(LucideIcons.star, size: 20, color: pal.muted),
       );
+    } else if (_tab == 'installed' && installed != null && installed.type != 'bible') {
+      // включить / выключить: выключенный не участвует в словарях, комментариях и картах
+      final on = ModuleStore.instance.isEnabled(installed.id);
+      action = RowSwitch(
+        value: on,
+        tip: on ? t('Включён') : t('Отключён'),
+        onChanged: (v) async {
+          await ModuleStore.instance.setEnabled(installed.id, v);
+          if (mounted) setState(() {});
+        },
+      );
     } else if (installed != null) {
       action = _Act(tip: t('Установлен'), child: Icon(LucideIcons.circleCheck, size: 20, color: _ok(pal)));
     } else {
@@ -333,7 +355,8 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     }
     final sub = [if (m.language.isNotEmpty) langName(m.language), m.title.isNotEmpty ? m.title : t(moduleTypeNames[m.type] ?? m.type)].join(' · ');
     void toggle() => setState(() => _open = open ? null : m.id);
-    return Container(
+    final off = _tab == 'installed' && installed != null && installed.type != 'bible' && !ModuleStore.instance.isEnabled(installed.id);
+    return Opacity(opacity: off ? 0.72 : 1, child: Container(
       decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: pal.line))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         ConstrainedBox(
@@ -373,14 +396,66 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         ),
         if (open) _details(m, pal, isPrimary, updatable, busy != null),
       ]),
-    );
+    ));
+  }
+
+  /// «Источник каталога»: свой адрес aob-catalog, возврат к встроенному, обновление списка
+  Widget _sourceFold(Palette pal) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: LibFold(
+          title: t('Источник каталога'),
+          open: _srcOpen,
+          onToggle: () => setState(() => _srcOpen = !_srcOpen),
+          children: [
+            Text(
+              '${_source.isEmpty ? '${t('Сейчас — встроенный каталог.')} ' : '${t('Сейчас — {url}.', {'url': _source})} '}${t('Можно подключить свой каталог aob-catalog: https://…/catalog.json (нужен CORS).')}',
+              style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4),
+            ),
+            Row(children: [
+              Expanded(child: AobInput(controller: _url, icon: null, hint: 'https://…/catalog.json', onSubmitted: (_) => _connect())),
+              const SizedBox(width: 8),
+              AobButton(label: t('Подключить'), onTap: _connect),
+            ]),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              if (_source.isNotEmpty)
+                AobButton(
+                  small: true,
+                  label: t('Встроенный каталог'),
+                  onTap: () {
+                    _url.clear();
+                    _source = '';
+                    _loadCatalog();
+                  },
+                ),
+              AobButton(small: true, icon: LucideIcons.refreshCw, label: t('Обновить список'), onTap: _loadCatalog),
+            ]),
+          ],
+        ),
+      );
+
+  void _connect() {
+    _source = _url.text.trim();
+    _loadCatalog();
+  }
+
+  String? _stats(_Item m) {
+    final s = m.json['stats'];
+    if (s is! Map) return null;
+    int n(String k) => (s[k] as num?)?.toInt() ?? 0;
+    return switch (m.type) {
+      'bible' => t('{books} кн., {verses} стихов', {'books': '${n('books')}', 'verses': fmtNum(n('verses'))}),
+      'dictionary' || 'commentary' => t('{n} статей', {'n': fmtNum(n('entries'))}),
+      'maps' => n('places') > 0 ? t('{n} мест', {'n': '${n('places')}'}) : t('{n} карт', {'n': '${n('maps')}'}),
+      'audio' => t('{n} глав', {'n': '${n('chapters')}'}),
+      _ => t('ссылки для {n} стихов', {'n': fmtNum(n('verses'))}),
+    };
   }
 
   Widget _details(_Item m, Palette pal, bool isPrimary, bool updatable, bool busy) {
     final installed = m.installed;
     final facts = <(String, String)>[
       (t('Вид'), t(moduleTypeNames[m.type] ?? m.type) + (m.str('dictionaryKind') != null ? ' · ${m.str('dictionaryKind') == 'strongs' ? t('по номерам Стронга') : t('по словам')}' : '')),
-      if (m.size > 0) (t('Объём'), fmtSize(m.size)),
+      if (_stats(m) != null || m.size > 0) (t('Объём'), [?_stats(m), if (m.size > 0) fmtSize(m.size)].join(' · ')),
       if (m.language.isNotEmpty) (t('Язык'), m.language.toUpperCase()),
       if (m.str('version') != null) (t('Версия'), m.str('version')!),
       if (m.str('license') != null) (t('Лицензия'), m.str('license')!),

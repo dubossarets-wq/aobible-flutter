@@ -123,7 +123,9 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
     final s = ref.watch(settingsProvider);
     final pal = effectivePalette(s);
     final lang = langs.firstWhere((l) => l.code == currentLang, orElse: () => langs.first);
-    final title = switch (_page) { 'lang' => t('Язык'), 'menu' => t('Меню «Ещё»'), 'audio' => t('Аудио'), _ => t('Настройки') };
+    // на широком экране это меню ⋮ в шапке, на телефоне — лист «Ещё» (usePhoneLayout в веб-версии)
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final title = switch (_page) { 'lang' => t('Язык'), 'menu' => wide ? t('Меню ⋮') : t('Меню «Ещё»'), 'audio' => t('Аудио'), _ => t('Настройки') };
     final myData = Hub.moreItems.where((m) => m.id == 'mydata').firstOrNull;
 
     List<Widget> body;
@@ -147,7 +149,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
         ];
       case 'menu':
         body = [
-          Text(t('Отметьте, что показывать в разделе «Ещё» на нижней панели. Остальное всегда есть здесь, в настройках.'), style: TextStyle(fontSize: 14.7, height: 1.5, color: pal.muted)),
+          Text(wide ? t('Отметьте, что показывать в меню ⋮. Остальное всегда есть в настройках.') : t('Отметьте, что показывать в разделе «Ещё» на нижней панели. Остальное всегда есть здесь, в настройках.'), style: TextStyle(fontSize: 14.7, height: 1.5, color: pal.muted)),
           for (final m in _menuItems)
             SwitchField(
               label: t(m.$2),
@@ -188,7 +190,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
               ),
           (last) => PrefRow(icon: LucideIcons.bookOpenCheck, title: t('Инструкция'), sub: t('Пошаговые подсказки'), onTap: () => openHelp(context), last: last),
           (last) => PrefRow(icon: LucideIcons.palette, title: t('Оформление'), sub: t('Тема, шрифт, размер букв'), onTap: () => openAppearance(context), last: last),
-          (last) => PrefRow(icon: LucideIcons.ellipsisVertical, title: t('Меню «Ещё»'), sub: t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu'), last: last),
+          (last) => PrefRow(icon: LucideIcons.ellipsisVertical, title: wide ? t('Меню ⋮') : t('Меню «Ещё»'), sub: wide ? t('Выбрать пункты меню') : t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu'), last: last),
           (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('ИИ-диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
           (last) => PrefRow(icon: LucideIcons.library, title: t('Библиотека модулей'), sub: t('Переводы, словари, аудиокниги'), onTap: () => openLibrary(context), last: last),
           if (myData != null) (last) => PrefRow(icon: LucideIcons.hardDrive, title: t('Мои данные'), sub: t('Сохранить и перенести на новый телефон'), onTap: () => myData.run(widget.opener, ref, 0), last: last),

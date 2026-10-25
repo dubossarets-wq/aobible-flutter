@@ -22,11 +22,42 @@ const _budget = 1500000;
 
 Iterable<String> _userKeys() => prefs.getKeys().where((k) => !serviceKeys.contains(k) && prefs.get(k) is String);
 
-/// Значение ключа в виде, как оно лежит в localStorage веб-версии (язык там — JSON-строка, расположение панелей не переносим)
-Map<String, String> _asWeb() => {
-      for (final k in _userKeys())
-        if (k != 'panes') k: k == 'lang' ? jsonEncode(prefs.getString(k)) : prefs.getString(k)!,
-    };
+/// Панели в виде веб-версии (newPane в App.jsx): [{moduleId, ref, history, hIndex, nav, highlight, flash}, null]
+String? _panesAsWeb(String raw) {
+  try {
+    final out = <Object?>[];
+    for (final p in jsonDecode(raw) as List) {
+      if (p is! Map || p['moduleId'] is! String || p['ref'] is! Map) continue;
+      out.add({'moduleId': p['moduleId'], 'ref': p['ref'], 'history': [p['ref']], 'hIndex': 0, 'nav': 1, 'highlight': null, 'flash': null});
+      if (out.length == 2) break;
+    }
+    if (out.isEmpty) return null;
+    while (out.length < 2) {
+      out.add(null);
+    }
+    return jsonEncode(out);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Значение ключа в виде, как оно лежит в localStorage веб-версии: язык и запрос поиска там — JSON-строки,
+/// панели — их формат
+Map<String, String> _asWeb() {
+  final out = <String, String>{};
+  for (final k in _userKeys()) {
+    final v = prefs.getString(k)!;
+    if (k == 'lang' || k == 'searchQuery') {
+      out[k] = jsonEncode(v);
+    } else if (k == 'panes') {
+      final p = _panesAsWeb(v);
+      if (p != null) out[k] = p;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
 
 Map<String, dynamic> exportData() => {'format': dataFormat, 'version': 1, 'exportedAt': DateTime.now().toUtc().toIso8601String(), 'data': _asWeb()};
 
@@ -62,7 +93,7 @@ Map<String, dynamic> parseDataFile(String text) {
 /// Из записи файла/копии — в то, что кладём в prefs (язык — обычной строкой, панели — в наш формат)
 MapEntry<String, String>? _toPrefs(String k, Object? v) {
   if (v is! String || serviceKeys.contains(k)) return null;
-  if (k == 'lang') {
+  if (k == 'lang' || k == 'searchQuery') {
     try {
       final d = jsonDecode(v);
       return MapEntry(k, d is String ? d : v);

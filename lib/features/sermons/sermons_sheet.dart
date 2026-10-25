@@ -1,6 +1,7 @@
 // Проповеди (SermonsSheet.jsx): список со смахиванием и «Отменить», редактор (стихи и свой текст по порядку; зажать блок —
 // перетащить) и «Кафедра» — крупный текст проповеди для чтения на служении, экран при этом не гаснет.
 // Размеры и цвета — по styles.css (.sermon-*, .pulpit-*).
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -759,9 +760,12 @@ class _PulpitState extends ConsumerState<Pulpit> {
   }
 }
 
+
 // --- Поиск стихов для проповеди --------------------------------------------------------------------------
 
-/// Выбор стихов для проповеди: ссылка («Ин 3:16-18», «Пс 22») добавляет все стихи сразу, слова ищутся по всему переводу.
+/// Выбор стихов для проповеди (SearchPanel в режиме pick): ссылка («Ин 3:16-18», «Пс 22») добавляет все стихи сразу,
+/// слова и фразы ищутся по тексту перевода тем же поиском, что и вкладка «Поиск» (часть слова, «целые слова», область).
+/// Область и «целые слова» общие с основным поиском (те же ключи searchScope, searchWhole).
 class VersePicker extends ConsumerStatefulWidget {
   const VersePicker({super.key, required this.pal, required this.sermonId, required this.moduleId, required this.insertAt, required this.onInsertAt, required this.onDone});
   final Palette pal;
@@ -774,13 +778,30 @@ class VersePicker extends ConsumerStatefulWidget {
   ConsumerState<VersePicker> createState() => _VersePickerState();
 }
 
+T _pref<T>(String key, T def) {
+  try {
+    final v = prefs.getString(key);
+    return v == null ? def : jsonDecode(v) as T;
+  } catch (_) {
+    return def;
+  }
+}
+
 class _VersePickerState extends ConsumerState<VersePicker> {
+  static const _page = 200;
   final _q = TextEditingController();
-  List<SearchHit> _hits = const [];
+  List<SearchHit>? _hits;
   late int? _at = widget.insertAt;
+  String _scope = _pref('searchScope', 'all');
+  bool _whole = _pref('searchWhole', false);
+  int _shown = _page;
+  bool _busy = false;
+  int _seq = 0;
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _q.dispose();
     super.dispose();
   }
@@ -791,10 +812,49 @@ class _VersePickerState extends ConsumerState<VersePicker> {
     return blocksOf(s).any((b) => isVerse(b) && b['part'] != true && b['book'] == r.book && b['chapter'] == r.chapter && r.verse >= (b['verse'] as int) && r.verse <= ((b['to'] ?? b['verse']) as int));
   }
 
-  void _search(String q) {
+  String get _curBook => ref.read(panesProvider).firstOrNull?.ref.book ?? 'Gen';
+
+  Set<String>? _books() {
+    if (_scope == 'all') return null;
+    if (_scope == 'book') return {_curBook};
+    return {for (final b in Books.instance.all) if (b.testament == _scope) b.id};
+  }
+
+  void _schedule() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), _search);
+  }
+
+  Future<void> _search() async {
     final mid = widget.moduleId;
-    if (mid == null || q.trim().length < 2 || parseRange(q) != null) return setState(() => _hits = const []);
-    setState(() => _hits = search(mid, q, limit: 150));
+    final q = _q.text.trim();
+    final seq = ++_seq;
+    if (mid == null || q.length < 2 || parseRange(q) != null) {
+      setState(() {
+        _hits = null;
+        _busy = false;
+      });
+      return;
+    }
+    setState(() => _busy = true);
+    List<SearchHit> found;
+    try {
+      found = await searchText(mid, q, books: _books(), wholeWord: _whole);
+    } catch (_) {
+      found = const [];
+    }
+    if (!mounted || seq != _seq) return;
+    setState(() {
+      _hits = found;
+      _shown = _page;
+      _busy = false;
+    });
+  }
+
+  void _option(String key, Object v, VoidCallback apply) {
+    setState(apply);
+    prefs.setString(key, jsonEncode(v));
+    _schedule();
   }
 
   void _addOne(SearchHit h) {
@@ -819,53 +879,104 @@ class _VersePickerState extends ConsumerState<VersePicker> {
     widget.onDone(ids.isEmpty ? null : ids.first);
   }
 
+  // Найденные слова выделены, как в поиске
+  Widget _snippet(SearchHit h, RegExp? re, Palette pal) {
+    final text = h.snippet.replaceAll(RegExp(r'[\[\]]'), '');
+    final style = TextStyle(color: pal.text, height: 1.4);
+    if (re == null) return Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: style);
+    final spans = <TextSpan>[];
+    var at = 0;
+    for (final m in re.allMatches(text)) {
+      if (m.end == m.start) continue;
+      if (m.start > at) spans.add(TextSpan(text: text.substring(at, m.start)));
+      spans.add(TextSpan(text: text.substring(m.start, m.end), style: TextStyle(backgroundColor: pal.hl)));
+      at = m.end;
+    }
+    if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+    return Text.rich(TextSpan(children: spans), maxLines: 3, overflow: TextOverflow.ellipsis, style: style);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pal = widget.pal;
     final range = parseRange(_q.text);
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: AobInput(
-          controller: _q,
-          autofocus: true,
-          hint: t('Слово, фраза или ссылка'),
-          onChanged: _search,
-          onSubmitted: (v) => range != null ? _addRef() : _search(v),
-        ),
-      ),
-      if (range != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Добавить в проповедь: {ref}', {'ref': refRangeLabel(_q.text, range)}), onTap: _addRef),
-        ),
-      Expanded(
-        child: ListView.builder(
-          itemCount: _hits.length,
-          itemBuilder: (_, i) {
-            final h = _hits[i];
-            final has = _has(h.ref);
-            return InkWell(
-              onTap: () => _addOne(h),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(Books.instance.formatRef(h.ref.book, h.ref.chapter, h.ref.verse), style: TextStyle(fontWeight: FontWeight.w700, color: pal.accent)),
-                      const SizedBox(height: 2),
-                      Text(h.snippet.replaceAll(RegExp(r'[\[\]]'), ''), maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.text, height: 1.4)),
-                    ]),
-                  ),
-                  const SizedBox(width: 12),
-                  Icon(has ? LucideIcons.circleCheck : LucideIcons.plus, size: 20, color: has ? kOkSoft : pal.muted),
+    final hits = _hits;
+    final re = _q.text.trim().isEmpty ? null : queryRegex(_q.text.trim(), wholeWord: _whole);
+    final count = hits == null ? 0 : (hits.length < _shown ? hits.length : _shown);
+    final book = Books.instance.meta(_curBook).short;
+    return ListView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: 1 + count + (hits != null && hits.length > _shown ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (i == 0) {
+          return Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              AobInput(
+                controller: _q,
+                autofocus: true,
+                hint: t('Слово, фраза или ссылка'),
+                onChanged: (_) {
+                  setState(() {});
+                  _schedule();
+                },
+                onSubmitted: (v) => range != null ? _addRef() : _search(),
+              ),
+              const SizedBox(height: 12),
+              Segmented<String>(
+                options: [('all', t('Вся Библия')), ('OT', t('ВЗ')), ('NT', t('НЗ')), ('book', book)],
+                value: _scope,
+                onChanged: (v) => _option('searchScope', v, () => _scope = v),
+              ),
+              const SizedBox(height: 12),
+              SwitchRow(label: t('Только целые слова'), hint: t('Иначе «свет» найдёт и «светильник»'), value: _whole, onChanged: (v) => _option('searchWhole', v, () => _whole = v)),
+              if (range != null) ...[
+                const SizedBox(height: 8),
+                AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Добавить в проповедь: {ref}', {'ref': refRangeLabel(_q.text, range)}), onTap: _addRef),
+              ],
+              if (hits != null || _busy)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(children: [
+                    if (_busy) ...[const Spinner(size: 14), const SizedBox(width: 6)],
+                    Expanded(
+                      child: Text(
+                        t('Найдено: {n}', {'n': '${hits?.length ?? 0}'}) + (!_busy && (hits?.isEmpty ?? false) ? ' — ${t('попробуйте другую форму слова или отключите «целые слова».')}' : ''),
+                        style: TextStyle(fontSize: 14, color: pal.muted),
+                      ),
+                    ),
+                  ]),
+                ),
+            ]),
+          );
+        }
+        if (i == count + 1) {
+          return Padding(
+            padding: const EdgeInsets.all(12),
+            child: AobButton(label: t('Показать ещё ({n})', {'n': '${hits!.length - _shown}'}), wide: true, onTap: () => setState(() => _shown += _page)),
+          );
+        }
+        final h = hits![i - 1];
+        final has = _has(h.ref);
+        return InkWell(
+          onTap: () => _addOne(h),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(Books.instance.formatRef(h.ref.book, h.ref.chapter, h.ref.verse), style: TextStyle(fontWeight: FontWeight.w700, color: pal.accent)),
+                  const SizedBox(height: 2),
+                  _snippet(h, re, pal),
                 ]),
               ),
-            );
-          },
-        ),
-      ),
-    ]);
+              const SizedBox(width: 12),
+              Tooltip(message: has ? t('Уже в проповеди') : t('Добавить в проповедь'), child: Icon(has ? LucideIcons.check : LucideIcons.plus, size: 20, color: has ? kOkSoft : pal.muted)),
+            ]),
+          ),
+        );
+      },
+    );
   }
 }

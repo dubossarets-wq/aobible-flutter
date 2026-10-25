@@ -10,6 +10,7 @@ import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import 'gestures.dart' show favPulse;
 import 'marks.dart';
 import 'sel_inline.dart';
 import 'sheets.dart';
@@ -24,22 +25,41 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
     final refs = sortedRefs(sel);
     final me = VerseRef(book, item.chapter, item.verse);
     if (refKey(refs.last) == refKey(me)) {
-      below = buildSelectionInline(context, ref, pane: pane, moduleId: moduleId, refs: refs, onDone: () => ref.read(selectionProvider.notifier).clear(pane));
+      below = buildSelectionInline(context, ref,
+          pane: pane,
+          moduleId: moduleId,
+          refs: refs,
+          onDone: () => ref.read(selectionProvider.notifier).clear(pane),
+          // «Часть стиха»: выбор слов ведёт читалка (partSelection), выделение стиха снимаем
+          onPart: () {
+            partSelection.value = PartSelection(pane, refs.first, moduleId);
+            ref.read(selectionProvider.notifier).clear(pane);
+          });
     }
   }
-  final fl = ref.read(marksProvider).flags['$book.${item.chapter}.${item.verse}'];
-  if (fl == null || fl.isEmpty) return below == null ? null : VerseDecor(below: below);
+  final marks = ref.read(marksProvider);
+  final key = '$book.${item.chapter}.${item.verse}';
+  final fl = marks.flags[key];
+  // Вспышка у стиха, ставшего любимым (.fav-pulse)
+  final pulse = favPulse[key];
+  final part = marks.favParts[key];
+  final parts = part == null ? const <(int, int)>[] : [part];
+  if (fl == null || fl.isEmpty) {
+    return below == null && pulse == null ? null : VerseDecor(below: below, background: pulse == null ? null : loveColor.withValues(alpha: pulse));
+  }
   final s = ref.read(settingsProvider);
   final pal = s.palette;
   final fs = s.d('fontSize');
   final hl = hlColor(RegExp(r'[1-6]').firstMatch(fl)?.group(0));
 
   // Фон: цвет выделения (45 % и 42 % прозрачности — как в веб-версии), иначе лёгкий розовый у любимого стиха
-  final Color? bg = hl != null
+  Color? bg = hl != null
       ? hl.color.withValues(alpha: hl.id == '1' || hl.id == '6' ? 0.45 : 0.42)
       : fl.contains('f')
           ? loveColor.withValues(alpha: 0.09)
           : null;
+
+  if (pulse != null) bg = bg == null ? loveColor.withValues(alpha: pulse) : Color.alphaBlend(loveColor.withValues(alpha: pulse), bg);
 
   InlineSpan mark(Widget w) => WidgetSpan(alignment: PlaceholderAlignment.middle, child: w);
   // Закладка, сердце, подборка — между номером стиха и текстом (как в веб-версии), заметка — после текста
@@ -73,7 +93,7 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
     trailing.add(mark(Padding(
       padding: EdgeInsets.only(left: fs * 0.3),
       child: GestureDetector(
-        onTap: () => showNoteSheet(context, [r], moduleId),
+        onTap: () => showNoteSheet(context, [r], moduleId, pane: pane),
         child: Tooltip(
           message: t('Заметка'),
           child: Container(
@@ -86,7 +106,7 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
       ),
     )));
   }
-  return VerseDecor(background: bg, afterNumber: afterNumber, trailing: trailing, below: below);
+  return VerseDecor(background: bg, afterNumber: afterNumber, trailing: trailing, below: below, parts: parts);
 }
 
 /// Ленточка закладки: clip-path polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%)

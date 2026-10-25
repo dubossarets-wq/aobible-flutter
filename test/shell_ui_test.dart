@@ -108,10 +108,10 @@ void main() {
     await tester.pumpWidget(app((ctx, r) => openPrefs(ctx), container: c));
     await tester.tap(find.text('открыть'));
     await tester.pumpAndSettle();
-    for (final label in ['Язык', 'Инструкция', 'Оформление', 'Меню «Ещё»', 'Аудио', 'Библиотека модулей', 'Что нового', 'О приложении']) {
+    for (final label in ['Язык', 'Инструкция', 'Оформление', 'Меню ⋮', 'Аудио', 'Библиотека модулей', 'Что нового', 'О приложении']) {
       expect(find.text(label), findsWidgets, reason: label);
     }
-    await tester.tap(find.text('Меню «Ещё»').last);
+    await tester.tap(find.text('Меню ⋮').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Проповеди'));
     await tester.pumpAndSettle();
@@ -312,11 +312,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Перейти к книге, главе, стиху'), findsNothing);
     expect(find.text('Проповеди'), findsOneWidget);
+    // урок закрывает окно и запускает подсветку поверх приложения
     await tester.tap(find.text('Проповеди'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.textContaining('шаг 1 из'), findsOneWidget);
+    await tester.tap(find.byTooltip('Закончить инструкцию'));
     await tester.pumpAndSettle();
-    expect(find.text('1'), findsOneWidget);
-    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
-    await tester.pumpAndSettle();
-    expect(find.text('Проповеди'), findsOneWidget);
+    expect(find.textContaining('шаг 1 из'), findsNothing);
   });
 }

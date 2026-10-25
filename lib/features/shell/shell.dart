@@ -24,12 +24,15 @@ import 'welcome_sheet.dart';
 
 export 'about_sheet.dart' show openAbout, appVersion;
 export 'appearance_sheet.dart' show openAppearance;
+export 'background.dart' show ReaderBackground, UserBg, bgStamp;
 export 'colors.dart' show effectivePalette, paletteWith, headingColor, strongColor;
 export 'fonts.dart' show readerTextStyle, textAlignOf, menuFlag;
 export 'help_sheet.dart' show openHelp;
 export 'library_sheet.dart' show openLibrary;
 export 'news_sheet.dart' show openNews;
 export 'prefs_sheet.dart' show audioSettingsExtras, openPrefs;
+export 'tour.dart' show startTour, stopTour, tourActive;
+export 'tour_targets.dart' show tourKey, tourResolvers;
 
 bool _started = false;
 

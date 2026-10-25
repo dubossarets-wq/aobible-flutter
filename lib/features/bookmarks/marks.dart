@@ -89,9 +89,13 @@ String quoteVerse(String text, String label) => '"${text.replaceAll(RegExp(r'\s+
 String? verseText(String moduleId, VerseRef r) {
   try {
     final book = loadBook(moduleId, r.book);
-    final i = book.indexOf(r.chapter, r.verse);
-    final it = book.items[i];
-    return it.kind == ItemKind.verse && it.chapter == r.chapter && it.verse == r.verse ? plainText(it.text) : null;
+    // Для стиха 1 indexOf даёт заголовок главы — стих следует за ним (после названий разделов)
+    for (var k = book.indexOf(r.chapter, r.verse); k < book.items.length && k < book.indexOf(r.chapter, r.verse) + 6; k++) {
+      final it = book.items[k];
+      if (it.kind == ItemKind.verse && it.chapter == r.chapter && it.verse == r.verse) return plainText(it.text);
+      if (it.chapter > r.chapter) break;
+    }
+    return null;
   } catch (_) {
     return null;
   }
@@ -169,6 +173,18 @@ class Marks {
     final rest = [for (final b in favorites) if (itemKey(b) != refKey(r)) b];
     return copyWith(favorites: on ? [{'book': r.book, 'chapter': r.chapter, 'verse': r.verse, 'text': text, 'at': now}, ...rest] : rest);
   }
+
+  /// Любимая часть стиха: слова from..to; заменяет прежнюю отметку этого стиха (App.jsx addFavoritePart)
+  Marks withFavoritePart(VerseRef r, String text, int from, int to, int now) => copyWith(favorites: [
+        {'book': r.book, 'chapter': r.chapter, 'verse': r.verse, 'text': text, 'part': {'from': from, 'to': to}, 'at': now},
+        for (final b in favorites) if (itemKey(b) != refKey(r)) b,
+      ]);
+
+  /// «Книга.глава.стих» → слова любимой части (включительно)
+  late final Map<String, (int, int)> favParts = {
+    for (final x in favorites)
+      if (x['part'] is Map && (x['part'] as Map)['from'] is num && (x['part'] as Map)['to'] is num) itemKey(x): (((x['part'] as Map)['from'] as num).toInt(), ((x['part'] as Map)['to'] as num).toInt()),
+  };
 
   /// Заметка хранится у первого из выделенных стихов; пустой текст — удалить
   Marks withNote(VerseRef r, String text, String label, int now) {
@@ -282,6 +298,7 @@ class MarksNotifier extends Notifier<Marks> {
         }
         return x;
       });
+  void setFavoritePart(VerseRef r, String text, int from, int to) => update((m) => m.withFavoritePart(r, text, from, to, _now));
   void setNote(VerseRef r, String text, String label) => update((m) => m.withNote(r, text, label, _now));
   void setHighlight(Iterable<VerseRef> refs, String? color) => update((m) => m.withHighlight(refs, color));
   void addToCollection(String? id, List<Json> items, String? name, String defaultName) =>

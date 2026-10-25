@@ -1,14 +1,20 @@
 // Оформление (AppearanceSettings.jsx): сверху живой образец текста, под ним тема, размер, вид текста;
 // ниже подразделы — шрифт, номера и заголовки, цвета, кнопки и панели; внизу — сброс. Всё применяется сразу.
-// Не перенесено: фон-картинка и комментарии (нужны хранилище картинок и модули толкований — другие функции).
+// Подразделы «Фон» (картинка под текстом) и «Комментарии» (размер текста, какие видны после стиха) — тоже здесь.
+import 'dart:typed_data';
 import 'dart:ui' show PathMetric;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
+import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../bookmarks/marks.dart' show hlColors, marksProvider;
+import '../plans/net_cache.dart' show SiteImage;
+import 'background.dart';
 import 'colors.dart';
 import 'fonts.dart';
 import 'sheet.dart';
@@ -29,8 +35,27 @@ const _bars = <(String, String)>[
 const _lookKeys = [
   'theme', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'verseSpacing', 'textWidth', 'textAlign', 'showVerseNumbers', 'chapterTitleSize',
   'showStrongs', 'showHeadings', 'showXrefButtons', 'showIllustrations', 'continuousVerses', 'bookMode', 'colorOverrides', 'strongSize', 'strongPos',
-  'verseNumSize', 'verseNumPos', 'headingSize', 'uiFontSize', 'barHeight', 'animations', 'focusMode', 'splitLayout', 'commentaryFontSize',
+  'verseNumPos', 'headingSize', 'uiFontSize', 'barHeight', 'animations', 'focusMode', 'splitLayout', 'commentaryFontSize',
+  'bgImage', 'bgPhoto', 'bgVeil', 'bgBlur', 'inlineCommentaries',
 ];
+
+// У этих ключей в Settings.defaults записи нет (фон по умолчанию выключен): при сбросе кладём значения веб-версии
+const _lookDefaults = <String, dynamic>{'bgImage': 0, 'bgPhoto': null, 'bgVeil': 72, 'bgBlur': 0, 'inlineCommentaries': null};
+
+/// Выбор своей картинки: байты файла или null. По умолчанию — окно выбора файла; тесты подменяют
+Future<Uint8List?> Function() pickBgImage = () async {
+  final f = await FilePicker.pickFile(type: FileType.image);
+  return f == null ? null : await f.readAsBytes();
+};
+
+/// Включённые комментарии (для подраздела «Комментарии»); хранилище модулей может быть ещё не готово
+List<InstalledModule> installedCommentaries() {
+  try {
+    return ModuleStore.instance.installed.where((m) => m.type == 'commentary').toList();
+  } catch (_) {
+    return const [];
+  }
+}
 
 // Понятные значения вместо чисел
 String Function(double) _words(double lo, double hi, String a, String b, String c) => (v) => t(v < lo ? a : v <= hi ? b : c);
@@ -41,6 +66,8 @@ final _widthW = _words(36, 56, 'узкая', 'обычная', 'широкая')
 final _barW = _words(50, 58, 'низкая', 'обычная', 'высокая');
 const _weights = {300: 'тонкий', 400: 'обычный', 500: 'средний', 600: 'полужирный', 700: 'жирный'};
 const _pos = {'sup': 'Над строкой', 'inline': 'В строке', 'sub': 'Под строкой'};
+
+String _blurW(double v) => v == 0 ? t('нет') : _words(7, 13, 'лёгкое', 'среднее', 'сильное')(v);
 
 String textView(Settings s) => s.get<bool>('bookMode') ? 'book' : s.get<bool>('continuousVerses') ? 'flow' : 'verses';
 
@@ -163,9 +190,14 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
   static const _blocks = <(String, IconData, String)>[
     ('font', LucideIcons.type, 'Шрифт'),
     ('nums', LucideIcons.hash, 'Номера и заголовки'),
+    ('bg', LucideIcons.image, 'Фон'),
     ('colors', LucideIcons.palette, 'Цвета'),
     ('ui', LucideIcons.panelTop, 'Кнопки и панели'),
+    ('comments', LucideIcons.messageSquareText, 'Комментарии'),
   ];
+
+  // «Комментарии» показываем, только когда есть установленные комментарии
+  List<(String, IconData, String)> get _shown => [for (final b in _blocks) if (b.$1 != 'comments' || installedCommentaries().isNotEmpty) b];
 
   void set(Map<String, dynamic> p) => ref.read(settingsProvider.notifier).set(p);
 
@@ -174,12 +206,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     final s = ref.watch(settingsProvider);
     final pal = effectivePalette(s);
     final cur = _blocks.where((b) => b.$1 == _block).firstOrNull;
+    final commentaries = installedCommentaries();
     final title = cur != null ? t(cur.$3) : t('Оформление');
     final children = switch (_block) {
       'font' => _font(s),
       'nums' => _nums(s),
+      'bg' => _bg(s),
       'colors' => _colors(s),
       'ui' => _ui(s),
+      'comments' => _comments(s, commentaries),
       _ => _main(s, pal),
     };
     return AppSheet(
@@ -187,9 +222,13 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       onBack: cur != null ? () => setState(() => _block = null) : null,
       gap: 18, // .ap-screen: зазор между блоками 18
       // образец закреплён вверху: при прокрутке настроек остаётся на виду
-      fixed: SheetFixed(
+      fixed: _block == 'comments'
+          ? null
+          : SheetFixed(
         bottom: 10,
-        child: _block == 'ui'
+        child: _block == 'bg'
+            ? _BgPreview(s: s)
+            : _block == 'ui'
             ? Sample(s: s, bar: true, ui: true, noText: true)
             : _block == 'colors'
                 ? Sample(s: s, bar: true, head: true, sn: true, ui: true, short: true, live: true)
@@ -209,6 +248,8 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       'nums': nums.isEmpty ? t('выкл') : nums.join(', '),
       'colors': over.isEmpty ? t('Как в теме') : t('Свои цвета: {n}', {'n': '${over.length}'}),
       'ui': [if (s.get<bool>('focusMode')) t('Режим чтения'), t('Кнопки в тексте, меню, верхняя панель')].join(' · '),
+      'bg': bgStamp(s) != 0 ? t('С картинкой') : t('Без фона'),
+      'comments': _commentsSub(s),
     };
     return [
       _field(t('Тема'), pal, 6, [
@@ -221,6 +262,8 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
               maxWidth: c.maxWidth + 32,
               child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
                 for (final e in themes.entries) _ThemeTile(id: e.key, p: e.value, ring: pal.accent, text: pal.text, on: s.get<String>('theme') == e.key, onTap: () => set({'theme': e.key})),
+                // «Как в системе»: половина светлой темы, половина тёмной
+                _ThemeTile(id: 'auto', p: themes['light']!, dark: themes['dark'], ring: pal.accent, text: pal.text, on: s.get<String>('theme') == 'auto', onTap: () => set({'theme': 'auto'})),
               ]),
             ),
           ),
@@ -246,7 +289,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       Container(
         decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
         child: Column(children: [
-          for (final (i, b) in _blocks.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _blocks.length - 1),
+          for (final (i, b) in _shown.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _shown.length - 1),
         ]),
       ),
       Center(
@@ -255,7 +298,8 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           label: t('Сбросить оформление'),
           confirmText: t('Да, сбросить'),
           onConfirm: () {
-            set({for (final k in _lookKeys) k: Settings.defaults[k]});
+            set({for (final k in _lookKeys) k: Settings.defaults.containsKey(k) ? Settings.defaults[k] : _lookDefaults[k]});
+            UserBg.clear();
             toast(context, t('Оформление сброшено'));
           },
         ),
@@ -399,6 +443,167 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     ];
   }
 
+  // --- Фон ---
+
+  bool _busy = false;
+
+  Future<void> _useBg(Uint8List bytes, String? photo) async {
+    try {
+      await UserBg.save(bytes);
+      set({'bgImage': DateTime.now().millisecondsSinceEpoch, 'bgPhoto': photo});
+    } catch (_) {
+      if (mounted) toast(context, t('Не удалось открыть картинку'));
+    }
+  }
+
+  Future<void> _pickOwn() async {
+    final Uint8List? bytes;
+    try {
+      bytes = await pickBgImage();
+    } catch (_) {
+      if (mounted) toast(context, t('Не удалось открыть картинку'));
+      return;
+    }
+    if (bytes != null) await _useBg(bytes, null);
+  }
+
+  Future<void> _pickPhoto(Map ph) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final bytes = await loadSiteBytes('images/verse-bg/${ph['file']}');
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (bytes == null) return toast(context, t('Не удалось открыть картинку'));
+    await _useBg(bytes, '${ph['id']}');
+  }
+
+  List<Widget> _bg(Settings s) {
+    final pal = effectivePalette(s);
+    final on = bgStamp(s) != 0;
+    final photo = bgPhotoId(s);
+    final own = on && photo == null;
+    // .bg-tile: квадрат, рамка line, скругление 12; выбранный — кольцо акцента 3 px через зазор 2
+    Widget tile({required bool selected, required Widget child, required VoidCallback onTap, String? tip, Color? fill}) => Tooltip(
+          message: tip ?? '',
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), border: Border.all(color: selected ? pal.accent : Colors.transparent, width: 3)),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(color: fill ?? pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(12)),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+    Widget label(IconData icon, String text, Color color) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(height: 4),
+            Text(text, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.2, height: 1.15, color: color)),
+          ]),
+        );
+    return [
+      FutureBuilder<Map<String, dynamic>?>(
+        future: _photosFuture ??= loadSiteJson('images/verse-bg/index.json'),
+        builder: (context, snap) {
+          final photos = ((snap.data?['images'] as List?) ?? const []).whereType<Map>().toList();
+          return LayoutBuilder(
+            builder: (context, c) {
+              // 4 столбца, зазор 10 (плитка сама имеет поле 2 для кольца, поэтому зазор между ними 6)
+              const gap = 6.0;
+              final w = (c.maxWidth - gap * 3) / 4;
+              return Wrap(spacing: gap, runSpacing: gap, children: [
+                SizedBox(
+                  width: w,
+                  child: tile(selected: !on, onTap: () {
+                    UserBg.clear();
+                    set({'bgImage': 0, 'bgPhoto': null});
+                  }, child: label(LucideIcons.ban, t('Без фона'), pal.text)),
+                ),
+                SizedBox(
+                  width: w,
+                  child: tile(
+                    selected: own,
+                    onTap: _pickOwn,
+                    fill: own ? const Color(0xff333333) : null,
+                    child: Stack(fit: StackFit.expand, children: [
+                      if (own) const _OwnThumb(),
+                      if (own) const ColoredBox(color: Color(0x8C000000)),
+                      label(LucideIcons.imagePlus, t('Своё фото'), own ? Colors.white : pal.text),
+                    ]),
+                  ),
+                ),
+                for (final ph in photos)
+                  SizedBox(
+                    width: w,
+                    child: tile(
+                      selected: on && photo == '${ph['id']}',
+                      tip: t('${ph['title']}'),
+                      fill: pal.line,
+                      onTap: () => _pickPhoto(ph),
+                      child: SiteImage('images/verse-bg/${ph['thumb']}'),
+                    ),
+                  ),
+              ]);
+            },
+          );
+        },
+      ),
+      if (on)
+        Card2(children: [
+          RangeRow(label: t('Картинку видно'), value: 100 - bgVeil(s), min: 5, max: 70, step: 1, onChanged: (v) => set({'bgVeil': 100 - v}), word: (v) => '${v.round()}%'),
+          RangeRow(label: t('Размытие'), value: bgBlur(s), min: 0, max: 20, step: 1, onChanged: (v) => set({'bgBlur': v}), word: _blurW),
+        ]),
+      Text(t('Картинка хранится только на этом устройстве.'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+    ];
+  }
+
+  Future<Map<String, dynamic>?>? _photosFuture;
+
+  // --- Комментарии ---
+
+  String _commentsSub(Settings s) {
+    final list = installedCommentaries();
+    final inline = s.j['inlineCommentaries'];
+    final n = inline is List ? list.where((m) => inline.contains(m.id)).length : list.length;
+    return t('{n} из {total}', {'n': '$n', 'total': '${list.length}'});
+  }
+
+  List<Widget> _comments(Settings s, List<InstalledModule> list) {
+    final pal = effectivePalette(s);
+    final inline = s.j['inlineCommentaries'];
+    final fs = s.d('commentaryFontSize');
+    return [
+      // размер текста в окне комментариев — с образцом
+      Card2(children: [
+        Text(t('Так выглядит текст комментария.'), style: TextStyle(fontSize: fs, height: 1.6, color: pal.text)),
+        RangeRow(label: t('Размер текста'), big: true, value: fs, min: 14, max: 32, step: 1, onChanged: (v) => set({'commentaryFontSize': v}), word: (v) => '${v.round()} px'),
+      ]),
+      Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+      Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+      Card2(children: [
+        for (final m in list)
+          SwitchField(
+            bold: true,
+            label: m.name,
+            hint: m.title == m.name ? null : m.title,
+            value: inline is! List || inline.contains(m.id),
+            onChanged: (on) {
+              final cur = inline is List ? inline.cast<String>() : [for (final x in list) x.id];
+              set({'inlineCommentaries': on ? {...cur, m.id}.toList() : [for (final x in cur) if (x != m.id) x]});
+            },
+          ),
+      ]),
+    ];
+  }
+
   void _setColor(String k, Color c) => set({'colorOverrides': {...overridesOf(ref.read(settingsProvider)), k: toHex(c)}});
   void _resetColors(List<String> keys) => set({'colorOverrides': {for (final e in overridesOf(ref.read(settingsProvider)).entries) if (!keys.contains(e.key)) e.key: e.value}});
 
@@ -416,6 +621,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         onReset: () => _resetColors(['bar', 'barText']),
         changed: over['bar'] != null,
       ),
+      const _HlLabels(),
       Card2(title: t('Тонкая настройка цветов'), children: [
         Column(children: [
           for (final k in colorKeys.where((k) => k.$1 != 'strong' && k.$1 != 'heading'))
@@ -452,9 +658,10 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
 
 /// Кружок темы (.theme-tile): её страница, полоска верхней панели (26%), буквы цветом текста и точка цвета акцента
 class _ThemeTile extends StatelessWidget {
-  const _ThemeTile({required this.id, required this.p, required this.ring, required this.text, required this.on, required this.onTap});
+  const _ThemeTile({required this.id, required this.p, this.dark, required this.ring, required this.text, required this.on, required this.onTap});
   final String id;
   final Palette p;
+  final Palette? dark; // у плитки «Как в системе» — тёмная половина
   final Color ring, text;
   final bool on;
   final VoidCallback onTap;
@@ -478,16 +685,32 @@ class _ThemeTile extends StatelessWidget {
               width: 54,
               height: 54,
               clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(color: p.bg, shape: BoxShape.circle, border: Border.all(color: p.line), boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))]),
+              decoration: BoxDecoration(color: dark == null ? p.bg : null, gradient: dark == null ? null : LinearGradient(colors: [p.bg, p.bg, dark!.bg, dark!.bg], stops: const [0, 0.5, 0.5, 1]), shape: BoxShape.circle, border: Border.all(color: p.line), boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))]),
               child: Stack(alignment: Alignment.center, children: [
-                Positioned(top: 0, left: 0, right: 0, height: 54 * 0.26, child: ColoredBox(color: p.bar)),
-                Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16))),
-                Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle))),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 54 * 0.26,
+                  child: dark == null ? ColoredBox(color: p.bar) : DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [p.bar, p.bar, dark!.bar, dark!.bar], stops: const [0, 0.5, 0.5, 1]))),
+                ),
+                if (dark == null)
+                  Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16)))
+                else
+                  Transform.translate(
+                    offset: const Offset(0, 4),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(t('Аа').substring(0, 1), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)),
+                      const SizedBox(width: 3),
+                      Text(t('Аа').substring(1), style: TextStyle(color: dark!.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)),
+                    ]),
+                  ),
+                Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: (dark ?? p).accent, shape: BoxShape.circle))),
               ]),
             ),
           ),
           const SizedBox(height: 0),
-          Text(t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
+          Text(id == 'auto' ? t('Как в системе') : t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
         ]),
       ),
     );
@@ -724,5 +947,115 @@ class _PickColorState extends ConsumerState<_PickColor> {
         _slider(hsv.value, 1, (v) => setState(() => hsv = hsv.withValue(v)), pal.accent),
       ],
     );
+  }
+}
+
+
+/// Образец фона (.bg-preview): заголовок и первый стих поверх выбранной картинки с вуалью и размытием
+class _BgPreview extends ConsumerWidget {
+  const _BgPreview({required this.s});
+  final Settings s;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = effectivePalette(s);
+    final fs = s.d('fontSize') < 20 ? s.d('fontSize') : 20.0;
+    final plain = t('В начале{7225} сотворил{1254} Бог{430} небо{8064} и{853} землю.{776}').replaceAll(RegExp(r'\{\d+\}'), '');
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      constraints: const BoxConstraints(minHeight: 132),
+      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      child: Stack(children: [
+        const Positioned.fill(child: ReaderBackground()),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t('Сотворение неба и земли'), style: readerTextStyle(s, size: fs * s.d('headingSize'), weight: 650).copyWith(color: headingColor(s), height: 1.3)),
+            const SizedBox(height: 4),
+            Text(plain, style: readerTextStyle(s, size: fs).copyWith(color: pal.text, height: s.d('lineHeight'))),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Уменьшенная копия своей картинки в плитке «Своё фото»
+class _OwnThumb extends StatelessWidget {
+  const _OwnThumb();
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+        valueListenable: UserBg.version,
+        builder: (context, _, _) => FutureBuilder<Uint8List?>(
+          future: UserBg.load(),
+          builder: (context, snap) => snap.data == null ? const SizedBox.shrink() : Image.memory(snap.data!, fit: BoxFit.cover, cacheWidth: 200, gaplessPlayback: true),
+        ),
+      );
+}
+
+/// «Цвета выделений»: свои названия цветов выделения (подписи хранит функция закладок — highlightLabels)
+class _HlLabels extends ConsumerStatefulWidget {
+  const _HlLabels();
+  @override
+  ConsumerState<_HlLabels> createState() => _HlLabelsState();
+}
+
+class _HlLabelsState extends ConsumerState<_HlLabels> {
+  late final Map<String, TextEditingController> _c = {
+    for (final h in hlColors) h.id: TextEditingController(text: ref.read(marksProvider).hlLabels[h.id] ?? ''),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _c.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = paletteOf(ref);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(t('Цвета выделений'), style: fieldLabel(pal, bold: true)),
+      const SizedBox(height: 4),
+      Text(t('Дайте цветам названия — например, «Обетования», «Вопросы».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+      const SizedBox(height: 8),
+      // .hl-labels: столбцы не уже 150, зазор 8
+      LayoutBuilder(
+        builder: (context, box) {
+          final cols = ((box.maxWidth + 8) / 158).floor().clamp(1, 6);
+          final w = (box.maxWidth - 8 * (cols - 1)) / cols;
+          return Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final h in hlColors)
+              SizedBox(
+                width: w,
+                child: Row(children: [
+                  Container(width: 20, height: 20, decoration: BoxDecoration(color: h.color, shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _c[h.id],
+                      onChanged: (v) => ref.read(marksProvider.notifier).update((m) => m.copyWith(hlLabels: {...m.hlLabels, h.id: v})),
+                      autocorrect: false,
+                      style: TextStyle(fontSize: 16, color: pal.text),
+                      decoration: InputDecoration(
+                        hintText: t(h.name),
+                        hintStyle: TextStyle(color: pal.muted),
+                        isDense: true,
+                        filled: true,
+                        fillColor: pal.bg,
+                        constraints: const BoxConstraints(minHeight: 44),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.line)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.accent)),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+          ]);
+        },
+      ),
+    ]);
   }
 }

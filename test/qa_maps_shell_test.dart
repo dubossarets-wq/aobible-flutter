@@ -126,7 +126,9 @@ void main() {
   Future<void> tapText(WidgetTester tester, String text, {bool last = false}) async {
     final f = last ? find.text(text).last : find.text(text).first;
     // список ленивый: нужной строки может ещё не быть в дереве — прокручиваем, пока не появится
-    if (find.text(text).evaluate().isEmpty) await tester.dragUntilVisible(find.text(text), find.byType(Scrollable).last, const Offset(0, -150));
+    if (find.text(text).evaluate().isEmpty) {
+      await tester.dragUntilVisible(find.text(text), find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical).last, const Offset(0, -150));
+    }
     await tester.ensureVisible(f);
     await tester.pumpAndSettle();
     await tester.tap(f);
@@ -245,6 +247,8 @@ void main() {
           await back(tester);
         }
         await tester.dragUntilVisible(find.text('Сбросить оформление'), find.byType(ListView).last, const Offset(0, -200));
+        await tester.ensureVisible(find.text('Сбросить оформление'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Сбросить оформление'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Да, сбросить'));
@@ -349,12 +353,14 @@ void main() {
         await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), '');
         await tester.pumpAndSettle();
-        await tapText(tester, 'Перейти к книге, главе, стиху');
-        await back(tester);
-        await tester.enterText(find.byType(TextField), 'проповедь');
+        // урок закрывает окно и подсвечивает места прямо в приложении
+        await tester.tap(find.text('Перейти к книге, главе, стиху'));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Нажмите — откроется список книг.'), findsOneWidget);
+        await tester.tap(find.byTooltip('Закончить инструкцию'));
         await tester.pumpAndSettle();
-        await tapText(tester, 'Проповеди');
-        await back(tester);
+        expect(find.text('Нажмите — откроется список книг.'), findsNothing);
       });
 
       testWidgets('Карты: список, поиск мест, пустой поиск, плитка карты', (tester) async {

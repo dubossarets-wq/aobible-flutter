@@ -480,7 +480,9 @@ void main() {
       // между блоками — «+ Стих»: поиск по слову
       await tapText(tester, 'Стих', first: true);
       await tester.enterText(find.byType(TextField).first, 'возлюбил');
-      await spin(tester, 100);
+      await spin(tester, 500); // запрос уходит после паузы ввода, поиск идёт в отдельном потоке
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await spin(tester, 500);
       expect(find.textContaining('Ин'), findsWidgets);
       await tester.tap(find.textContaining('Ибо так').first);
       await spin(tester, 300);

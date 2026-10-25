@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'books.dart';
+import 'modules.dart';
 import 'settings.dart';
 
 class PaneState {
@@ -62,6 +63,32 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     state = [for (var k = 0; k < state.length; k++) k == i ? p.copyWith(ref: to, nav: p.nav + 1, history: hist, hIndex: hist.length - 1) : state[k]];
     livePositions[i]?.value = to;
     _save();
+  }
+
+  /// Перевод панели удалён или недоступен — панель переходит на основной (или первый) перевод, место остаётся
+  /// (App.jsx: следим за списком переводов). Возвращает, переключили ли что-нибудь.
+  bool repairModules() {
+    final store = ModuleStore.instance;
+    final ids = [for (final m in store.bibles) if (m.features['helper'] != true) m.id];
+    if (ids.isEmpty) return false; // переводов ещё нет (первый запуск) — ждём установки
+    final primary = ref.read(settingsProvider).get<String>('primaryModule');
+    final fallback = ids.contains(primary) ? primary : ids.first;
+    var changed = false;
+    final out = <PaneState>[];
+    for (var k = 0; k < state.length; k++) {
+      final p = state[k];
+      if (ids.contains(p.moduleId)) {
+        out.add(p);
+        continue;
+      }
+      changed = true;
+      out.add(p.copyWith(moduleId: fallback, ref: livePositions[k]?.value ?? p.ref, nav: p.nav + 1));
+    }
+    if (changed) {
+      state = out;
+      _save();
+    }
+    return changed;
   }
 
   /// «←» / «→» по истории переходов
@@ -124,6 +151,10 @@ final livePositions = <int, ValueNotifier<VerseRef>>{};
 /// Пометки последнего перехода панели: какой стих мигнуть и какое слово подсветить (ChapterView.jsx: flash, highlight).
 /// Читалка показывает их stamp-ом один раз: подсветка слова гаснет через 8 с, мигание стиха — короткое
 final readerMarks = ValueNotifier<Map<int, ({VerseRef ref, String? highlight, bool flash, int stamp})>>({});
+
+/// Доступно обновление приложения (Google Play): на «Ещё» и на значке ⋮ загорается точка (updates.available в веб-версии).
+/// Ставит главный экран после тихой проверки
+final updateAvailable = ValueNotifier<bool>(false);
 
 /// Режим чтения (focusMode): читалка при прокрутке вниз ставит true — шапка и нижние вкладки прячутся; вверх — false
 final focusHidden = ValueNotifier<bool>(false);

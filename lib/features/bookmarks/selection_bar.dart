@@ -17,6 +17,7 @@ import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../study/compare_sheet.dart' show openCompare;
 import 'marks.dart';
 import 'sheets.dart';
 import 'ui.dart';
@@ -158,7 +159,7 @@ class _SelectionBar extends ConsumerWidget {
         if (wide) // .tb-opt: на узкой панели (≤ 400 px) «любимые» остаются только в меню «⋯»
           tb((c) => fav ? FillIcon(path: lucideHeartPath, size: 21, color: c, stroke: true) : Icon(LucideIcons.heart, size: 21, color: c), fav ? t('Убрать из любимых') : t('В любимые'), toggleFav, on: fav),
         lucide(LucideIcons.notebookPen, 21, hasNote ? t('Открыть заметку') : t('Добавить заметку'), () {
-          showNoteSheet(c, refs, moduleId);
+          showNoteSheet(c, refs, moduleId, pane: pane);
           done();
         }, on: hasNote),
         lucide(bm ? LucideIcons.bookmarkCheck : LucideIcons.bookmark, 21, bm ? t('Убрать закладку') : t('Закладка: продолжить отсюда'), toggleBm, on: bm),
@@ -276,38 +277,21 @@ class _DashedCircle extends CustomPainter {
   bool shouldRepaint(_DashedCircle o) => o.color != color;
 }
 
-/// «Читать параллельно»: один другой перевод — открываем вторую панель сразу;
-/// несколько — выбор (или окно сравнения переводов из Hub, если оно есть)
+/// «Читать параллельно»: один другой перевод — открываем соседнюю панель сразу; иначе — окно выбора перевода
 void _parallel(BuildContext c, WidgetRef r, int pane, List<VerseRef> refs, String moduleId) {
   final others = [for (final m in ModuleStore.instance.bibles) if (m.id != moduleId && !_originals.contains(m.id)) m];
   void open(String id) {
     final n = r.read(panesProvider.notifier);
+    final target = pane == 0 ? 1 : 0; // из первой панели — во вторую, из второй — в первую (openParallel)
     if (r.read(panesProvider).length < 2) {
       n.toggleSplit(moduleId: id);
     } else {
-      n.setModule(1, id);
+      n.setModule(target, id);
     }
-    n.navigate(1, refs.first);
+    n.navigate(target, refs.first);
   }
 
   if (others.length == 1) return open(others.first.id);
-  if (Hub.compareTranslations != null) return Hub.compareTranslations!(c, r, refs, moduleId);
-  showSheet<void>(
-    c,
-    title: t('Читать параллельно'),
-    subtitle: selectionLabel(refs, full: true),
-    body: (ctx) => Column(children: [
-      for (final (i, m) in others.indexed)
-        PrefRow(
-          icon: LucideIcons.languages,
-          title: m.name,
-          sub: m.title,
-          last: i == others.length - 1,
-          onTap: () {
-            Navigator.pop(ctx);
-            open(m.id);
-          },
-        ),
-    ]),
-  );
+  // Несколько переводов — окно выбора (CompareSheet pick: тексты переводов, «Читать параллельно» у каждого)
+  openCompare(c, r, refs, moduleId, pick: true, pane: pane);
 }

@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -97,17 +98,72 @@ class Settings {
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
   /// Тема со своими цветами поверх (настройка colorOverrides) — для читалки, окон и MaterialApp
   Palette get palette => paletteWith(basePalette, (j['colorOverrides'] as Map?)?.cast<String, dynamic>() ?? const {});
-  Palette get basePalette => themes[get<String>('theme')] ?? themes['light']!;
+  Palette get basePalette => themes[resolveTheme(get<String>('theme'), systemDark.value)] ?? themes['light']!;
   Settings copyWith(Map<String, dynamic> patch) => Settings({...j, ...patch});
 }
 
 late SharedPreferences prefs;
 
+/// Тема системы тёмная (ставит главное окно из MediaQuery/платформы) — для темы «Как в системе»
+final systemDark = ValueNotifier<bool>(false);
+
+/// Цвета строки состояния и нижней системной панели Android по теме (syncSystemBars в веб-версии):
+/// сверху — как верхняя панель, снизу — как окна; значки светлые на тёмном и тёмные на светлом
+SystemUiOverlayStyle systemBarsStyle(Palette p) {
+  Brightness on(Color c) => ThemeData.estimateBrightnessForColor(c) == Brightness.dark ? Brightness.light : Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: p.bar,
+    statusBarIconBrightness: on(p.bar),
+    statusBarBrightness: ThemeData.estimateBrightnessForColor(p.bar), // iOS: наоборот
+    systemNavigationBarColor: p.panel,
+    systemNavigationBarIconBrightness: on(p.panel),
+    systemNavigationBarDividerColor: p.panel,
+    systemNavigationBarContrastEnforced: false,
+  );
+}
+
+/// Тема «Как в системе» (theme: auto) — светлая или тёмная по системе; неизвестная — светлая (resolveTheme в веб-версии)
+String resolveTheme(String theme, bool prefersDark) {
+  if (theme == 'auto') return prefersDark ? 'dark' : 'light';
+  return themes.containsKey(theme) ? theme : 'light';
+}
+
+/// Настройки из старых версий (migrateSettings в веб-версии): v2 — «Как в системе» была светлой;
+/// v3 — «свои цвета» стали отдельными для каждого цвета, прежние (colors при customColors) переносим как есть.
+/// Метка v есть не у всех (в Flutter её раньше не было): без неё v2 не трогаем — только переносим старые цвета.
+Map<String, dynamic> migrateSettings(Map<String, dynamic> s) {
+  var out = s;
+  final v = (s['v'] as num?)?.toInt();
+  if (v != null && v < 2) out = {...out, 'theme': (out['theme'] == null || out['theme'] == 'auto') ? 'light' : out['theme']};
+  if (v == null || v < 3) {
+    final has = out.containsKey('customColors') || out.containsKey('colors');
+    if (has) {
+      final colors = out['colors'];
+      out = {...out}
+        ..['colorOverrides'] = out['customColors'] == true && colors is Map ? colors.cast<String, dynamic>() : (out['colorOverrides'] is Map ? out['colorOverrides'] : <String, dynamic>{})
+        ..['customColors'] = false
+        ..remove('colors');
+    }
+    out = {...out, 'v': 3};
+  }
+  return out;
+}
+
 class SettingsNotifier extends Notifier<Settings> {
   @override
   Settings build() {
     final raw = prefs.getString('settings');
-    return Settings(raw == null ? {} : (jsonDecode(raw) as Map).cast<String, dynamic>());
+    // Тема системы сменилась — «Как в системе» перекрашивает всё (палитра считается заново)
+    void onSystem() => state = Settings(state.j);
+    systemDark.addListener(onSystem);
+    ref.onDispose(() => systemDark.removeListener(onSystem));
+    var j = <String, dynamic>{};
+    try {
+      if (raw != null) j = migrateSettings((jsonDecode(raw) as Map).cast<String, dynamic>());
+    } catch (_) {
+      // повреждённые настройки — значения по умолчанию
+    }
+    return Settings(j);
   }
 
   void set(Map<String, dynamic> patch) {

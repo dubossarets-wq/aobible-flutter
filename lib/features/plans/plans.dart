@@ -10,7 +10,9 @@ import '../../core/settings.dart';
 import '../hub.dart';
 import 'loc.dart';
 import 'plan_logic.dart';
+import 'plan_mode.dart';
 import 'plan_store.dart';
+import 'plan_view.dart';
 import 'plans_sheet.dart';
 import 'reminders.dart';
 import 'ui_kit.dart';
@@ -21,10 +23,12 @@ void register() {
   Hub.onChapterRead = planChapterRead;
   Hub.openPlans = (context, ref, pane) => showPage(context, (_) => PlansSheet(pane: pane));
   Hub.openVerseImage = (context, ref, refs, moduleId) => showPage(context, (_) => VerseImageSheet(refs: refs, moduleId: moduleId));
+  Hub.planView = (context, ref, pane) => PlanHost(pane: pane);
   Hub.afterStart.add(_afterStart);
 }
 
 Future<void> _afterStart(WidgetRef ref) async {
+  watchPlanLeaving(ProviderScope.containerOf(ref.context, listen: false));
   await ensureDict();
   // Напоминание: пересобрать расписание; нажатие на уведомление открывает планы
   await startReminders(() {

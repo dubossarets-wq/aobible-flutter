@@ -46,7 +46,7 @@ class _Art {
   Size get size => _sizes[format]!;
 
   TextPainter _text(double fs, Color color, bool shadow) => TextPainter(
-        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'serif', fontSize: fs, height: 1.38, color: color, shadows: shadow ? const [Shadow(color: Color(0x59000000), blurRadius: 12)] : null)),
+        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'PT Serif', fontFamilyFallback: const ['Georgia', 'serif'], fontSize: fs, height: 1.38, color: color, shadows: shadow ? const [Shadow(color: Color(0x59000000), blurRadius: 12)] : null)),
         textAlign: TextAlign.center,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: size.width * 0.78);
@@ -76,7 +76,7 @@ class _Art {
     final lineY = top + tp.height + refSize * 0.5;
     canvas.drawRect(Rect.fromLTWH(cx - 40, lineY, 80, 3), Paint()..color = color.withValues(alpha: 0.75));
     final rp = TextPainter(
-      text: TextSpan(text: ref, style: TextStyle(fontSize: refSize, fontWeight: FontWeight.w700, color: color)),
+      text: TextSpan(text: ref, style: TextStyle(fontFamily: 'PT Sans', fontFamilyFallback: const ['Segoe UI', 'sans-serif'], fontSize: refSize, fontWeight: FontWeight.w700, color: color)),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: W * 0.78);
     rp.paint(canvas, Offset(cx - rp.width / 2, lineY + refSize * 0.3));
@@ -89,7 +89,7 @@ class _Art {
     var fs = 74.0;
     for (;;) {
       final tp = TextPainter(
-        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'serif', fontSize: fs, height: 1.38)),
+        text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'PT Serif', fontFamilyFallback: const ['Georgia', 'serif'], fontSize: fs, height: 1.38)),
         textAlign: TextAlign.center,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: size.width * 0.78);

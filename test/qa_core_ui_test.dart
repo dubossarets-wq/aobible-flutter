@@ -155,6 +155,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.descendant(of: find.byType(AobSheet), matching: find.text('3')).first);
       await tester.pumpAndSettle();
+      await tester.tap(find.text('С начала главы')); // глава → стихи (BookNavigator.jsx): с начала главы
+      await tester.pumpAndSettle();
       expect(c.read(panesProvider)[0].ref, const VerseRef('John', 3, 1));
       expect(find.text('Перейти'), findsNothing);
       await tester.tap(find.textContaining('3:').first);

@@ -4,15 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/panes.dart';
 import '../../ui/kit.dart';
+import '../study/dictionary_sheet.dart' show openRefInOther;
+import '../study/sheet.dart' show LinkedText, splitRefs;
 import 'marks.dart';
 import 'ui.dart';
 
 /// Заметка к стиху или к выделенным стихам (хранится у первого из них)
-void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) {
+/// pane — из какой панели открыли (ссылки в тексте заметки открываются в соседней); без него — панель с этим переводом
+void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, {int? pane}) {
   final ref = ProviderScope.containerOf(context); // не WidgetRef: окно живёт дольше строки, из которой открыто
   final msg = ScaffoldMessenger.maybeOf(context);
   final first = refs.first;
+  final panes = ref.read(panesProvider);
+  final fromPane = pane ?? (() {
+    final i = panes.indexWhere((p) => p.moduleId == moduleId);
+    return i < 0 ? 0 : i;
+  })();
   final existing = ref.read(marksProvider).noteOf(first);
   final label = (existing?['label'] as String?)?.isNotEmpty == true ? existing!['label'] as String : selectionLabel(refs, full: true);
   final verse = moduleId == null ? '' : selectionText(moduleId, refs);
@@ -23,8 +32,8 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
     title: existing != null ? t('Заметка') : t('Новая заметка'),
     subtitle: label,
     body: (ctx) => Consumer(
-      builder: (ctx, ref, _) {
-        final pal = paletteOf(ref);
+      builder: (ctx, wref, _) {
+        final pal = paletteOf(wref);
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (verse.isNotEmpty)
             Container(
@@ -51,6 +60,31 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.line)),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.accent)),
             ),
+          ),
+          // .note-preview: ссылки на стихи («Ин 3:16») в тексте заметки — кнопки; заметка при переходе сохраняется
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: ctl,
+            builder: (_, v, _) => !splitRefs(v.text).any((x) => x.$2 != null)
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: CustomPaint(
+                      foregroundPainter: _DashedRRect(pal.line, kRadius * 0.75),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius * 0.75)),
+                        child: LinkedText(
+                          text: v.text,
+                          style: TextStyle(fontSize: 16.3, height: 1.5, color: pal.text),
+                          onOpen: (r) {
+                            ref.read(marksProvider.notifier).setNote(first, ctl.text, label);
+                            openRefInOther(ctx, wref, fromPane, r);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
           ),
           if (existing != null)
             Padding(padding: const EdgeInsets.only(top: 12), child: Text(t('Создана {date}', {'date': fmtDate(existing['at'], year: true)}), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted))),
@@ -170,6 +204,29 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
       ),
     ),
   );
+}
+
+/// border: 1px dashed — пунктирная рамка со скруглением
+class _DashedRRect extends CustomPainter {
+  _DashedRRect(this.color, this.radius);
+  final Color color;
+  final double radius;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()..addRRect(RRect.fromRectAndRadius((Offset.zero & size).deflate(0.5), Radius.circular(radius)));
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final m in path.computeMetrics()) {
+      for (var d = 0.0; d < m.length; d += 6) {
+        canvas.drawPath(m.extractPath(d, d + 3), p);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRRect o) => o.color != color || o.radius != radius;
 }
 
 /// Контроллер поля закрывается вместе с окном: Future showModalBottomSheet завершается в момент закрытия, а поле

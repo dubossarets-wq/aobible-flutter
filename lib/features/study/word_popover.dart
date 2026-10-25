@@ -36,6 +36,20 @@ Future<void> onWordTap(BuildContext context, WidgetRef ref, WordTap tap) async {
   hubItems.sort((a, b) => a.order != b.order ? a.order.compareTo(b.order) : order[a]!.compareTo(order[b]!));
   final anchor = tap.rect;
 
+  // Слово подсвечено (.w.active), пока открыта выборка и статья, открытая из неё. Касание слова при открытой
+  // выборке попадает на подложку и только закрывает её (markClosedOnWord) — выборка заново не открывается.
+  final mine = (pane: tap.pane, ref: tap.ref, token: tap.tokenIndex);
+  activeWord.value = mine;
+  Future<void>? following; // статья, открытая выбором пункта
+  try {
+    await _showPopover(context, ref, tap, res, hubItems, anchor, (f) => following = f);
+    if (following != null) await following;
+  } finally {
+    if (activeWord.value == mine) activeWord.value = null;
+  }
+}
+
+Future<void> _showPopover(BuildContext context, WidgetRef ref, WordTap tap, LookupResult res, List<WordMenuItem> hubItems, Rect anchor, void Function(Future<void>) follow) async {
   await showGeneralDialog<void>(
     context: context,
     barrierDismissible: true, // касание вне выборки только закрывает её
@@ -60,7 +74,7 @@ Future<void> onWordTap(BuildContext context, WidgetRef ref, WordTap tap) async {
           wordIndex: _wordIndex(tap),
         );
         // Статья по номеру Стронга — на всю высоту, остальные словари — на половину экрана
-        openDictionary(context, req, full: StudyData.dictKind(m) == 'strongs');
+        follow(openDictionary(context, req, full: StudyData.dictKind(m) == 'strongs'));
       },
       onItem: (x) {
         Navigator.pop(dctx);

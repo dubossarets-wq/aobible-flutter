@@ -14,6 +14,7 @@ import '../../core/settings.dart';
 import 'loc.dart';
 import 'net_cache.dart';
 import 'plan_logic.dart';
+import 'plan_mode.dart';
 import 'plan_store.dart';
 import 'reminders.dart';
 import 'ui_kit.dart';
@@ -117,8 +118,11 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   }
 
   void _read(Plan plan, int day, int at) {
+    // Весь день плана одной страницей, с прокруткой к нужному отрывку (openPlanDay в веб-версии)
     final rs = readingsOf(plan);
-    if (day < rs.length && at < rs[day].length) _go(readingTarget(rs[day][at]));
+    if (day >= rs.length || at >= rs[day].length) return;
+    Navigator.of(context).pop();
+    openPlanDay(widget.pane, '${plan['uid']}', day, at: at);
   }
 
   void _add(Plan plan) {
@@ -609,7 +613,10 @@ class _ActivePlanState extends State<_ActivePlan> {
                 const SizedBox(width: 4),
                 IconBtn(icon: LucideIcons.chevronRight, subtle: true, size: 18, tooltip: t('Следующий день'), onTap: day >= total - 1 ? null : () => setState(() => _day = day + 1)),
                 const SizedBox(width: 4),
-                AobButton(small: true, kind: isDone ? BtnKind.primary : BtnKind.normal, icon: LucideIcons.check, label: isDone ? t('Прочитано') : t('Отметить'), onTap: () => _toggle(day)),
+                Tooltip(
+                  message: isDone ? t('Снять отметку дня') : t('Отметить весь день прочитанным'),
+                  child: AobButton(small: true, kind: isDone ? BtnKind.primary : BtnKind.normal, icon: LucideIcons.check, label: isDone ? t('Прочитано') : t('Отметить'), onTap: () => _toggle(day)),
+                ),
               ]),
             ),
             Padding(

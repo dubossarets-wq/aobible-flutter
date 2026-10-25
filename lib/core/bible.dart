@@ -24,6 +24,8 @@ class ReaderItem {
   final String text; // для стиха — сырой текст с разметкой
   List<Token>? _tokens;
   List<Token> get tokens => _tokens ??= parseVerse(text);
+  List<Word>? _words;
+  List<Word> get words => _words ??= wordsOf(tokens);
 }
 
 class BookText {
@@ -162,4 +164,22 @@ String? verseAt(String moduleId, VerseRef r) {
   if (ModuleStore.instance.get(moduleId) == null) return null;
   final rows = ModuleStore.instance.db(moduleId).select('SELECT text FROM verses WHERE book = ? AND chapter = ? AND verse = ?', [r.book, r.chapter, r.verse]);
   return rows.isEmpty ? null : plainText(rows.first['text'] as String);
+}
+
+/// Слова стиха, которые подсвечиваются после перехода из поиска (highlightRegex в веб-версии): слова запроса
+/// длиннее одной буквы, часть слова тоже подходит; «ё» = «е». Возвращает номера слов (индексы в item.words).
+Set<int> highlightWords(ReaderItem item, String query) {
+  final res = [
+    for (final w in query.split(RegExp(r'[\s\p{P}]+', unicode: true)))
+      if (w.length > 1) queryRegex(w),
+  ].whereType<RegExp>().toList();
+  if (res.isEmpty) return const {};
+  final out = <int>{};
+  final words = item.words;
+  for (var i = 0; i < words.length; i++) {
+    final w = words[i];
+    final text = item.tokens[w.token].text.substring(w.start, w.end);
+    if (res.any((r) => r.hasMatch(text))) out.add(i);
+  }
+  return out;
 }

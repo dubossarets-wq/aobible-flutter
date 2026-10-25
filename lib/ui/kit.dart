@@ -93,6 +93,18 @@ class AobSheet extends ConsumerWidget {
     final body = Padding(padding: padding, child: child);
     // своя «назад» (шаг внутри окна) — или к окну, поверх которого открыто это
     final back = onBack ?? (_Nested.of(context) ? () => Navigator.of(context).maybePop() : null);
+    // Размер шрифта меню и окон (uiFontSize) — для всех окон. Масштаб считаем от системного (а не от уже изменённого
+    // выше AppSheet), чтобы окно, вложенное в AppSheet, не масштабировалось дважды
+    final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
+    final mq = MediaQuery.of(context);
+    final system = MediaQueryData.fromView(View.of(context)).textScaler;
+    return MediaQuery(
+      data: mq.copyWith(textScaler: scale == 1 ? system : TextScaler.linear(system.scale(1) * scale)),
+      child: _sheet(context, pal, body, back),
+    );
+  }
+
+  Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back) {
     return Material(
       color: pal.panel,
       borderRadius: _Nested.of(context) ? BorderRadius.zero : const BorderRadius.vertical(top: Radius.circular(kRadius + 6)), // окно на весь экран — без скругления
@@ -298,7 +310,7 @@ class MenuRow extends ConsumerWidget {
             Icon(icon, size: 20, color: color ?? pal.accent),
             const SizedBox(width: 12),
             Expanded(child: Text(label, style: TextStyle(fontSize: 15.7, color: color ?? pal.text))),
-            if (extra != null) extra!,
+            ?extra,
           ]),
         ),
       ),

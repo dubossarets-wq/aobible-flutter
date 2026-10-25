@@ -5,10 +5,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/bible.dart' show verseAt;
+import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../bookmarks/marks.dart' show marksProvider;
 import '../hub.dart';
 import 'about_sheet.dart';
 import 'appearance_sheet.dart';
@@ -23,9 +27,10 @@ import 'sheet.dart';
 void openMore(BuildContext context, WidgetRef ref, int pane) => showAppSheet(context, (_) => MoreSheet(opener: context, pane: pane));
 
 class _Entry {
-  const _Entry({required this.icon, required this.label, required this.run, this.extra, this.keep = false, this.order = 100});
+  const _Entry({required this.icon, required this.label, required this.run, this.extra, this.sub, this.keep = false, this.order = 100});
   final IconData icon;
   final String label;
+  final String? sub; // вторая строка под названием (menu-item-2)
   final String? extra;
   final bool keep; // лист не закрывается
   final int order;
@@ -44,11 +49,55 @@ class MoreSheet extends ConsumerWidget {
     final split = ref.watch(panesProvider.select((l) => l.length > 1));
     String onOff(bool v) => v ? t('вкл') : t('выкл');
     final rows = s.get<String>('splitLayout') == 'rows';
+    // На широком экране это выпадающее меню ⋮: «Закладки и заметки» и «Планы чтения» нет на вкладках, поэтому они здесь
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final panes = ref.watch(panesProvider);
+    final idx = pane < panes.length ? pane : 0;
+    final here = livePositions[idx]?.value ?? panes[idx].ref;
+    final moduleId = panes[idx].moduleId;
+    final marks = ref.watch(marksProvider);
+    final marked = marks.isBookmarked(here);
+    final last = marks.bookmarks.firstOrNull; // самая новая закладка — первая в списке
+    final hasMaps = ModuleStore.instance.installed.any((m) => m.type == 'maps');
+    // Что в веб-версии не входит в «Ещё» (они в «Настройках»): «Мои данные» и «Аудио»
+    const notInMenu = {'mydata', 'audio'};
+    // Действие закрывает «Ещё», если ничего не открыло поверх (как у пунктов других функций)
+    void Function(BuildContext, WidgetRef) act(void Function(BuildContext, WidgetRef) f) => (sheet, r) {
+          final route = ModalRoute.of(sheet);
+          f(sheet, r);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (route != null && route.isCurrent) Navigator.of(sheet).pop();
+          });
+        };
 
     final entries = <_Entry>[
+      _Entry(
+        icon: marked ? LucideIcons.bookmarkCheck : LucideIcons.bookmark,
+        label: marked ? t('Убрать закладку') : t('Закладка на это место'),
+        order: 1,
+        run: act((_, r) {
+          final text = verseAt(moduleId, here) ?? '';
+          r.read(marksProvider.notifier).toggleBookmark(here, marked ? '' : (text.length > 160 ? text.substring(0, 160) : text));
+        }),
+      ),
+      if (menuFlag(s, 'lastBookmark') && last != null)
+        _Entry(
+          icon: LucideIcons.circlePlay,
+          label: t('К последней закладке'),
+          sub: '${Books.instance.meta('${last['book']}').short} ${last['chapter']}:${last['verse']}${'${last['text'] ?? ''}'.isNotEmpty ? ' · ${last['text']}' : ''}',
+          order: 2,
+          run: act((_, r) => r.read(panesProvider.notifier).navigate(idx, VerseRef('${last['book']}', last['chapter'] as int, last['verse'] as int))),
+        ),
+      if (wide && Hub.openBookmarks != null) _Entry(icon: LucideIcons.heart, label: t('Закладки и заметки'), order: 3, run: act((c, r) => Hub.openBookmarks!(opener, r, idx))),
+      if (wide && menuFlag(s, 'plans') && Hub.openPlans != null) _Entry(icon: LucideIcons.calendarCheck, label: t('Планы чтения'), order: 30, run: act((c, r) => Hub.openPlans!(opener, r, idx))),
+      if (menuFlag(s, 'listen') && Hub.listenFrom != null) _Entry(icon: LucideIcons.headphones, label: t('Слушать с этого места'), order: 40, run: act((c, r) => Hub.listenFrom!(opener, r, idx, here))),
       // Пункты других функций
       for (final it in Hub.moreItems)
-        if (it.visible == null || it.visible!(ref))
+        if (!notInMenu.contains(it.id) &&
+            (it.id != 'sermons' || menuFlag(s, 'sermons')) &&
+            (it.id != 'plans' || menuFlag(s, 'plans')) &&
+            (it.id != 'maps' || (menuFlag(s, 'maps') && hasMaps)) &&
+            (it.visible == null || it.visible!(ref)))
           _Entry(
             icon: it.icon,
             label: it.label,
@@ -99,15 +148,50 @@ class MoreSheet extends ConsumerWidget {
       // .more-list .menu-item: отступы 12 сверху и снизу (в MenuRow — 10, остальное добавляет Padding)
       children.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: MenuRow(
-          icon: e.icon,
-          label: e.label,
-          extra: e.extra == null ? null : Text(e.extra!, style: TextStyle(color: pal.muted, fontSize: 13.4)),
-          onTap: () => e.run(context, ref),
-        ),
+        child: e.sub == null
+            ? MenuRow(
+                icon: e.icon,
+                label: e.label,
+                extra: e.extra == null ? null : Text(e.extra!, style: TextStyle(color: pal.muted, fontSize: 13.4)),
+                onTap: () => e.run(context, ref),
+              )
+            : _Row2(entry: e, onTap: () => e.run(context, ref)),
       ));
     }
     // .more-list: поля -4 / -6, поэтому значки стоят ближе к краю, чем заголовок
     return AppSheet(title: t('Ещё'), padding: const EdgeInsets.fromLTRB(10, 8, 10, 20), gap: 0, children: children);
+  }
+}
+
+/// Пункт с подписью под названием (.menu-item-2): «К последней закладке» и место закладки
+class _Row2 extends ConsumerWidget {
+  const _Row2({required this.entry, required this.onTap});
+  final _Entry entry;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = effectivePalette(ref.watch(settingsProvider));
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: BorderRadius.circular(kRadius * 0.6),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(children: [
+            Icon(entry.icon, size: 20, color: pal.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(entry.label, style: TextStyle(fontSize: 15.7, color: pal.text)),
+                const SizedBox(height: 1),
+                Text(entry.sub!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.1, color: pal.muted)),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }

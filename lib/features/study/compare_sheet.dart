@@ -16,13 +16,14 @@ import 'interlinear.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 
-Future<void> openCompare(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId) {
+/// pick — «Читать параллельно» (CompareSheet pick): то же окно с заголовком «Читать параллельно», ниже; pane — откуда открыли
+Future<void> openCompare(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId, {bool pick = false, int? pane}) {
   final sorted = [...refs]..sort((a, b) {
       final c = Books.instance.order(a.book).compareTo(Books.instance.order(b.book));
       if (c != 0) return c;
       return a.chapter != b.chapter ? a.chapter.compareTo(b.chapter) : a.verse.compareTo(b.verse);
     });
-  return showSheet(context, CompareSheet(refs: sorted, moduleId: moduleId), size: SheetSize.tall);
+  return showSheet(context, CompareSheet(refs: sorted, moduleId: moduleId, pick: pick, pane: pane), size: pick ? SheetSize.normal : SheetSize.tall);
 }
 
 /// Подпись выделения: «Ин. 3:16», «Ин. 3:16–18», «Ин. 3:16, 18»
@@ -109,9 +110,11 @@ String _langName(String c) {
 }
 
 class CompareSheet extends ConsumerStatefulWidget {
-  const CompareSheet({super.key, required this.refs, required this.moduleId});
+  const CompareSheet({super.key, required this.refs, required this.moduleId, this.pick = false, this.pane});
   final List<VerseRef> refs;
   final String moduleId;
+  final bool pick;
+  final int? pane;
   @override
   ConsumerState<CompareSheet> createState() => _CompareSheetState();
 }
@@ -142,7 +145,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
       return;
     }
     final panes = ref.read(panesProvider);
-    final from = paneOf(panes, widget.moduleId);
+    final from = widget.pane ?? paneOf(panes, widget.moduleId);
     final n = ref.read(panesProvider.notifier);
     if (panes.length < 2) {
       n.toggleSplit(moduleId: b.id);
@@ -163,7 +166,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
     final langCodes = {for (final b in _ordered) b.language}.toList()..sort((a, b) => _langRank(a).compareTo(_langRank(b)));
     final shown = _ordered.where((b) => b.id == widget.moduleId || _lang == 'all' || b.language == _lang).toList();
     final texts = _texts;
-    final pane = paneOf(ref.read(panesProvider), widget.moduleId);
+    final pane = widget.pane ?? paneOf(ref.read(panesProvider), widget.moduleId);
     final children = <Widget>[];
     if (others.isEmpty) {
       children.add(Empty(
@@ -239,6 +242,6 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         ));
       }
     }
-    return SheetScaffold(title: t('Сравнение переводов'), subtitle: selectionLabel(widget.refs, full: true), body: SheetList(children: children));
+    return SheetScaffold(title: widget.pick ? t('Читать параллельно') : t('Сравнение переводов'), subtitle: selectionLabel(widget.refs, full: true), body: SheetList(children: children));
   }
 }

@@ -1,8 +1,11 @@
 // Аудиокниги: подключение к оболочке и читалке через Hub (вызывается из features.dart).
+import 'package:flutter/material.dart';
+
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../plans/plan_return.dart';
 import 'audio_bar.dart';
 import 'audio_fab.dart';
 import 'audio_engine.dart';
@@ -13,7 +16,9 @@ export 'audio_fab.dart' show ListenFab;
 export 'audio_settings.dart' show AudioOfflineList, AudioSettingsPage, openAudioSettings;
 
 void register() {
-  Hub.audioBar = (context, ref) => const AudioBar();
+  // Над вкладками: кнопка «К плану · N из M» (у оболочки для неё нет отдельной точки; живёт, пока человек читает вне плана)
+  // и мини-проигрыватель
+  Hub.audioBar = (context, ref) => const Column(mainAxisSize: MainAxisSize.min, children: [PlanReturnPill(), AudioBar()]);
   Hub.listenFab = (context, ref, pane) => ListenFab(pane: pane);
   Hub.openAudio = (context, ref, pane) => openAudioFrom(context, ref, pane);
   Hub.listenFrom = (context, ref, pane, from) => listenFromRef(context, pane, from);
@@ -26,6 +31,7 @@ void register() {
     if (r.book != book || r.chapter != item.chapter || r.verse != item.verse) return null;
     return VerseDecor(background: ref.read(settingsProvider).palette.accent.withValues(alpha: 0.16));
   });
+
 
   // Скачанные книги (настройки → «Аудио»)
   Hub.moreItems.add(MoreItem(

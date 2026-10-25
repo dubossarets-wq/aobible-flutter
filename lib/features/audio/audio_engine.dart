@@ -20,6 +20,7 @@ import '../hub.dart';
 import 'audio_data.dart';
 import 'audio_logic.dart';
 import 'audio_offline.dart';
+import 'narrator.dart';
 
 /// Таймер сна: через N минут или до конца главы
 class SleepTimer {
@@ -234,6 +235,7 @@ class AudioEngine {
     final pref = _load<String?>('audioSource', null);
     final source = src.recorded.any((m) => m.id == pref) ? pref : src.recorded.firstOrNull?.id;
     if (source != null) return start(c, pane: pane, moduleId: moduleId, ref: ref, source: source);
+    if (await narrateFallback(pane: pane, moduleId: moduleId, from: ref)) return;
     _showMessage(pane, moduleId, ref, t('Для этой главы нет аудиозаписи.'));
   }
 

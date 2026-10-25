@@ -29,7 +29,7 @@ void main() {
     expect(f['version'], 1);
     final data = f['data'] as Map;
     expect(data['lang'], '"uk"'); // как в localStorage веб-версии
-    expect(data.containsKey('panes'), isFalse);
+    expect(jsonDecode(data['panes'] as String)[0]['moduleId'], 'rst-plus'); // панели — в формате веб-версии
     expect(data.containsKey('backups'), isFalse);
     expect(data.containsKey('offlineAudio'), isFalse);
     expect(describeData(f)['bookmarks'], 1);

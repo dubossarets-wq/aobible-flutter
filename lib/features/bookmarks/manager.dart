@@ -1,6 +1,6 @@
 // Вкладка «Закладки и заметки» (BookmarksManager.jsx): закладки «продолжить отсюда», любимые стихи, заметки,
 // выделения, подборки. Удаление — смахиванием влево или кнопкой, сразу, с «Отменить» в уведомлении.
-// Вкладки «История» здесь нет: в приложении на Flutter история переходов по панелям пока не ведётся.
+// «История» — переходы этой панели (←/→ в шапке), последний сверху.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,12 +24,14 @@ class BookmarksPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Только числа на вкладках: правка текста заметки или цвета не перестраивает всё окно
     final (nb, nf, nn, nh, nc) = ref.watch(marksProvider.select((m) => (m.bookmarks.length, m.favorites.length, m.notes.length, m.highlights.length, m.collections.length)));
+    final nHist = ref.watch(panesProvider.select((l) => l.isEmpty ? 0 : l[pane < l.length ? pane : 0].history.length));
     final tabs = [
       (t('Закладки'), nb),
       (t('Любимые стихи'), nf),
       (t('Заметки'), nn),
       (t('Выделения'), nh),
       (t('Подборки'), nc),
+      (t('История'), nHist),
     ];
     // Свой ScaffoldMessenger/Scaffold: уведомление «Отменить» должно быть видно поверх окна, а не под ним
     return ScaffoldMessenger(
@@ -50,6 +52,7 @@ class BookmarksPage extends ConsumerWidget {
                   _NotesTab(pane: pane),
                   _HighlightsTab(pane: pane),
                   _CollectionsTab(pane: pane),
+                  _HistoryTab(pane: pane),
                 ]),
               ),
             ]),
@@ -263,7 +266,7 @@ class _NotesTabState extends ConsumerState<_NotesTab> {
           deleteLabel: t('Удалить заметку'),
           onTap: () => _open(context, ref, widget.pane, n.$1),
           onDelete: () => drop(n),
-          extra: [IconBtn(icon: LucideIcons.notebookPen, subtle: true, size: 16, tooltip: t('Изменить заметку'), onTap: () => showNoteSheet(context, [n.$1], _moduleOf(ref, widget.pane)))],
+          extra: [IconBtn(icon: LucideIcons.notebookPen, subtle: true, size: 16, tooltip: t('Изменить заметку'), onTap: () => showNoteSheet(context, [n.$1], _moduleOf(ref, widget.pane), pane: widget.pane))],
         );
       },
     );
@@ -439,6 +442,46 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
           deleteLabel: t('Удалить подборку'),
           onTap: () => setState(() => _cur = '${x['id']}'),
           onDelete: () => dropCollection(x),
+        );
+      },
+    );
+  }
+}
+
+/// История переходов панели (BookmarksManager.jsx, tab === 'history'): новые сверху, текущее место — «сейчас»
+class _HistoryTab extends ConsumerWidget {
+  const _HistoryTab({required this.pane});
+  final int pane;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    final p = ref.watch(panesProvider.select((l) => l[pane < l.length ? pane : 0]));
+    final i0 = pane < ref.read(panesProvider).length ? pane : 0;
+    final items = [for (var i = p.history.length - 1; i >= 0; i--) (p.history[i], i)];
+    return ListView.builder(
+      padding: _bodyPad,
+      itemCount: items.length,
+      itemBuilder: (_, k) {
+        final (r, i) = items[k];
+        final cur = i == p.hIndex;
+        return Container(
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+          child: InkWell(
+            // «go» на нужное число шагов от текущего места: окно закрывается, панель переходит
+            onTap: () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              ref.read(panesProvider.notifier).go(i0, i - p.hIndex);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+              child: Row(children: [
+                Icon(LucideIcons.history, size: 16, color: cur ? pal.accent : pal.text),
+                const SizedBox(width: 10),
+                Expanded(child: Text(_full({'book': r.book, 'chapter': r.chapter, 'verse': r.verse}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: cur ? FontWeight.w600 : FontWeight.w500, color: cur ? pal.accent : pal.text))),
+                if (cur) Text(t('сейчас'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
+              ]),
+            ),
+          ),
         );
       },
     );

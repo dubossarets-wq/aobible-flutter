@@ -331,7 +331,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     Navigator.pop(context);
     final n = ref.read(panesProvider.notifier);
     if (moduleId != _pane.moduleId && ModuleStore.instance.get(moduleId) != null) n.setModule(widget.pane, moduleId);
-    n.navigate(widget.pane, h.ref);
+    n.navigate(widget.pane, h.ref, highlight: _ran.isEmpty ? null : _ran);
   }
 
   Future<void> _copy(SearchHit h) async {
