@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
-import '../../core/settings.dart';
 import '../plans/loc.dart';
 import '../plans/ui_kit.dart';
 import '../plans/verse_text.dart';
@@ -57,69 +56,67 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final pal = ref.watch(settingsProvider).palette;
+    final pal = paletteOf(ref);
     final sermons = ref.watch(sermonsProvider);
     final done = _done;
     if (done != null) {
       final parts = t('{ref} — в проповеди «{title}».', {'ref': '\u0000', 'title': done.title}).split('\u0000');
-      return PageFrame(
-        pal: pal,
+      // .sermon-done: галочка по центру свободного места, надпись и кнопки — внизу окна
+      return AobSheet(
         title: t('Добавлено'),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(child: Center(child: Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF3AA66B).withValues(alpha: 0.16)), child: const Icon(Icons.check, size: 38, color: Color(0xFF3AA66B))))),
-            Text.rich(
-              TextSpan(children: [TextSpan(text: parts.first), TextSpan(text: _label, style: const TextStyle(fontWeight: FontWeight.w800)), TextSpan(text: parts.length > 1 ? parts.last : '')]),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: pal.text, height: 1.4),
-            ),
-            const SizedBox(height: 18),
-            Pill(
-              pal: pal,
-              primary: true,
-              expand: true,
-              icon: Icons.article_outlined,
-              label: t('Открыть проповедь'),
-              onTap: () {
-                final nav = Navigator.of(context);
-                final ctx = nav.context;
-                nav.pop();
-                showPage(ctx, (_) => SermonsSheet(pane: widget.pane, open: done.id));
-              },
-            ),
-            const SizedBox(height: 8),
-            Pill(pal: pal, expand: true, label: t('Читать дальше'), onTap: () => Navigator.of(context).pop()),
-          ]),
-        ),
-      );
-    }
-    return PageFrame(
-      pal: pal,
-      title: t('Добавить в проповедь'),
-      subtitle: _label,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
-        Text(sermons.isNotEmpty ? t('Новая проповедь') : t('Назовите проповедь'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: pal.muted)),
-        const SizedBox(height: 6),
-        Row(children: [
+        scroll: false,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
-            child: TextField(
-              controller: _title,
-              autofocus: sermons.isEmpty,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _createAndAdd(),
-              style: TextStyle(color: pal.text),
-              decoration: InputDecoration(hintText: t('Например: Благодать Божья'), filled: true, fillColor: pal.bg, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: pal.line))),
+            child: Center(
+              child: Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: mix(kOk, 0.14, pal.panel), boxShadow: [BoxShadow(color: mix(kOk, 0.06, Colors.transparent), spreadRadius: 6)]),
+                child: const Icon(LucideIcons.check, size: 34, color: kOk),
+              ),
             ),
           ),
+          Text.rich(
+            TextSpan(children: [TextSpan(text: parts.first), TextSpan(text: _label, style: const TextStyle(fontWeight: FontWeight.w700)), TextSpan(text: parts.length > 1 ? parts.last : '')]),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16.3, color: pal.text, height: 1.45),
+          ),
+          const SizedBox(height: 20),
+          AobButton(
+            kind: BtnKind.primary,
+            wide: true,
+            icon: LucideIcons.scrollText,
+            label: t('Открыть проповедь'),
+            onTap: () {
+              final nav = Navigator.of(context);
+              final ctx = nav.context;
+              nav.pop();
+              showPage(ctx, (_) => SermonsSheet(pane: widget.pane, open: done.id), page: true);
+            },
+          ),
+          const SizedBox(height: 8),
+          AobButton(wide: true, label: t('Читать дальше'), onTap: () => Navigator.of(context).pop()),
+        ]),
+      );
+    }
+    return AobSheet(
+      title: t('Добавить в проповедь'),
+      subtitle: _label,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // .sermon-new: подпись и «поле + Создать», промежуток 6
+        Text(sermons.isNotEmpty ? t('Новая проповедь') : t('Назовите проповедь'), style: TextStyle(fontWeight: FontWeight.w500, color: pal.text)),
+        const SizedBox(height: 6),
+        Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: PlainInput(controller: _title, autofocus: sermons.isEmpty, hint: t('Например: Благодать Божья'), onSubmitted: (_) => _createAndAdd())),
           const SizedBox(width: 8),
-          Pill(pal: pal, primary: true, icon: Icons.add, label: t('Создать'), onTap: _createAndAdd),
+          AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _createAndAdd),
         ]),
         if (sermons.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Text(t('Или выберите проповедь'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: pal.text)),
-          const SizedBox(height: 10),
-          for (final s in sermons) SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(Icons.add, color: pal.muted), onTap: () => _add('${s['id']}', '${s['title']}')),
+          const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
+          GroupTitle(t('Или выберите проповедь')),
+          const SizedBox(height: 2),
+          for (final s in sermons) SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(LucideIcons.plus, size: 18, color: pal.accent), onTap: () => _add('${s['id']}', '${s['title']}')),
         ],
       ]),
     );

@@ -7,6 +7,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'dictionary_sheet.dart';
 import 'sheet.dart';
 import 'study_data.dart';
@@ -56,7 +57,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
     if (refs == null) {
       body = SheetList(children: [Loading(t('Загрузка…'))]);
     } else if (refs.isEmpty) {
-      body = SheetList(children: [if (_source.isNotEmpty) QuoteBox(_source), Empty(icon: Icons.link, title: t('Параллельных мест нет'))]);
+      body = SheetList(children: [if (_source.isNotEmpty) QuoteBox(_source), Empty(icon: LucideIcons.link2, title: t('Параллельных мест нет'))]);
     } else {
       body = ListView.builder(
         padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + bottom),
@@ -67,8 +68,10 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (_source.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 12), child: QuoteBox(_source)),
-                H4('${t('Места')} · ${refs.length}'),
-                Text(widget.pane == 0 ? t('Место откроется во второй панели.') : t('Место откроется здесь; вернуться — кнопкой «назад».'), style: TextStyle(color: pal.muted, fontSize: 13)),
+                Row(children: [
+                  Flexible(child: H4('${t('Места')} · ${refs.length}')),
+                  Hint(widget.pane == 0 ? t('Место откроется во второй панели.') : t('Место откроется здесь; вернуться — кнопкой «назад».')),
+                ]),
               ]),
             );
           }

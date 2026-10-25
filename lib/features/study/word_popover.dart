@@ -8,15 +8,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n.dart';
 import '../../core/markup.dart';
 import '../../core/modules.dart';
+import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'lexicon.dart';
 import 'study_data.dart';
 
-const _gap = 10.0;
-const _bg = Color(0xFF3B3A3D);
-const _fg = Color(0xFFF3F1EC);
+const _gap = 10.0; // GAP из WordPopover.jsx
 
 /// Hub.onWordTap: нажатие на слово
 Future<void> onWordTap(BuildContext context, WidgetRef ref, WordTap tap) async {
@@ -101,7 +101,7 @@ class _Layout extends SingleChildLayoutDelegate {
   final ValueNotifier<_Arrow> arrow;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints c) => BoxConstraints(minWidth: 210, maxWidth: math.min(340, c.maxWidth - 16), maxHeight: c.maxHeight - 16);
+  BoxConstraints getConstraintsForChild(BoxConstraints c) => BoxConstraints(minWidth: 230, maxWidth: math.min(340, c.maxWidth - 16), maxHeight: c.maxHeight - 16);
 
   @override
   Offset getPositionForChild(Size size, Size child) {
@@ -117,24 +117,35 @@ class _Layout extends SingleChildLayoutDelegate {
   bool shouldRelayout(_Layout old) => old.anchor != anchor;
 }
 
+/// Стрелочка к слову (.word-pop::before): квадрат 14×14 со скруглением 2, повёрнутый на 45°, цвета панели;
+/// рамка 1 px только по двум сторонам, торчащим наружу. Рисуется поверх карточки — закрывает её рамку в этом месте.
 class _ArrowPainter extends CustomPainter {
-  _ArrowPainter(this.arrow) : super(repaint: arrow);
+  _ArrowPainter(this.arrow, this.fill, this.line) : super(repaint: arrow);
   final ValueNotifier<_Arrow> arrow;
+  final Color fill;
+  final Color line;
   @override
   void paint(Canvas canvas, Size size) {
     final a = arrow.value;
     canvas.save();
-    canvas.translate(a.x, a.below ? -6 + 9 : size.height + 6 - 9);
+    canvas.translate(a.x, a.below ? 0 : size.height);
     canvas.rotate(math.pi / 4);
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-9, -9, 18, 18), const Radius.circular(3)), Paint()..color = _bg);
+    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-7, -7, 14, 14), const Radius.circular(2)), Paint()..color = fill);
+    final edge = Path();
+    if (a.below) {
+      edge..moveTo(-7, 7)..lineTo(-7, -7)..lineTo(7, -7); // левая и верхняя стороны
+    } else {
+      edge..moveTo(7, -7)..lineTo(7, 7)..lineTo(-7, 7); // правая и нижняя
+    }
+    canvas.drawPath(edge, Paint()..color = line..style = PaintingStyle.stroke..strokeWidth = 1..strokeJoin = StrokeJoin.round);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_ArrowPainter old) => false;
+  bool shouldRepaint(_ArrowPainter old) => old.fill != fill || old.line != line;
 }
 
-class _Popover extends StatefulWidget {
+class _Popover extends ConsumerStatefulWidget {
   const _Popover({required this.anchor, required this.res, required this.before, required this.after, required this.onChoose, required this.onItem, required this.onLibrary});
   final Rect anchor;
   final LookupResult res;
@@ -144,10 +155,10 @@ class _Popover extends StatefulWidget {
   final void Function(WordMenuItem) onItem;
   final VoidCallback? onLibrary;
   @override
-  State<_Popover> createState() => _PopoverState();
+  ConsumerState<_Popover> createState() => _PopoverState();
 }
 
-class _PopoverState extends State<_Popover> {
+class _PopoverState extends ConsumerState<_Popover> {
   final _arrow = ValueNotifier(const _Arrow(30, true));
 
   @override
@@ -156,72 +167,106 @@ class _PopoverState extends State<_Popover> {
     super.dispose();
   }
 
-  Widget _row(Widget child, VoidCallback? onTap, {bool first = false}) => InkWell(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          decoration: BoxDecoration(border: first ? null : const Border(top: BorderSide(color: Color(0x1AFFFFFF)))),
-          child: child,
-        ),
-      );
+  /// .wp-item: как пункт меню — отступы 11/10/11/12, скругление 0.6·radius, подсветка нажатия accent 12%
+  Widget _item(Palette pal, List<Widget> children, VoidCallback? onTap) {
+    final row = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+      child: Row(children: children),
+    );
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: BorderRadius.circular(kRadius * 0.6),
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? row
+          : InkWell(
+              onTap: onTap,
+              highlightColor: pal.accent.withValues(alpha: 0.12),
+              splashColor: pal.accent.withValues(alpha: 0.08),
+              hoverColor: pal.accent.withValues(alpha: 0.08),
+              child: row,
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pal = paletteOf(ref);
     final res = widget.res;
     final items = [
       for (final r in res.results)
         for (final f in r.found) (module: r.module, key: f.key, label: f.label),
     ];
     final rows = <Widget>[];
-    var firstRow = true;
-    void add(Widget w, VoidCallback? tap) {
-      rows.add(_row(w, tap, first: firstRow));
-      firstRow = false;
-    }
+    const base = TextStyle(fontSize: 16); // font-size: 1rem
+    final go = Icon(LucideIcons.chevronRight, size: 16, color: pal.muted);
+    final tabular = base.copyWith(color: pal.text, fontFeatures: const [FontFeature.tabularFigures()], letterSpacing: 0.16);
 
-    const base = TextStyle(fontSize: 16.3, color: _fg);
-    Widget two(String a, String b, {FontWeight? w}) => Row(children: [
-          Text(a, style: base.copyWith(fontWeight: w, fontFeatures: const [FontFeature.tabularFigures()])),
-          const SizedBox(width: 8),
-          Text('·', style: base.copyWith(color: _fg.withValues(alpha: 0.5))),
-          const SizedBox(width: 8),
-          Flexible(child: Text(b, maxLines: 1, overflow: TextOverflow.clip, style: base)),
-        ]);
+    // Пункты других функций («Название · Карта»): значок места, название, «·», подпись, стрелка
+    Widget place(WordMenuItem x) => _item(pal, [
+          Icon(LucideIcons.mapPin, size: 17, color: pal.accent),
+          const SizedBox(width: 10),
+          Text(x.label, style: tabular.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(width: 10),
+          Text('·', style: base.copyWith(color: pal.muted)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(x.sub ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: base.copyWith(color: pal.text))),
+          const SizedBox(width: 10),
+          go,
+        ], () => widget.onItem(x));
 
     for (final x in widget.before) {
-      add(two(x.label, x.sub ?? '', w: FontWeight.w600), () => widget.onItem(x));
+      rows.add(place(x));
     }
     for (final it in items) {
-      final isNum = it.key.startsWith('H') || it.key.startsWith('G');
-      add(two(isNum ? it.key : (it.label.isEmpty ? it.key : it.label), it.module.name), () => widget.onChoose(it.module, it.key));
+      final isNum = RegExp(r'^[HG]\d').hasMatch(it.key);
+      rows.add(_item(pal, [
+        if (isNum)
+          // .wp-key.wp-num: плашка с номером Стронга
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.bg), borderRadius: BorderRadius.circular(7)),
+            child: Text(it.key, style: tabular.copyWith(fontSize: 14.08, fontWeight: FontWeight.w700, color: pal.accent)),
+          )
+        else
+          Text(it.label.isEmpty ? it.key : it.label, style: tabular.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(it.module.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: base.copyWith(color: pal.text))),
+        const SizedBox(width: 10),
+        go,
+      ], () => widget.onChoose(it.module, it.key)));
     }
     for (final x in widget.after) {
-      add(two(x.label, x.sub ?? ''), () => widget.onItem(x));
+      rows.add(place(x));
     }
     if (items.isEmpty && widget.before.isEmpty && widget.after.isEmpty) {
-      add(Text(t('Статей для «{word}» нет', {'word': res.word}), style: base.copyWith(fontSize: 14.7, color: _fg.withValues(alpha: 0.7))), null);
-      if (widget.onLibrary != null) add(Text(t('Словари в библиотеке'), style: base), widget.onLibrary);
+      rows.add(_item(pal, [Expanded(child: Text(t('Статей для «{word}» нет', {'word': res.word}), style: base.copyWith(fontSize: 14.72, color: pal.muted)))], null));
+      if (widget.onLibrary != null) rows.add(_item(pal, [Expanded(child: Text(t('Словари в библиотеке'), style: base.copyWith(color: pal.text)))], widget.onLibrary));
     }
 
     return CustomSingleChildLayout(
       delegate: _Layout(widget.anchor, _arrow),
       child: CustomPaint(
-        painter: _ArrowPainter(_arrow),
-        child: Material(
-          color: _bg,
-          elevation: 12,
-          shadowColor: Colors.black87,
-          borderRadius: BorderRadius.circular(14),
-          clipBehavior: Clip.antiAlias,
+        foregroundPainter: _ArrowPainter(_arrow, pal.panel, pal.line),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: pal.panel,
+            border: Border.all(color: pal.line),
+            borderRadius: BorderRadius.circular(kRadius),
+            boxShadow: const [
+              BoxShadow(color: Color(0x29000000), blurRadius: 38, offset: Offset(0, 14)),
+              BoxShadow(color: Color(0x0F000000), blurRadius: 8, offset: Offset(0, 2)),
+            ],
+          ),
           child: IntrinsicWidth(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.all(4),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                // .wp-note
                 if (res.mapping.mode == 'approx')
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 6),
-                    child: Text(t('≈ приблизительно: перевод без номеров Стронга'), style: TextStyle(fontSize: 12.5, color: _fg.withValues(alpha: 0.7))),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                    child: Text(t('≈ приблизительно: перевод без номеров Стронга'), style: TextStyle(fontSize: 12.48, color: pal.muted)),
                   ),
                 ...rows,
               ]),

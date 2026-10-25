@@ -8,6 +8,7 @@ import 'package:in_app_update/in_app_update.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'about_sheet.dart';
 import 'appearance_sheet.dart';
@@ -25,8 +26,35 @@ final List<Widget Function(BuildContext context, WidgetRef ref)> audioSettingsEx
 
 Future<void> openPrefs(BuildContext context) => showAppSheet(context, (_) => PrefsSheet(opener: context));
 
-/// Круглый флаг из кода страны (эмодзи)
+/// Флаг-эмодзи из кода страны
 String flagEmoji(String cc) => cc.toUpperCase().codeUnits.map((c) => String.fromCharCode(0x1F1E6 + c - 65)).join();
+
+/// Круглый флажок (Flag.jsx, .flag): середина флага, обрезка кругом, тонкая обводка. В веб-версии флаги нарисованы
+/// своими упрощёнными картинками (Windows не рисует эмодзи-флаги); здесь — эмодзи-флаг системы, обрезанный кругом.
+class Flag extends ConsumerWidget {
+  const Flag(this.code, {super.key, this.size = 30});
+  final String code;
+  final double size;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dark = paletteOf(ref).dark;
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(shape: BoxShape.circle),
+      foregroundDecoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: dark ? const Color(0x38FFFFFF) : const Color(0x2E000000))),
+      child: FittedBox(fit: BoxFit.cover, child: Text(flagEmoji(code), style: const TextStyle(fontSize: 100, height: 1))),
+    );
+  }
+}
+
+// Название языка на языке интерфейса (второй строкой в списке языков): в русском интерфейсе — по-русски
+const _ruNames = <String, String>{
+  'uk': 'Украинский', 'ro': 'Румынский', 'en': 'Английский', 'es': 'Испанский', 'pt': 'Португальский', 'fr': 'Французский', 'de': 'Немецкий',
+  'it': 'Итальянский', 'pl': 'Польский', 'be': 'Белорусский', 'bg': 'Болгарский', 'sr': 'Сербский', 'cs': 'Чешский', 'ka': 'Грузинский',
+  'hy': 'Армянский', 'ko': 'Корейский', 'zh': 'Китайский', 'ja': 'Японский', 'id': 'Индонезийский', 'hi': 'Хинди', 'sw': 'Суахили',
+};
 
 // Что показывать в меню «Ещё» (остальное — в «Настройках»)
 const _menuItems = <(String, String, String?)>[
@@ -101,31 +129,27 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
     List<Widget> body;
     switch (_page) {
       case 'lang':
+        // .lang-list: флаг 30, название и ниже название на языке интерфейса, галочка у выбранного
         body = [
-          for (final l in langs)
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () async {
-                await changeLanguage(ref, l.code);
-                if (mounted) setState(() => _page = null);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                decoration: l.code == currentLang ? BoxDecoration(color: pal.accent.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)) : null,
-                child: Row(children: [
-                  Text(flagEmoji(l.flag), style: const TextStyle(fontSize: 26)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(l.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
-                  if (l.code == currentLang) Icon(Icons.check, color: pal.accent),
-                ]),
+          Column(children: [
+            for (var i = 0; i < langs.length; i++)
+              _LangRow(
+                l: langs[i],
+                local: langs[i].code == currentLang || currentLang != 'ru' ? '' : (_ruNames[langs[i].code] ?? ''),
+                on: langs[i].code == currentLang,
+                last: i == langs.length - 1,
+                onTap: () async {
+                  await changeLanguage(ref, langs[i].code);
+                  if (mounted) setState(() => _page = null);
+                },
               ),
-            ),
+          ]),
         ];
       case 'menu':
         body = [
-          Padding(padding: const EdgeInsets.all(6), child: Text(t('Отметьте, что показывать в разделе «Ещё» на нижней панели. Остальное всегда есть здесь, в настройках.'), style: TextStyle(color: pal.muted))),
+          Text(t('Отметьте, что показывать в разделе «Ещё» на нижней панели. Остальное всегда есть здесь, в настройках.'), style: TextStyle(fontSize: 14.7, height: 1.5, color: pal.muted)),
           for (final m in _menuItems)
-            SwitchRow(
+            SwitchField(
               label: t(m.$2),
               hint: m.$3 == null ? null : t(m.$3!),
               value: menuFlag(s, m.$1),
@@ -136,7 +160,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
         ];
       case 'audio':
         body = [
-          SwitchRow(
+          SwitchField(
             label: t('ИИ-диктор, когда нет записи'),
             hint: t('Если живой записи нет, главу прочитает синтезированный голос'),
             value: s.get<bool>('ttsFallback'),
@@ -145,38 +169,91 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
           for (final b in audioSettingsExtras) b(context, ref),
         ];
       default:
-        body = [
+        final rows = <Widget Function(bool last)>[
           // «Language» по-английски — чтобы найти строку, даже если случайно выбран незнакомый язык
-          PrefRow(
-            icon: null,
-            leading: Text(flagEmoji(lang.flag), style: const TextStyle(fontSize: 24)),
-            title: t('Язык'),
-            sub: lang.name + (currentLang == 'ru' || currentLang == 'en' ? '' : ' · Language'),
-            onTap: () => setState(() => _page = 'lang'),
-          ),
-          PrefRow(icon: Icons.menu_book_outlined, title: t('Инструкция'), sub: t('Пошаговые подсказки'), onTap: () => openHelp(context)),
-          PrefRow(icon: Icons.palette_outlined, title: t('Оформление'), sub: t('Тема, шрифт, размер букв'), onTap: () => openAppearance(context)),
-          PrefRow(icon: Icons.more_vert, title: t('Меню «Ещё»'), sub: t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu')),
-          PrefRow(icon: Icons.headphones_outlined, title: t('Аудио'), sub: t('ИИ-диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio')),
-          PrefRow(icon: Icons.local_library_outlined, title: t('Библиотека модулей'), sub: t('Переводы, словари, аудиокниги'), onTap: () => openLibrary(context)),
-          if (myData != null) PrefRow(icon: Icons.storage_outlined, title: t('Мои данные'), sub: t('Сохранить и перенести на новый телефон'), onTap: () => myData.run(widget.opener, ref, 0)),
-          PrefRow(icon: Icons.auto_awesome_outlined, title: t('Что нового'), sub: t('Последнее обновление'), onTap: () => openNews(context)),
+          (last) => PrefRow(
+                icon: LucideIcons.globe,
+                // .pref-row-flag: квадрат 38 с флажком 24 внутри
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.bg), borderRadius: BorderRadius.circular(11)),
+                  child: Flag(lang.flag, size: 24),
+                ),
+                title: t('Язык'),
+                sub: lang.name + (currentLang == 'ru' || currentLang == 'en' ? '' : ' · Language'),
+                onTap: () => setState(() => _page = 'lang'),
+                last: last,
+              ),
+          (last) => PrefRow(icon: LucideIcons.bookOpenCheck, title: t('Инструкция'), sub: t('Пошаговые подсказки'), onTap: () => openHelp(context), last: last),
+          (last) => PrefRow(icon: LucideIcons.palette, title: t('Оформление'), sub: t('Тема, шрифт, размер букв'), onTap: () => openAppearance(context), last: last),
+          (last) => PrefRow(icon: LucideIcons.ellipsisVertical, title: t('Меню «Ещё»'), sub: t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu'), last: last),
+          (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('ИИ-диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
+          (last) => PrefRow(icon: LucideIcons.library, title: t('Библиотека модулей'), sub: t('Переводы, словари, аудиокниги'), onTap: () => openLibrary(context), last: last),
+          if (myData != null) (last) => PrefRow(icon: LucideIcons.hardDrive, title: t('Мои данные'), sub: t('Сохранить и перенести на новый телефон'), onTap: () => myData.run(widget.opener, ref, 0), last: last),
+          (last) => PrefRow(icon: LucideIcons.sparkles, title: t('Что нового'), sub: t('Последнее обновление'), onTap: () => openNews(context), last: last),
           if (Platform.isAndroid)
-            PrefRow(
-              icon: Icons.refresh,
-              title: _available ? t('Обновить приложение') : t('Проверить обновления'),
-              sub: _available ? t('Нажмите, чтобы обновить') : t('AO Bible · версия {v}', {'v': appVersion}),
-              onTap: _checking ? null : _check,
-              chevron: !_checking,
-              extra: _checking
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : _available
-                      ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(99)), child: Text(t('новая'), style: TextStyle(color: pal.onAccent, fontSize: 12, fontWeight: FontWeight.w700)))
-                      : null,
-            ),
-          PrefRow(icon: Icons.info_outline, title: t('О приложении'), sub: t('Переводы, словари, авторы'), onTap: () => openAbout(context)),
+            (last) => PrefRow(
+                  icon: LucideIcons.refreshCw,
+                  title: _available ? t('Обновить приложение') : t('Проверить обновления'),
+                  sub: _available ? t('Нажмите, чтобы обновить') : t('AO Bible · версия {v}', {'v': appVersion}),
+                  onTap: _checking ? null : _check,
+                  last: last,
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (_checking)
+                      const Spin()
+                    else ...[
+                      if (_available)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 14),
+                          // .badge-new
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(color: const Color(0xffe0533d), borderRadius: BorderRadius.circular(99)),
+                            child: Text(t('новая'), style: const TextStyle(color: Colors.white, fontSize: 11.8, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                      Icon(LucideIcons.chevronRight, size: 18, color: pal.muted),
+                    ],
+                  ]),
+                ),
+          (last) => PrefRow(icon: LucideIcons.info, title: t('О приложении'), sub: t('Переводы, словари, авторы'), onTap: () => openAbout(context), last: last),
         ];
+        body = [Column(children: [for (var i = 0; i < rows.length; i++) rows[i](i == rows.length - 1)])];
     }
-    return AppSheet(title: title, full: true, onBack: _page == null ? null : () => setState(() => _page = null), children: body);
+    return AppSheet(title: title, onBack: _page == null ? null : () => setState(() => _page = null), children: body);
+  }
+}
+
+/// Строка выбора языка (.lang-row)
+class _LangRow extends ConsumerWidget {
+  const _LangRow({required this.l, required this.local, required this.on, required this.last, required this.onTap});
+  final Lang l;
+  final String local;
+  final bool on, last;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+        decoration: BoxDecoration(color: on ? pal.accent.withValues(alpha: 0.08) : null, border: last ? null : Border(bottom: BorderSide(color: pal.line))),
+        child: Row(children: [
+          Flag(l.flag, size: 30),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(l.name, style: TextStyle(fontSize: 16.6, fontWeight: FontWeight.w600, color: pal.text)),
+              if (local.isNotEmpty && local.toLowerCase() != l.name.toLowerCase()) Padding(padding: const EdgeInsets.only(top: 1), child: Text(local, style: TextStyle(fontSize: 13.4, color: pal.muted))),
+            ]),
+          ),
+          if (on) Icon(LucideIcons.check, size: 20, color: pal.accent),
+        ]),
+      ),
+    );
   }
 }

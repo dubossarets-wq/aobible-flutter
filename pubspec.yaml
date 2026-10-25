@@ -52,6 +52,7 @@ dependencies:
   in_app_update: ^5.0.0
   webview_flutter: ^4.14.1
   lucide_icons_flutter: ^4.0.1
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:

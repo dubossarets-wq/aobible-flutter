@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
 import 'audio_player.dart';
@@ -88,11 +89,12 @@ class _AudioBarState extends ConsumerState<AudioBar> {
               constraints: const BoxConstraints(maxWidth: 640),
               child: Container(
                 margin: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                // .audio-bar: рамка line, скругление radius+4, тень 0 10 34 rgba(0,0,0,.2)
                 decoration: BoxDecoration(
                   color: pal.panel,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(kRadius + 4),
                   border: Border.all(color: pal.line),
-                  boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 8))],
+                  boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 34, offset: Offset(0, 10))],
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Material(
@@ -100,13 +102,15 @@ class _AudioBarState extends ConsumerState<AudioBar> {
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     DownloadNote(pal: pal),
                     if (_opts)
+                      // .audio-opts: колонка с отступом 10, поля 12 12 4, линия снизу
                       Container(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                         child: Column(children: [
-                          Segmented<double>(label: t('Скорость'), value: a.rate, options: [for (final x in rates) (x, rateText(x))], onChanged: e.setRate, pal: pal),
+                          _Field(label: t('Скорость'), pal: pal, child: Segmented<double>(value: a.rate, options: [for (final x in rates) (x, rateText(x))], onChanged: e.setRate)),
                           const SizedBox(height: 10),
-                          Segmented<String>(label: t('Таймер сна'), value: sleepKey(a.sleep), options: sleepOptions(), onChanged: applySleepKey, pal: pal),
+                          _Field(label: t('Таймер сна'), pal: pal, child: Segmented<String>(value: sleepKey(a.sleep), options: sleepOptions(), onChanged: applySleepKey)),
+                          const SizedBox(height: 10),
                         ]),
                       ),
                     GestureDetector(
@@ -118,41 +122,49 @@ class _AudioBarState extends ConsumerState<AudioBar> {
                       child: Padding(
                         padding: const EdgeInsets.all(6),
                         child: Row(children: [
-                          _Btn(icon: Icons.skip_previous, label: t('Предыдущий стих'), onTap: () => e.stepVerse(-1), pal: pal, size: 24),
-                          _PlayBtn(a: a, pal: pal, size: 46),
-                          _Btn(icon: Icons.skip_next, label: t('Следующий стих'), onTap: () => e.stepVerse(1), pal: pal, size: 24),
-                          const SizedBox(width: 6),
+                          // .audio-main: промежуток 2 между кнопками, у .audio-info отступ 0 6
+                          _Btn(icon: LucideIcons.skipBack, label: t('Предыдущий стих'), onTap: () => e.stepVerse(-1), pal: pal, size: 20),
+                          const SizedBox(width: 2),
+                          _PlayBtn(a: a, pal: pal, size: 46, iconSize: 22),
+                          const SizedBox(width: 2),
+                          _Btn(icon: LucideIcons.skipForward, label: t('Следующий стих'), onTap: () => e.stepVerse(1), pal: pal, size: 20),
+                          const SizedBox(width: 2),
                           Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                              // Человек ушёл в другое место — место чтения становится кнопкой «вернуться»
-                              if (r != null && !a.follow)
-                                Tooltip(
-                                  message: t('К звучащему месту'),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(999),
-                                    onTap: () => e.resumeFollow(jump: true),
-                                    child: Container(
-                                      padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
-                                      decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                        Icon(Icons.subdirectory_arrow_left, size: 14, color: pal.accent),
-                                        const SizedBox(width: 4),
-                                        Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: pal.accent))),
-                                      ]),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                // Человек ушёл в другое место — место чтения становится кнопкой «вернуться»
+                                if (r != null && !a.follow)
+                                  Tooltip(
+                                    message: t('К звучащему месту'),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(999),
+                                      onTap: () => e.resumeFollow(jump: true),
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
+                                        decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                          Icon(LucideIcons.cornerUpLeft, size: 14, color: pal.accent),
+                                          const SizedBox(width: 4),
+                                          Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
+                                        ]),
+                                      ),
                                     ),
+                                  )
+                                else
+                                  Semantics(
+                                    label: r == null ? null : '${Books.instance.formatRef(r.book, r.chapter, r.verse)} — ${t('Открыть проигрыватель')}',
+                                    child: Text(r == null ? '' : Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.text)),
                                   ),
-                                )
-                              else
-                                Semantics(
-                                  label: r == null ? null : '${Books.instance.formatRef(r.book, r.chapter, r.verse)} — ${t('Открыть проигрыватель')}',
-                                  child: Text(r == null ? '' : Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: pal.text)),
-                                ),
-                              if (sub.isNotEmpty) Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted)),
-                            ]),
+                                if (sub.isNotEmpty) Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted)),
+                              ]),
+                            ),
                           ),
                           if (recorded) DownloadButton(audioId: a.source!, book: r.book, pal: pal),
-                          _Btn(icon: Icons.tune, label: t('Настройки чтения вслух'), onTap: () => setState(() => _opts = !_opts), pal: pal, on: _opts, size: 20),
-                          _Btn(icon: Icons.close, label: t('Закрыть аудио'), onTap: e.stop, pal: pal, size: 22),
+                          const SizedBox(width: 2),
+                          _Btn(icon: LucideIcons.slidersHorizontal, label: t('Настройки чтения вслух'), onTap: () => setState(() => _opts = !_opts), pal: pal, on: _opts, size: 19),
+                          const SizedBox(width: 2),
+                          _Btn(icon: LucideIcons.x, label: t('Закрыть аудио'), onTap: e.stop, pal: pal, size: 20),
                         ]),
                       ),
                     ),
@@ -167,8 +179,23 @@ class _AudioBarState extends ConsumerState<AudioBar> {
   }
 }
 
+/// Подпись над переключателем (.field + .field-label: 15 px, вес 500, отступ 6)
+class _Field extends StatelessWidget {
+  const _Field({required this.label, required this.pal, required this.child});
+  final String label;
+  final Palette pal;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text)),
+        const SizedBox(height: 6),
+        child,
+      ]);
+}
+
+/// .audio-btn: круглая 40×40; включённая — фон accent 12 % и цвет accent
 class _Btn extends StatelessWidget {
-  const _Btn({required this.icon, required this.label, required this.onTap, required this.pal, this.size = 22, this.on = false});
+  const _Btn({required this.icon, required this.label, required this.onTap, required this.pal, this.size = 20, this.on = false});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -192,12 +219,12 @@ class _Btn extends StatelessWidget {
       );
 }
 
-/// ▶ / ⏸ / крутилка загрузки — круглая кнопка акцентного цвета
+/// ▶ / ⏸ / крутилка загрузки (Loader2 со .spin) — круглая кнопка акцентного цвета
 class _PlayBtn extends StatelessWidget {
-  const _PlayBtn({required this.a, required this.pal, required this.size});
+  const _PlayBtn({required this.a, required this.pal, required this.size, required this.iconSize});
   final AudioState a;
   final Palette pal;
-  final double size;
+  final double size, iconSize;
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
@@ -208,13 +235,33 @@ class _PlayBtn extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(shape: BoxShape.circle, color: pal.accent),
-            child: a.loading
-                ? Padding(padding: EdgeInsets.all(size * 0.28), child: CircularProgressIndicator(strokeWidth: 2.5, color: pal.onAccent))
-                : Icon(a.playing ? Icons.pause : Icons.play_arrow, size: size * 0.5, color: pal.onAccent),
+            child: a.loading ? _Spin(icon: LucideIcons.loader2, size: iconSize, color: pal.onAccent) : Icon(a.playing ? LucideIcons.pause : LucideIcons.play, size: iconSize, color: pal.onAccent),
           ),
         ),
       );
 }
 
-/// Кнопка ▶/⏸ для раскрытого проигрывателя
-Widget audioPlayButton(AudioState a, Palette pal, double size) => _PlayBtn(a: a, pal: pal, size: size);
+/// .spin: оборот за секунду, равномерно
+class _Spin extends StatefulWidget {
+  const _Spin({required this.icon, required this.size, required this.color});
+  final IconData icon;
+  final double size;
+  final Color color;
+  @override
+  State<_Spin> createState() => _SpinState();
+}
+
+class _SpinState extends State<_Spin> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(widget.icon, size: widget.size, color: widget.color));
+}
+
+/// Кнопка ▶/⏸ для раскрытого проигрывателя (.ap-play: 78 px, значок 34)
+Widget audioPlayButton(AudioState a, Palette pal, double size, {double? iconSize}) => _PlayBtn(a: a, pal: pal, size: size, iconSize: iconSize ?? size * 0.5);

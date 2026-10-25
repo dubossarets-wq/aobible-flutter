@@ -7,6 +7,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'audio_engine.dart';
 import 'audio_listen.dart';
 
@@ -29,14 +30,24 @@ class ListenFab extends ConsumerWidget {
           label: t('Слушать с этого места: {ref}', {'ref': label}),
           child: Tooltip(
             message: t('Слушать с {ref}', {'ref': label}),
-            child: Material(
-              color: pal.panel.withValues(alpha: 0.96),
-              shape: CircleBorder(side: BorderSide(color: pal.line)),
-              elevation: 4,
-              child: InkResponse(
-                radius: 26,
-                onTap: () => openAudioFrom(context, ref, pane),
-                child: SizedBox(width: 44, height: 44, child: Icon(Icons.headphones, size: 21, color: pal.accent)),
+            // .listen-fab: 44 px, рамка line, панель 96 %, значок accent 20 px, тень 0 4 14, прозрачность .85
+            child: Opacity(
+              opacity: 0.85,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: mix(pal.panel, 0.96, Colors.transparent),
+                  border: Border.all(color: pal.line),
+                  boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 14, offset: Offset(0, 4))],
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(onTap: () => openAudioFrom(context, ref, pane), child: Icon(LucideIcons.headphones, size: 20, color: pal.accent)),
+                ),
               ),
             ),
           ),

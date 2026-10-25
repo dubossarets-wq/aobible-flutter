@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'study_data.dart';
 
 const sheetRoute = 'study-sheet';
@@ -20,7 +21,7 @@ Future<void> showSheet(BuildContext context, Widget child, {SheetSize size = She
     context: context,
     barrierDismissible: false,
     barrierLabel: '',
-    barrierColor: const Color(0x520F0C08),
+    barrierColor: Colors.black.withValues(alpha: 0.32), // как в showAobSheet
     routeSettings: const RouteSettings(name: sheetRoute),
     transitionDuration: const Duration(milliseconds: 260),
     transitionBuilder: (context, a, secondary, child) => SlideTransition(
@@ -32,7 +33,7 @@ Future<void> showSheet(BuildContext context, Widget child, {SheetSize size = She
 }
 
 /// Закрыть все окна «изучения» (крестик, фон): подокно, открытое из другого, закрывается вместе с ним
-void closeAllSheets(BuildContext context) => Navigator.of(context, rootNavigator: true).popUntil((r) => r.settings.name != sheetRoute);
+// closeAllSheets — общий, из kit.dart: закрывает все окна, в том числе открытые не изучением
 
 class _Frame extends StatefulWidget {
   const _Frame({required this.size, required this.child});
@@ -108,6 +109,7 @@ class SheetScaffold extends ConsumerWidget {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final frame = context.findAncestorStateOfType<_FrameState>();
     final vh = MediaQuery.of(context).size.height;
+    // Шапка — как у AobSheet из kit.dart (BottomSheet.jsx), но с перетаскиванием высоты и общим закрытием окон
     final drag = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onVerticalDragStart: (_) => frame?.dragStart(),
@@ -115,32 +117,33 @@ class SheetScaffold extends ConsumerWidget {
       onVerticalDragEnd: (d) => frame?.dragEnd(d.velocity.pixelsPerSecond.dy, context),
       onVerticalDragCancel: () => frame?.dragEnd(0, context),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        SizedBox(height: 19, child: Align(alignment: Alignment.bottomCenter, child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 6), decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(2))))),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 6),
+          child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
+        ),
         Container(
-          padding: EdgeInsets.fromLTRB(onBack != null ? 4 : 16, 0, 6, 6),
+          padding: EdgeInsets.fromLTRB(onBack != null ? 6 : 16, 0, 10, 8),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
-            if (onBack != null) IconButton(icon: Icon(Icons.chevron_left, color: pal.text), tooltip: t('Назад'), onPressed: onBack),
+            if (onBack != null) IconBtn(icon: LucideIcons.chevronLeft, onTap: onBack, tooltip: t('Назад')),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18.4, fontWeight: FontWeight.w700, color: pal.text)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: 18.4, fontWeight: FontWeight.w700, color: pal.text)),
                 if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
               ]),
             ),
             ...headerExtra,
-            IconButton(icon: Icon(Icons.close, color: pal.text), tooltip: t('Закрыть'), onPressed: () => closeAllSheets(context)),
+            IconBtn(icon: LucideIcons.x, onTap: () => closeAllSheets(context), tooltip: t('Закрыть')),
           ]),
         ),
       ]),
     );
     return Material(
       color: pal.panel,
-      elevation: 16,
-      shadowColor: Colors.black54,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadius + 6)),
       clipBehavior: Clip.antiAlias,
       child: DefaultTextStyle.merge(
-        style: TextStyle(color: pal.text, fontSize: 16),
+        style: TextStyle(color: pal.text, fontSize: 15),
         child: Column(children: [
           drag,
           Expanded(child: body),
@@ -185,7 +188,7 @@ class Loading extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: pal.muted)),
+        Spinner(size: 20, color: pal.muted),
         const SizedBox(width: 10),
         Flexible(child: Text(text, style: TextStyle(color: pal.muted, fontSize: 15.2))),
       ]),
@@ -202,12 +205,12 @@ class Empty extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = _pal(ref);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Column(children: [
-        Icon(icon, size: 40, color: pal.muted),
-        const SizedBox(height: 10),
-        Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-        if (child != null) ...[const SizedBox(height: 6), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: 15), child: child!)],
+        Icon(icon, size: 28, color: pal.muted),
+        const SizedBox(height: 8),
+        Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
+        if (child != null) ...[const SizedBox(height: 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: 14.4, height: 1.45), child: child!)],
       ]),
     );
   }
@@ -231,7 +234,8 @@ class H4 extends ConsumerWidget {
   }
 }
 
-class Chip2 extends ConsumerWidget {
+/// .chip — общий AobChip из kit.dart
+class Chip2 extends StatelessWidget {
   const Chip2(this.label, {super.key, this.on = false, this.count, this.onTap, this.ghost = false});
   final String label;
   final bool on;
@@ -239,25 +243,16 @@ class Chip2 extends ConsumerWidget {
   final VoidCallback? onTap;
   final bool ghost;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pal = _pal(ref);
-    final fg = on ? pal.onAccent : (ghost ? pal.muted : pal.text);
-    return Material(
-      color: on ? pal.accent : (ghost ? Colors.transparent : pal.bg),
-      shape: StadiumBorder(side: BorderSide(color: on ? pal.accent : pal.line)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Flexible(child: Text(label, style: TextStyle(fontSize: 13.8, color: fg))),
-            if (count != null) ...[const SizedBox(width: 5), Text('$count', style: TextStyle(fontSize: 12, color: on ? pal.onAccent.withValues(alpha: 0.8) : pal.muted))],
-          ]),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AobChip(label: label, on: on, count: count, onTap: onTap, ghost: ghost);
+}
+
+/// .chips.filter-chips: одна строка чипов с горизонтальной прокруткой, от края до края окна (margin 0 -16px)
+class FilterChips extends StatelessWidget {
+  const FilterChips(this.children, {super.key});
+  final List<Widget> children;
+  @override
+  // от края до края окна; у края, за которым есть ещё плашки, — затухание (FadeRow из kit.dart)
+  Widget build(BuildContext context) => FadeRow(bleed: true, padding: const EdgeInsets.only(bottom: 2), children: children);
 }
 
 class ChipWrap extends StatelessWidget {
@@ -296,47 +291,19 @@ class TabsRow extends ConsumerWidget {
                       ),
                     ),
                   )
-                : InkWell(
-                    onTap: () => onTap(i),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: i == index ? pal.accent : Colors.transparent, width: 2))),
-                      child: Text(labels[i], style: TextStyle(fontWeight: FontWeight.w500, color: i == index ? pal.accent : pal.muted)),
+                : Padding(
+                    padding: EdgeInsets.only(right: i == labels.length - 1 ? 0 : 4),
+                    child: InkWell(
+                      onTap: () => onTap(i),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: i == index ? pal.accent : Colors.transparent, width: 2))),
+                        child: Text(labels[i], style: TextStyle(fontWeight: FontWeight.w500, color: i == index ? pal.accent : pal.muted)),
+                      ),
                     ),
                   ),
         ]),
       ),
-    );
-  }
-}
-
-/// Переключатель из нескольких вариантов (Segmented веб-версии)
-class Segmented extends ConsumerWidget {
-  const Segmented({super.key, required this.options, required this.value, required this.onChanged});
-  final List<(String, String)> options; // (значение, подпись)
-  final String value;
-  final ValueChanged<String> onChanged;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pal = _pal(ref);
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        for (final (v, label) in options)
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(v),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
-                alignment: Alignment.center,
-                decoration: v == value ? BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 3, offset: Offset(0, 1))]) : null,
-                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: v == value ? FontWeight.w600 : FontWeight.w400, color: v == value ? pal.accent : pal.text)),
-              ),
-            ),
-          ),
-      ]),
     );
   }
 }
@@ -349,11 +316,12 @@ class WarnBox extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = _pal(ref);
     return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(kRadius * 0.75)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (icon) ...[const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFC0841F))), const SizedBox(width: 8)],
-        Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 14, height: 1.45), child: child)),
+        if (icon) const Padding(padding: EdgeInsets.only(top: 2), child: Icon(LucideIcons.triangleAlert, size: 16, color: Color(0xFFC0841F))),
+        if (icon) const SizedBox(width: 8),
+        Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 14.1, height: 1.45), child: child)),
       ]),
     );
   }
@@ -373,28 +341,28 @@ class SourceNote extends ConsumerWidget {
   }
 }
 
-class BigButton extends ConsumerWidget {
+/// .btn — общий AobButton из kit.dart
+class BigButton extends StatelessWidget {
   const BigButton(this.label, {super.key, required this.onTap, this.icon});
   final String label;
   final VoidCallback onTap;
   final IconData? icon;
   @override
+  Widget build(BuildContext context) => AobButton(label: label, icon: icon, onTap: onTap, wide: true);
+}
+
+/// .link-inline: кнопка-ссылка в тексте — цвет акцента, подчёркнута
+class LinkButton extends ConsumerWidget {
+  const LinkButton(this.label, this.onTap, {super.key});
+  final String label;
+  final VoidCallback onTap;
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = _pal(ref);
-    return Material(
-      color: pal.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9), side: BorderSide(color: pal.line)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) ...[Icon(icon, size: 17, color: pal.text), const SizedBox(width: 6)],
-            Flexible(child: Text(label, style: const TextStyle(fontSize: 15.2, fontWeight: FontWeight.w500))),
-          ]),
-        ),
-      ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Text(label, style: TextStyle(color: pal.accent, decoration: TextDecoration.underline, decorationColor: pal.accent)),
     );
   }
 }
@@ -512,7 +480,7 @@ class QuoteBox extends ConsumerWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
       child: Text(text, style: const TextStyle(height: 1.5)),
     );
   }

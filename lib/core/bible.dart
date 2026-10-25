@@ -1,5 +1,9 @@
 // Текст книги для чтения: плоский список элементов (заголовок главы, заголовок раздела, стих) —
 // его рисует ленивый список, на экране строятся только видимые строки. Книга читается одним запросом.
+import 'dart:isolate';
+
+import 'package:sqlite3/sqlite3.dart';
+
 import 'books.dart';
 import 'markup.dart';
 import 'modules.dart';
@@ -107,4 +111,55 @@ List<SearchHit> search(String moduleId, String query, {int limit = 2000}) {
     [match, limit],
   );
   return [for (final r in rows) SearchHit(VerseRef(r['book'] as String, r['chapter'] as int, r['verse'] as int), plainText(r['text'] as String))];
+}
+
+/// Регулярное выражение запроса — как queryRegex в веб-версии (core/search.js): все слова фразы по порядку,
+/// часть слова тоже подходит («свет» найдёт «светильник»); «ё» = «е»; знак ударения в тексте не мешает.
+RegExp? queryRegex(String query, {bool wholeWord = false}) {
+  final q = query.trim().replaceAll(RegExp(r'\s+'), ' ').replaceAll('\u0301', '');
+  if (q.isEmpty) return null;
+  final letter = RegExp(r'\p{L}', unicode: true);
+  final body = StringBuffer();
+  for (final ch in q.runes.map(String.fromCharCode)) {
+    if (ch == ' ') {
+      body.write(r'[\s\p{P}]+');
+    } else if ('еёЕЁ'.contains(ch)) {
+      body.write('[её]\u0301?');
+    } else {
+      body.write(RegExp.escape(ch));
+      if (letter.hasMatch(ch)) body.write('\u0301?');
+    }
+  }
+  final pat = wholeWord ? r'(?<!\p{L})' '$body' r'(?!\p{L})' : '$body';
+  return RegExp(pat, unicode: true, caseSensitive: false);
+}
+
+/// Поиск фразы по переводу, как в веб-версии: проход по тексту всех стихов (индекс FTS5 ищет только начала слов,
+/// а здесь нужна и середина слова) — в отдельном потоке, порядок — как в Библии. books — только эти книги.
+Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false}) async {
+  final path = ModuleStore.instance.get(moduleId)?.path;
+  if (path == null || queryRegex(query) == null) return const [];
+  return Isolate.run(() {
+    final re = queryRegex(query, wholeWord: wholeWord)!;
+    final db = sqlite3.open(path, mode: OpenMode.readOnly);
+    try {
+      final out = <SearchHit>[];
+      for (final r in db.select('SELECT book, chapter, verse, text FROM verses ORDER BY id')) {
+        final book = r['book'] as String;
+        if (books != null && !books.contains(book)) continue;
+        final text = plainText(r['text'] as String);
+        if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, r['chapter'] as int, r['verse'] as int), text));
+      }
+      return out;
+    } finally {
+      db.dispose();
+    }
+  });
+}
+
+/// Текст стиха без разметки; null — такого стиха нет
+String? verseAt(String moduleId, VerseRef r) {
+  if (ModuleStore.instance.get(moduleId) == null) return null;
+  final rows = ModuleStore.instance.db(moduleId).select('SELECT text FROM verses WHERE book = ? AND chapter = ? AND verse = ?', [r.book, r.chapter, r.verse]);
+  return rows.isEmpty ? null : plainText(rows.first['text'] as String);
 }

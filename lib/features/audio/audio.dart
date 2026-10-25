@@ -1,8 +1,7 @@
 // Аудиокниги: подключение к оболочке и читалке через Hub (вызывается из features.dart).
-import 'package:flutter/material.dart';
-
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'audio_bar.dart';
 import 'audio_fab.dart';
@@ -31,7 +30,7 @@ void register() {
   // Скачанные книги (настройки → «Аудио»)
   Hub.moreItems.add(MoreItem(
     id: 'audio',
-    icon: Icons.headphones_outlined,
+    icon: LucideIcons.headphones,
     label: t('Аудио'),
     order: 60,
     run: (context, ref, pane) => openAudioSettings(context),

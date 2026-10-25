@@ -250,24 +250,29 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final pal = ref.watch(settingsProvider).palette;
+    final pal = paletteOf(ref);
     final size = _sizes[_format]!;
     final photo = _photo;
     final loading = !_textReady || _bgId == null || (photo != null && _img == null && !_imgFailed);
-    return PageFrame(
-      pal: pal,
+    // .sheet-body: колонка с промежутком 12 между блоками
+    const gap = SizedBox(height: 12);
+    return AobSheet(
       title: t('Картинка со стихом'),
       subtitle: _label,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // .vimg-preview: ширина min(100%, 340) (история — 250), скругление, тень, margin-bottom 12
         Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
-            child: AspectRatio(
-              aspectRatio: size.width / size.height,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+            constraints: BoxConstraints(maxWidth: _format == 'story' ? 250 : 340),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              constraints: const BoxConstraints(minHeight: 200),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), color: pal.bg, boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 18, offset: Offset(0, 4))]),
+              clipBehavior: Clip.antiAlias,
+              child: AspectRatio(
+                aspectRatio: size.width / size.height,
                 child: loading
-                    ? Center(child: CircularProgressIndicator(color: pal.accent))
+                    ? Center(child: Spinner(size: 24, color: pal.text))
                     : LayoutBuilder(
                         builder: (_, c) => GestureDetector(
                           onScaleStart: (d) {
@@ -288,50 +293,58 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        // .vimg-bgs: полоса фонов 52×64, промежуток 8, отступы 4/2/10
         SizedBox(
-          height: 58,
-          child: ListView(scrollDirection: Axis.horizontal, children: [
+          height: 78,
+          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(2, 4, 2, 10), children: [
             for (final p in _photos) _Bg(pal: pal, on: _bgId == p['id'], onTap: () => _pick(p['id'] as String), tip: t('${p['title']}'), child: SiteImage('images/verse-bg/${p['thumb']}')),
-            for (final g in _gradients)
-              _Bg(pal: pal, on: _bgId == g.id, onTap: () => _pick(g.id, load: false), tip: t(g.title), gradient: g.stops),
+            for (final g in _gradients) _Bg(pal: pal, on: _bgId == g.id, onTap: () => _pick(g.id, load: false), tip: t(g.title), gradient: g.stops),
           ]),
         ),
-        const SizedBox(height: 12),
-        SegmentedButton<String>(
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(value: 'square', label: Text(t('Квадрат'))),
-            ButtonSegment(value: 'post', label: Text(t('Пост'))),
-            ButtonSegment(value: 'story', label: Text(tx('История@@формат картинки: вертикальная, для «историй» в соцсетях'))),
+        gap,
+        Segmented<String>(
+          value: _format,
+          onChanged: _setFormat,
+          options: [
+            ('square', t('Квадрат')),
+            ('post', t('Пост')),
+            ('story', tx('История@@формат картинки: вертикальная, для «историй» в соцсетях')),
           ],
-          selected: {_format},
-          onSelectionChanged: (s) => _setFormat(s.first),
         ),
-        const SizedBox(height: 8),
-        Text(t('Двигайте текст пальцем, размер — двумя пальцами.'), style: TextStyle(color: pal.muted, fontSize: 13)),
+        gap,
+        Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t('Двигайте текст пальцем, размер — двумя пальцами.'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: 13.4))),
+        // .vimg-size: подпись, «как было», минус и плюс; отступы 10 сверху и снизу
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(children: [
+            Expanded(child: Text(t('Размер текста'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
+            if (_scale != 1 || _dx != 0 || _dy != 0)
+              GestureDetector(
+                onTap: () => setState(() => (_scale = 1, _dx = 0, _dy = 0)),
+                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text(t('как было'), style: TextStyle(fontSize: 15, color: pal.accent, decoration: TextDecoration.underline, decorationColor: pal.accent))),
+              ),
+            IconBtn(icon: LucideIcons.minus, size: 18, tooltip: t('Мельче'), onTap: () => setState(() => _scale = math.max(0.4, double.parse((_scale - 0.1).toStringAsFixed(2))))),
+            const SizedBox(width: 6),
+            IconBtn(icon: LucideIcons.plus, size: 18, tooltip: t('Крупнее'), onTap: () => setState(() => _scale = math.min(2.2, double.parse((_scale + 0.1).toStringAsFixed(2))))),
+          ]),
+        ),
+        // .pref-btns
         Row(children: [
-          Text(t('Размер текста'), style: TextStyle(color: pal.muted, fontWeight: FontWeight.w600)),
-          const Spacer(),
-          if (_scale != 1 || _dx != 0 || _dy != 0) TextButton(onPressed: () => setState(() => (_scale = 1, _dx = 0, _dy = 0)), child: Text(t('как было'))),
-          IconButton(tooltip: t('Мельче'), icon: const Icon(Icons.remove), onPressed: () => setState(() => _scale = math.max(0.4, double.parse((_scale - 0.1).toStringAsFixed(2))))),
-          IconButton(tooltip: t('Крупнее'), icon: const Icon(Icons.add), onPressed: () => setState(() => _scale = math.min(2.2, double.parse((_scale + 0.1).toStringAsFixed(2))))),
-        ]),
-        Row(children: [
-          Expanded(child: Pill(pal: pal, primary: true, icon: Icons.share_outlined, label: t('Поделиться'), onTap: loading || _busy ? null : _share)),
-          const SizedBox(width: 10),
-          Expanded(child: Pill(pal: pal, icon: Icons.download_outlined, label: t('Сохранить'), onTap: loading || _busy ? null : _save)),
+          Expanded(child: AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.share2, label: t('Поделиться'), onTap: loading || _busy ? null : _share)),
+          const SizedBox(width: 8),
+          Expanded(child: AobButton(wide: true, icon: LucideIcons.download, label: t('Сохранить'), onTap: loading || _busy ? null : _save)),
         ]),
         if (photo != null)
           Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text('${t('Фото: {title}', {'title': t('${photo['title']}')})}${photo['author'] != null ? ' — ${photo['author']}' : ''} (${photo['license']})', style: TextStyle(color: pal.muted, fontSize: 11.5)),
+            padding: const EdgeInsets.only(top: 22), // margin-top 10 + промежуток 12
+            child: Text('${t('Фото: {title}', {'title': t('${photo['title']}')})}${photo['author'] != null ? ' — ${photo['author']}' : ''} (${photo['license']})', style: TextStyle(color: pal.muted, fontSize: 11.8)),
           ),
       ]),
     );
   }
 }
 
+/// .vimg-bg: 52×64, скругление 10, рамка 2; выбранный — рамка цвета акцента и тонкая «окантовка» цвета панели внутри
 class _Bg extends StatelessWidget {
   const _Bg({required this.pal, required this.on, required this.onTap, required this.tip, this.child, this.gradient});
   final Palette pal;
@@ -349,14 +362,16 @@ class _Bg extends StatelessWidget {
           child: GestureDetector(
             onTap: onTap,
             child: Container(
-              width: 58,
-              height: 58,
+              width: 52,
+              height: 64,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: on ? pal.accent : Colors.transparent, width: 3),
-                gradient: gradient == null ? null : LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradient!),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: on ? pal.accent : Colors.transparent, width: 2),
+                color: pal.line,
+                gradient: gradient == null ? null : LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: gradient!),
               ),
+              foregroundDecoration: on ? BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: pal.panel, width: 2)) : null,
               child: child,
             ),
           ),

@@ -83,7 +83,8 @@ class _VerseState extends ConsumerState<_Verse> {
     final fs = s.d('fontSize');
     final decors = [for (final d in Hub.verseDecorators) d(context, ref, v.pane, v.moduleId, v.item, v.book)].whereType<VerseDecor>().toList();
     final bg = selected ? pal.line : decors.map((d) => d.background).whereType<Color>().firstOrNull;
-    return GestureDetector(
+    final below = decors.map((d) => d.below).whereType<Widget>().toList();
+    final verse = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapUp: _tap,
       onLongPress: () => ref.read(selectionProvider.notifier).toggle(v.pane, _ref),
@@ -98,6 +99,11 @@ class _VerseState extends ConsumerState<_Verse> {
         child: Text.rich(key: _key, _spans(pal, fs, decors), textAlign: textAlignOf(s), style: readerTextStyle(s).copyWith(color: pal.text, height: s.d('lineHeight'))),
       ),
     );
+    if (below.isEmpty) return verse;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      verse,
+      for (final w in below) Padding(padding: EdgeInsets.only(bottom: fs * s.d('verseSpacing')), child: w),
+    ]);
   }
 
   int _len(InlineSpan span) => span is TextSpan ? (span.text?.length ?? 0) + (span.children?.fold<int>(0, (a, c) => a + _len(c)) ?? 0) : 1;

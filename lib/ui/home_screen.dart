@@ -99,12 +99,15 @@ class _Pane extends ConsumerWidget {
             _BarChip(label: name, bg: chipBg, fg: fg, fontSize: 15.2, weight: FontWeight.w800, maxWidthFactor: 0.38, onTap: () => _pickModule(context, ref)),
             const SizedBox(width: 2),
             // Место: «Быт. 1:1 ˅»
+            // Место: полное название книги («Бытие 1:1», «От Иоанна 3:16»); длинное или не помещается — сокращение
             Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: ValueListenableBuilder<VerseRef>(
-                  valueListenable: livePosition(index, initial),
-                  builder: (_, r, __) => _BarChip(label: Books.instance.formatRef(r.book, r.chapter, r.verse), bg: chipBg, fg: fg, fontSize: 17.9, weight: FontWeight.w700, onTap: () => openNavigator(context, index)),
+              child: LayoutBuilder(
+                builder: (context, c) => Align(
+                  alignment: Alignment.centerLeft,
+                  child: ValueListenableBuilder<VerseRef>(
+                    valueListenable: livePosition(index, initial),
+                    builder: (_, r, _) => _BarChip(label: _refLabel(context, r, c.maxWidth), bg: chipBg, fg: fg, fontSize: 17.9, weight: FontWeight.w700, onTap: () => openNavigator(context, index)),
+                  ),
                 ),
               ),
             ),
@@ -166,6 +169,23 @@ class _Pane extends ConsumerWidget {
 }
 
 /// Плашка в шапке (.toolbar .tb-module / .tb-ref): высота 40, «таблетка», стрелка ˅
+/// Подпись плашки места: полное название книги, если оно короткое (до 14 знаков) и помещается, иначе — сокращение
+String _refLabel(BuildContext context, VerseRef r, double maxWidth) {
+  final b = Books.instance;
+  final name = b.meta(r.book).name;
+  final full = '$name ${r.chapter}:${r.verse}';
+  if (name.runes.length <= 14) {
+    final tp = TextPainter(
+      text: TextSpan(text: full, style: const TextStyle(fontSize: 17.9, fontWeight: FontWeight.w700, letterSpacing: .15)),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    if (tp.width + 41 <= maxWidth) return full; // 41 — поля плашки и стрелка
+  }
+  return b.formatRef(r.book, r.chapter, r.verse);
+}
+
 class _BarChip extends StatelessWidget {
   const _BarChip({required this.label, required this.bg, required this.fg, required this.fontSize, required this.weight, required this.onTap, this.maxWidthFactor});
   final String label;
@@ -183,9 +203,9 @@ class _BarChip extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
+          // без alignment: Container с выравниванием растягивается на всю доступную ширину
           height: 40,
           padding: const EdgeInsets.only(left: 12, right: 10),
-          alignment: Alignment.center,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: fontSize, fontWeight: weight, color: fg, letterSpacing: .15))),
             const SizedBox(width: 3),

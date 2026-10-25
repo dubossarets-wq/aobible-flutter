@@ -6,11 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'interlinear.dart';
+import 'lexicon.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 
 const _page = 40;
+const _inlinePage = 200;
 
 bool strongsSame(String s, String num) => s.replaceFirstMapped(RegExp(r'^([HG])0*'), (m) => m.group(1)!) == num.replaceFirstMapped(RegExp(r'^([HG])0*'), (m) => m.group(1)!);
 
@@ -64,18 +67,19 @@ class _ConcordanceSheetState extends ConsumerState<ConcordanceSheet> {
 /// Места слова оригинала: выбор по варианту перевода, стихи с выделенным словом, «Показать ещё».
 /// [filter] — какие места показывать (часть Библии в поиске)
 class StrongPlaces extends ConsumerStatefulWidget {
-  const StrongPlaces({super.key, required this.num, required this.stats, required this.onOpen, this.filter});
+  const StrongPlaces({super.key, required this.num, required this.stats, required this.onOpen, this.filter, this.inline = false});
   final String num;
   final WordStats? stats;
   final OpenRef onOpen;
   final bool Function(VerseRef)? filter;
+  final bool inline; // внутри общего прокручиваемого списка (карточка поиска): Column, сразу до 200 мест
   @override
   ConsumerState<StrongPlaces> createState() => _StrongPlacesState();
 }
 
 class _StrongPlacesState extends ConsumerState<StrongPlaces> {
   String? _word;
-  int _shown = _page;
+  late int _shown = widget.inline ? _inlinePage : _page;
 
   @override
   Widget build(BuildContext context) {
@@ -96,14 +100,27 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
     final shown = list.take(_shown).toList();
     final more = list.length > _shown;
     final bottom = MediaQuery.of(context).padding.bottom;
+    if (widget.inline) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: FilterChips([
+            Chip2(t('Все'), on: _word == null, count: all.length, onTap: () => setState(() => _word = null)),
+            for (final e in renderings.take(14)) Chip2(e.key, on: _word == e.key, count: e.value, onTap: () => setState(() => _word = e.key)),
+          ]),
+        ),
+        for (final r in shown) _Row(r: r.$1, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen),
+        if (more) Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _inlinePage))),
+      ]);
+    }
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + bottom),
       itemCount: 1 + shown.length + (more ? 1 : 0),
       itemBuilder: (context, i) {
         if (i == 0) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: ChipWrap([
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FilterChips([
               Chip2(t('Все'), on: _word == null, count: all.length, onTap: () => setState(() {
                     _word = null;
                     _shown = _page;
@@ -158,5 +175,76 @@ class _Row extends ConsumerWidget {
         ]),
       ),
     );
+  }
+}
+
+
+/// Hub.strongSearchCard: карточка номера Стронга в поиске (StrongCard из SearchPanel.jsx) — шапка .strong-head и места
+class StrongSearchCard extends ConsumerStatefulWidget {
+  const StrongSearchCard({super.key, required this.num, required this.filter, required this.onOpen, required this.onArticle});
+  final String num;
+  final bool Function(VerseRef)? filter;
+  final OpenRef onOpen;
+  final VoidCallback? onArticle;
+  @override
+  ConsumerState<StrongSearchCard> createState() => _StrongSearchCardState();
+}
+
+class _StrongSearchCardState extends ConsumerState<StrongSearchCard> {
+  Map<String, dynamic>? _e;
+  bool _none = false;
+  WordStats? _st;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future(() async {
+      await StudyData.ensure();
+      final r = lookupStrong(widget.num);
+      final hit = r.where((x) => StudyData.dictKind(x.module) == 'strongs' && x.module.id != 'rst-symphony').firstOrNull;
+      final entry = hit == null || hit.found.isEmpty ? null : hit.found.first.entry;
+      final st = await loadStats(widget.num);
+      if (!mounted) return;
+      setState(() {
+        _e = entry;
+        _none = entry == null;
+        _st = st;
+        _loaded = true;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loaded && _none) return const SizedBox.shrink(); // такого номера нет в словарях
+    final pal = paletteOf(ref);
+    final e = _e;
+    final heb = widget.num.startsWith('H');
+    final def = e?['definition'] as String?;
+    final lemma = e?['lemma'] as String?;
+    final head = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${t('Номер Стронга')} ${widget.num}', style: TextStyle(fontSize: 13.44, fontWeight: FontWeight.w700, color: pal.accent)),
+        if (lemma != null && lemma.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Directionality(textDirection: heb ? TextDirection.rtl : TextDirection.ltr, child: Text(lemma, style: TextStyle(fontSize: 24, height: 1.2, color: pal.text))),
+        ],
+        if (e?['xlit'] != null) ...[const SizedBox(height: 3), Text('${e!['xlit']}', style: TextStyle(color: pal.muted))],
+        if (def != null && def.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(def.length > 160 ? '${def.substring(0, 160)}…' : def, style: TextStyle(fontSize: 14.72, height: 1.4, color: pal.text)),
+        ],
+        if (widget.onArticle != null) ...[const SizedBox(height: 5), Text('${t('Статья словаря')} →', style: TextStyle(fontSize: 13.6, color: pal.accent))],
+      ]),
+    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      widget.onArticle == null ? head : GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onArticle, child: head),
+      const SizedBox(height: 10),
+      if (!_loaded) Loading(t('Ищу все места…')) else StrongPlaces(num: widget.num, stats: _st, onOpen: widget.onOpen, filter: widget.filter, inline: true),
+    ]);
   }
 }

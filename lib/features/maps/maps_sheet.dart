@@ -11,6 +11,8 @@ import '../../core/modules.dart';
 import '../../core/net.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
+import '../hub.dart';
 import 'map_screen.dart';
 import 'places_data.dart';
 
@@ -47,25 +49,20 @@ Future<Uint8List> _image(String path) => _images.putIfAbsent(path, () => downloa
     }));
 
 void openMapsSheet(BuildContext context, WidgetRef ref, int pane) {
-  final pal = ref.read(settingsProvider).palette;
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: pal.panel,
-    useSafeArea: true,
-    builder: (_) => _MapsSheet(pane: pane),
-  );
+  showAobSheet(context, builder: (_) => _MapsSheet(pane: pane, outer: context));
 }
 
 class _MapsSheet extends ConsumerStatefulWidget {
-  const _MapsSheet({required this.pane});
+  const _MapsSheet({required this.pane, required this.outer});
   final int pane;
+  final BuildContext outer; // контекст экрана под окном — для открытия библиотеки
   @override
   ConsumerState<_MapsSheet> createState() => _MapsSheetState();
 }
 
 class _MapsSheetState extends ConsumerState<_MapsSheet> {
   final _q = TextEditingController();
+  final _tc = TransformationController();
   late final List<BibleMap> _maps = installedMaps();
   late final int _placeCount = PlaceStore.count;
   BibleMap? _open;
@@ -73,6 +70,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
   @override
   void dispose() {
     _q.dispose();
+    _tc.dispose();
     super.dispose();
   }
 
@@ -83,115 +81,135 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
     ref.read(panesProvider.notifier).navigate(widget.pane, v);
   }
 
+  // Увеличение — от 1× до 6×, шаг ×1,5 (как в веб-версии)
+  void _zoom(double k) {
+    final s = (_tc.value.getMaxScaleOnAxis() * k).clamp(1.0, 6.0);
+    _tc.value = Matrix4.diagonal3Values(s, s, 1);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pal = ref.watch(settingsProvider).palette;
+    final pal = paletteOf(ref);
     final open = _open;
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.92,
-      child: Column(children: [
-        _Header(
-          pal: pal,
-          title: open?.title ?? t('Карты'),
-          subtitle: open?.moduleName,
-          onBack: open == null ? null : () => setState(() => _open = null),
-          onClose: () => Navigator.pop(context),
-        ),
-        Expanded(child: open != null ? _Viewer(map: open, pal: pal, onVerse: _goVerse) : _list(pal)),
-      ]),
+    return AobSheet(
+      title: open?.title ?? t('Карты'),
+      subtitle: open?.moduleName,
+      scroll: false,
+      onBack: open == null
+          ? null
+          : () => setState(() {
+                _open = null;
+                _tc.value = Matrix4.identity();
+              }),
+      actions: [
+        if (open != null) ...[
+          IconBtn(icon: LucideIcons.zoomOut, size: 20, tooltip: t('Уменьшить'), onTap: () => _zoom(1 / 1.5)),
+          IconBtn(icon: LucideIcons.zoomIn, size: 20, tooltip: t('Увеличить'), onTap: () => _zoom(1.5)),
+        ],
+      ],
+      child: open != null ? _Viewer(map: open, pal: pal, controller: _tc, onVerse: _goVerse) : _list(pal),
     );
   }
 
   Widget _list(Palette pal) {
     final found = PlaceStore.search(_q.text);
     final query = _q.text.trim();
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-      if (_placeCount > 0) ...[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-          child: Text('${t('Места')} · $_placeCount', style: TextStyle(fontWeight: FontWeight.w700, color: pal.muted)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            controller: _q,
-            onChanged: (_) => setState(() {}),
-            style: TextStyle(color: pal.text),
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search, color: pal.muted),
-              hintText: t('Найти место: Хеврон, Вифлеем…'),
-              hintStyle: TextStyle(color: pal.muted),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: pal.line)),
-            ),
-          ),
-        ),
-        for (final p in found)
-          ListTile(
-            leading: Icon(Icons.place_outlined, color: pal.accent, size: 20),
-            title: Text(p.name, style: TextStyle(color: pal.text, fontWeight: FontWeight.w600)),
-            subtitle: Text([p.type, p.modern].where((s) => s.isNotEmpty).join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted)),
-            onTap: () {
-              Navigator.pop(context);
-              openPlaceMap(context, p);
-            },
-          ),
-        if (query.length >= 2 && found.isEmpty)
-          Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: Text(t('Ничего не найдено.'), style: TextStyle(color: pal.muted))),
-      ],
-      if (_maps.isEmpty && _placeCount == 0)
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            Icon(Icons.map_outlined, size: 40, color: pal.muted),
-            const SizedBox(height: 10),
-            Text(t('Карты не установлены'), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text)),
-            const SizedBox(height: 4),
-            Text(t('Установите карты из каталога.'), style: TextStyle(color: pal.muted)),
+    return CustomScrollView(slivers: [
+      if (_placeCount > 0)
+        SliverToBoxAdapter(
+          // .nav-group: заголовок, поле поиска, найденные места (промежутки 8)
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            GroupTitle('${t('Места')} · $_placeCount'),
+            const SizedBox(height: 2),
+            AobInput(controller: _q, hint: t('Найти место: Хеврон, Вифлеем…'), onChanged: (_) => setState(() {})),
+            for (final p in found)
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  openPlaceMap(context, p);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(LucideIcons.mapPin, size: 14, color: pal.accent),
+                      const SizedBox(width: 6),
+                      Flexible(child: Text(p.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
+                    ]),
+                    const SizedBox(height: 3),
+                    Text([p.type, p.modern].where((s) => s.isNotEmpty).join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14.08, height: 1.4, color: pal.muted)),
+                  ]),
+                ),
+              ),
+            if (query.length >= 2 && found.isEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(t('Ничего не найдено.'), style: TextStyle(fontSize: 13.12, height: 1.4, color: pal.muted))),
+            const SizedBox(height: 14),
           ]),
         ),
-      for (final m in _maps)
-        InkWell(
-          onTap: () => setState(() => _open = m),
+      if (_maps.isEmpty && _placeCount == 0)
+        SliverToBoxAdapter(
+          // .empty: значок 28, заголовок, подсказка
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(children: [
-              SizedBox(width: 72, height: 54, child: _Thumb(path: m.image, pal: pal)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(m.title, style: TextStyle(fontWeight: FontWeight.w700, color: pal.text)),
-                  Text(m.description.isEmpty ? m.moduleName : m.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
-                ]),
-              ),
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
+            child: Column(children: [
+              Icon(LucideIcons.map, size: 28, color: pal.muted),
+              const SizedBox(height: 8),
+              Text(t('Карты не установлены'), style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
+              const SizedBox(height: 8),
+              Text(t('Установите карты из каталога.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.45, color: pal.muted)),
+              if (Hub.openLibrary != null)
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Hub.openLibrary!(widget.outer, ref, widget.pane);
+                  },
+                  child: Text(t('Открыть библиотеку'), style: TextStyle(fontSize: 14.4, color: pal.accent, decoration: TextDecoration.underline)),
+                ),
             ]),
           ),
         ),
+      if (_maps.isNotEmpty)
+        // .map-list: сетка auto-fill от 220 px, промежуток 10; плитка — картинка 4:3 и подпись
+        SliverLayoutBuilder(builder: (context, c) {
+          final cols = ((c.crossAxisExtent + 10) / 230).floor().clamp(1, 6);
+          final w = (c.crossAxisExtent - 10 * (cols - 1)) / cols;
+          return SliverGrid.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: cols, mainAxisSpacing: 10, crossAxisSpacing: 10, mainAxisExtent: w * 0.75 + 58),
+            itemCount: _maps.length,
+            itemBuilder: (_, i) => _MapTile(map: _maps[i], pal: pal, onTap: () => setState(() => _open = _maps[i])),
+          );
+        }),
+      const SliverToBoxAdapter(child: SizedBox(height: 8)),
     ]);
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.pal, required this.title, this.subtitle, this.onBack, required this.onClose});
+/// .map-row: рамка, скругление, картинка 4:3 сверху, название и описание в одну строку
+class _MapTile extends StatelessWidget {
+  const _MapTile({required this.map, required this.pal, required this.onTap});
+  final BibleMap map;
   final Palette pal;
-  final String title;
-  final String? subtitle;
-  final VoidCallback? onBack;
-  final VoidCallback onClose;
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-        child: Row(children: [
-          if (onBack != null) IconButton(icon: Icon(Icons.arrow_back, color: pal.text), onPressed: onBack) else const SizedBox(width: 8),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: pal.text)),
-              if (subtitle != null) Text(subtitle!, style: TextStyle(fontSize: 12, color: pal.muted)),
-            ]),
-          ),
-          IconButton(icon: Icon(Icons.close, color: pal.text), onPressed: onClose),
-        ]),
+  Widget build(BuildContext context) => Material(
+        color: pal.bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: SizedBox(width: double.infinity, child: _Thumb(path: map.image, pal: pal))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(map.title, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
+                const SizedBox(height: 2),
+                Text(map.description.isEmpty ? map.moduleName : map.description, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.6, color: pal.muted)),
+              ]),
+            ),
+          ]),
+        ),
       );
 }
 
@@ -202,69 +220,45 @@ class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(
         future: _image(path),
-        builder: (_, s) => ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: s.hasData ? Image.memory(s.data!, fit: BoxFit.cover, cacheWidth: 200) : ColoredBox(color: pal.line),
-        ),
+        builder: (_, s) => s.hasData ? Image.memory(s.data!, fit: BoxFit.cover, cacheWidth: 480) : ColoredBox(color: pal.line),
       );
 }
 
-/// Просмотр карты с увеличением (жесты и кнопки «Увеличить / Уменьшить»), описание и стихи
-class _Viewer extends StatefulWidget {
-  const _Viewer({required this.map, required this.pal, required this.onVerse});
+/// Просмотр карты с увеличением (жесты и кнопки в шапке окна), описание и стихи
+class _Viewer extends StatelessWidget {
+  const _Viewer({required this.map, required this.pal, required this.controller, required this.onVerse});
   final BibleMap map;
   final Palette pal;
+  final TransformationController controller;
   final void Function(String osis) onVerse;
-  @override
-  State<_Viewer> createState() => _ViewerState();
-}
-
-class _ViewerState extends State<_Viewer> {
-  final _tc = TransformationController();
-
-  void _zoom(double k) {
-    final s = (_tc.value.getMaxScaleOnAxis() * k).clamp(1.0, 6.0);
-    _tc.value = Matrix4.diagonal3Values(s, s, 1);
-  }
-
-  @override
-  void dispose() {
-    _tc.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final pal = widget.pal;
-    final m = widget.map;
+    final m = map;
     return ListView(children: [
-      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-        IconButton(tooltip: t('Уменьшить'), icon: Icon(Icons.zoom_out, color: pal.text), onPressed: () => _zoom(1 / 1.5)),
-        IconButton(tooltip: t('Увеличить'), icon: Icon(Icons.zoom_in, color: pal.text), onPressed: () => _zoom(1.5)),
-      ]),
-      SizedBox(
+      // .map-view: рамка line, скругление, фон bg
+      Container(
         height: MediaQuery.sizeOf(context).height * 0.5,
+        decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+        clipBehavior: Clip.antiAlias,
         child: FutureBuilder<Uint8List>(
           future: _image(m.image),
           builder: (_, s) => s.hasData
-              ? InteractiveViewer(transformationController: _tc, minScale: 1, maxScale: 6, child: Image.memory(s.data!, fit: BoxFit.contain))
-              : Center(child: s.hasError ? Text(t('Карта не загрузилась. Проверьте интернет.'), style: TextStyle(color: pal.muted)) : const CircularProgressIndicator()),
+              ? InteractiveViewer(transformationController: controller, minScale: 1, maxScale: 6, child: Image.memory(s.data!, fit: BoxFit.contain))
+              : Center(
+                  child: s.hasError
+                      ? Padding(padding: const EdgeInsets.all(12), child: Text(t('Карта не загрузилась. Проверьте интернет.'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)))
+                      : Icon(LucideIcons.loaderCircle, size: 20, color: pal.muted),
+                ),
         ),
       ),
-      if (m.description.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: Text(m.description, style: TextStyle(color: pal.text, height: 1.4))),
+      if (m.description.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(m.description, style: TextStyle(fontSize: 15, height: 1.5, color: pal.text))),
       if (m.refs.isNotEmpty)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.only(top: 12),
           child: Wrap(spacing: 6, runSpacing: 6, children: [
             for (final r in m.refs)
-              if (parseOsis(r) case final v?)
-                ActionChip(
-                  label: Text(Books.instance.formatRef(v.book, v.chapter, v.verse)),
-                  backgroundColor: pal.bg,
-                  side: BorderSide(color: pal.line),
-                  labelStyle: TextStyle(color: pal.text),
-                  onPressed: () => widget.onVerse(r),
-                ),
+              if (parseOsis(r) case final v?) AobChip(label: Books.instance.formatRef(v.book, v.chapter, v.verse), onTap: () => onVerse(r)),
           ]),
         ),
     ]);

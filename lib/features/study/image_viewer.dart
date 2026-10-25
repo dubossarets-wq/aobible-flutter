@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../ui/kit.dart' show LucideIcons, Spinner;
 import 'study_data.dart';
 
 const _maxScale = 5.0;
@@ -61,15 +62,15 @@ class _ViewerState extends State<_Viewer> {
               Expanded(child: Text(fmtRef(widget.at), style: const TextStyle(fontWeight: FontWeight.w700))),
               if (items.length > 1) Text(t('{n} из {total}', {'n': '${_i + 1}', 'total': '${items.length}'}), style: const TextStyle(fontSize: 13.6, color: Color(0xBFF2EFE9))),
               const SizedBox(width: 6),
-              _RoundBtn(icon: Icons.close, label: t('Закрыть'), onTap: () => Navigator.pop(context)),
+              _RoundBtn(icon: LucideIcons.x, label: t('Закрыть'), onTap: () => Navigator.pop(context)),
             ]),
           ),
           Expanded(
             child: Stack(children: [
               _Zoomable(key: ValueKey(item['img']), item: item, onSwipe: _go, onPull: (y) => setState(() => _fade = y), onClose: () => Navigator.pop(context)),
               if (items.length > 1) ...[
-                Positioned(left: 8, top: 0, bottom: 0, child: Center(child: _RoundBtn(icon: Icons.chevron_left, label: t('Предыдущая картинка'), onTap: _i == 0 ? null : () => _go(-1)))),
-                Positioned(right: 8, top: 0, bottom: 0, child: Center(child: _RoundBtn(icon: Icons.chevron_right, label: t('Следующая картинка'), onTap: _i == items.length - 1 ? null : () => _go(1)))),
+                Positioned(left: 8, top: 0, bottom: 0, child: Center(child: _RoundBtn(icon: LucideIcons.chevronLeft, label: t('Предыдущая картинка'), onTap: _i == 0 ? null : () => _go(-1)))),
+                Positioned(right: 8, top: 0, bottom: 0, child: Center(child: _RoundBtn(icon: LucideIcons.chevronRight, label: t('Следующая картинка'), onTap: _i == items.length - 1 ? null : () => _go(1)))),
               ],
             ]),
           ),
@@ -88,7 +89,7 @@ class _ViewerState extends State<_Viewer> {
                       alignment: PlaceholderAlignment.middle,
                       child: GestureDetector(
                         onTap: () => launchUrl(Uri.parse(src), mode: LaunchMode.externalApplication),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(t('источник'), style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline)), const SizedBox(width: 3), const Icon(Icons.open_in_new, size: 12)]),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(t('источник'), style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline)), const SizedBox(width: 3), const Icon(LucideIcons.externalLink, size: 12)]),
                       ),
                     ),
                   ],
@@ -261,7 +262,7 @@ class _ZoomableState extends State<_Zoomable> {
               item['img'] as String,
               fit: BoxFit.contain,
               headers: const {'User-Agent': 'AOBible/1.0 (https://aobible.app)'},
-              loadingBuilder: (c, child, p) => p == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xCCF2EFE9))),
+              loadingBuilder: (c, child, p) => p == null ? child : const Center(child: Spinner(size: 28, color: Color(0xCCF2EFE9))),
               errorBuilder: (c, e, st) => Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(t('Картинка не загрузилась. Проверьте интернет.'), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xCCF2EFE9))))),
             ),
           ),
@@ -271,10 +272,10 @@ class _ZoomableState extends State<_Zoomable> {
         right: 10,
         bottom: 10,
         child: Row(children: [
-          _RoundBtn(icon: Icons.zoom_out, label: t('Уменьшить'), onTap: _s <= 1 ? null : () => _set(_clamp(math.max(1.0, _s / 1.6), _x, _y))),
+          _RoundBtn(icon: LucideIcons.zoomOut, label: t('Уменьшить'), onTap: _s <= 1 ? null : () => _set(_clamp(math.max(1.0, _s / 1.6), _x, _y))),
           const SizedBox(width: 8),
           _RoundBtn(
-            icon: Icons.zoom_in,
+            icon: LucideIcons.zoomIn,
             label: t('Увеличить'),
             onTap: _s >= _maxScale
                 ? null

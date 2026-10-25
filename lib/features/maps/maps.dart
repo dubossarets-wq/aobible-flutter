@@ -1,7 +1,7 @@
 // Карты и места: пункт «Карта» в выборке над названием места в стихе и «Карты» в меню «Ещё».
-import 'package:flutter/material.dart';
 
 import '../../core/i18n.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'map_screen.dart';
 import 'maps_sheet.dart';
@@ -23,5 +23,5 @@ void register() {
     ];
   });
 
-  Hub.moreItems.add(MoreItem(id: 'maps', icon: Icons.map_outlined, label: t('Карты'), order: 60, run: openMapsSheet));
+  Hub.moreItems.add(MoreItem(id: 'maps', icon: LucideIcons.map, label: t('Карты'), order: 60, run: openMapsSheet));
 }

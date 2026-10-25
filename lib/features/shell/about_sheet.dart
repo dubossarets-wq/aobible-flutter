@@ -2,12 +2,14 @@
 // шрифты, политика конфиденциальности, контакты. Лицензии CC BY / BY-SA / BY-NC требуют указывать авторов —
 // здесь они все в одном месте.
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'colors.dart';
 import 'library_sheet.dart' show moduleSections;
 import 'sheet.dart';
@@ -16,6 +18,10 @@ import 'sheet.dart';
 const appVersion = '1.0.0';
 const supportEmail = 'dubossarets@gmail.com';
 const telegramUrl = 'https://t.me/bystreetsky';
+
+// Логотип Telegram (самолётик в круге), одним цветом — контур из Simple Icons (CC0)
+const _telegramLogo =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>';
 
 Future<void> openAbout(BuildContext context, {String tab = 'about'}) => showAppSheet(context, (_) => AboutSheet(tab: tab));
 
@@ -88,102 +94,116 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
   Widget _link(String text, String url, Palette pal) => InkWell(onTap: () => openLink(url), child: Text(text, style: TextStyle(color: pal.accent, decoration: TextDecoration.underline, fontSize: 14)));
 
   Widget _line(List<Widget> parts) => Padding(padding: const EdgeInsets.only(top: 2), child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: parts));
-
   @override
+
   Widget build(BuildContext context) {
     final pal = effectivePalette(ref.watch(settingsProvider));
-    Widget p(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(text, style: const TextStyle(fontSize: 15.5, height: 1.45)));
     final body = switch (_tab) {
-      'licenses' => _licenses(pal, p),
-      'privacy' => _privacy(pal, p),
-      _ => [
-          p(t('AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения.')),
-          p(t('Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение.')),
-          p(t('Всё хранится на вашем устройстве; скачанные модули работают без интернета.')),
-          const SizedBox(height: 6),
-          PrefRow(icon: Icons.mail_outline, title: supportEmail, onTap: () => openLink('mailto:$supportEmail')),
-          PrefRow(icon: Icons.send_outlined, title: 'Telegram', sub: telegramUrl, onTap: () => openLink(telegramUrl)),
-        ],
+      'licenses' => _licenses(pal),
+      'privacy' => _privacy(pal),
+      _ => _about(pal),
     };
     return AppSheet(
       title: t('О приложении'),
       subtitle: t('AO Bible · версия {v}', {'v': appVersion}),
-      full: true,
+      gap: 12,
+      // вкладки закреплены над текстом, линия — от края до края
       fixed: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-        child: SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<String>(
-            showSelectedIcon: false,
-            segments: [
-              ButtonSegment(value: 'about', label: Text(t('О приложении'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ButtonSegment(value: 'licenses', label: Text(t('Лицензии и авторы'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ButtonSegment(value: 'privacy', label: Text(t('Конфиденциальность'), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            ],
-            selected: {_tab},
-            onSelectionChanged: (v) => setState(() => _tab = v.first),
-          ),
+        padding: const EdgeInsets.only(top: 6),
+        child: AobTabs<String>(
+          value: _tab,
+          onChanged: (v) => setState(() => _tab = v),
+          tabs: [('about', t('О приложении'), null), ('licenses', t('Лицензии и авторы'), null), ('privacy', t('Конфиденциальность'), null)],
         ),
       ),
-      children: body,
+      children: [
+        // .prose: интервал 1.55, абзацы без промежутков
+        DefaultTextStyle.merge(style: const TextStyle(height: 1.55), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body)),
+      ],
     );
   }
 
-  List<Widget> _licenses(Palette pal, Widget Function(String) p) {
+  Widget _p(String text) => Text(text);
+
+  /// Заголовок группы в тексте (.prose h4)
+  Widget _h4(String text, Palette pal) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 6), child: Text(text, style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)));
+
+  /// Пункт маркированного списка (.lic-list li): чёрная точка слева, отступ 18, зазор 8
+  Widget _li(List<Widget> parts, {double gap = 8}) => Padding(
+        padding: EdgeInsets.only(bottom: gap),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(width: 18, child: Padding(padding: EdgeInsets.only(left: 4, top: 1), child: Text('•'))),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: parts)),
+        ]),
+      );
+
+  List<Widget> _about(Palette pal) => [
+        _p(t('AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения.')),
+        _p(t('Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение.')),
+        _p(t('Всё хранится на вашем устройстве; скачанные модули работают без интернета.')),
+        const SizedBox(height: 24),
+        PrefRow(icon: LucideIcons.mail, title: supportEmail, onTap: () => openLink('mailto:$supportEmail')),
+        PrefRow(
+          icon: LucideIcons.send,
+          title: 'Telegram',
+          sub: telegramUrl,
+          onTap: () => openLink(telegramUrl),
+          last: true,
+          leading: SizedBox(width: 38, height: 38, child: Center(child: SvgPicture.string(_telegramLogo, width: 30, height: 30, colorFilter: ColorFilter.mode(pal.text, BlendMode.srcIn)))),
+        ),
+      ];
+
+  List<Widget> _licenses(Palette pal) {
     final cat = _cat;
-    if (cat == null) {
-      return [Padding(padding: const EdgeInsets.all(24), child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), const SizedBox(width: 10), Text(t('Загрузка…'))])))];
-    }
+    if (cat == null) return [Loading(t('Загрузка…'))];
     // Нет сети — хотя бы установленные модули
     final items = cat.isNotEmpty ? cat.map((c) => c.json).toList() : ModuleStore.instance.installed.map((m) => m.meta).toList();
+    final small = TextStyle(color: pal.muted, fontSize: 13.2, height: 1.55);
     return [
-      p(t('Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой.')),
+      _p(t('Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой.')),
       for (final sec in moduleSections)
         if (items.any((m) => (m['type'] ?? 'bible') == sec.$1)) ...[
-          Padding(padding: const EdgeInsets.fromLTRB(2, 12, 2, 4), child: Text(t(sec.$2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+          _h4(t(sec.$2), pal),
           for (final m in items.where((m) => (m['type'] ?? 'bible') == sec.$1))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text.rich(TextSpan(children: [
-                  TextSpan(text: '${m['name'] ?? m['id']}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                  if ((m['title'] ?? '') != '') TextSpan(text: ' — ${m['title']}'),
-                ])),
-                if (m['author'] != null) Text(t('Авторы: {author}.', {'author': '${m['author']}'}), style: TextStyle(color: pal.muted, fontSize: 14)),
-                if (m['license'] != null)
-                  _line([
-                    Text('${t('Лицензия:')} ', style: TextStyle(color: pal.muted, fontSize: 14)),
-                    licenseUrl('${m['license']}') != null ? _link('${m['license']}', licenseUrl('${m['license']}')!, pal) : Text('${m['license']}', style: TextStyle(color: pal.muted, fontSize: 14)),
-                  ]),
-                for (final x in _extra[m['id']] ?? const <String>[]) x.startsWith('http') ? _line([_link(x, x, pal)]) : Text(x, style: TextStyle(color: pal.muted, fontSize: 14)),
-                if (m['source'] != null)
-                  _line([
-                    Text('${t('Источник:')} ', style: TextStyle(color: pal.muted, fontSize: 14)),
-                    RegExp(r'^https?://\S+$').hasMatch('${m['source']}') ? _link('${m['source']}', '${m['source']}', pal) : Text('${m['source']}', style: TextStyle(color: pal.muted, fontSize: 14)),
-                  ]),
-              ]),
-            ),
+            _li([
+              Text.rich(TextSpan(children: [
+                TextSpan(text: '${m['name'] ?? m['id']}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                if ((m['title'] ?? '') != '') TextSpan(text: ' — ${m['title']}'),
+              ])),
+              if (m['author'] != null) Text(t('Авторы: {author}.', {'author': '${m['author']}'}), style: small),
+              if (m['license'] != null)
+                _line([
+                  Text('${t('Лицензия:')} ', style: small),
+                  licenseUrl('${m['license']}') != null ? _link('${m['license']}', licenseUrl('${m['license']}')!, pal) : Text('${m['license']}', style: small),
+                ]),
+              for (final x in _extra[m['id']] ?? const <String>[]) x.startsWith('http') ? _line([_link(x, x, pal)]) : Text(x, style: small),
+              if (m['source'] != null)
+                _line([
+                  Text('${t('Источник:')} ', style: small),
+                  RegExp(r'^https?://\S+$').hasMatch('${m['source']}') ? _link('${m['source']}', '${m['source']}', pal) : Text('${m['source']}', style: small),
+                ]),
+            ]),
         ],
-      Padding(padding: const EdgeInsets.fromLTRB(2, 14, 2, 4), child: Text(t('Программы и службы'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+      _h4(t('Программы и службы'), pal),
       for (final x in _thirdParty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(x.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('${x.$2} · ${x.$3}', style: TextStyle(color: pal.muted, fontSize: 14)),
-            _line([_link(x.$4.replaceFirst('https://', ''), x.$4, pal)]),
-          ]),
-        ),
+        _li([
+          Text(x.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+          _line([Text('${x.$2} · ${x.$3} · ', style: small), _link(x.$4.replaceFirst('https://', ''), x.$4, pal)]),
+        ]),
     ];
   }
 
-  List<Widget> _privacy(Palette pal, Widget Function(String) p) {
-    Widget li(String text) => Padding(padding: const EdgeInsets.only(left: 6, top: 3, bottom: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('•  '), Expanded(child: Text(text, style: const TextStyle(fontSize: 15.5, height: 1.4)))]));
+  List<Widget> _privacy(Palette pal) {
     return [
-      Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(t('Коротко: приложение ничего о вас не собирает.'), style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800))),
-      li(t('Нет регистрации, рекламы, счётчиков посещений и аналитики. Мы не получаем ваши данные и никому их не передаём.')),
-      li(t('Закладки, заметки, выделения, проповеди, планы чтения и настройки хранятся только на вашем устройстве (в памяти браузера). Их можно сохранить в файл: Настройки → «Мои данные».')),
-      li(t('Чтобы показать текст и материалы, приложение загружает файлы с нескольких сайтов. Как и при открытии любого сайта, эти сайты видят адрес вашего подключения (IP) и тип браузера:')),
+      Padding(padding: const EdgeInsets.only(bottom: 0), child: Text(t('Коротко: приложение ничего о вас не собирает.'), style: const TextStyle(fontWeight: FontWeight.w700))),
+      const SizedBox(height: 6),
+      for (final x in [
+        t('Нет регистрации, рекламы, счётчиков посещений и аналитики. Мы не получаем ваши данные и никому их не передаём.'),
+        t('Закладки, заметки, выделения, проповеди, планы чтения и настройки хранятся только на вашем устройстве (в памяти браузера). Их можно сохранить в файл: Настройки → «Мои данные».'),
+        t('Чтобы показать текст и материалы, приложение загружает файлы с нескольких сайтов. Как и при открытии любого сайта, эти сайты видят адрес вашего подключения (IP) и тип браузера:'),
+      ])
+        _li([Text(x)], gap: 6),
+      const SizedBox(height: 2),
       for (final x in [
         t('GitHub Pages — само приложение и модули (переводы, словари).'),
         t('archive.org — записи чтения Библии.'),
@@ -191,18 +211,16 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
         t('Google Fonts — шрифты для иврита и греческого.'),
         t('OpenFreeMap, EOX и jsDelivr — карты (только когда вы открываете карту).'),
       ])
-        Padding(padding: const EdgeInsets.only(left: 22, top: 2, bottom: 2), child: Text('– $x', style: TextStyle(fontSize: 14.5, color: pal.muted))),
-      p(t('Мы не управляем этими сайтами; у каждого из них своя политика конфиденциальности.')),
-      p(t('Доступ к микрофону, камере, контактам и местоположению приложению не нужен и не запрашивается.')),
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 6, children: [
-          Text(t('Вопросы и предложения:')),
-          _link(supportEmail, 'mailto:$supportEmail', pal),
-          const Text('·'),
-          _link('Telegram', telegramUrl, pal),
-        ]),
-      ),
+        _li([Text(x)]),
+      const SizedBox(height: 4),
+      _p(t('Мы не управляем этими сайтами; у каждого из них своя политика конфиденциальности.')),
+      _p(t('Доступ к микрофону, камере, контактам и местоположению приложению не нужен и не запрашивается.')),
+      Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+        Text('${t('Вопросы и предложения:')} '),
+        _link(supportEmail, 'mailto:$supportEmail', pal),
+        const Text(' · '),
+        _link('Telegram', telegramUrl, pal),
+      ]),
     ];
   }
 }

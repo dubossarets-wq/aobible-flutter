@@ -14,11 +14,13 @@ import 'plan_store.dart';
 import 'plans_sheet.dart';
 import 'reminders.dart';
 import 'ui_kit.dart';
+import 'verse_image.dart';
 import 'verse_widget.dart';
 
 void register() {
   Hub.onChapterRead = planChapterRead;
   Hub.openPlans = (context, ref, pane) => showPage(context, (_) => PlansSheet(pane: pane));
+  Hub.openVerseImage = (context, ref, refs, moduleId) => showPage(context, (_) => VerseImageSheet(refs: refs, moduleId: moduleId));
   Hub.afterStart.add(_afterStart);
 }
 

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/i18n.dart';
 import '../core/modules.dart';
 import '../core/settings.dart';
+import '../features/hub.dart';
+import 'kit.dart';
 
 class BootstrapScreen extends ConsumerStatefulWidget {
   const BootstrapScreen({super.key, required this.onReady});
@@ -39,35 +41,42 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> {
           }));
       widget.onReady();
     } catch (err) {
-      setState(() => _error = t('Не удалось подключиться к серверу. Проверьте интернет.') + '\n$err');
+      debugPrint('bootstrap: $err');
+      setState(() => _error = t('Не удалось подключиться к серверу. Проверьте интернет.'));
     }
   }
 
+  // Как .bootstrap в веб-версии: карточка по центру экрана, всё — по левому краю
   @override
   Widget build(BuildContext context) {
     final pal = ref.watch(settingsProvider).palette;
+    final p = TextStyle(fontSize: 15, height: 1.5, color: pal.muted);
     return Scaffold(
       backgroundColor: pal.bg,
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.menu_book_outlined, size: 40, color: pal.accent),
-            const SizedBox(height: 12),
-            Text('AO Bible', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: pal.text)),
-            const SizedBox(height: 16),
-            if (_error == null) ...[
-              Text(t('Готовлю Синодальный перевод, словари и параллельные места…'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)),
-              const SizedBox(height: 16),
-              LinearProgressIndicator(value: _p, color: pal.accent, backgroundColor: pal.line),
-              const SizedBox(height: 8),
-              Text(_label, style: TextStyle(color: pal.muted, fontSize: 13)),
-            ] else ...[
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _run, child: Text(t('Повторить'))),
-            ],
-          ]),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Align(alignment: Alignment.centerLeft, child: Icon(LucideIcons.bookOpen, size: 36, color: pal.accent)),
+              const SizedBox(height: 14),
+              Text('AO Bible', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.32, color: pal.text)),
+              const SizedBox(height: 14),
+              if (_error == null) ...[
+                Text(t('Готовлю Синодальный перевод, словари и параллельные места…'), style: p),
+                const SizedBox(height: 14),
+                AobProgress(value: _p, label: _label),
+              ] else ...[
+                Text(_error!, style: p.copyWith(color: const Color(0xffb4412f))),
+                const SizedBox(height: 14),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  AobButton(label: t('Повторить'), icon: LucideIcons.rotateCw, kind: BtnKind.primary, onTap: _run),
+                  if (Hub.openLibrary != null) AobButton(label: t('Библиотека модулей'), icon: LucideIcons.library, onTap: () => Hub.openLibrary!(context, ref, 0)),
+                ]),
+              ],
+            ]),
+          ),
         ),
       ),
     );

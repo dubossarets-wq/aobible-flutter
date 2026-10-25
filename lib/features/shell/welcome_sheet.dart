@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'appearance_sheet.dart';
 import 'colors.dart';
 import 'help_sheet.dart';
@@ -15,10 +16,11 @@ Future<void> openWelcome(BuildContext context) {
   return showAppSheet(context, (_) => const WelcomeSheet());
 }
 
+// Значки — как в Welcome.jsx: Type, Hand, BookA
 const _steps = <(IconData, String, String)>[
-  (Icons.text_fields, 'Удобный размер букв', 'Подберите размер, чтобы читать было легко. Поменять его можно в «Оформлении» или двумя пальцами прямо на тексте.'),
-  (Icons.touch_app_outlined, 'Зажмите стих', 'Откроются действия: цвет, заметка, закладка, копировать, поделиться, подстрочник, комментарии.'),
-  (Icons.translate, 'Нажмите на слово', 'Увидите слово оригинала на иврите или греческом и его значение по словарю Стронга.'),
+  (LucideIcons.type, 'Удобный размер букв', 'Подберите размер, чтобы читать было легко. Поменять его можно в «Оформлении» или двумя пальцами прямо на тексте.'),
+  (LucideIcons.hand, 'Зажмите стих', 'Откроются действия: цвет, заметка, закладка, копировать, поделиться, подстрочник, комментарии.'),
+  (LucideIcons.bookA, 'Нажмите на слово', 'Увидите слово оригинала на иврите или греческом и его значение по словарю Стронга.'),
 ];
 
 class WelcomeSheet extends ConsumerStatefulWidget {
@@ -36,24 +38,25 @@ class _WelcomeSheetState extends ConsumerState<WelcomeSheet> {
     final pal = effectivePalette(s);
     final step = _steps[_i];
     final last = _i == _steps.length - 1;
+    // .welcome-step: по центру, зазор 10, поля 8 сверху и 4 снизу
     return AppSheet(
       title: t('Добро пожаловать'),
       subtitle: t('Шаг {n} из {total}', {'n': '${_i + 1}', 'total': '${_steps.length}'}),
-      footer: Row(children: [
-        Expanded(child: OutlinedButton(onPressed: _i > 0 ? () => setState(() => _i--) : () => Navigator.of(context).maybePop(), child: Text(_i > 0 ? t('Назад') : t('Пропустить')))),
-        const SizedBox(width: 10),
-        Expanded(child: FilledButton(onPressed: last ? () => Navigator.of(context).maybePop() : () => setState(() => _i++), child: Text(last ? t('Начать чтение') : t('Далее')))),
+      gap: 10,
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      // .welcome-actions: «Назад / Пропустить» слева, главная кнопка справа
+      footer: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        AobButton(label: _i > 0 ? t('Назад') : t('Пропустить'), onTap: _i > 0 ? () => setState(() => _i--) : () => Navigator.of(context).maybePop()),
+        AobButton(kind: BtnKind.primary, label: last ? t('Начать чтение') : t('Далее'), onTap: last ? () => Navigator.of(context).maybePop() : () => setState(() => _i++)),
       ]),
       children: [
-        Center(child: Icon(step.$1, size: 44, color: pal.accent)),
-        const SizedBox(height: 8),
-        Center(child: Text(t(step.$2), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-        const SizedBox(height: 8),
-        Text(t(step.$3), textAlign: TextAlign.center, style: TextStyle(fontSize: 16, height: 1.4, color: pal.muted)),
+        Center(child: Icon(step.$1, size: 40, color: pal.accent)),
+        Center(child: Text(t(step.$2), style: TextStyle(fontSize: 18.75, fontWeight: FontWeight.w700, color: pal.text))),
+        Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 510), child: Text(t(step.$3), textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.4, color: pal.text)))),
         if (_i == 0) ...[
           RangeRow(
             label: t('Размер шрифта'),
-            big: true,
+            buttons: false,
             value: s.d('fontSize'),
             min: 13,
             max: 40,
@@ -63,11 +66,14 @@ class _WelcomeSheetState extends ConsumerState<WelcomeSheet> {
           ),
           Sample(s: s, head: true),
         ],
-        const SizedBox(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          for (var k = 0; k < _steps.length; k++) Container(width: 8, height: 8, margin: const EdgeInsets.all(3), decoration: BoxDecoration(shape: BoxShape.circle, color: k == _i ? pal.accent : pal.line)),
-        ]),
-        if (last) Center(child: TextButton(onPressed: () => openHelp(context), child: Text(t('Открыть инструкцию')))),
+        // .welcome-dots: точки 8, зазор 6; выбранная — цвета акцента
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            for (var k = 0; k < _steps.length; k++) Container(width: 8, height: 8, margin: const EdgeInsets.symmetric(horizontal: 3), decoration: BoxDecoration(shape: BoxShape.circle, color: k == _i ? pal.accent : pal.muted.withValues(alpha: 0.4))),
+          ]),
+        ),
+        if (last) Center(child: AobButton(small: true, label: t('Открыть инструкцию'), onTap: () => openHelp(context))),
       ],
     );
   }

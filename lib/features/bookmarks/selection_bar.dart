@@ -13,6 +13,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'marks.dart';
 import 'sheets.dart';
@@ -38,7 +39,6 @@ class _SelectionBar extends ConsumerWidget {
     if (sel.isEmpty) return const SizedBox(height: 54);
     final refs = sortedRefs(sel);
     final first = refs.first;
-    final narrow = MediaQuery.sizeOf(context).width < 430;
     final fav = refs.every(marks.isFavorite);
     final bm = marks.isBookmarked(first);
     final hasNote = marks.noteOf(first) != null;
@@ -78,98 +78,128 @@ class _SelectionBar extends ConsumerWidget {
       done();
     }
 
-    Widget icon(IconData i, String tip, VoidCallback f, {bool on = false}) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: on ? pal.barText.withValues(alpha: 0.2) : null, shape: BoxShape.circle),
-          child: IconButton(tooltip: tip, visualDensity: VisualDensity.compact, icon: Icon(i, color: pal.barText, size: 22), onPressed: f),
+    // .tb-icon: круглая кнопка; на панели шире 400 px — 44×44, уже — 36 (container query в styles.css)
+    final wide = MediaQuery.sizeOf(context).width >= 400;
+    final onColor = mix(pal.accent, 0.55, Colors.white); // .toolbar .tb-icon.on
+    Widget tb(Widget Function(Color c) icon, String tip, VoidCallback? f, {bool on = false}) => Tooltip(
+          message: tip,
+          child: SizedBox(
+            width: wide ? 44 : 36,
+            height: 44,
+            child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: f, child: Center(child: icon(on ? onColor : pal.barText)))),
+          ),
         );
+    Widget lucide(IconData i, double size, String tip, VoidCallback f, {bool on = false}) => tb((c) => Icon(i, size: size, color: c), tip, f, on: on);
 
     return Container(
       height: 54,
-      color: pal.bar,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.only(left: 8, right: 4),
+      decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, const Color(0x40000000)), offset: const Offset(0, 1))]),
       child: Row(children: [
-        icon(Icons.close, t('Готово, снять выделение'), done),
+        lucide(LucideIcons.x, 24, t('Готово, снять выделение'), done),
         Expanded(
-          child: Row(children: [
-            Flexible(child: Text(selectionLabel(refs), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.barText, fontWeight: FontWeight.w800, fontSize: 16))),
-            const SizedBox(width: 6),
-            Semantics(
-              label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                decoration: BoxDecoration(color: pal.barText.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(99)),
-                child: Text('${refs.length}', style: TextStyle(color: pal.barText, fontSize: 12, fontWeight: FontWeight.w700)),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Row(children: [
+              Flexible(child: Text(selectionLabel(refs), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(color: pal.barText, fontWeight: FontWeight.w500, fontSize: wide ? 16.8 : 15.2))),
+              const SizedBox(width: 8),
+              Semantics(
+                label: t('Выделено стихов: {n}', {'n': '${refs.length}'}),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 22),
+                  height: 22,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)),
+                  child: Text('${refs.length}', style: TextStyle(color: pal.onAccent, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+                ),
               ),
-            ),
-          ]),
+            ]),
+          ),
         ),
-        icon(Icons.translate, t('Читать параллельно'), () {
+        lucide(LucideIcons.languages, 22, t('Читать параллельно'), () {
           _parallel(c, r, pane, refs, moduleId);
           done();
         }),
+        if (Hub.openCommentary != null)
+          lucide(LucideIcons.messageSquareText, 21, t('Комментарии'), () {
+            Hub.openCommentary!(c, r, pane, first);
+            done();
+          }),
         PopupMenuButton<String>(
           tooltip: t('Выделить цветом'),
           color: pal.panel,
+          shape: _menuShape(pal),
+          elevation: 12,
+          shadowColor: const Color(0x38000000),
+          menuPadding: EdgeInsets.zero,
+          padding: EdgeInsets.zero,
           position: PopupMenuPosition.under,
           onSelected: (id) {
             r.read(marksProvider.notifier).setHighlight(refs, id.isEmpty ? null : id);
             done();
           },
           itemBuilder: (_) => [_PaletteEntry(marks.hlLabels, marks.highlights[refKey(first)], pal)],
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: hl ? pal.barText.withValues(alpha: 0.2) : null, shape: BoxShape.circle),
-            child: Icon(Icons.border_color_outlined, color: pal.barText, size: 21),
-          ),
+          child: tb((c) => Icon(LucideIcons.highlighter, size: 21, color: c), t('Выделить цветом'), null, on: hl),
         ),
-        if (!narrow) icon(fav ? Icons.favorite : Icons.favorite_border, fav ? t('Убрать из любимых') : t('В любимые'), toggleFav, on: fav),
-        icon(Icons.edit_note, hasNote ? t('Открыть заметку') : t('Добавить заметку'), () {
+        if (wide) // .tb-opt: на узкой панели (≤ 400 px) «любимые» остаются только в меню «⋯»
+          tb((c) => fav ? FillIcon(path: lucideHeartPath, size: 21, color: c, stroke: true) : Icon(LucideIcons.heart, size: 21, color: c), fav ? t('Убрать из любимых') : t('В любимые'), toggleFav, on: fav),
+        lucide(LucideIcons.notebookPen, 21, hasNote ? t('Открыть заметку') : t('Добавить заметку'), () {
           showNoteSheet(c, refs, moduleId);
           done();
         }, on: hasNote),
-        icon(bm ? Icons.bookmark : Icons.bookmark_border, bm ? t('Убрать закладку') : t('Закладка: продолжить отсюда'), toggleBm, on: bm),
+        lucide(bm ? LucideIcons.bookmarkCheck : LucideIcons.bookmark, 21, bm ? t('Убрать закладку') : t('Закладка: продолжить отсюда'), toggleBm, on: bm),
         PopupMenuButton<VoidCallback>(
           tooltip: t('Ещё действия'),
           color: pal.panel,
-          icon: Icon(Icons.more_horiz, color: pal.barText),
+          shape: _menuShape(pal),
+          elevation: 12,
+          shadowColor: const Color(0x38000000),
+          menuPadding: const EdgeInsets.all(6),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 260),
+          position: PopupMenuPosition.under,
           onSelected: (f) {
             f();
             doneLater();
           },
           itemBuilder: (_) {
-            PopupMenuItem<VoidCallback> item(IconData i, String text, VoidCallback f) => PopupMenuItem(
-                  value: f,
-                  child: Row(children: [Icon(i, size: 20, color: pal.text), const SizedBox(width: 12), Flexible(child: Text(text, style: TextStyle(color: pal.text)))]),
-                );
+            // .menu-item: значок цвета акцента, подпись 15,7 px — MenuRow из kit
+            PopupMenuItem<VoidCallback> item(IconData i, String text, VoidCallback f) => PopupMenuItem(value: f, padding: EdgeInsets.zero, height: 40, child: MenuRow(icon: i, label: text, onTap: null));
             return [
-              if (Hub.openInterlinear != null) item(Icons.translate_outlined, t('Подстрочник'), () => Hub.openInterlinear!(c, r, first, moduleId)),
-              if (Hub.addToSermon != null) item(Icons.record_voice_over_outlined, t('В проповедь'), () => Hub.addToSermon!(c, r, refs, moduleId)),
-              item(Icons.create_new_folder_outlined, t('В подборку…'), () => showCollectSheet(c, refs, moduleId)),
-              if (narrow) item(fav ? Icons.favorite : Icons.favorite_border, fav ? t('Убрать из любимых') : t('В любимые'), toggleFav),
-              if (Hub.compareTranslations != null) item(Icons.library_books_outlined, t('Сравнить переводы'), () => Hub.compareTranslations!(c, r, refs, moduleId)),
-              if (Hub.listenFrom != null) item(Icons.headphones_outlined, t('Слушать отсюда'), () => Hub.listenFrom!(c, r, pane, first)),
-              item(Icons.copy_outlined, t('Копировать'), copy),
-              item(Icons.share_outlined, t('Поделиться'), share),
+              if (Hub.openInterlinear != null) item(LucideIcons.wholeWord, t('Подстрочник'), () => Hub.openInterlinear!(c, r, first, moduleId)),
+              if (Hub.openVerseGuide != null) item(LucideIcons.compass, t('Всё о стихе'), () => Hub.openVerseGuide!(c, r, pane, first, moduleId)),
+              if (Hub.addToSermon != null) item(LucideIcons.scrollText, t('В проповедь'), () => Hub.addToSermon!(c, r, refs, moduleId)),
+              item(LucideIcons.folderPlus, t('В подборку…'), () => showCollectSheet(c, refs, moduleId)),
+              item(LucideIcons.heart, fav ? t('Убрать из любимых') : t('В любимые'), toggleFav),
+              if (Hub.compareTranslations != null) item(LucideIcons.bookCopy, t('Сравнить переводы'), () => Hub.compareTranslations!(c, r, refs, moduleId)),
+              if (refs.length == 1 && Hub.openXrefs != null) item(LucideIcons.link2, t('Параллельные места'), () => Hub.openXrefs!(c, r, pane, first)),
+              if (Hub.listenFrom != null) item(LucideIcons.headphones, t('Слушать отсюда'), () => Hub.listenFrom!(c, r, pane, first)),
+              item(LucideIcons.copy, t('Копировать'), copy),
+              if (Hub.openVerseImage != null) item(LucideIcons.image, t('Картинка со стихом'), () => Hub.openVerseImage!(c, r, refs, moduleId)),
+              item(LucideIcons.share2, t('Поделиться'), share),
             ];
           },
+          child: tb((c) => Icon(LucideIcons.ellipsis, size: 22, color: c), t('Ещё действия'), null),
         ),
       ]),
     );
   }
 }
 
+/// .menu / .hl-palette: панель, рамка line, скругление, мягкая тень
+ShapeBorder _menuShape(Palette pal) => RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line));
+
 String _cut(String s, int n) => s.length <= n ? s : s.substring(0, n);
 
-/// Ряд цветных точек в меню + «убрать выделение»
+/// Ряд цветных точек (.hl-palette): круги 32 px с рамкой 2, у выбранного — цвета текста; последний — «убрать» (ластик, пунктир)
 class _PaletteEntry extends PopupMenuEntry<String> {
   const _PaletteEntry(this.labels, this.current, this.pal);
   final Map<String, String> labels;
   final String? current;
   final Palette pal;
   @override
-  double get height => 56;
+  double get height => 52;
   @override
   bool represents(String? value) => false;
   @override
@@ -181,20 +211,19 @@ class _PaletteEntryState extends State<_PaletteEntry> {
   Widget build(BuildContext context) {
     final pal = widget.pal;
     String label(HlColor c) => widget.labels[c.id]?.trim().isNotEmpty == true ? widget.labels[c.id]!.trim() : t(c.name);
-    return SizedBox(
-      height: 56,
+    return Padding(
+      padding: const EdgeInsets.all(10),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const SizedBox(width: 12),
         for (final c in hlColors)
           Tooltip(
             message: label(c),
             child: GestureDetector(
               onTap: () => Navigator.pop(context, c.id),
               child: Container(
-                width: 30,
-                height: 30,
+                width: 32,
+                height: 32,
                 margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(color: c.color, shape: BoxShape.circle, border: Border.all(color: widget.current == c.id ? pal.text : Colors.transparent, width: 2.5)),
+                decoration: BoxDecoration(color: c.color, shape: BoxShape.circle, border: Border.all(color: widget.current == c.id ? pal.text : Colors.transparent, width: 2)),
               ),
             ),
           ),
@@ -202,18 +231,36 @@ class _PaletteEntryState extends State<_PaletteEntry> {
           message: t('Убрать выделение'),
           child: GestureDetector(
             onTap: () => Navigator.pop(context, ''),
-            child: Container(
-              width: 30,
-              height: 30,
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: pal.muted)),
-              child: Icon(Icons.cleaning_services_outlined, size: 16, color: pal.muted),
+            child: CustomPaint(
+              painter: _DashedCircle(pal.muted),
+              child: SizedBox(width: 32, height: 32, child: Icon(LucideIcons.eraser, size: 15, color: pal.muted)),
             ),
           ),
         ),
       ]),
     );
   }
+}
+
+/// border: 1px dashed — пунктирный круг
+class _DashedCircle extends CustomPainter {
+  _DashedCircle(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final r = size.width / 2 - 0.5;
+    const n = 24;
+    for (var i = 0; i < n; i++) {
+      canvas.drawArc(Rect.fromCircle(center: size.center(Offset.zero), radius: r), i * 2 * 3.141592653589793 / n, 2 * 3.141592653589793 / n * 0.55, false, p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedCircle o) => o.color != color;
 }
 
 /// «Читать параллельно»: один другой перевод — открываем вторую панель сразу;
@@ -232,18 +279,17 @@ void _parallel(BuildContext c, WidgetRef r, int pane, List<VerseRef> refs, Strin
 
   if (others.length == 1) return open(others.first.id);
   if (Hub.compareTranslations != null) return Hub.compareTranslations!(c, r, refs, moduleId);
-  final pal = r.read(settingsProvider).palette;
   showSheet<void>(
     c,
-    pal,
     title: t('Читать параллельно'),
     subtitle: selectionLabel(refs, full: true),
     body: (ctx) => Column(children: [
-      for (final m in others)
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(m.name, style: TextStyle(fontWeight: FontWeight.w700, color: pal.text)),
-          subtitle: Text(m.title, style: TextStyle(color: pal.muted)),
+      for (final (i, m) in others.indexed)
+        PrefRow(
+          icon: LucideIcons.languages,
+          title: m.name,
+          sub: m.title,
+          last: i == others.length - 1,
           onTap: () {
             Navigator.pop(ctx);
             open(m.id);

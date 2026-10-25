@@ -1,11 +1,14 @@
 // Оформление (AppearanceSettings.jsx): сверху живой образец текста, под ним тема, размер, вид текста;
 // ниже подразделы — шрифт, номера и заголовки, цвета, кнопки и панели; внизу — сброс. Всё применяется сразу.
 // Не перенесено: фон-картинка и комментарии (нужны хранилище картинок и модули толкований — другие функции).
+import 'dart:ui' show PathMetric;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'colors.dart';
 import 'fonts.dart';
 import 'sheet.dart';
@@ -96,40 +99,42 @@ class Sample extends StatelessWidget {
         ] else
           para([if (showNum) num(1), ...v1(), const TextSpan(text: ' '), if (showNum) num(2), v2]),
     ];
+    // .preview-card: рамка line, скругление 12, фон страницы; .pv-bar 46 (в закреплённом образце), .pv-body 10 16 12
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (bar)
           Container(
-            height: 40,
+            height: 46,
             color: pal.bar,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3), decoration: BoxDecoration(color: pal.barText.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(99)), child: Text('RST+', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 13))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: mix(pal.barText, 0.14, pal.bar), borderRadius: BorderRadius.circular(99)), child: Text('RST+', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 12.75))),
               const SizedBox(width: 8),
-              Text('${t('Быт')} 1:1', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 13)),
+              Text('${t('Быт')} 1:1', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 15)),
             ]),
           ),
         Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (head && !noText && (live || s.get<bool>('showHeadings')))
-              Padding(padding: EdgeInsets.only(bottom: fs * 0.4), child: Text(t('Сотворение неба и земли'), style: readerTextStyle(s, size: fs * s.d('headingSize'), weight: 700).copyWith(color: headingColor(s), height: 1.3))),
+              Padding(padding: EdgeInsets.only(bottom: fs * 0.4), child: Text(t('Сотворение неба и земли'), style: readerTextStyle(s, size: fs * s.d('headingSize'), weight: 650).copyWith(color: headingColor(s), height: 1.3))),
             ...verses,
             if (ui)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: EdgeInsets.only(top: noText ? 0 : 6),
                 child: Row(children: [
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(10)), child: Text(t('Кнопка'), style: TextStyle(color: pal.onAccent, fontWeight: FontWeight.w700))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7), decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(kRadius)), child: Text(t('Кнопка'), style: TextStyle(color: pal.onAccent, fontWeight: FontWeight.w600, fontSize: 15))),
                   const SizedBox(width: 10),
-                  Expanded(
+                  Flexible(
                     child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: pal.panel, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(color: pal.panel, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(t('Окно или карточка'), style: TextStyle(color: pal.text)),
-                        Text(t('бледный текст'), style: TextStyle(color: pal.muted, fontSize: 13)),
+                        Text(t('Окно или карточка'), style: TextStyle(color: pal.text, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        Text(t('бледный текст'), style: TextStyle(color: pal.muted, fontSize: 12.75)),
                       ]),
                     ),
                   ),
@@ -156,10 +161,10 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
   String? _live; // какой цвет сейчас выбирают в палитре — образец вверху показывает, где он виден
 
   static const _blocks = <(String, IconData, String)>[
-    ('font', Icons.text_fields, 'Шрифт'),
-    ('nums', Icons.tag, 'Номера и заголовки'),
-    ('colors', Icons.palette_outlined, 'Цвета'),
-    ('ui', Icons.web_asset_outlined, 'Кнопки и панели'),
+    ('font', LucideIcons.type, 'Шрифт'),
+    ('nums', LucideIcons.hash, 'Номера и заголовки'),
+    ('colors', LucideIcons.palette, 'Цвета'),
+    ('ui', LucideIcons.panelTop, 'Кнопки и панели'),
   ];
 
   void set(Map<String, dynamic> p) => ref.read(settingsProvider.notifier).set(p);
@@ -179,18 +184,18 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     };
     return AppSheet(
       title: title,
-      full: true,
       onBack: cur != null ? () => setState(() => _block = null) : null,
+      gap: 18, // .ap-screen: зазор между блоками 18
       // образец закреплён вверху: при прокрутке настроек остаётся на виду
-      fixed: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+      fixed: SheetFixed(
+        bottom: 10,
         child: _block == 'ui'
             ? Sample(s: s, bar: true, ui: true, noText: true)
             : _block == 'colors'
                 ? Sample(s: s, bar: true, head: true, sn: true, ui: true, short: true, live: true)
                 : _live != null
                     ? Sample(s: s, live: true, bar: _live == 'bar' || _live == 'barText', head: _live == 'heading', sn: _live == 'strong', short: true)
-                    : ConstrainedBox(constraints: const BoxConstraints(maxHeight: 190), child: SingleChildScrollView(child: Sample(s: s, head: true))),
+                    : ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
       ),
       children: children,
     );
@@ -206,73 +211,105 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       'ui': [if (s.get<bool>('focusMode')) t('Режим чтения'), t('Кнопки в тексте, меню, верхняя панель')].join(' · '),
     };
     return [
-      _label(t('Тема'), pal),
-      SizedBox(
-        height: 92,
-        child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final e in themes.entries) _ThemeTile(id: e.key, p: e.value, on: s.get<String>('theme') == e.key, onTap: () => set({'theme': e.key})),
-        ]),
-      ),
-      RangeRow(label: t('Размер текста'), big: true, value: s.d('fontSize'), min: 13, max: 40, step: 1, onChanged: (v) => set({'fontSize': v}), word: (v) => '${v.round()} px'),
-      _label(t('Вид текста'), pal),
-      Row(children: [
-        for (final k in const ['verses', 'flow', 'book'])
-          Expanded(
-            child: _ViewTile(
-              kind: k,
-              name: t(const {'verses': 'По стихам', 'flow': 'Сплошной', 'book': 'Как книга'}[k]!),
-              on: textView(s) == k,
-              onTap: () => set({'bookMode': k == 'book', 'continuousVerses': k == 'flow'}),
+      _field(t('Тема'), pal, 6, [
+        // .theme-strip: поля -16 (до краёв окна) и отступ 12; плитки 66, зазор 2
+        LayoutBuilder(
+          builder: (context, c) => SizedBox(
+            height: 92,
+            child: OverflowBox(
+              minWidth: c.maxWidth + 32,
+              maxWidth: c.maxWidth + 32,
+              child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
+                for (final e in themes.entries) _ThemeTile(id: e.key, p: e.value, ring: pal.accent, text: pal.text, on: s.get<String>('theme') == e.key, onTap: () => set({'theme': e.key})),
+              ]),
             ),
           ),
+        ),
       ]),
-      const SizedBox(height: 6),
-      for (final b in _blocks) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1)),
-      const SizedBox(height: 8),
+      RangeRow(label: t('Размер текста'), big: true, value: s.d('fontSize'), min: 13, max: 40, step: 1, onChanged: (v) => set({'fontSize': v}), word: (v) => '${v.round()} px'),
+      _field(t('Вид текста'), pal, 8, [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (final (i, k) in const ['verses', 'flow', 'book'].indexed) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(
+              child: _ViewTile(
+                kind: k,
+                name: t(const {'verses': 'По стихам', 'flow': 'Сплошной', 'book': 'Как книга'}[k]!),
+                on: textView(s) == k,
+                onTap: () => set({'bookMode': k == 'book', 'continuousVerses': k == 'flow'}),
+              ),
+            ),
+          ],
+        ]),
+      ]),
+      // .ap-list: линия сверху, строки не ниже 60
+      Container(
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+        child: Column(children: [
+          for (final (i, b) in _blocks.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _blocks.length - 1),
+        ]),
+      ),
       Center(
-        child: OutlinedButton.icon(
-          icon: const Icon(Icons.restart_alt, size: 18),
-          label: Text(t('Сбросить оформление')),
-          onPressed: () async {
-            if (!await confirm(context, t('Сбросить оформление'), t('Да, сбросить'))) return;
+        child: ConfirmButton(
+          icon: LucideIcons.rotateCcw,
+          label: t('Сбросить оформление'),
+          confirmText: t('Да, сбросить'),
+          onConfirm: () {
             set({for (final k in _lookKeys) k: Settings.defaults[k]});
-            if (mounted) toast(context, t('Оформление сброшено'));
+            toast(context, t('Оформление сброшено'));
           },
         ),
       ),
     ];
   }
 
-  Widget _label(String text, Palette pal) => Padding(padding: const EdgeInsets.fromLTRB(4, 10, 4, 4), child: Text(text, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)));
+  /// .field: подпись и под ней содержимое
+  Widget _field(String text, Palette pal, double gap, List<Widget> body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(text, style: fieldLabel(pal, bold: true)),
+        SizedBox(height: gap),
+        ...body,
+      ]);
 
   List<Widget> _font(Settings s) {
     final pal = effectivePalette(s);
     final w = s.d('fontWeight').round();
+    final defs = fontDefs.entries.toList();
     return [
-      for (final e in fontDefs.entries)
-        InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => set({'fontFamily': e.key}),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Row(children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t('В начале было Слово'), style: readerTextStyle(s, size: 20, font: e.value, weight: 400).copyWith(color: pal.text)),
-                  Text(t(e.value.label), style: TextStyle(fontSize: 13, color: pal.muted)),
+      // .font-list: рамка со скруглением, строки не ниже 62, выбранная — с лёгкой заливкой акцента
+      Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+        child: Column(children: [
+          for (final (i, e) in defs.indexed)
+            InkWell(
+              onTap: () => set({'fontFamily': e.key}),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 62),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: s.get<String>('fontFamily') == e.key ? pal.accent.withValues(alpha: 0.09) : null,
+                  border: i == defs.length - 1 ? null : Border(bottom: BorderSide(color: pal.line)),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(t('В начале было Слово'), maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: readerTextStyle(s, size: 20.8, font: e.value, weight: 400).copyWith(color: pal.text, height: 1.3)),
+                      Text(t(e.value.label), style: TextStyle(fontSize: 13.1, color: s.get<String>('fontFamily') == e.key ? pal.text : pal.muted)),
+                    ]),
+                  ),
+                  SizedBox(width: 22, child: s.get<String>('fontFamily') == e.key ? Icon(LucideIcons.check, size: 20, color: pal.accent) : null),
                 ]),
               ),
-              if (s.get<String>('fontFamily') == e.key) Icon(Icons.check, color: pal.accent),
-            ]),
-          ),
-        ),
+            ),
+        ]),
+      ),
       Card2(children: [
         SegRow<int>(
           label: t('Толщина'),
           valueText: t(_weights[w] ?? 'обычный'),
           value: _weights.containsKey(w) ? w : 400,
           options: [for (final k in _weights.keys) (k, t('Аа'), null)],
-          labelStyle: (k) => TextStyle(fontWeight: weightOf(k.toDouble())),
+          labelStyle: (k) => TextStyle(fontWeight: weightOf(k.toDouble()), fontSize: 17.3),
           onChanged: (v) => set({'fontWeight': v}),
         ),
         RangeRow(label: t('Межстрочный интервал'), value: s.d('lineHeight'), min: 1.1, max: 2.2, step: 0.05, onChanged: (v) => set({'lineHeight': v}), word: _lhW),
@@ -281,7 +318,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         SegRow<String>(
           label: t('Выравнивание'),
           value: s.get<String>('textAlign'),
-          options: [('left', t('По левому краю'), Icons.format_align_left), ('justify', t('По ширине'), Icons.format_align_justify)],
+          options: [('left', t('По левому краю'), LucideIcons.alignLeft), ('justify', t('По ширине'), LucideIcons.alignJustify)],
           onChanged: (v) => set({'textAlign': v}),
         ),
       ]),
@@ -291,19 +328,46 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
   List<Widget> _nums(Settings s) {
     final pal = effectivePalette(s);
     final over = overridesOf(s);
-    Widget mini(List<InlineSpan> spans) => Padding(padding: const EdgeInsets.fromLTRB(8, 0, 8, 6), child: Text.rich(TextSpan(children: spans), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: pal.muted)));
-    final plain = t('В начале{7225} сотворил{1254} Бог{430} небо{8064} и{853} землю.{776}').replaceAll(RegExp(r'\{\d+\}'), '');
+    final raw = t('В начале{7225} сотворил{1254} Бог{430} небо{8064} и{853} землю.{776}');
+    final plain = raw.replaceAll(RegExp(r'\{\d+\}'), '');
+    final fs = s.d('fontSize') < 20 ? s.d('fontSize') : 20.0;
+    // .ap-mini: рамка, фон страницы, шрифт текста, интервал 1.5
+    Widget mini(List<InlineSpan> spans, {int lines = 2}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+          child: Text.rich(TextSpan(children: spans), maxLines: lines, overflow: TextOverflow.ellipsis, style: readerTextStyle(s, size: fs).copyWith(color: pal.text, height: 1.5)),
+        );
+    // Текст с номерами Стронга (бледнее, пока выключены)
+    List<InlineSpan> withStrongs() {
+      final on = s.get<bool>('showStrongs');
+      final parts = raw.split(RegExp(r'\{\d+\}'));
+      final nums = RegExp(r'\{(\d+)\}').allMatches(raw).map((m) => m.group(1)!).toList();
+      return [
+        for (var i = 0; i < parts.length; i++) ...[
+          TextSpan(text: parts[i]),
+          if (i < nums.length)
+            WidgetSpan(alignment: PlaceholderAlignment.top, child: Opacity(opacity: on ? 1 : 0.4, child: Text(nums[i], style: TextStyle(fontSize: fs * 0.5, color: strongColor(s), height: 1)))),
+        ],
+      ];
+    }
+
     return [
       Card2(children: [
-        SwitchRow(label: t('Номера стихов'), value: s.get<bool>('showVerseNumbers'), onChanged: (v) => set({'showVerseNumbers': v})),
-        mini([if (s.get<bool>('showVerseNumbers')) TextSpan(text: '1 ', style: TextStyle(color: pal.verseNum, fontSize: 11)), TextSpan(text: plain)]),
+        SwitchField(bold: true, big: true, label: t('Номера стихов'), value: s.get<bool>('showVerseNumbers'), onChanged: (v) => set({'showVerseNumbers': v})),
+        mini([
+          if (s.get<bool>('showVerseNumbers')) TextSpan(text: '1 ', style: TextStyle(color: pal.verseNum, fontSize: fs * 0.6)),
+          TextSpan(text: '$plain '),
+          if (s.get<bool>('showVerseNumbers')) TextSpan(text: '2 ', style: TextStyle(color: pal.verseNum, fontSize: fs * 0.6)),
+          TextSpan(text: t('Земля же была безвидна и пуста, и тьма над бездною, и Дух Божий носился над водою.')),
+        ]),
         if (s.get<bool>('showVerseNumbers')) ...[
           RangeRow(label: t('Размер'), value: s.d('verseNumSize'), min: 0.4, max: 1.2, step: 0.05, onChanged: (v) => set({'verseNumSize': v}), word: _sizeW(0.52, 0.8)),
           SegRow<String>(label: t('Положение'), value: s.get<String>('verseNumPos'), options: [for (final k in const ['sup', 'inline']) (k, t(_pos[k]!), null)], onChanged: (v) => set({'verseNumPos': v})),
         ],
       ]),
       Card2(children: [
-        SwitchRow(label: t('Номера Стронга'), hint: t('Только в переводах с номерами Стронга, например RST+'), value: s.get<bool>('showStrongs'), onChanged: (v) => set({'showStrongs': v})),
+        SwitchField(bold: true, big: true, label: t('Номера Стронга'), hint: t('Только в переводах с номерами Стронга, например RST+'), value: s.get<bool>('showStrongs'), onChanged: (v) => set({'showStrongs': v})),
+        mini(withStrongs(), lines: 3),
         if (s.get<bool>('showStrongs')) ...[
           RangeRow(label: t('Размер'), value: s.d('strongSize'), min: 0.35, max: 1, step: 0.05, onChanged: (v) => set({'strongSize': v}), word: _sizeW(0.45, 0.7)),
           SegRow<String>(label: t('Положение'), value: s.get<String>('strongPos'), options: [for (final k in const ['sup', 'inline', 'sub']) (k, t(_pos[k]!), null)], onChanged: (v) => set({'strongPos': v})),
@@ -311,13 +375,25 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ],
       ]),
       Card2(children: [
-        SwitchRow(label: t('Заголовки разделов'), value: s.get<bool>('showHeadings'), onChanged: (v) => set({'showHeadings': v})),
+        SwitchField(bold: true, big: true, label: t('Заголовки разделов'), value: s.get<bool>('showHeadings'), onChanged: (v) => set({'showHeadings': v})),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+          child: Opacity(
+            opacity: s.get<bool>('showHeadings') ? 1 : 0.4,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(t('Сотворение неба и земли'), style: readerTextStyle(s, size: fs * s.d('headingSize'), weight: 650).copyWith(color: headingColor(s), height: 1.3)),
+              Text(plain, maxLines: 1, overflow: TextOverflow.fade, softWrap: false, style: readerTextStyle(s, size: fs).copyWith(color: pal.text, height: 1.5)),
+            ]),
+          ),
+        ),
         if (s.get<bool>('showHeadings')) ...[
           RangeRow(label: t('Размер'), value: s.d('headingSize'), min: 0.6, max: 1.4, step: 0.05, onChanged: (v) => set({'headingSize': v}), word: _sizeW(0.72, 1)),
           _ColorPick(label: t('Цвет'), s: s, colorKey: 'heading', list: _accents, onChanged: (v) => _setColor('heading', v), onReset: () => _resetColors(['heading']), changed: over['heading'] != null),
         ],
       ]),
       Card2(title: t('Заголовки глав'), children: [
+        mini([TextSpan(text: t('Глава {n}', {'n': '1'}), style: TextStyle(fontSize: s.d('chapterTitleSize') * 16, fontWeight: FontWeight.w800, height: 1.1))], lines: 1),
         RangeRow(label: t('Размер'), value: s.d('chapterTitleSize'), min: 1.1, max: 3.2, step: 0.1, onChanged: (v) => set({'chapterTitleSize': v}), word: _sizeW(1.7, 2.5)),
       ]),
     ];
@@ -341,30 +417,31 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         changed: over['bar'] != null,
       ),
       Card2(title: t('Тонкая настройка цветов'), children: [
-        for (final k in colorKeys.where((k) => k.$1 != 'strong' && k.$1 != 'heading'))
-          _ColorLine(label: t(k.$2), color: colorFor(s, k.$1), changed: over[k.$1] != null, onPick: (c) => _setColor(k.$1, c), onReset: () => _resetColors([k.$1])),
+        Column(children: [
+          for (final k in colorKeys.where((k) => k.$1 != 'strong' && k.$1 != 'heading'))
+            _ColorLine(label: t(k.$2), color: colorFor(s, k.$1), changed: over[k.$1] != null, onPick: (c) => _setColor(k.$1, c), onReset: () => _resetColors([k.$1])),
+        ]),
       ]),
-      if (over.isNotEmpty)
-        Center(child: OutlinedButton.icon(icon: const Icon(Icons.restart_alt, size: 18), label: Text(t('Все цвета — как в теме')), onPressed: () => set({'colorOverrides': <String, dynamic>{}}))),
+      if (over.isNotEmpty) Align(alignment: Alignment.centerLeft, child: AobButton(icon: LucideIcons.rotateCcw, label: t('Все цвета — как в теме'), onTap: () => set({'colorOverrides': <String, dynamic>{}}))),
     ];
   }
 
   List<Widget> _ui(Settings s) => [
         Card2(title: t('В тексте'), children: [
-          SwitchRow(label: t('Кнопки параллельных мест'), hint: t('Число после стиха — сколько у него параллельных мест'), value: s.get<bool>('showXrefButtons'), onChanged: (v) => set({'showXrefButtons': v})),
-          SwitchRow(label: t('Значки иллюстраций у стихов'), value: s.get<bool>('showIllustrations'), onChanged: (v) => set({'showIllustrations': v})),
-          SwitchRow(label: t('Режим чтения'), hint: t('Без кнопок в тексте, панель прячется при прокрутке'), value: s.get<bool>('focusMode'), onChanged: (v) => set({'focusMode': v})),
+          SwitchField(bold: true, label: t('Кнопки параллельных мест'), hint: t('Число после стиха — сколько у него параллельных мест'), value: s.get<bool>('showXrefButtons'), onChanged: (v) => set({'showXrefButtons': v})),
+          SwitchField(bold: true, label: t('Значки иллюстраций у стихов'), value: s.get<bool>('showIllustrations'), onChanged: (v) => set({'showIllustrations': v})),
+          SwitchField(bold: true, label: t('Режим чтения'), hint: t('Без кнопок в тексте, панель прячется при прокрутке'), value: s.get<bool>('focusMode'), onChanged: (v) => set({'focusMode': v})),
         ]),
         Card2(title: t('Меню и панели'), children: [
           RangeRow(label: t('Шрифт меню и окон'), big: true, value: s.d('uiFontSize'), min: 13, max: 20, step: 1, onChanged: (v) => set({'uiFontSize': v}), word: _sizeW(14, 16)),
           RangeRow(label: t('Высота верхней панели'), value: s.d('barHeight'), min: 44, max: 72, step: 2, onChanged: (v) => set({'barHeight': v}), word: _barW),
-          SwitchRow(label: t('Анимации'), value: s.get<bool>('animations'), onChanged: (v) => set({'animations': v})),
+          SwitchField(bold: true, label: t('Анимации'), value: s.get<bool>('animations'), onChanged: (v) => set({'animations': v})),
         ]),
         Card2(children: [
           SegRow<String>(
             label: t('Разделённый экран'),
             value: s.get<String>('splitLayout'),
-            options: [('auto', t('Авто'), null), ('columns', t('Рядом'), Icons.view_column_outlined), ('rows', t('Друг над другом'), Icons.view_agenda_outlined)],
+            options: [('auto', t('Авто'), null), ('columns', t('Рядом'), LucideIcons.columns2), ('rows', t('Друг над другом'), LucideIcons.rows2)],
             onChanged: (v) => set({'splitLayout': v}),
           ),
         ]),
@@ -373,96 +450,137 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
 
 // --- Мелкие части ---------------------------------------------------------------------------------------------------
 
-/// Кружок темы: её страница, полоска верхней панели, буквы цветом текста и точка цвета акцента
+/// Кружок темы (.theme-tile): её страница, полоска верхней панели (26%), буквы цветом текста и точка цвета акцента
 class _ThemeTile extends StatelessWidget {
-  const _ThemeTile({required this.id, required this.p, required this.on, required this.onTap});
+  const _ThemeTile({required this.id, required this.p, required this.ring, required this.text, required this.on, required this.onTap});
   final String id;
   final Palette p;
+  final Color ring, text;
   final bool on;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final ring = Theme.of(context).colorScheme.primary;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        width: 74,
-        margin: const EdgeInsets.only(right: 6),
+        width: 66,
+        margin: const EdgeInsets.only(right: 2),
+        padding: const EdgeInsets.only(top: 6, bottom: 2),
         child: Column(children: [
+          // обводка выбранной — снаружи кружка: 3 px акцента с отступом 2
           Container(
-            width: 58,
-            height: 58,
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: on ? ring : Colors.transparent, width: 2.5)),
-            child: ClipOval(
-              child: Container(
-                decoration: BoxDecoration(color: p.bg, shape: BoxShape.circle, border: Border.all(color: p.line)),
-                child: Stack(alignment: Alignment.center, children: [
-                  Positioned(top: 0, left: 0, right: 0, height: 13, child: ColoredBox(color: p.bar)),
-                  Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w800, fontSize: 17)),
-                  Positioned(bottom: 6, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle))),
-                ]),
-              ),
+            width: 54 + 10,
+            height: 54 + 10,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: on ? ring : Colors.transparent, width: 3)),
+            child: Container(
+              width: 54,
+              height: 54,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(color: p.bg, shape: BoxShape.circle, border: Border.all(color: p.line), boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))]),
+              child: Stack(alignment: Alignment.center, children: [
+                Positioned(top: 0, left: 0, right: 0, height: 54 * 0.26, child: ColoredBox(color: p.bar)),
+                Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16))),
+                Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle))),
+              ]),
             ),
           ),
-          const SizedBox(height: 3),
-          Text(t(p.label), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: on ? FontWeight.w800 : FontWeight.w500)),
+          const SizedBox(height: 0),
+          Text(t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
         ]),
       ),
     );
   }
 }
 
-/// Схема вида текста: строки; «n» — номер стиха, «i» — красная строка
-class _ViewTile extends StatelessWidget {
+/// Схема вида текста (.view-tile): строки-палочки; «n» — номер стиха, «i» — красная строка
+class _ViewTile extends ConsumerWidget {
   const _ViewTile({required this.kind, required this.name, required this.on, required this.onTap});
   final String kind, name;
   final bool on;
   final VoidCallback onTap;
 
+  // Как VIEW_PICS в веб-версии: число — ширина палочки в процентах; 'n' — номер, 'i' — красная строка, 'gap' — промежуток
   static const _pics = <String, List<Object>>{
-    'verses': [[0.4, 'n'], [0.58], 'gap', [0.4, 'n'], [1.0], [0.34], 'gap', [0.4, 'n']],
-    'flow': [[0.4, 'n'], [1.0], [0.38], [1.0], [0.72], [0.56]],
-    'book': [[0.3, 'i'], [1.0], [1.0], [1.0], [0.48], [0.3, 'i']],
+    'verses': [['n', 88], [58], 'gap', ['n', 92], [100], [34], 'gap', ['n', 70]],
+    'flow': [['n', 90], [100], [38, 'n', 50], [100], [72, 'n', 16], [56]],
+    'book': [['i', 76], [100], [100], [100], [48], ['i', 70]],
   };
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final line = cs.onSurface.withValues(alpha: 0.35);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    final bar = pal.text.withValues(alpha: 0.36);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.all(3),
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-        decoration: BoxDecoration(border: Border.all(color: on ? cs.primary : cs.outlineVariant, width: on ? 2 : 1), borderRadius: BorderRadius.circular(12)),
-        child: Column(children: [
-          SizedBox(
-            height: 54,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (final row in _pics[kind]!)
-                if (row == 'gap')
-                  const SizedBox(height: 4)
-                else
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
-                    child: Row(children: [
-                      if ((row as List).length > 1) Container(width: 6, height: 3, margin: const EdgeInsets.only(right: 3), color: cs.primary),
-                      Expanded(child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: (row.first as double).clamp(0.1, 1.0), child: Container(height: 3, color: line))),
-                    ]),
-                  ),
-            ]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 84),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: pal.bg,
+            border: Border.all(color: on ? pal.accent : pal.line),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: on ? [BoxShadow(color: pal.accent, spreadRadius: 2)] : null,
           ),
-          const SizedBox(height: 4),
-          Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, fontWeight: on ? FontWeight.w800 : FontWeight.w500)),
-        ]),
-      ),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final w = c.maxWidth;
+              Widget row(List row) {
+                final items = <Widget>[];
+                for (final x in row) {
+                  if (items.isNotEmpty) items.add(const SizedBox(width: 3));
+                  if (x == 'n') {
+                    items.add(Container(width: 6, height: 7, margin: const EdgeInsets.only(bottom: 6), decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(2))));
+                  } else if (x == 'i') {
+                    items.add(SizedBox(width: w * 0.16));
+                  } else {
+                    items.add(Flexible(child: Container(width: w * (x as num) / 100, height: 5, decoration: BoxDecoration(color: bar, borderRadius: BorderRadius.circular(3)))));
+                  }
+                }
+                return SizedBox(height: 5, child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: items));
+              }
+
+              final rows = _pics[kind]!;
+              return Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                for (final (i, r) in rows.indexed) ...[
+                  if (i > 0) const SizedBox(height: 5),
+                  r == 'gap' ? const SizedBox(height: 2) : row(r as List),
+                ],
+              ]);
+            },
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(name, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: pal.text)),
+      ]),
     );
   }
 }
 
-/// Выбор цвета кружками: первый — цвет темы, дальше готовые, последний — свой (палитра)
-class _ColorPick extends StatelessWidget {
+/// Пунктирный круг (.swatch.custom)
+class _DashedCircle extends CustomPainter {
+  _DashedCircle(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 1;
+    final path = Path()..addOval(Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1));
+    for (final PathMetric m in path.computeMetrics()) {
+      for (double d = 0; d < m.length; d += 6) {
+        canvas.drawPath(m.extractPath(d, d + 3), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedCircle old) => old.color != color;
+}
+
+/// Выбор цвета кружками (.swatches): первый — цвет темы, дальше готовые, последний — свой (палитра)
+class _ColorPick extends ConsumerWidget {
   const _ColorPick({required this.label, required this.s, required this.colorKey, required this.list, required this.onChanged, required this.onReset, required this.changed});
   final String label, colorKey;
   final Settings s;
@@ -472,44 +590,59 @@ class _ColorPick extends StatelessWidget {
   final bool changed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
     final cur = colorFor(s, colorKey);
     final base = colorKey == 'heading' || colorKey == 'strong' ? baseColorFor(s, 'accent') : baseColorFor(s, colorKey);
-    Widget dot(Color c, bool on, {String? tip, VoidCallback? onTap, Widget? child}) => Tooltip(
+    // .swatch: 44, рамка 18% текста; выбранный — кольцо цвета текста через зазор цвета окна; галочка 18
+    Widget dot(Color c, bool on, {String? tip, VoidCallback? onTap, Widget? child, bool dashed = false}) => Tooltip(
           message: tip ?? '',
           child: GestureDetector(
             onTap: onTap,
             child: Container(
-              width: 38,
-              height: 38,
+              width: 44 + 8,
+              height: 44 + 8,
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: c, shape: BoxShape.circle, border: Border.all(color: on ? Theme.of(context).colorScheme.primary : Colors.black26, width: on ? 3 : 1)),
-              child: on ? Icon(Icons.check, size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : child,
+              // место под кольцо: 2 + 2 снаружи
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: dashed && !on ? pal.bg : c,
+                  shape: BoxShape.circle,
+                  border: dashed && !on ? null : Border.all(color: on ? Colors.transparent : pal.text.withValues(alpha: 0.18)),
+                  boxShadow: on ? [BoxShadow(color: pal.panel, spreadRadius: 2), BoxShadow(color: pal.text, spreadRadius: 4)].reversed.toList() : null,
+                ),
+                foregroundDecoration: null,
+                child: dashed && !on ? CustomPaint(size: const Size(44, 44), painter: _DashedCircle(pal.muted), child: Center(child: child)) : (on ? Icon(LucideIcons.check, size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : child),
+              ),
             ),
           ),
         );
     final curHex = toHex(cur);
     final custom = changed && !list.any((e) => e.$1 == curHex);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 8, children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(label, style: fieldLabel(pal, bold: true)),
+      const SizedBox(height: 6),
+      // зазор между кружками 8, а кольцо у выбранного занимает ещё по 4 с каждой стороны — берём его из ячейки 52
+      Transform.translate(
+        offset: const Offset(-4, 0),
+        child: Wrap(spacing: 0, runSpacing: 0, children: [
           dot(base, !changed, tip: t('Как в теме'), onTap: onReset),
           for (final e in list) dot(parseHex(e.$1)!, changed && curHex == e.$1, tip: t(e.$2), onTap: () => onChanged(parseHex(e.$1)!)),
-          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), child: const Icon(Icons.colorize, size: 18), onTap: () async {
+          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), dashed: true, child: Icon(LucideIcons.pipette, size: 18, color: pal.text), onTap: () async {
             final c = await pickColor(context, cur);
             if (c != null) onChanged(c);
           }),
         ]),
-      ]),
-    );
+      ),
+    ]);
   }
 }
 
-/// Строка тонкой настройки: название, «вернуть цвет темы», кружок с выбором своего цвета
-class _ColorLine extends StatelessWidget {
+/// Строка тонкой настройки (.color-row): название, «вернуть цвет темы», окошко цвета 44×32
+class _ColorLine extends ConsumerWidget {
   const _ColorLine({required this.label, required this.color, required this.changed, required this.onPick, required this.onReset});
   final String label;
   final Color color;
@@ -517,54 +650,79 @@ class _ColorLine extends StatelessWidget {
   final ValueChanged<Color> onPick;
   final VoidCallback onReset;
   @override
-  Widget build(BuildContext context) => Opacity(
-        opacity: changed ? 1 : 0.8,
-        child: Row(children: [
-          Expanded(child: Padding(padding: const EdgeInsets.only(left: 4), child: Text(label, style: const TextStyle(fontSize: 15)))),
-          IconButton(icon: const Icon(Icons.restart_alt, size: 20), tooltip: t('Вернуть цвет темы'), onPressed: changed ? onReset : null),
-          GestureDetector(
-            onTap: () async {
-              final c = await pickColor(context, color);
-              if (c != null) onPick(c);
-            },
-            child: Container(width: 34, height: 34, margin: const EdgeInsets.only(right: 6), decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.black26))),
-          ),
-        ]),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Row(children: [
+        Expanded(child: Text(label, style: fieldLabel(pal, bold: true))),
+        // у неизменённого цвета кнопка скрыта, но место занимает (visibility: hidden)
+        Visibility(
+          visible: changed,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: IconBtn(icon: LucideIcons.rotateCcw, size: 16, tooltip: t('Вернуть цвет темы'), onTap: onReset),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () async {
+            final c = await pickColor(context, color);
+            if (c != null) onPick(c);
+          },
+          child: Container(width: 44, height: 32, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8), border: Border.all(color: pal.line))),
+        ),
+      ]),
+    );
+  }
 }
 
 /// Выбор своего цвета: оттенок, насыщенность, яркость
-Future<Color?> pickColor(BuildContext context, Color initial) {
-  return showDialog<Color>(
-    context: context,
-    builder: (c) {
-      var hsv = HSVColor.fromColor(initial);
-      return StatefulBuilder(builder: (c, setS) {
-        final color = hsv.toColor();
-        return AlertDialog(
-          title: Text(t('Свой цвет')),
-          content: SizedBox(
-            width: 300,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(height: 48, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black26))),
-              const SizedBox(height: 8),
-              Align(alignment: Alignment.centerLeft, child: Text(toHex(color))),
-              Slider(
-                value: hsv.hue,
-                max: 359.9,
-                onChanged: (v) => setS(() => hsv = hsv.withHue(v)),
-                activeColor: HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor(),
-              ),
-              Slider(value: hsv.saturation, onChanged: (v) => setS(() => hsv = hsv.withSaturation(v))),
-              Slider(value: hsv.value, onChanged: (v) => setS(() => hsv = hsv.withValue(v))),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: Text(t('Отмена'))),
-            FilledButton(onPressed: () => Navigator.pop(c, color), child: Text(t('Готово'))),
-          ],
-        );
-      });
-    },
-  );
+Future<Color?> pickColor(BuildContext context, Color initial) => showAobSheet<Color>(context, initial: 0.6, builder: (_) => _PickColor(initial: initial));
+
+class _PickColor extends ConsumerStatefulWidget {
+  const _PickColor({required this.initial});
+  final Color initial;
+  @override
+  ConsumerState<_PickColor> createState() => _PickColorState();
+}
+
+class _PickColorState extends ConsumerState<_PickColor> {
+  late HSVColor hsv = HSVColor.fromColor(widget.initial);
+
+  Widget _slider(double value, double max, ValueChanged<double> onChanged, Color active) {
+    final pal = paletteOf(ref);
+    return SliderTheme(
+      data: SliderThemeData(
+        trackHeight: 5,
+        activeTrackColor: active,
+        inactiveTrackColor: pal.text.withValues(alpha: 0.16),
+        thumbColor: active,
+        overlayColor: active.withValues(alpha: 0.12),
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+      ),
+      child: SizedBox(height: 44, child: Slider(value: value, max: max, onChanged: onChanged)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = paletteOf(ref);
+    final color = hsv.toColor();
+    return AppSheet(
+      title: t('Свой цвет'),
+      footer: Row(children: [
+        Expanded(child: AobButton(label: t('Отмена'), wide: true, onTap: () => Navigator.pop(context))),
+        const SizedBox(width: 8),
+        Expanded(child: AobButton(label: t('Готово'), kind: BtnKind.primary, wide: true, onTap: () => Navigator.pop(context, color))),
+      ]),
+      children: [
+        Container(height: 48, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line))),
+        Text(toHex(color), style: TextStyle(fontSize: 15, color: pal.text)),
+        _slider(hsv.hue, 359.9, (v) => setState(() => hsv = hsv.withHue(v)), HSVColor.fromAHSV(1, hsv.hue, 1, 1).toColor()),
+        _slider(hsv.saturation, 1, (v) => setState(() => hsv = hsv.withSaturation(v)), pal.accent),
+        _slider(hsv.value, 1, (v) => setState(() => hsv = hsv.withValue(v)), pal.accent),
+      ],
+    );
+  }
 }

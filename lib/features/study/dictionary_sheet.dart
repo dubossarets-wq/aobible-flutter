@@ -8,6 +8,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'concordance_sheet.dart';
 import 'interlinear.dart';
@@ -164,30 +165,31 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
     if (current == null && top == null) {
       if (_res.results.isEmpty) {
         children.add(Empty(
-          icon: Icons.menu_book_outlined,
+          icon: LucideIcons.bookText,
           title: t('Статей не найдено'),
           child: Column(children: [
             if (_res.dictionaryCount == 0) Text(t('Нет включённых словарей.')),
             if (Hub.openLibrary != null)
-              TextButton(
-                onPressed: () {
-                  closeAllSheets(context);
-                  Hub.openLibrary!(context, ref, req.pane);
-                },
-                child: Text(t('Открыть библиотеку')),
-              ),
+              LinkButton(t('Открыть библиотеку'), () {
+                closeAllSheets(context);
+                Hub.openLibrary!(context, ref, req.pane);
+              }),
           ]),
         ));
       } else {
-        for (final r in _res.results) {
-          children.add(_DictRow(
-            result: r,
-            onTap: () => setState(() {
-              _selected = r.module.id;
-              _entryIdx = 0;
-            }),
-          ));
-        }
+        // .dict-list: строки через 8 px (а не через 12, как блоки окна)
+        children.add(Column(children: [
+          for (final (i, r) in _res.results.indexed) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _DictRow(
+              result: r,
+              onTap: () => setState(() {
+                _selected = r.module.id;
+                _entryIdx = 0;
+              }),
+            ),
+          ],
+        ]));
       }
     }
 
@@ -248,23 +250,24 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
       if (refs.isNotEmpty)
         ChipWrap([
           for (final r in refs)
-            if (parseOsisRef(r) case final p?) Chip2(fmtOsis(p), onTap: () => _openRef(p.start)),
+            if (parseOsisRef(r) case final p?) AobChip(label: fmtOsis(p), icon: LucideIcons.link2, onTap: () => _openRef(p.start)),
         ]),
       SourceNote('${current.module.name} · ${current.module.meta['license'] ?? ''}'),
     ];
   }
 }
 
-class _OkBadge extends StatelessWidget {
+/// .badge.ok: цвет --ok (в тёмных темах светлее), фон — 15% этого цвета
+class _OkBadge extends ConsumerWidget {
   const _OkBadge(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) {
-    const ok = Color(0xFF2F9A5F);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ok = paletteOf(ref).dark ? const Color(0xFF7CC68A) : const Color(0xFF2F6339);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(color: ok.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
-      child: Text(text, style: const TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: ok)),
+      decoration: BoxDecoration(color: ok.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999)),
+      child: Text(text, style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: ok)),
     );
   }
 }
@@ -280,7 +283,7 @@ class StrongChip extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
       decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.12), borderRadius: BorderRadius.circular(6)),
-      child: Text(text, style: TextStyle(fontSize: 14, color: pal.accent, fontFamily: 'monospace')),
+      child: Text(text, style: TextStyle(fontSize: 12.7, color: pal.accent, fontFamily: 'monospace')),
     );
   }
 }
@@ -297,19 +300,19 @@ class _DictRow extends ConsumerWidget {
     final desc = '${r.found.map((f) => f.label.isEmpty ? f.key : f.label).join(' · ')}${r.found.any((f) => f.match == 'stem') ? ' · ${t('по основе слова')}' : ''}';
     return Material(
       color: pal.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: pal.line)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
-            Icon(Icons.menu_book_outlined, size: 20, color: pal.accent),
+            Icon(LucideIcons.bookText, size: 20, color: pal.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(r.module.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text(desc, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: pal.muted, fontSize: 14)),
+                Text(desc, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: pal.muted, fontSize: 14.1)),
               ]),
             ),
             const SizedBox(width: 12),
@@ -357,7 +360,7 @@ class StrongEntry extends ConsumerWidget {
     final dir = isHeb ? TextDirection.rtl : TextDirection.ltr;
     final lemma = entry['lemma'] as String?;
     final facts = <(String, Widget)>[
-      (t('Номер Стронга'), Text(num, style: const TextStyle(fontWeight: FontWeight.w500, fontFamily: 'monospace'))),
+      (t('Номер Стронга'), Text(num, style: const TextStyle(fontWeight: FontWeight.w500, fontFamily: 'monospace', fontSize: 13.5))),
       if (entry['xlit'] != null) (t('Транслитерация'), Text('${entry['xlit']}', style: const TextStyle(fontWeight: FontWeight.w500))),
       if (entry['pron'] != null) (t('Произношение'), Text('${entry['pron']}', style: const TextStyle(fontWeight: FontWeight.w500))),
       (t('Язык'), Text(isHeb ? t('иврит / арамейский (ВЗ)') : t('греческий (НЗ)'), style: const TextStyle(fontWeight: FontWeight.w500))),
@@ -374,7 +377,7 @@ class StrongEntry extends ConsumerWidget {
           t('Грамматическая форма'),
           Text.rich(TextSpan(children: [
             TextSpan(text: '${describeMorph(m) ?? t('без расшифровки')} ', style: const TextStyle(fontWeight: FontWeight.w500)),
-            TextSpan(text: '($m)', style: TextStyle(color: pal.muted, fontFamily: 'monospace', fontSize: 14)),
+            TextSpan(text: '($m)', style: TextStyle(color: pal.muted, fontFamily: 'monospace', fontSize: 13.5)),
           ])),
         ),
     ];
@@ -449,7 +452,7 @@ class _Facts extends ConsumerWidget {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: LayoutBuilder(builder: (context, box) {
         final cols = ((box.maxWidth + 16) / (170 + 16)).floor().clamp(1, 4);
         final w = (box.maxWidth - 16 * (cols - 1)) / cols;
@@ -503,7 +506,7 @@ class _WordStatsBlockState extends ConsumerState<WordStatsBlock> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(children: [
-          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: pal.muted)),
+          Spinner(size: 16, color: pal.muted),
           const SizedBox(width: 10),
           Text(t('Считаю…'), style: TextStyle(color: pal.muted, fontSize: 14)),
         ]),
@@ -515,7 +518,7 @@ class _WordStatsBlockState extends ConsumerState<WordStatsBlock> {
     final order = {for (final (i, b) in st.byBook.indexed) b.$1: i};
     final top = ([...st.byBook]..sort((a, b) => b.$2 != a.$2 ? b.$2.compareTo(a.$2) : order[a.$1]!.compareTo(order[b.$1]!))).take(10).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      H4(t('Употребление в {module}: {total} раз в {verses} стихах, {books} книгах', {'module': st.module, 'total': '${st.total}', 'verses': '${st.verses}', 'books': '${st.byBook.length}'}), icon: Icons.bar_chart),
+      H4(t('Употребление в {module}: {total} раз в {verses} стихах, {books} книгах', {'module': st.module, 'total': '${st.total}', 'verses': '${st.verses}', 'books': '${st.byBook.length}'}), icon: LucideIcons.chartColumn),
       for (final b in top)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 1.5),

@@ -8,14 +8,27 @@ import '../../core/bible.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'marks.dart';
+import 'sel_inline.dart';
 import 'sheets.dart';
+import 'ui.dart';
 
 VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String moduleId, ReaderItem item, String book) {
   if (item.kind != ItemKind.verse) return null;
+  // Строка действий — под последним выделенным стихом (SelectionInline в BibleReader.jsx)
+  Widget? below;
+  final sel = ref.read(selectionProvider)[pane];
+  if (sel != null && sel.isNotEmpty) {
+    final refs = sortedRefs(sel);
+    final me = VerseRef(book, item.chapter, item.verse);
+    if (refKey(refs.last) == refKey(me)) {
+      below = buildSelectionInline(context, ref, pane: pane, moduleId: moduleId, refs: refs, onDone: () => ref.read(selectionProvider.notifier).clear(pane));
+    }
+  }
   final fl = ref.read(marksProvider).flags['$book.${item.chapter}.${item.verse}'];
-  if (fl == null || fl.isEmpty) return null;
+  if (fl == null || fl.isEmpty) return below == null ? null : VerseDecor(below: below);
   final s = ref.read(settingsProvider);
   final pal = s.palette;
   final fs = s.d('fontSize');
@@ -35,20 +48,24 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
   if (fl.contains('b')) {
     afterNumber.add(mark(Padding(
       padding: EdgeInsets.only(right: fs * 0.25),
-      child: Semantics(label: t('Закладка'), child: Icon(Icons.bookmark, size: fs * 0.8, color: pal.accent)),
+      child: Semantics(
+        label: t('Закладка'),
+        // .vmark.bm: ленточка 0.42em × 0.62em с вырезом внизу
+        child: ClipPath(clipper: const _RibbonClip(), child: Container(width: fs * 0.42, height: fs * 0.62, color: pal.accent)),
+      ),
     )));
   }
   if (fl.contains('f') || fl.contains('p')) {
     final part = fl.contains('p');
     afterNumber.add(mark(Padding(
       padding: EdgeInsets.only(right: fs * 0.25),
-      child: Semantics(label: part ? t('Любимая часть стиха') : t('Любимый стих'), child: Icon(Icons.favorite, size: fs * 0.7, color: loveColor.withValues(alpha: part ? 0.75 : 1))),
+      child: Semantics(label: part ? t('Любимая часть стиха') : t('Любимый стих'), child: FillIcon(path: verseHeartPath, size: fs * 0.62, color: loveColor.withValues(alpha: part ? 0.75 : 1))),
     )));
   }
   if (fl.contains('c')) {
     afterNumber.add(mark(Padding(
       padding: EdgeInsets.only(right: fs * 0.25),
-      child: Semantics(label: t('Стих в подборке'), child: Icon(Icons.folder, size: fs * 0.7, color: pal.accent)),
+      child: Semantics(label: t('Стих в подборке'), child: FillIcon(path: verseFolderPath, size: fs * 0.6, color: pal.accent)),
     )));
   }
   if (fl.contains('n')) {
@@ -63,11 +80,26 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
             width: fs * 1.25,
             height: fs * 1.05,
             decoration: BoxDecoration(color: const Color(0xfff3e27a), borderRadius: BorderRadius.circular(4)),
-            child: Icon(Icons.edit, size: fs * 0.62, color: const Color(0xff6b5a10)),
+            child: Icon(LucideIcons.penLine, size: fs * 0.62, color: const Color(0xff6b5a10)),
           ),
         ),
       ),
     )));
   }
-  return VerseDecor(background: bg, afterNumber: afterNumber, trailing: trailing);
+  return VerseDecor(background: bg, afterNumber: afterNumber, trailing: trailing, below: below);
+}
+
+/// Ленточка закладки: clip-path polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%)
+class _RibbonClip extends CustomClipper<Path> {
+  const _RibbonClip();
+  @override
+  Path getClip(Size s) => Path()
+    ..moveTo(0, 0)
+    ..lineTo(s.width, 0)
+    ..lineTo(s.width, s.height)
+    ..lineTo(s.width * 0.5, s.height * 0.74)
+    ..lineTo(0, s.height)
+    ..close();
+  @override
+  bool shouldReclip(_RibbonClip old) => false;
 }

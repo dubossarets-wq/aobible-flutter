@@ -1,15 +1,16 @@
-// Общие кирпичики окон «Ещё», «Настройки», «Оформление», «Библиотека»…: нижний лист с заголовком и стрелкой
-// «назад», строка-переход, переключатель, ползунок со ступенями, выбор из нескольких. Вид — как в веб-версии
-// (BottomSheet.jsx, ui.jsx), цвета — из палитры, размер шрифта меню — настройка uiFontSize.
+// Общие кирпичики окон «Ещё», «Настройки», «Оформление», «Библиотека»…: окно (поверх AobSheet из kit.dart), поле-
+// переключатель с пояснением, ползунок со ступенями, выбор из нескольких, карточка группы, подтверждение на месте.
+// Вид — как в веб-версии (BottomSheet.jsx, ui.jsx, styles.css); цвета — из палитры, размер шрифта меню — настройка uiFontSize.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
-import 'colors.dart';
 
 /// Контекст под MaterialApp (с Navigator и ScaffoldMessenger): нужен, когда окно или уведомление
 /// показывают из фоновой работы, где есть только WidgetRef от корня приложения.
@@ -34,68 +35,54 @@ void toast(BuildContext? context, String text) {
   m == null ? Hub.toast(text) : m.showSnackBar(SnackBar(content: Text(text)));
 }
 
-/// Открыть нижний лист. full — почти на весь экран (настройки, библиотека), иначе по высоте содержимого
-Future<T?> showAppSheet<T>(BuildContext context, WidgetBuilder builder) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    constraints: const BoxConstraints(maxWidth: 720),
-    builder: builder,
-  );
-}
+/// Открыть нижнее окно (как BottomSheet с initial={2} в веб-версии — почти на весь экран)
+Future<T?> showAppSheet<T>(BuildContext context, WidgetBuilder builder) => showAobSheet<T>(context, builder: builder);
 
-/// Каркас окна: ручка, заголовок (+ подзаголовок), стрелка «‹» или крестик, прокручиваемое содержимое
+/// Каркас окна: полоска, заголовок (+ подзаголовок), стрелка «‹» или крестик, линия под шапкой — это AobSheet;
+/// здесь добавлены закреплённая часть под шапкой (fixed), прокручиваемое содержимое со зазором 12 между блоками
+/// (.sheet-body) и нижняя панель (footer, .sheet-foot).
 class AppSheet extends ConsumerWidget {
-  const AppSheet({super.key, required this.title, required this.children, this.subtitle, this.onBack, this.full = false, this.footer, this.fixed});
+  const AppSheet({super.key, required this.title, required this.children, this.subtitle, this.onBack, this.footer, this.fixed, this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 20), this.gap = 12});
   final String title;
   final String? subtitle;
   final VoidCallback? onBack;
-  final bool full;
   final List<Widget> children;
   final Widget? footer;
-  final Widget? fixed; // закреплено под заголовком (поиск, вкладки)
+  final Widget? fixed; // закреплено под заголовком (образец, поиск, вкладки)
+  final EdgeInsets padding;
+  final double gap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.watch(settingsProvider);
-    final pal = effectivePalette(s);
-    final scale = s.d('uiFontSize') / 15;
+    final pal = paletteOf(ref);
+    final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
     final mq = MediaQuery.of(context);
-    final maxH = mq.size.height * 0.92;
     return MediaQuery(
       data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(1) * scale)),
-      child: DefaultTextStyle.merge(
-        style: TextStyle(color: pal.text),
-        child: Container(
-          height: full ? maxH : null,
-          constraints: BoxConstraints(maxHeight: maxH),
-          decoration: BoxDecoration(color: pal.panel, borderRadius: const BorderRadius.vertical(top: Radius.circular(18))),
-          child: Column(mainAxisSize: full ? MainAxisSize.max : MainAxisSize.min, children: [
-            Center(child: Container(margin: const EdgeInsets.only(top: 8, bottom: 2), width: 40, height: 4, decoration: BoxDecoration(color: pal.line, borderRadius: BorderRadius.circular(2)))),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
-              child: Row(children: [
-                if (onBack != null) IconButton(icon: Icon(Icons.chevron_left, color: pal.text), tooltip: t('Назад'), onPressed: onBack),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(left: onBack == null ? 12 : 0),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: pal.text)),
-                      if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
-                    ]),
-                  ),
-                ),
-                IconButton(icon: Icon(Icons.close, color: pal.muted), tooltip: t('Закрыть'), onPressed: () => Navigator.of(context).maybePop()),
-              ]),
+      child: AobSheet(
+        title: title,
+        subtitle: subtitle,
+        onBack: onBack,
+        scroll: false,
+        padding: EdgeInsets.zero,
+        child: DefaultTextStyle.merge(
+          style: TextStyle(fontSize: 15, color: pal.text),
+          child: Column(children: [
+            ?fixed,
+            Expanded(
+              child: ListView.separated(
+                padding: padding.copyWith(bottom: padding.bottom + mq.padding.bottom),
+                itemCount: children.length,
+                separatorBuilder: (_, _) => SizedBox(height: gap),
+                itemBuilder: (_, i) => children[i],
+              ),
             ),
-            if (fixed != null) fixed!,
-            Flexible(
-              fit: full ? FlexFit.tight : FlexFit.loose,
-              child: ListView(shrinkWrap: !full, padding: EdgeInsets.fromLTRB(14, 4, 14, 16 + mq.padding.bottom), children: children),
-            ),
-            if (footer != null) Padding(padding: EdgeInsets.fromLTRB(14, 6, 14, 12 + mq.padding.bottom), child: footer),
+            if (footer != null)
+              Container(
+                padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + mq.padding.bottom),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                child: footer,
+              ),
           ]),
         ),
       ),
@@ -103,72 +90,172 @@ class AppSheet extends ConsumerWidget {
   }
 }
 
-/// Строка-переход: значок, название, пояснение мелко, стрелка (как .pref-row)
-class PrefRow extends ConsumerWidget {
-  const PrefRow({super.key, required this.icon, required this.title, this.sub, this.onTap, this.extra, this.leading, this.chevron = true});
-  final IconData? icon;
-  final Widget? leading;
-  final String title;
-  final String? sub;
-  final VoidCallback? onTap;
-  final Widget? extra;
-  final bool chevron;
+/// Закреплённая под шапкой часть окна: поля шириной окна с отступами 16
+class SheetFixed extends StatelessWidget {
+  const SheetFixed({super.key, required this.child, this.bottom = 4});
+  final Widget child;
+  final double bottom;
+  @override
+  Widget build(BuildContext context) => Padding(padding: EdgeInsets.fromLTRB(16, 12, 16, bottom), child: child);
+}
 
+/// Подпись поля (.field-label): w500, в «Оформлении» — w600
+TextStyle fieldLabel(Palette pal, {bool bold = false}) => TextStyle(fontSize: 15, fontWeight: bold ? FontWeight.w600 : FontWeight.w500, color: pal.text);
+
+/// Значок ⓘ с подсказкой (Hint в ui.jsx): нажатие раскрывает плашку цвета верхней панели
+class HintDot extends ConsumerWidget {
+  const HintDot({super.key, required this.on, required this.onTap});
+  final bool on;
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pal = effectivePalette(ref.watch(settingsProvider));
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
+    final pal = paletteOf(ref);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-        child: Row(children: [
-          SizedBox(width: 30, child: leading ?? Icon(icon, size: 21, color: onTap == null ? pal.muted : pal.accent)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: pal.text)),
-              if (sub != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub!, style: TextStyle(fontSize: 13, color: pal.muted))),
-            ]),
-          ),
-          if (extra != null) extra!,
-          if (chevron && onTap != null) Icon(Icons.chevron_right, size: 20, color: pal.muted),
-        ]),
-      ),
+      child: SizedBox(width: 28, height: 24, child: Icon(LucideIcons.info, size: 16, color: on ? pal.accent : pal.muted)),
     );
   }
 }
 
-class SwitchRow extends ConsumerWidget {
-  const SwitchRow({super.key, required this.label, required this.value, required this.onChanged, this.hint});
+/// Плашка подсказки: цвета верхней панели, скругление 9.6, текст 13.4
+class HintBubble extends ConsumerWidget {
+  const HintBubble(this.text, {super.key});
+  final String text;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: pal.bar, borderRadius: BorderRadius.circular(kRadius * 0.8), boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 10))]),
+      child: Text(text, style: TextStyle(fontSize: 13.4, height: 1.45, color: pal.barText)),
+    );
+  }
+}
+
+/// Переключатель с подписью (.switch-field + Switch из ui.jsx): пояснение — значком ⓘ, как в веб-версии
+class SwitchField extends ConsumerStatefulWidget {
+  const SwitchField({super.key, required this.label, required this.value, required this.onChanged, this.hint, this.bold = false, this.big = false});
   final String label;
   final String? hint;
   final bool value;
   final ValueChanged<bool> onChanged;
-
+  final bool bold; // в «Оформлении» подписи w600
+  final bool big; // первая строка карточки (.ap-card.lead): крупнее
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pal = effectivePalette(ref.watch(settingsProvider));
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: pal.text)),
-              if (hint != null) Text(hint!, style: TextStyle(fontSize: 13, color: pal.muted)),
+  ConsumerState<SwitchField> createState() => _SwitchFieldState();
+}
+
+class _SwitchFieldState extends ConsumerState<SwitchField> {
+  bool _hint = false;
+  @override
+  Widget build(BuildContext context) {
+    final pal = paletteOf(ref);
+    final base = fieldLabel(pal, bold: widget.bold);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      InkWell(
+        onTap: () => widget.onChanged(!widget.value),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(children: [
+              Expanded(
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(text: widget.label, style: widget.big ? base.copyWith(fontSize: 16.3, fontWeight: FontWeight.w700) : base),
+                  if (widget.hint != null) WidgetSpan(alignment: PlaceholderAlignment.middle, child: HintDot(on: _hint, onTap: () => setState(() => _hint = !_hint))),
+                ])),
+              ),
+              const SizedBox(width: 12),
+              AobSwitch(value: widget.value, onChanged: widget.onChanged),
             ]),
           ),
-          Switch(value: value, onChanged: onChanged),
-        ]),
+        ),
       ),
-    );
+      if (_hint && widget.hint != null) Padding(padding: const EdgeInsets.only(top: 4, bottom: 4), child: HintBubble(widget.hint!)),
+    ]);
   }
 }
 
-/// Выбор из нескольких (Segmented): подпись сверху, кнопки в ряд
+/// Выбор из нескольких (.segmented): подложка, выбранный — белая «таблетка»; если не помещаются в строку — переносятся
+/// на следующую, каждая строка растягивается на всю ширину (flex: 1 1 auto). Подпись — любой виджет (значок + текст).
+class SegBar<T> extends ConsumerWidget {
+  const SegBar({super.key, required this.options, required this.value, required this.onChanged, this.minHeight = 0});
+  final List<(T, Widget, String)> options; // значение, подпись, текст для замера ширины
+  final T value;
+  final ValueChanged<T> onChanged;
+  final double minHeight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return LayoutBuilder(builder: (context, box) {
+      final scaler = MediaQuery.textScalerOf(context);
+      double natural(String text) {
+        final tp = TextPainter(text: TextSpan(text: text, style: const TextStyle(fontSize: 13.2, fontWeight: FontWeight.w600)), textDirection: TextDirection.ltr, textScaler: scaler, maxLines: 1)..layout();
+        return tp.width + 16 + 22; // поля по 8 и запас на значок
+      }
+
+      final inner = box.maxWidth - 6;
+      final lines = <List<int>>[[]];
+      var used = 0.0;
+      for (var i = 0; i < options.length; i++) {
+        final w = natural(options[i].$3);
+        if (lines.last.isNotEmpty && used + w + 2 > inner) {
+          lines.add([]);
+          used = 0;
+        }
+        lines.last.add(i);
+        used += w + 2;
+      }
+      Widget cell(int i) {
+        final on = options[i].$1 == value;
+        return Expanded(
+          flex: natural(options[i].$3).round(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onChanged(options[i].$1),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic, // с «пружиной» тень уходит в отрицательный размер
+              constraints: BoxConstraints(minHeight: minHeight),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              decoration: BoxDecoration(
+                color: on ? pal.panel : Colors.transparent,
+                borderRadius: BorderRadius.circular(kRadius * 0.6),
+                boxShadow: on ? const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))] : null,
+              ),
+              alignment: Alignment.center,
+              child: DefaultTextStyle.merge(
+                style: TextStyle(fontSize: 13.2, fontWeight: on ? FontWeight.w600 : FontWeight.w400, color: on ? pal.accent : pal.text),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                child: IconTheme.merge(data: IconThemeData(color: on ? pal.accent : pal.text, size: 17), child: options[i].$2),
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+        child: Column(children: [
+          for (var l = 0; l < lines.length; l++)
+            Padding(
+              padding: EdgeInsets.only(top: l == 0 ? 0 : 2),
+              child: Row(children: [
+                for (var k = 0; k < lines[l].length; k++) ...[if (k > 0) const SizedBox(width: 2), cell(lines[l][k])],
+              ]),
+            ),
+        ]),
+      );
+    });
+  }
+}
+
+/// Выбор из нескольких с подписью сверху (поле .field + Segmented). Простые подписи — kit.Segmented,
+/// со значком или своим видом букв — SegBar.
 class SegRow<T> extends ConsumerWidget {
   const SegRow({super.key, required this.label, required this.value, required this.options, required this.onChanged, this.valueText, this.labelStyle});
   final TextStyle? Function(T)? labelStyle; // свой вид подписи кнопки (например, толщина букв)
@@ -180,40 +267,49 @@ class SegRow<T> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pal = effectivePalette(ref.watch(settingsProvider));
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text))),
-          if (valueText != null) Text(valueText!, style: TextStyle(fontSize: 14, color: pal.muted)),
-        ]),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<T>(
-            showSelectedIcon: false,
-            segments: [for (final o in options) ButtonSegment<T>(value: o.$1, label: Text(o.$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: labelStyle?.call(o.$1)), icon: o.$3 == null ? null : Icon(o.$3, size: 17))],
-            selected: {value},
-            onSelectionChanged: (v) => onChanged(v.first),
-          ),
-        ),
+    final pal = paletteOf(ref);
+    final plain = labelStyle == null && options.every((o) => o.$3 == null);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text(label, style: fieldLabel(pal, bold: true))),
+        if (valueText != null) Text(valueText!, style: TextStyle(fontSize: 14.7, color: pal.muted)),
       ]),
-    );
+      const SizedBox(height: 6),
+      if (plain)
+        Segmented<T>(options: [for (final o in options) (o.$1, o.$2)], value: value, onChanged: onChanged)
+      else
+        SegBar<T>(
+          minHeight: 40,
+          value: value,
+          onChanged: onChanged,
+          options: [
+            for (final o in options)
+              (
+                o.$1,
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (o.$3 != null) ...[Icon(o.$3, size: 17), const SizedBox(width: 6)],
+                  Flexible(child: Text(o.$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: labelStyle?.call(o.$1))),
+                ]),
+                o.$2,
+              ),
+          ],
+        ),
+    ]);
   }
 }
 
-/// Ползунок с кнопками «меньше / больше» по краям и понятным значением словами.
+/// Ползунок с кнопками «меньше / больше» по краям и понятным значением словами (.ap-range).
 /// Пока ползунок тянут, значение двигается сразу, а в настройки уходит не чаще раза в 180 мс и при отпускании:
 /// каждое изменение перекладывает весь текст под окном.
 class RangeRow extends ConsumerStatefulWidget {
-  const RangeRow({super.key, required this.label, required this.value, required this.min, required this.max, required this.step, required this.onChanged, required this.word, this.big = false, this.hint});
+  const RangeRow({super.key, required this.label, required this.value, required this.min, required this.max, required this.step, required this.onChanged, required this.word, this.big = false, this.hint, this.buttons = true});
   final String label;
   final String? hint;
   final double value, min, max, step;
   final ValueChanged<double> onChanged;
   final String Function(double) word;
   final bool big; // кнопки «А» вместо «−/+»
+  final bool buttons; // кнопки «меньше / больше» по краям (в приветствии их нет)
 
   @override
   ConsumerState<RangeRow> createState() => _RangeRowState();
@@ -251,71 +347,158 @@ class _RangeRowState extends ConsumerState<RangeRow> {
 
   @override
   Widget build(BuildContext context) {
-    final pal = effectivePalette(ref.watch(settingsProvider));
+    final pal = paletteOf(ref);
     final w = widget;
-    Widget step(IconData icon, String small, double delta, bool enabled) => IconButton(
-          onPressed: enabled ? () => _change(_v + delta, now: true) : null,
-          icon: w.big ? Text('A', style: TextStyle(fontSize: delta < 0 ? 14 : 22, fontWeight: FontWeight.w800, color: enabled ? pal.text : pal.muted)) : Icon(icon, size: 20),
-          tooltip: small,
-        );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(w.label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text))),
-          Text(w.word(_v), style: TextStyle(fontSize: 14, color: pal.muted)),
-        ]),
-        if (w.hint != null) Text(w.hint!, style: TextStyle(fontSize: 13, color: pal.muted)),
-        Row(children: [
-          step(Icons.remove, t('{label}: меньше', {'label': w.label}), -w.step, _v > w.min),
-          Expanded(
-            child: Slider(
-              value: _v.clamp(w.min, w.max),
-              min: w.min,
-              max: w.max,
-              divisions: ((w.max - w.min) / w.step).round(),
-              onChanged: (x) => _change(x),
-              onChangeEnd: (x) => _change(x, now: true),
+    // .ap-step: круг 44 с рамкой, фон страницы; «A» — маленькая и большая буквы
+    Widget step(IconData icon, String tip, double delta, bool enabled) => Tooltip(
+          message: tip,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.4,
+            child: Material(
+              color: pal.bg,
+              shape: CircleBorder(side: BorderSide(color: pal.line)),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: enabled ? () => _change(_v + delta, now: true) : null,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(child: w.big ? Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 23, fontWeight: FontWeight.w600, height: 1, color: pal.text)) : Icon(icon, size: 18, color: pal.text)),
+                ),
+              ),
             ),
           ),
-          step(Icons.add, t('{label}: больше', {'label': w.label}), w.step, _v < w.max),
-        ]),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text(w.label, style: fieldLabel(pal, bold: true))),
+        Text(w.word(_v), style: TextStyle(fontSize: 14.7, color: pal.muted)),
       ]),
-    );
+      if (w.hint != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(w.hint!, style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4))),
+      const SizedBox(height: 4),
+      Row(children: [
+        if (w.buttons) ...[
+          step(LucideIcons.minus, t('{label}: меньше', {'label': w.label}), -w.step, _v > w.min),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 5,
+              activeTrackColor: pal.accent,
+              inactiveTrackColor: pal.text.withValues(alpha: 0.16),
+              thumbColor: pal.accent,
+              overlayColor: pal.accent.withValues(alpha: 0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+              trackShape: const RoundedRectSliderTrackShape(),
+              tickMarkShape: SliderTickMarkShape.noTickMark,
+              showValueIndicator: ShowValueIndicator.never,
+            ),
+            child: SizedBox(
+              height: 44,
+              child: Slider(
+                value: _v.clamp(w.min, w.max),
+                min: w.min,
+                max: w.max,
+                divisions: math.max(1, ((w.max - w.min) / w.step).round()),
+                onChanged: (x) => _change(x),
+                onChangeEnd: (x) => _change(x, now: true),
+              ),
+            ),
+          ),
+        ),
+        if (w.buttons) ...[
+          const SizedBox(width: 8),
+          step(LucideIcons.plus, t('{label}: больше', {'label': w.label}), w.step, _v < w.max),
+        ],
+      ]),
+    ]);
   }
 }
 
-/// Карточка группы настроек
+/// Карточка группы настроек (.ap-card): рамка, скругление 12, зазор 14, заголовок 1.02rem w700
 class Card2 extends ConsumerWidget {
   const Card2({super.key, required this.children, this.title});
   final String? title;
   final List<Widget> children;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pal = effectivePalette(ref.watch(settingsProvider));
+    final pal = paletteOf(ref);
+    final all = [if (title != null) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(14)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (title != null) Padding(padding: const EdgeInsets.fromLTRB(4, 2, 4, 4), child: Text(title!, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: pal.muted))),
-        ...children,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < all.length; i++) ...[if (i > 0) const SizedBox(height: 14), all[i]],
       ]),
     );
   }
 }
 
-/// Подтверждение удаления и т. п.
-Future<bool> confirm(BuildContext context, String text, String ok) async {
-  final r = await showDialog<bool>(
-    context: context,
-    builder: (c) => AlertDialog(
-      content: Text(text),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t('Отмена'))),
-        FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(ok)),
-      ],
-    ),
-  );
-  return r ?? false;
+/// Подтверждение на месте (ConfirmButton в ui.jsx): нажали — вместо кнопки «Да» (красная) и «Отмена»
+class ConfirmButton extends StatefulWidget {
+  const ConfirmButton({super.key, required this.label, required this.confirmText, required this.onConfirm, this.icon, this.small = false});
+  final String label;
+  final String confirmText;
+  final IconData? icon;
+  final bool small;
+  final VoidCallback onConfirm;
+  @override
+  State<ConfirmButton> createState() => _ConfirmButtonState();
+}
+
+class _ConfirmButtonState extends State<ConfirmButton> {
+  bool _armed = false;
+  @override
+  Widget build(BuildContext context) {
+    if (!_armed) return AobButton(label: widget.label, icon: widget.icon, small: widget.small, onTap: () => setState(() => _armed = true));
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      AobButton(
+        label: widget.confirmText,
+        kind: BtnKind.danger,
+        small: widget.small,
+        onTap: () {
+          setState(() => _armed = false);
+          widget.onConfirm();
+        },
+      ),
+      const SizedBox(width: 8),
+      AobButton(label: t('Отмена'), small: widget.small, onTap: () => setState(() => _armed = false)),
+    ]);
+  }
+}
+
+/// Крутящийся значок загрузки (Loader2 + .spin)
+class Spin extends StatefulWidget {
+  const Spin({super.key, this.size = 16, this.color});
+  final double size;
+  final Color? color;
+  @override
+  State<Spin> createState() => _SpinState();
+}
+
+class _SpinState extends State<Spin> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(LucideIcons.loaderCircle, size: widget.size, color: widget.color));
+}
+
+/// Надпись «Загрузка…» (.loading): по центру, бледная
+class Loading extends ConsumerWidget {
+  const Loading(this.text, {super.key});
+  final String text;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Spin(size: 20, color: pal.muted), const SizedBox(width: 10), Text(text, style: TextStyle(fontSize: 14.25, color: pal.muted))]),
+    );
+  }
 }

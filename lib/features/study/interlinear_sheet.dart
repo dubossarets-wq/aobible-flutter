@@ -9,6 +9,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'sheet.dart';
@@ -171,8 +172,8 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
       title: t('Подстрочник · {ref}', {'ref': fmtRef(_ref)}),
       subtitle: subtitle,
       headerExtra: [
-        IconButton(icon: Icon(Icons.chevron_left, color: pal.text), tooltip: t('Предыдущий стих'), onPressed: () => _step(-1)),
-        IconButton(icon: Icon(Icons.chevron_right, color: pal.text), tooltip: t('Следующий стих'), onPressed: () => _step(1)),
+        IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущий стих'), onTap: () => _step(-1)),
+        IconBtn(icon: LucideIcons.chevronRight, tooltip: t('Следующий стих'), onTap: () => _step(1)),
       ],
       body: body,
     );
@@ -196,12 +197,12 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
       ),
       if (_ru.isNotEmpty) QuoteBox(_ru),
       if (_words.isEmpty) Text(t('В оригинале этого стиха нет.'), style: TextStyle(color: pal.muted)),
-      if ((_lxx || _vulg) && _words.isNotEmpty) Text(t('Под словами — значения по словарю, а не перевод.'), style: TextStyle(color: pal.muted, fontSize: 13.6)),
+      if ((_lxx || _vulg) && _words.isNotEmpty) Text(t('Под словами — значения по словарю, а не перевод.'), style: TextStyle(color: pal.muted, fontSize: 12.9)), // .muted.small
       Directionality(
         textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
         child: Wrap(spacing: 6, runSpacing: 10, children: [for (final w in _words) _Cell(word: w, hebrew: rtl, latin: _vulg, onTap: () => _open(w))]),
       ),
-      Text(hint, style: TextStyle(color: pal.muted, fontSize: 13.6)),
+      Text(hint, style: TextStyle(color: pal.muted, fontSize: 13.6)), // .sheet-hint
     ]);
   }
 }
@@ -217,7 +218,6 @@ class _Cell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final w = word;
-    final align = hebrew ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final tr = latin ? w.lemma : translit(w.text);
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -228,14 +228,14 @@ class _Cell extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
           child: Directionality(
             textDirection: TextDirection.ltr,
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: align, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
               Directionality(textDirection: hebrew ? TextDirection.rtl : TextDirection.ltr, child: Text(w.text, style: TextStyle(fontSize: hebrew ? 24 : 21.6, height: 1.25, color: pal.text))),
-              Text(tr.isEmpty ? ' ' : tr, style: TextStyle(fontSize: 14, color: pal.muted)),
+              Text(tr.isEmpty ? ' ' : tr, style: TextStyle(fontSize: 12.48, color: pal.muted, fontStyle: FontStyle.italic)), // .il-tr
               Text(
                 w.gloss.isEmpty ? ' ' : w.gloss,
                 style: w.guess
-                    ? TextStyle(fontSize: 15.2, color: pal.accent.withValues(alpha: 0.55), fontStyle: FontStyle.italic)
-                    : TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.accent),
+                    ? TextStyle(fontSize: 14.72, color: pal.accent.withValues(alpha: 0.55), fontStyle: FontStyle.italic)
+                    : TextStyle(fontSize: 14.72, fontWeight: FontWeight.w600, color: pal.accent),
               ),
               Text(w.num != null ? w.num!.substring(1) : ' ', style: TextStyle(fontSize: 12.8, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
             ]),

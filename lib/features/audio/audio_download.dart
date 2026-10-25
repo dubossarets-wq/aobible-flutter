@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'audio_data.dart';
 import 'audio_logic.dart';
 import 'audio_offline.dart';
@@ -98,8 +99,9 @@ class DownloadButton extends StatelessWidget {
                 width: 40,
                 height: 40,
                 child: Stack(alignment: Alignment.center, children: [
-                  if (prog != null) SizedBox(width: 26, height: 26, child: CircularProgressIndicator(value: prog, strokeWidth: 2.5, color: pal.accent, backgroundColor: pal.muted.withValues(alpha: 0.3))),
-                  Icon(prog != null ? Icons.download : offline ? Icons.check_circle_outline : Icons.download_outlined, size: prog != null ? 14 : size, color: offline ? greenOk : pal.text),
+                  // Кольцо загрузки — .dl-ring (inset 6 в кнопке 40 px, обводка 2,5 при 32 px)
+                  if (prog != null) SizedBox(width: 26.5, height: 26.5, child: CircularProgressIndicator(value: prog, strokeWidth: 2.2, color: pal.accent, backgroundColor: pal.muted.withValues(alpha: 0.3))),
+                  Icon(prog != null ? LucideIcons.download : offline ? LucideIcons.checkCircle2 : LucideIcons.download, size: prog != null ? 14 : size, color: offline ? greenOk : pal.text),
                 ]),
               ),
             ),
@@ -112,10 +114,11 @@ class DownloadButton extends StatelessWidget {
 
 /// Подпись о скачивании книги (под панелью и в раскрытом проигрывателе)
 class DownloadNote extends StatelessWidget {
-  const DownloadNote({super.key, required this.pal, this.center = false, this.border = true});
+  const DownloadNote({super.key, required this.pal, this.center = false, this.border = true, this.gap = 0});
   final Palette pal;
   final bool center;
   final bool border;
+  final double gap; // отступ снизу, пока подпись видна (gap колонки в проигрывателе)
 
   @override
   Widget build(BuildContext context) {
@@ -126,18 +129,18 @@ class DownloadNote extends StatelessWidget {
         if (n == null) return const SizedBox.shrink();
         Widget link(String label, VoidCallback f) => GestureDetector(
               onTap: f,
-              child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(label, style: TextStyle(color: pal.accent, fontSize: 13.5, decoration: TextDecoration.underline))),
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(label, style: TextStyle(color: pal.accent, fontSize: 13.4, decoration: TextDecoration.underline))),
             );
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.symmetric(horizontal: border ? 14 : 0, vertical: 8),
+          padding: EdgeInsets.fromLTRB(border ? 14 : 0, border ? 8 : 0, border ? 14 : 0, (border ? 8 : 0) + gap),
           decoration: border ? BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))) : null,
           child: Wrap(
             alignment: center ? WrapAlignment.center : WrapAlignment.start,
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 8,
             children: [
-              Text(n.text, style: TextStyle(fontSize: 13.5, color: n.ok ? greenOk : pal.text)),
+              Text(n.text, style: TextStyle(fontSize: 13.4, color: n.ok ? greenOk : pal.text)),
               if (n.remove != null) link(t('удалить'), () => n.remove!()),
               link(t('скрыть'), () => d.note.value = null),
             ],
@@ -146,41 +149,6 @@ class DownloadNote extends StatelessWidget {
       },
     );
   }
-}
-
-/// Сегментный переключатель с подписью (скорость, таймер сна)
-class Segmented<T> extends StatelessWidget {
-  const Segmented({super.key, required this.label, required this.value, required this.options, required this.onChanged, required this.pal});
-  final String label;
-  final T value;
-  final List<(T, String)> options;
-  final void Function(T) onChanged;
-  final Palette pal;
-
-  @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 13, color: pal.muted, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(10)),
-          clipBehavior: Clip.antiAlias,
-          child: Row(children: [
-            for (final o in options)
-              Expanded(
-                child: InkWell(
-                  onTap: () => onChanged(o.$1),
-                  child: Container(
-                    alignment: Alignment.center,
-                    constraints: const BoxConstraints(minHeight: 38),
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    color: o.$1 == value ? pal.accent : null,
-                    child: Text(o.$2, textAlign: TextAlign.center, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: o.$1 == value ? pal.onAccent : pal.text)),
-                  ),
-                ),
-              ),
-          ]),
-        ),
-      ]);
 }
 
 /// Подпись под часами таймера

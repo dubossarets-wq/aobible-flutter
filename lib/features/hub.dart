@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/bible.dart';
 import '../core/books.dart';
 import '../core/markup.dart';
+import '../core/settings.dart';
+import '../ui/kit.dart';
 
 /// Нажатие на слово в тексте
 class WordTap {
@@ -22,8 +24,9 @@ class WordTap {
 
 /// Что добавить к стиху: фон (цвет выделения) и значки/пометки в конце стиха
 class VerseDecor {
-  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const []});
+  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const [], this.below});
   final Color? background;
+  final Widget? below; // под текстом стиха, на всю ширину колонки (строка действий под выделенным стихом)
   final List<InlineSpan> trailing;
   final List<InlineSpan> leading; // до номера стиха
   final List<InlineSpan> afterNumber; // между номером и текстом (закладка, сердце, подборка — как в веб-версии)
@@ -75,6 +78,11 @@ class Hub {
   static void Function(BuildContext context, WidgetRef ref, VerseRef at, String moduleId)? openInterlinear;
   static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef from)? listenFrom;
   static void Function(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId)? compareTranslations;
+  // Панель выделения (кнопки и меню «Ещё», как SelectionBar.jsx): окна других функций
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at)? openCommentary; // изучение
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at)? openXrefs; // изучение
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String moduleId)? openVerseGuide; // «Всё о стихе», изучение
+  static void Function(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId)? openVerseImage; // планы
   static final List<MoreItem> moreItems = [];
 
   /// Карта места во второй половине экрана (вместо второй панели чтения): что рисовать (даёт функция карт);
@@ -84,6 +92,10 @@ class Hub {
   /// Круглая кнопка «Слушать» внизу панели чтения (даёт функция аудио)
   static Widget Function(BuildContext context, WidgetRef ref, int pane)? listenFab;
 
+  /// Поиск по номеру Стронга (G26, H7225): карточка — слово оригинала, значение, все места (даёт функция изучения).
+  /// filter — часть Библии из настроек поиска; onOpen — открыть место; onArticle — статья словаря (null — не показывать)
+  static Widget Function(BuildContext context, WidgetRef ref, int pane, String num, bool Function(VerseRef r)? filter, void Function(VerseRef r) onOpen, VoidCallback? onArticle)? strongSearchCard;
+
   /// Уведомление внизу экрана из любого места (в том числе из Hub.afterStart, где нет context)
   static final messengerKey = GlobalKey<ScaffoldMessengerState>();
   static final navigatorKey = GlobalKey<NavigatorState>();
@@ -91,12 +103,15 @@ class Hub {
   /// Глава прочитана (видна до конца и на ней провели достаточно времени) — учёт для планов и статистики
   static void Function(BuildContext context, WidgetRef ref, String book, int chapter)? onChapterRead;
   static void toast(String text, {String? actionLabel, VoidCallback? action}) {
-    messengerKey.currentState
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(text),
-        action: actionLabel != null && action != null ? SnackBarAction(label: actionLabel, onPressed: action) : null,
-      ));
+    final m = messengerKey.currentState;
+    if (m == null) return;
+    final pal = ProviderScope.containerOf(m.context, listen: false).read(settingsProvider).palette;
+    m
+      ..hideCurrentSnackBar()
+      ..showSnackBar(aobSnackBar(pal, text, actionLabel: actionLabel, action: action == null ? null : () {
+        m.hideCurrentSnackBar();
+        action();
+      }));
   }
 
   /// Смена языка: подписи пунктов меню и т. п. задаются при регистрации — регистрируем заново
@@ -108,10 +123,14 @@ class Hub {
     audioBar = null;
     wordMenuItems.clear();
     addToSermon = openInterlinear = compareTranslations = null;
+    openCommentary = openXrefs = null;
+    openVerseGuide = null;
+    openVerseImage = null;
     listenFrom = null;
     moreItems.clear();
     mapPaneBuilder = null;
     listenFab = null;
+    strongSearchCard = null;
     onChapterRead = null;
   }
 

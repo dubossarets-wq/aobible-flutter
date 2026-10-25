@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'colors.dart';
 import 'sheet.dart';
 
@@ -21,9 +22,10 @@ const moduleTypeNames = <String, String>{
   'bible': 'Перевод Библии', 'commentary': 'Комментарий', 'dictionary': 'Словарь', 'maps': 'Карты',
   'crossrefs': 'Параллельные места', 'audio': 'Аудиокнига', 'illustrations': 'Иллюстрации',
 };
+// Значки видов — как TYPE_ICON в веб-версии (у остальных видов — BookText)
 const _typeIcon = <String, IconData>{
-  'bible': Icons.menu_book_outlined, 'commentary': Icons.chat_bubble_outline, 'dictionary': Icons.abc, 'maps': Icons.map_outlined,
-  'crossrefs': Icons.link, 'audio': Icons.headphones_outlined, 'illustrations': Icons.image_outlined,
+  'bible': LucideIcons.bookOpen, 'commentary': LucideIcons.messageSquareText, 'dictionary': LucideIcons.bookText, 'maps': LucideIcons.map,
+  'crossrefs': LucideIcons.link2, 'audio': LucideIcons.headphones,
 };
 
 // Языки модулей: порядок показа — русский, затем живые языки по числу говорящих, в конце древние языки Писания
@@ -66,6 +68,55 @@ class _Item {
   bool get unavailable => json['unavailable'] == true;
 }
 
+// Цвета --ok и --danger из styles.css
+Color _ok(Palette p) => p.dark ? const Color(0xff7cc68a) : const Color(0xff2f6339);
+Color _danger(Palette p) => p.dark ? const Color(0xffef8a78) : const Color(0xffb4412f);
+
+/// Закрашенная звезда (Star с fill="currentColor"): в наборе значков есть только контурная
+class _FilledStar extends StatelessWidget {
+  const _FilledStar({required this.color});
+  final Color color;
+  @override
+  Widget build(BuildContext context) => CustomPaint(size: const Size(20, 20), painter: _StarPainter(color));
+}
+
+class _StarPainter extends CustomPainter {
+  _StarPainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    const pts = [(12.0, 2.0), (15.09, 8.26), (22.0, 9.27), (17.0, 14.14), (18.18, 21.02), (12.0, 17.77), (5.82, 21.02), (7.0, 14.14), (2.0, 9.27), (8.91, 8.26)];
+    final k = size.width / 24;
+    final path = Path()..moveTo(pts[0].$1 * k, pts[0].$2 * k);
+    for (final p in pts.skip(1)) {
+      path.lineTo(p.$1 * k, p.$2 * k);
+    }
+    path.close();
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2 * k..strokeJoin = StrokeJoin.round);
+  }
+
+  @override
+  bool shouldRepaint(_StarPainter old) => old.color != color;
+}
+
+/// Кнопка действия в строке модуля (.row-act): круг 44, значок 20
+class _Act extends StatelessWidget {
+  const _Act({required this.child, this.tip, this.onTap});
+  final Widget child;
+  final String? tip;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) {
+    final w = SizedBox(
+      width: 44,
+      height: 44,
+      child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Center(child: child))),
+    );
+    return tip == null ? w : Tooltip(message: tip!, child: w);
+  }
+}
+
 class LibrarySheet extends ConsumerStatefulWidget {
   const LibrarySheet({super.key, this.tab = 'installed'});
   final String tab;
@@ -76,6 +127,7 @@ class LibrarySheet extends ConsumerStatefulWidget {
 class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   late String _tab = widget.tab;
   String _filter = 'all', _lang = 'all', _q = '';
+  final _search = TextEditingController();
   List<CatalogEntry>? _catalog;
   String? _catErr;
   final Map<String, (double, String)> _busy = {};
@@ -85,6 +137,12 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   void initState() {
     super.initState();
     _loadCatalog();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCatalog() async {
@@ -155,74 +213,92 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     }
     final langCodes = langCount.keys.toList()..sort((a, b) => langRank(a).compareTo(langRank(b)) != 0 ? langRank(a).compareTo(langRank(b)) : a.compareTo(b));
 
-    Widget chip(String label, bool on, VoidCallback tap, {int? n}) => Padding(
-          padding: const EdgeInsets.only(right: 6),
-          child: ChoiceChip(label: Text(n != null && n > 0 ? '$label  $n' : label), selected: on, onSelected: (_) => tap(), visualDensity: VisualDensity.compact),
-        );
+    // .filter-chips: одна строка, прокручивается вбок
+    // у края, за которым есть ещё плашки, — затухание вместо обрезки
+    Widget chips(List<Widget> items) => SizedBox(height: 34, child: FadeRow(padding: const EdgeInsets.symmetric(horizontal: 16), children: items));
 
-    final groups = [for (final e in moduleSections) if (lang == 'all' && _filter == 'all' ? list.any((m) => m.type == e.$1) : e.$1 == _filter) (e.$1, e.$2, list.where((m) => m.type == e.$1).toList())];
+    // Группы по типам: выбранный тип (или все), только непустые — при любом сочетании типа, языка и поиска
+    final groups = [
+      for (final e in moduleSections)
+        if ((_filter == 'all' || e.$1 == _filter) && list.any((m) => m.type == e.$1)) (e.$1, e.$2, list.where((m) => m.type == e.$1).toList()),
+    ];
+    final empty = groups.isEmpty && !(_tab == 'catalog' && _catalog == null);
 
     return AppSheet(
       title: t('Библиотека модулей'),
-      full: true,
+      // вкладки, поиск и фильтры закреплены; поля 16 у вкладок и поиска, чипы сами отступают
       fixed: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-        child: Column(children: [
-          SegmentedButton<String>(
-            showSelectedIcon: false,
-            segments: [ButtonSegment(value: 'installed', label: Text(t('Установленные'))), ButtonSegment(value: 'catalog', label: Text(t('Каталог')))],
-            selected: {_tab},
-            onSelectionChanged: (v) => setState(() => _tab = v.first),
+        padding: const EdgeInsets.only(top: 12, bottom: 6),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          AobTabs<String>(
+            tabs: [('installed', t('Установленные'), null), ('catalog', t('Каталог'), null)],
+            value: _tab,
+            onChanged: (v) => setState(() => _tab = v),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            onChanged: (v) => setState(() => _q = v),
-            decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: t('Поиск: Лопухин, Стронг, KJV…'), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AobInput(controller: _search, hint: t('Поиск: Лопухин, Стронг, KJV…'), onChanged: (v) => setState(() => _q = v)),
           ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 40,
-            child: ListView(scrollDirection: Axis.horizontal, children: [
-              chip(t('Все'), _filter == 'all', () => setState(() => _filter = 'all')),
-              for (final e in moduleSections) chip(t(e.$2), _filter == e.$1, () => setState(() => _filter = e.$1), n: counts[e.$1]),
+          const SizedBox(height: 12),
+          chips([
+            AobChip(label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+            for (final e in moduleSections) AobChip(label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
+          ]),
+          if (langCodes.length >= 2) ...[
+            const SizedBox(height: 12),
+            chips([
+              AobChip(label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
+              for (final c in langCodes) AobChip(label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
             ]),
-          ),
-          if (langCodes.length >= 2)
-            SizedBox(
-              height: 40,
-              child: ListView(scrollDirection: Axis.horizontal, children: [
-                chip(t('Все языки'), lang == 'all', () => setState(() => _lang = 'all')),
-                for (final c in langCodes) chip(langName(c), lang == c, () => setState(() => _lang = c), n: langCount[c]),
-              ]),
-            ),
+          ],
         ]),
       ),
       children: [
         if (_tab == 'catalog' && _catErr != null) ...[
-          Text(_catErr!, style: const TextStyle(color: Colors.redAccent)),
-          Center(child: TextButton.icon(onPressed: _loadCatalog, icon: const Icon(Icons.refresh), label: Text(t('Повторить')))),
+          Text(_catErr!, style: TextStyle(color: _danger(pal), height: 1.4)),
+          Align(alignment: Alignment.centerLeft, child: AobButton(icon: LucideIcons.refreshCw, label: t('Повторить'), small: true, onTap: _loadCatalog)),
         ],
-        if (_tab == 'catalog' && _catalog == null && _catErr == null)
-          Padding(padding: const EdgeInsets.all(24), child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), const SizedBox(width: 10), Text(t('Загружаю каталог…'))]))),
-        if (list.isEmpty && !(_tab == 'catalog' && _catalog == null))
+        if (_tab == 'catalog' && _catalog == null && _catErr == null) Loading(t('Загружаю каталог…')),
+        if (empty)
+          // .empty: значок 28 с тонкой линией, заголовок, пояснение
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 28),
             child: Column(children: [
-              Icon(Icons.menu_book_outlined, size: 36, color: pal.muted),
-              Text(t('Модулей нет'), style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(_tab == 'installed' ? t('Скачайте из каталога или импортируйте JSON-файл.') : t('В каталоге пока нет модулей.'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)),
+              Icon(LucideIcons.bookOpen, size: 28, color: pal.muted),
+              const SizedBox(height: 8),
+              // выборка (тип, язык, поиск) пуста, а модули есть — «Ничего не найдено», а не «Модулей нет»
+              Text(base.isNotEmpty ? t('Ничего не найдено.') : t('Модулей нет'), style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
+              if (base.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_tab == 'installed' ? t('Скачайте из каталога или импортируйте JSON-файл.') : t('В каталоге пока нет модулей.'), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.45, color: pal.muted)),
+              ],
             ]),
           ),
         for (final g in groups)
-          if (g.$3.isNotEmpty) ...[
-            Padding(padding: const EdgeInsets.fromLTRB(4, 12, 4, 4), child: Text('${t(g.$2)}  ${g.$3.length}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: pal.muted))),
-            for (final m in g.$3) _row(m, s, pal),
-          ],
+          if (g.$3.isNotEmpty)
+            // .nav-group: заголовок h4 и список в рамке; зазор 8
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(text: t(g.$2)),
+                  TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
+                ]), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+              ),
+              Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+                child: Column(children: [
+                  for (final (i, m) in g.$3.indexed) _row(m, s, pal, first: i == 0),
+                ]),
+              ),
+            ]),
       ],
     );
   }
 
-  Widget _row(_Item m, Settings s, Palette pal) {
+  Widget _row(_Item m, Settings s, Palette pal, {required bool first}) {
     final installed = m.installed;
     final busy = _busy[m.id];
     final isPrimary = installed != null && s.get<String>('primaryModule') == installed.id;
@@ -230,56 +306,74 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     final open = _open == m.id;
     Widget action;
     if (busy != null) {
-      action = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), const SizedBox(width: 6), Text('${(busy.$1 * 100).round()}%', style: TextStyle(color: pal.muted, fontSize: 13))]),
+      // .row-act.busy: вертушка и проценты цветом акцента
+      action = Container(
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [Spin(color: pal.accent), const SizedBox(width: 4), Text('${(busy.$1 * 100).round()}%', style: TextStyle(color: pal.accent, fontSize: 12.5))]),
       );
     } else if (_tab == 'catalog' && m.unavailable) {
-      action = IconButton(icon: Icon(Icons.block, color: pal.muted), tooltip: t('Нет свободной электронной версии'), onPressed: null);
+      action = _Act(tip: t('Нет свободной электронной версии'), child: Icon(LucideIcons.ban, size: 20, color: pal.muted));
     } else if (updatable) {
-      action = IconButton(icon: Icon(Icons.refresh, color: pal.accent), tooltip: t('Есть новая версия'), onPressed: () => _install(m.cat!));
+      action = _Act(tip: t('Есть новая версия'), onTap: () => _install(m.cat!), child: Icon(LucideIcons.refreshCw, size: 20, color: pal.accent));
     } else if (_tab == 'installed' && installed?.type == 'bible' && installed?.features['helper'] != true) {
-      action = IconButton(
-        icon: Icon(isPrimary ? Icons.star : Icons.star_border, color: isPrimary ? pal.accent : pal.muted),
-        tooltip: isPrimary ? t('Основной перевод') : t('Сделать основным'),
-        onPressed: isPrimary ? null : () => _primary(m),
+      action = _Act(
+        tip: isPrimary ? t('Основной перевод') : t('Сделать основным'),
+        onTap: isPrimary ? null : () => _primary(m),
+        child: isPrimary ? _FilledStar(color: pal.accent) : Icon(LucideIcons.star, size: 20, color: pal.muted),
       );
     } else if (installed != null) {
-      action = Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.check_circle_outline, color: pal.accent));
+      action = _Act(tip: t('Установлен'), child: Icon(LucideIcons.circleCheck, size: 20, color: _ok(pal)));
     } else {
-      action = IconButton(
-        icon: Icon(Icons.download, color: pal.accent),
-        tooltip: '${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}',
-        onPressed: () => _install(m.cat ?? CatalogEntry(m.json)),
+      action = _Act(
+        tip: '${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}',
+        onTap: () => _install(m.cat ?? CatalogEntry(m.json)),
+        child: Icon(LucideIcons.download, size: 20, color: pal.accent),
       );
     }
     final sub = [if (m.language.isNotEmpty) langName(m.language), m.title.isNotEmpty ? m.title : t(moduleTypeNames[m.type] ?? m.type)].join(' · ');
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => setState(() => _open = open ? null : m.id),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 6),
+    void toggle() => setState(() => _open = open ? null : m.id);
+    return Container(
+      decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: pal.line))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
           child: Row(children: [
-            Icon(_typeIcon[m.type] ?? Icons.abc, size: 22, color: pal.muted),
-            const SizedBox(width: 10),
+            // .mod-main: значок вида цвета акцента, название и ниже язык · описание
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(m.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: m.unavailable ? pal.muted : pal.text)),
-                  Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
-                ]),
+              child: InkWell(
+                onTap: toggle,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
+                  child: Row(children: [
+                    Icon(_typeIcon[m.type] ?? LucideIcons.bookText, size: 20, color: pal.accent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Opacity(
+                        opacity: m.unavailable ? 0.6 : 1,
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(m.name, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w700, color: pal.text)),
+                          const SizedBox(height: 1),
+                          Text(sub, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.1, color: pal.muted)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
               ),
             ),
             action,
-            Icon(open ? Icons.expand_less : Icons.expand_more, color: pal.muted),
+            // .row-chev: 40×44, при раскрытии переворачивается
+            InkWell(
+              onTap: toggle,
+              child: SizedBox(width: 40, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 20, color: pal.muted)))),
+            ),
+            const SizedBox(width: 4),
           ]),
         ),
-      ),
-      if (open) _details(m, pal, isPrimary, updatable, busy != null),
-      Divider(height: 1, color: pal.line),
-    ]);
+        if (open) _details(m, pal, isPrimary, updatable, busy != null),
+      ]),
+    );
   }
 
   Widget _details(_Item m, Palette pal, bool isPrimary, bool updatable, bool busy) {
@@ -293,37 +387,40 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       if (m.str('author') != null) (t('Автор'), m.str('author')!),
       if (m.str('source') != null) (t('Источник'), m.str('source')!),
     ];
+    // .mod-more: поля 0 14 12 46, зазор 10
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 0, 6, 10),
+      padding: const EdgeInsets.fromLTRB(46, 0, 14, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (m.str('description') != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(m.str('description')!, style: TextStyle(color: pal.text, height: 1.35))),
-        for (final f in facts)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox(width: 84, child: Text(f.$1, style: TextStyle(color: pal.muted, fontSize: 13))),
-              Expanded(child: SelectableText(f.$2, style: const TextStyle(fontSize: 13))),
-            ]),
-          ),
-        if (busy) Padding(padding: const EdgeInsets.only(top: 6), child: LinearProgressIndicator(value: _busy[m.id]!.$1, color: pal.accent, backgroundColor: pal.line)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 6, children: [
-          if (installed?.type == 'bible' && installed?.features['helper'] != true && !isPrimary)
-            OutlinedButton.icon(icon: const Icon(Icons.star_border, size: 16), label: Text(t('Сделать основным')), onPressed: () => _primary(m)),
+        if (m.str('description') != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(m.str('description')!, style: TextStyle(fontSize: 14.4, color: pal.text, height: 1.45))),
+        // .mod-facts: две колонки, подписи бледные, 13.1
+        Table(
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          columnWidths: const {1: FlexColumnWidth()},
+          children: [
+            for (final f in facts)
+              TableRow(children: [
+                Padding(padding: const EdgeInsets.only(right: 12, bottom: 3), child: Text(f.$1, style: TextStyle(color: pal.muted, fontSize: 13.1))),
+                Padding(padding: const EdgeInsets.only(bottom: 3), child: SelectableText(f.$2, style: TextStyle(fontSize: 13.1, color: pal.text))),
+              ]),
+          ],
+        ),
+        if (busy) ...[
+          const SizedBox(height: 4),
+          Text(_busy[m.id]!.$2, style: TextStyle(fontSize: 13.1, color: pal.muted)),
+          const SizedBox(height: 6),
+          ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: _busy[m.id]!.$1, minHeight: 5, color: pal.accent, backgroundColor: pal.line)),
+        ],
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          if (installed?.type == 'bible' && installed?.features['helper'] != true && !isPrimary) AobButton(small: true, icon: LucideIcons.star, label: t('Сделать основным'), onTap: () => _primary(m)),
           if (installed == null && !m.unavailable)
-            FilledButton.icon(icon: const Icon(Icons.download, size: 16), label: Text('${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}'), onPressed: busy ? null : () => _install(m.cat ?? CatalogEntry(m.json))),
+            AobButton(small: true, kind: BtnKind.primary, icon: LucideIcons.download, label: '${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}', onTap: busy ? null : () => _install(m.cat ?? CatalogEntry(m.json))),
           if (installed != null && m.cat != null && !m.cat!.unavailable)
-            OutlinedButton.icon(icon: const Icon(Icons.refresh, size: 16), label: Text(updatable ? t('Обновить') : t('Переустановить')), onPressed: busy ? null : () => _install(m.cat!)),
-          if (installed != null)
-            OutlinedButton.icon(
-              icon: const Icon(Icons.delete_outline, size: 16),
-              label: Text(t('Удалить')),
-              onPressed: () async {
-                if (await confirm(context, '${t('Удалить')}: ${m.name}?', t('Удалить'))) _remove(m);
-              },
-            ),
+            AobButton(small: true, icon: LucideIcons.refreshCw, label: updatable ? t('Обновить') : t('Переустановить'), onTap: busy ? null : () => _install(m.cat!)),
+          if (installed != null) ConfirmButton(small: true, icon: LucideIcons.trash2, label: t('Удалить'), confirmText: t('Удалить'), onConfirm: () => _remove(m)),
         ]),
       ]),
     );
   }
 }
+

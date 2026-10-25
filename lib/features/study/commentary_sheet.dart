@@ -6,6 +6,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'dictionary_sheet.dart';
 import 'sheet.dart';
 import 'study_data.dart';
@@ -50,7 +51,7 @@ class _CommentarySheetState extends ConsumerState<CommentarySheet> {
     if (res == null) {
       children.add(Loading(t('Загрузка…')));
     } else if (res.isEmpty) {
-      children.add(Empty(icon: Icons.chat_bubble_outline, title: t('Комментариев к этому стиху нет')));
+      children.add(Empty(icon: LucideIcons.messageSquareText, title: t('Комментариев к этому стиху нет')));
     } else {
       if (res.length > 1) {
         children.add(TabsRow(labels: [for (final x in res) x.module.name], index: res.indexWhere((x) => x.module.id == _sel).clamp(0, res.length - 1), onTap: (i) => setState(() => _sel = res[i].module.id)));

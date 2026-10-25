@@ -4,6 +4,7 @@
 // Нажатие на стих — запись идёт с начала этого стиха. Ниже — перемотка, ⏮ ▶/⏸ ⏭, громкость, скорость, таймер сна,
 // скачивание книги, закрытие. Закрывается свайпом вниз за шапку или стрелкой вниз.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ import '../../core/i18n.dart';
 import '../../core/markup.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'audio_bar.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
@@ -172,21 +174,24 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                   padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
                   child: Column(children: [
                     Container(width: 42, height: 5, margin: const EdgeInsets.only(top: 2, bottom: 6), decoration: BoxDecoration(color: pal.text.withValues(alpha: 0.28), borderRadius: BorderRadius.circular(3))),
+                    // .ap-head-row: промежуток 8; .ap-title: колонка по центру, промежуток 2
                     Row(children: [
                       Semantics(
                         button: true,
                         label: t('Свернуть проигрыватель'),
                         child: InkResponse(
                           onTap: () => Navigator.of(context).pop(),
-                          child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: pal.text.withValues(alpha: 0.08)), child: Icon(Icons.keyboard_arrow_down, size: 28, color: pal.text)),
+                          child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: pal.text.withValues(alpha: 0.08)), child: Icon(LucideIcons.chevronDown, size: 26, color: pal.text)),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Column(children: [
+                        child: Column(spacing: 2, children: [
                           Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 17.6, fontWeight: FontWeight.w700, color: pal.text, height: 1.25)),
                           if (_names.isNotEmpty) Text(_names, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.8, color: pal.muted, height: 1.3)),
                         ]),
                       ),
+                      const SizedBox(width: 8),
                       const SizedBox(width: 44),
                     ]),
                   ]),
@@ -247,33 +252,17 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
   Widget _controls(AudioState a, Palette pal, VerseRef r) {
     final left = sleepLeftMinutes(a.sleep);
     final sleepLabel = a.sleep == null ? t('Выкл') : a.sleep!.kind == 'chapter' ? t('Конец главы') : t('{n} мин', {'n': '${left ?? a.sleep!.minutes}'});
-    Widget chip(Widget child, VoidCallback f, {bool on = false, String? label}) => Semantics(
-          button: true,
-          label: label,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: f,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 54, minHeight: 38),
-              padding: const EdgeInsets.symmetric(horizontal: 13),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: on ? Color.lerp(pal.line, pal.accent, 0.5)! : pal.line),
-                color: pal.panel.withValues(alpha: 0.72),
-              ),
-              child: DefaultTextStyle.merge(style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: on ? pal.accent : pal.text), child: child),
-            ),
-          ),
-        );
+    // .ap-controls: промежуток 10 (14 при высоте окна от 760 px), поля 4 22 max(22, нижний отступ − 8)
+    final gap = MediaQuery.sizeOf(context).height >= 760 ? 14.0 : 10.0;
+    final bottom = math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (a.error != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(a.error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.4, color: Color(0xFFC0392B)))),
-            DownloadNote(pal: pal, center: true, border: false),
+          padding: EdgeInsets.fromLTRB(22, 4, 22, bottom),
+          child: Column(mainAxisSize: MainAxisSize.min, spacing: gap, children: [
+            if (a.error != null) Text(a.error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13.4, color: _danger)),
+            DownloadNote(pal: pal, center: true, border: false, gap: gap),
             // Перемотка
             ValueListenableBuilder<TimeSnap>(
               valueListenable: _e.time,
@@ -281,25 +270,29 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                 final len = tm.len;
                 final pos = (_seek ?? tm.pos).clamp(0, len > 0 ? len : 1).toDouble();
                 return Column(children: [
-                  SliderTheme(
-                    data: _sliderTheme(pal),
-                    child: Semantics(
-                      label: t('Место в записи'),
-                      value: t('{cur} из {total}', {'cur': clock(pos), 'total': clock(len)}),
-                      child: Slider(
-                        min: 0,
-                        max: len > 0 ? len : 1,
-                        value: pos,
-                        onChanged: len > 0 ? (v) => setState(() => _seek = v) : null,
-                        onChangeEnd: (v) {
-                          setState(() => _seek = null);
-                          _e.seekChapter(v);
-                        },
+                  SizedBox(
+                    height: 24,
+                    child: SliderTheme(
+                      data: _sliderTheme(pal),
+                      child: Semantics(
+                        label: t('Место в записи'),
+                        value: t('{cur} из {total}', {'cur': clock(pos), 'total': clock(len)}),
+                        child: Slider(
+                          min: 0,
+                          max: len > 0 ? len : 1,
+                          value: pos,
+                          onChanged: len > 0 ? (v) => setState(() => _seek = v) : null,
+                          onChangeEnd: (v) {
+                            setState(() => _seek = null);
+                            _e.seekChapter(v);
+                          },
+                        ),
                       ),
                     ),
                   ),
+                  // .ap-times: отступ сверху 2, 12,5 px
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.only(top: 2),
                     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                       Text(clock(pos), style: TextStyle(fontSize: 12.5, color: pal.muted, fontFeatures: const [ui.FontFeature.tabularFigures()])),
                       Text('−${clock((len - pos).clamp(0, double.infinity))}', style: TextStyle(fontSize: 12.5, color: pal.muted, fontFeatures: const [ui.FontFeature.tabularFigures()])),
@@ -308,53 +301,59 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                 ]);
               },
             ),
-            const SizedBox(height: 6),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _big(Icons.skip_previous, 34, () => _e.stepVerse(-1), pal, t('Предыдущий стих')),
-              const SizedBox(width: 28),
+            // .ap-transport: промежуток 28; .ap-btn 60×60 (значок 30), .ap-play 78×78 (значок 34)
+            Row(mainAxisAlignment: MainAxisAlignment.center, spacing: 28, children: [
+              _big(LucideIcons.skipBack, 30, () => _e.stepVerse(-1), pal, t('Предыдущий стих')),
               Container(
                 decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: pal.accent.withValues(alpha: 0.38), blurRadius: 26, offset: const Offset(0, 8))]),
-                child: audioPlayButton(a, pal, 78),
+                child: audioPlayButton(a, pal, 78, iconSize: 34),
               ),
-              const SizedBox(width: 28),
-              _big(Icons.skip_next, 34, () => _e.stepVerse(1), pal, t('Следующий стих')),
+              _big(LucideIcons.skipForward, 30, () => _e.stepVerse(1), pal, t('Следующий стих')),
             ]),
-            const SizedBox(height: 10),
-            // Громкость
-            Row(children: [
-              Icon(Icons.volume_down, size: 20, color: pal.muted),
+            // Громкость (.ap-volume: промежуток 10, значки 18)
+            Row(spacing: 10, children: [
+              Icon(LucideIcons.volume1, size: 18, color: pal.muted),
               Expanded(
-                child: SliderTheme(
-                  data: _sliderTheme(pal),
-                  child: Semantics(
-                    label: t('Громкость'),
-                    value: '${(a.volume * 100).round()}%',
-                    child: Slider(min: 0, max: 1, value: a.volume, onChanged: (v) => _e.setVolume(v)),
+                child: SizedBox(
+                  height: 24,
+                  child: SliderTheme(
+                    data: _sliderTheme(pal),
+                    child: Semantics(
+                      label: t('Громкость'),
+                      value: '${(a.volume * 100).round()}%',
+                      child: Slider(min: 0, max: 1, value: a.volume, onChanged: (v) => _e.setVolume(v)),
+                    ),
                   ),
                 ),
               ),
-              Icon(Icons.volume_up, size: 20, color: pal.muted),
+              Icon(LucideIcons.volume2, size: 18, color: pal.muted),
             ]),
-            const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              chip(Text(rateText(a.rate)), () {
-                final i = rates.indexOf(a.rate);
-                _e.setRate(rates[(i + 1) % rates.length]);
-              }, label: '${t('Скорость')}: ${rateText(a.rate)}'),
-              chip(
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.bedtime_outlined, size: 17, color: a.sleep != null ? pal.accent : pal.text),
-                  if (a.sleep != null) ...[const SizedBox(width: 6), Text(sleepLabel)],
-                ]),
-                () => _openSleep(a, pal),
+            // .ap-extras: между краями, промежуток 8
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, spacing: 8, children: [
+              _ApChip(
+                onTap: () {
+                  final i = rates.indexOf(a.rate);
+                  _e.setRate(rates[(i + 1) % rates.length]);
+                },
+                label: '${t('Скорость')}: ${rateText(a.rate)}',
+                pal: pal,
+                child: Text(rateText(a.rate)),
+              ),
+              _ApChip(
+                onTap: () => _openSleep(a, pal),
                 on: a.sleep != null,
                 label: '${t('Таймер сна')}: $sleepLabel',
+                pal: pal,
+                child: Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: [
+                  Icon(LucideIcons.moon, size: 16, color: a.sleep != null ? pal.accent : pal.text),
+                  if (a.sleep != null) Text(sleepLabel),
+                ]),
               ),
-              if (a.source != null) DownloadButton(audioId: a.source!, book: r.book, size: 21, pal: pal),
+              if (a.source != null) DownloadButton(audioId: a.source!, book: r.book, size: 20, pal: pal),
               InkResponse(
                 onTap: _e.stop,
                 radius: 24,
-                child: SizedBox(width: 40, height: 40, child: Icon(Icons.close, size: 22, color: pal.text, semanticLabel: t('Закрыть аудио'))),
+                child: SizedBox(width: 40, height: 40, child: Icon(LucideIcons.x, size: 20, color: pal.text, semanticLabel: t('Закрыть аудио'))),
               ),
             ]),
           ]),
@@ -363,6 +362,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
     );
   }
 
+  // Ползунки: дорожка 5 px, бегунок 17 px (радиус 8,5), без круга-нажатия
   SliderThemeData _sliderTheme(Palette pal) => SliderThemeData(
         trackHeight: 5,
         activeTrackColor: pal.accent,
@@ -370,6 +370,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
         thumbColor: pal.accent,
         overlayColor: pal.accent.withValues(alpha: 0.12),
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.5),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 8.5),
         trackShape: const RoundedRectSliderTrackShape(),
       );
 
@@ -380,16 +381,56 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
       );
 
   void _openSleep(AudioState a, Palette pal) {
+    // Свой нижний лист, как .sp-layer/.sp: затемнение text 18 %, скругление 28, ширина до 560, без шапки и крестика
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: pal.panel,
+      barrierColor: pal.text.withValues(alpha: 0.18),
       isScrollControlled: true,
+      showDragHandle: false,
+      constraints: const BoxConstraints(maxWidth: 560),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => SleepPicker(initial: a.sleep?.minutes ?? 15, active: a.sleep != null, pal: pal),
     );
   }
 }
 
-/// Одна строка стиха в «караоке»: чем дальше от звучащего, тем бледнее и размытее
+const _danger = Color(0xFFB4412F); // --danger
+
+/// .ap-chip: пилюля от 54×38, рамка line, фон panel 72 %, жирный 14 px; включённая — accent
+class _ApChip extends StatelessWidget {
+  const _ApChip({required this.child, required this.onTap, required this.pal, this.on = false, this.label});
+  final Widget child;
+  final VoidCallback onTap;
+  final Palette pal;
+  final bool on;
+  final String? label;
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 54, minHeight: 38),
+            padding: const EdgeInsets.symmetric(horizontal: 13),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: on ? mix(pal.accent, 0.5, pal.line) : pal.line),
+              color: mix(pal.panel, 0.72, Colors.transparent),
+            ),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.1, color: on ? pal.accent : pal.text, fontFeatures: const [ui.FontFeature.tabularFigures()]),
+              child: child,
+            ),
+          ),
+        ),
+      );
+}
+
+/// Одна строка стиха в «караоке» (.ap-verse): чем дальше от звучащего, тем бледнее и размытее
 class _VerseLine extends StatelessWidget {
   const _VerseLine({required this.number, required this.text, required this.d, required this.manual, required this.fontSize, required this.pal, required this.onTap});
   final int number, d;
@@ -403,31 +444,44 @@ class _VerseLine extends StatelessWidget {
   Widget build(BuildContext context) {
     const op = [1.0, 0.5, 0.32, 0.22, 0.15];
     final opacity = manual ? (d == 0 ? 1.0 : 0.62) : op[d];
-    final sigma = manual || d == 0 ? 0.0 : [0.0, 1.4, 2.4, 3.2, 3.6][d];
+    // text-shadow: 0 0 4/6/8/9 px при прозрачном тексте — это размытие с σ = радиус / 2
+    final sigma = manual || d == 0 ? 0.0 : [0.0, 2.0, 3.0, 4.0, 4.5][d];
     Widget child = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Text.rich(
         TextSpan(children: [
-          WidgetSpan(alignment: PlaceholderAlignment.top, child: Padding(padding: const EdgeInsets.only(right: 4), child: Text('$number', style: TextStyle(fontSize: fontSize * 0.5, fontWeight: FontWeight.w700, color: pal.accent, height: 1)))),
+          // .ap-vn: .5em, отступ справа .35em от собственного кегля, цвет accent
+          WidgetSpan(alignment: PlaceholderAlignment.top, child: Padding(padding: EdgeInsets.only(right: fontSize * 0.5 * 0.35), child: Text('$number', style: TextStyle(fontSize: fontSize * 0.5, fontWeight: FontWeight.w700, color: pal.accent, height: 1)))),
           TextSpan(text: text),
         ]),
         style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700, height: 1.3, color: pal.text),
       ),
     );
     if (sigma > 0) child = ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal), child: child);
+    final ms = Duration(milliseconds: manual ? 200 : 500);
     return Semantics(
       button: true,
       selected: d == 0,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
-        child: AnimatedOpacity(duration: const Duration(milliseconds: 300), opacity: opacity, child: Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 640), child: child))),
+        child: AnimatedOpacity(
+          duration: ms,
+          opacity: opacity,
+          // transform: scale(.95) с началом слева по центру, пока стих не звучит
+          child: AnimatedScale(
+            duration: ms,
+            scale: manual || d == 0 ? 1 : 0.95,
+            alignment: Alignment.centerLeft,
+            child: Align(alignment: Alignment.centerLeft, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 640), child: child)),
+          ),
+        ),
       ),
     );
   }
 }
 
-// --- Таймер сна: лента минут, как у таймера в телефоне -----------------------------------------
+// --- Таймер сна: лента минут, как у таймера в телефоне (.sp) -----------------------------------
 
 const _spMax = 120; // минут на ленте
 const _spStep = 12.0; // px на минуту
@@ -457,111 +511,119 @@ class _SleepPickerState extends State<SleepPicker> {
   Widget build(BuildContext context) {
     final pal = widget.pal;
     final e = AudioEngine.I;
-    final half = MediaQuery.sizeOf(context).width / 2 - _spStep / 2;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 18, 0, 14),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Semantics(
-            slider: true,
-            label: t('Таймер сна'),
-            value: t('{n} мин', {'n': '$_min'}),
-            child: SizedBox(
-              height: 88,
-              child: Stack(alignment: Alignment.bottomCenter, children: [
-                NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n is ScrollUpdateNotification || n is ScrollEndNotification) {
-                      final m = (_c.offset / _spStep).round().clamp(0, _spMax);
-                      if (m != _min) {
-                        setState(() => _min = m);
-                        HapticFeedback.selectionClick();
-                      }
-                      if (n is ScrollEndNotification && (_c.offset - m * _spStep).abs() > 0.5) _moveTo(m);
+    final w = MediaQuery.sizeOf(context).width;
+    final half = math.min(w, 560.0) / 2 - _spStep / 2;
+    // .sp: поля 18 0 max(22, нижний отступ − 8)
+    final bottom = math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
+    final timeSize = (w * 0.13).clamp(41.6, 57.6).toDouble();
+    return Padding(
+      padding: EdgeInsets.fromLTRB(0, 18, 0, bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Semantics(
+          slider: true,
+          label: t('Таймер сна'),
+          value: t('{n} мин', {'n': '$_min'}),
+          child: SizedBox(
+            height: 88,
+            child: Stack(alignment: Alignment.bottomCenter, children: [
+              NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n is ScrollUpdateNotification || n is ScrollEndNotification) {
+                    final m = (_c.offset / _spStep).round().clamp(0, _spMax);
+                    if (m != _min) {
+                      setState(() => _min = m);
+                      HapticFeedback.selectionClick();
                     }
-                    return false;
-                  },
-                  child: ShaderMask(
-                    blendMode: BlendMode.dstIn,
-                    shaderCallback: (r) => const LinearGradient(colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent], stops: [0, 0.18, 0.82, 1]).createShader(r),
-                    child: ListView.builder(
-                      controller: _c,
-                      scrollDirection: Axis.horizontal,
-                      itemExtent: _spStep,
-                      padding: EdgeInsets.symmetric(horizontal: half),
-                      itemCount: _spMax + 1,
-                      itemBuilder: (_, m) => GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _moveTo(m),
-                        child: Stack(alignment: Alignment.bottomCenter, clipBehavior: Clip.none, children: [
-                          Container(width: 3, height: m % 5 == 0 ? 34 : 34, margin: const EdgeInsets.only(bottom: 14), decoration: BoxDecoration(color: m % 5 == 0 ? pal.accent : pal.accent.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(2))),
-                          if (m % 5 == 0)
-                            Positioned(bottom: 56, child: SizedBox(width: 40, child: Text('$m', textAlign: TextAlign.center, softWrap: false, overflow: TextOverflow.visible, style: TextStyle(fontSize: 16.8, fontWeight: FontWeight.w600, color: pal.accent)))),
-                        ]),
-                      ),
+                    if (n is ScrollEndNotification && (_c.offset - m * _spStep).abs() > 0.5) _moveTo(m);
+                  }
+                  return false;
+                },
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (r) => const LinearGradient(colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent], stops: [0, 0.18, 0.82, 1]).createShader(r),
+                  child: ListView.builder(
+                    controller: _c,
+                    scrollDirection: Axis.horizontal,
+                    itemExtent: _spStep,
+                    padding: EdgeInsets.symmetric(horizontal: half),
+                    itemCount: _spMax + 1,
+                    itemBuilder: (_, m) => GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _moveTo(m),
+                      child: Stack(alignment: Alignment.bottomCenter, clipBehavior: Clip.none, children: [
+                        // .sp-tick: чёрточка 3×34 на 14 px выше нижнего края; кратные 5 — яркие, с числом
+                        Container(width: 3, height: 34, margin: const EdgeInsets.only(bottom: 14), decoration: BoxDecoration(color: m % 5 == 0 ? pal.accent : pal.accent.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(2))),
+                        if (m % 5 == 0)
+                          Positioned(bottom: 56, child: SizedBox(width: 40, child: Text('$m', textAlign: TextAlign.center, softWrap: false, overflow: TextOverflow.visible, style: TextStyle(fontSize: 16.8, fontWeight: FontWeight.w600, color: pal.accent, fontFeatures: const [ui.FontFeature.tabularFigures()])))),
+                      ]),
                     ),
                   ),
                 ),
-                IgnorePointer(child: CustomPaint(size: const Size(16, 11), painter: _MarkPainter(pal.accent))),
-              ]),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: Color.lerp(pal.panel, pal.accent, 0.16), foregroundColor: pal.accent, minimumSize: const Size(0, 48), padding: const EdgeInsets.symmetric(horizontal: 22), textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                onPressed: _min == 0
-                    ? null
-                    : () {
-                        e.setSleepMinutes(_min);
-                        Navigator.pop(context);
-                      },
-                child: Text(t('Запустить таймер')),
               ),
-              Text(fmtMin(_min), style: TextStyle(fontSize: 44, fontWeight: FontWeight.w300, color: pal.accent, fontFeatures: const [ui.FontFeature.tabularFigures()])),
+              IgnorePointer(child: CustomPaint(size: const Size(16, 11), painter: _MarkPainter(pal.accent))),
             ]),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(spacing: 8, runSpacing: 8, children: [
-                _SpChip(t('До конца главы'), pal, () {
-                  e.setSleepChapter();
+        ),
+        // .sp-row: поля 8 22 0, промежуток 12
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 0),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, spacing: 12, children: [
+            Opacity(
+              opacity: _min == 0 ? 0.45 : 1,
+              child: Material(
+                color: mix(pal.accent, 0.16, pal.panel),
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: _min == 0
+                      ? null
+                      : () {
+                          e.setSleepMinutes(_min);
+                          Navigator.pop(context);
+                        },
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    alignment: Alignment.center,
+                    child: Text(t('Запустить таймер'), style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.accent)),
+                  ),
+                ),
+              ),
+            ),
+            Text(fmtMin(_min), style: TextStyle(fontSize: timeSize, fontWeight: FontWeight.w300, height: 1, letterSpacing: -0.02 * timeSize, color: pal.accent, fontFeatures: const [ui.FontFeature.tabularFigures()])),
+          ]),
+        ),
+        // .sp-more: слева, перенос строк, отступ сверху 14
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(spacing: 12, runSpacing: 12, children: [
+              _SpChip(t('До конца главы'), pal, () {
+                e.setSleepChapter();
+                Navigator.pop(context);
+              }),
+              if (widget.active)
+                _SpChip(t('Выключить таймер'), pal, () {
+                  e.clearSleep();
                   Navigator.pop(context);
                 }),
-                if (widget.active)
-                  _SpChip(t('Выключить таймер'), pal, () {
-                    e.clearSleep();
-                    Navigator.pop(context);
-                  }),
-              ]),
-            ),
+            ]),
           ),
-        ]),
-      ),
+        ),
+      ]),
     );
   }
 }
 
+/// Кнопки под лентой — тот же .ap-chip, что в проигрывателе
 class _SpChip extends StatelessWidget {
   const _SpChip(this.label, this.pal, this.onTap);
   final String label;
   final Palette pal;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 38),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), border: Border.all(color: pal.line)),
-          child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: pal.text)),
-        ),
-      );
+  Widget build(BuildContext context) => _ApChip(onTap: onTap, pal: pal, child: Text(label));
 }
 
 class _MarkPainter extends CustomPainter {

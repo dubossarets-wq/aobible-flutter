@@ -10,6 +10,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import '../hub.dart';
 import 'interlinear.dart';
 import 'sheet.dart';
@@ -165,18 +166,15 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
     final children = <Widget>[];
     if (others.isEmpty) {
       children.add(Empty(
-        icon: Icons.local_library_outlined,
+        icon: LucideIcons.library,
         title: t('Другой перевод не установлен'),
         child: Column(children: [
           Text(t('Установите ещё один перевод из каталога.')),
           if (Hub.openLibrary != null)
-            TextButton(
-              onPressed: () {
-                closeAllSheets(context);
-                Hub.openLibrary!(context, ref, pane);
-              },
-              child: Text(t('Открыть каталог')),
-            ),
+            LinkButton(t('Открыть каталог'), () {
+              closeAllSheets(context);
+              Hub.openLibrary!(context, ref, pane);
+            }),
         ]),
       ));
     }
@@ -184,48 +182,62 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
       children.add(Loading(t('Загрузка…')));
     } else {
       if (langCodes.length > 1) {
-        children.add(ChipWrap([
-          for (final c in ['all', ...langCodes]) Chip2(c == 'all' ? t('Все языки') : _langName(c), on: _lang == c, onTap: () => setState(() => _lang = c)),
-        ]));
+        children.add(Transform.translate(
+          offset: const Offset(0, -4), // .lang-chips { margin-top: -4px }
+          child: FilterChips([
+            for (final c in ['all', ...langCodes]) Chip2(c == 'all' ? t('Все языки') : _langName(c), on: _lang == c, onTap: () => setState(() => _lang = c)),
+          ]),
+        ));
       }
+      final cmpItems = <Widget>[]; // .cmp-list: без промежутков между переводами
       for (final b in shown) {
         final tx = texts[b.id] ?? '';
         final isCur = b.id == widget.moduleId;
         Widget text;
         if (tx.isEmpty) {
-          text = Text(t('В этом переводе нет такого места.'), style: TextStyle(color: pal.muted, fontSize: 16.3, height: 1.5));
+          text = Text(t('В этом переводе нет такого места.'), style: TextStyle(color: pal.muted, fontSize: 16.32, height: 1.5));
         } else if (!isCur && current != null && (texts[widget.moduleId] ?? '').isNotEmpty && b.language == current.language) {
           text = Text.rich(
             TextSpan(children: [
               for (final (s, d) in diffWords(texts[widget.moduleId]!, tx))
-                TextSpan(text: s, style: d ? TextStyle(backgroundColor: pal.accent.withValues(alpha: 0.22)) : null),
+                TextSpan(text: s, style: d ? const TextStyle(backgroundColor: Color(0x61F2A65A)) : null), // mark.diff: #f2a65a 38%
             ]),
-            style: const TextStyle(fontSize: 16.3, height: 1.5),
+            style: const TextStyle(fontSize: 16.32, height: 1.5),
           );
         } else {
-          text = Text(tx, style: const TextStyle(fontSize: 16.3, height: 1.5));
+          text = Text(tx, style: const TextStyle(fontSize: 16.32, height: 1.5));
         }
-        children.add(Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом
+        cmpItems.add(Container(
+          padding: EdgeInsets.only(top: b == shown.first ? 2 : 12, bottom: 12),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Text(b.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-              const SizedBox(width: 8),
-              Expanded(child: Text(isCur ? t('открыт сейчас') : b.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted, fontSize: 13.6))),
-              if (!isCur) IconButton(icon: Icon(Icons.view_column_outlined, color: pal.accent), tooltip: t('Читать параллельно'), onPressed: () => _parallel(b)),
-            ]),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 36),
+              child: Row(children: [
+                Text(b.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(isCur ? t('открыт сейчас') : b.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted, fontSize: 13.6))),
+                if (!isCur)
+                  Transform.translate(offset: const Offset(8, 0), child: IconBtn(icon: LucideIcons.columns2, size: 20, color: pal.accent, tooltip: t('Читать параллельно'), onTap: () => _parallel(b))),
+              ]),
+            ),
+            const SizedBox(height: 4),
             text,
           ]),
         ));
       }
+      children.add(Column(children: cmpItems));
       if (Hub.openLibrary != null) {
-        children.add(BigButton(t('Другие переводы'), icon: Icons.local_library_outlined, onTap: () {
-          closeAllSheets(context);
-          Hub.openLibrary!(context, ref, pane);
-        }));
+        children.add(Padding(
+          padding: const EdgeInsets.only(top: 4), // .cmp-more
+          child: BigButton(t('Другие переводы'), icon: LucideIcons.library, onTap: () {
+            closeAllSheets(context);
+            Hub.openLibrary!(context, ref, pane);
+          }),
+        ));
       }
     }
-    return SheetScaffold(title: t('Сравнение переводов'), subtitle: selectionLabel(widget.refs, full: true), body: SheetList(gap: 8, children: children));
+    return SheetScaffold(title: t('Сравнение переводов'), subtitle: selectionLabel(widget.refs, full: true), body: SheetList(children: children));
   }
 }

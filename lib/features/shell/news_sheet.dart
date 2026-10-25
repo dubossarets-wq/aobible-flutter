@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'colors.dart';
 import 'news_data.dart';
 import 'sheet.dart';
@@ -42,18 +43,25 @@ class NewsSheet extends ConsumerWidget {
     return AppSheet(
       title: t('Что нового'),
       subtitle: t('Обновление от {date}', {'date': fmtNewsDate(list.first.id)}),
+      gap: 14, // .news
       children: [
+        // .news-list: маркеры цвета акцента, отступ 1.2em, текст 16 с интервалом 1.5, зазор между пунктами 10
         for (final n in list)
-          for (final text in n.items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(padding: const EdgeInsets.only(top: 8, right: 10), child: Container(width: 6, height: 6, decoration: BoxDecoration(color: pal.accent, shape: BoxShape.circle))),
-                Expanded(child: Text(t(text), style: const TextStyle(fontSize: 16, height: 1.4))),
-              ]),
-            ),
-        const SizedBox(height: 10),
-        FilledButton(onPressed: () => Navigator.of(context).maybePop(), child: Text(t('Понятно'))),
+          Column(children: [
+            for (final (i, text) in n.items.indexed)
+              Padding(
+                padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(width: 19, child: Padding(padding: const EdgeInsets.only(top: 9, left: 2), child: Container(width: 6, height: 6, decoration: BoxDecoration(color: pal.accent, shape: BoxShape.circle)))),
+                  Expanded(child: Text(t(text), style: TextStyle(fontSize: 16, height: 1.5, color: pal.text))),
+                ]),
+              ),
+          ]),
+        // .news-ok: во всю ширину, чуть выше обычной кнопки
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: AobButton(kind: BtnKind.primary, wide: true, label: t('Понятно'), onTap: () => Navigator.of(context).maybePop()),
+        ),
       ],
     );
   }

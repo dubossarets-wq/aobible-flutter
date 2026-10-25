@@ -7,6 +7,7 @@ import 'package:aobible/core/i18n.dart';
 import 'package:aobible/core/modules.dart';
 import 'package:aobible/core/settings.dart';
 import 'package:aobible/features/hub.dart';
+import 'package:aobible/ui/kit.dart';
 import 'package:aobible/features/shell/help_sheet.dart';
 import 'package:aobible/features/shell/library_sheet.dart';
 import 'package:aobible/features/shell/more_sheet.dart';
@@ -178,7 +179,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(s().get<String>('textAlign'), 'justify');
     // назад → цвета: акцент синим, потом «как в теме»
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Цвета'));
     await tester.pumpAndSettle();
@@ -189,7 +190,7 @@ void main() {
     await tester.pumpAndSettle();
     expect((s().j['colorOverrides'] as Map), isEmpty);
     // кнопки и панели
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Кнопки и панели'));
     await tester.pumpAndSettle();
@@ -197,7 +198,7 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
     expect(s().d('barHeight'), 56);
     // сброс
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
     await tester.pumpAndSettle();
     await tester.dragUntilVisible(find.text('Сбросить оформление'), find.byType(ListView).last, const Offset(0, -200));
     await tester.tap(find.text('Сбросить оформление'));
@@ -220,17 +221,18 @@ void main() {
     expect(find.text('EN2'), findsOneWidget);
     expect(find.text('Словарик'), findsOneWidget);
     // языки: русский и английский есть, японского нет
-    expect(find.text('Русский  2'), findsOneWidget);
-    expect(find.text('English  1'), findsOneWidget);
+    expect(find.widgetWithText(AobChip, 'Русский'), findsOneWidget);
+    expect(find.descendant(of: find.widgetWithText(AobChip, 'Русский'), matching: find.text('2')), findsOneWidget);
+    expect(find.widgetWithText(AobChip, 'English'), findsOneWidget);
     expect(find.textContaining('Японский'), findsNothing);
     // фильтр по виду
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Словари  1'));
+    await tester.tap(find.widgetWithText(AobChip, 'Словари'));
     await tester.pumpAndSettle();
     expect(find.text('ТТ1'), findsNothing);
     expect(find.text('Словарик'), findsOneWidget);
     // у словарей нет английских — язык English исчез
-    expect(find.textContaining('English  '), findsNothing);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Все'));
+    expect(find.widgetWithText(AobChip, 'English'), findsNothing);
+    await tester.tap(find.widgetWithText(AobChip, 'Все'));
     await tester.pumpAndSettle();
     // поиск
     await tester.enterText(find.byType(TextField), 'en2');
@@ -260,6 +262,8 @@ void main() {
     expect(find.text('AO Bible · версия $appVersion'), findsOneWidget);
     expect(find.text('dubossarets@gmail.com'), findsOneWidget);
     expect(find.text('Telegram'), findsOneWidget);
+    // три вкладки не помещаются в ширину — ряд прокручивается, как в веб-версии
+    await tester.ensureVisible(find.text('Конфиденциальность'));
     await tester.tap(find.text('Конфиденциальность'));
     await tester.pumpAndSettle();
     expect(find.text('Коротко: приложение ничего о вас не собирает.'), findsOneWidget);
@@ -311,7 +315,7 @@ void main() {
     await tester.tap(find.text('Проповеди'));
     await tester.pumpAndSettle();
     expect(find.text('1'), findsOneWidget);
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(find.byIcon(LucideIcons.chevronLeft));
     await tester.pumpAndSettle();
     expect(find.text('Проповеди'), findsOneWidget);
   });

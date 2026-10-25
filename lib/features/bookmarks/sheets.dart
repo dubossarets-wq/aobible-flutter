@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
-import '../../core/settings.dart';
+import '../../ui/kit.dart';
 import 'marks.dart';
 import 'ui.dart';
 
@@ -12,7 +12,6 @@ import 'ui.dart';
 void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) {
   final ref = ProviderScope.containerOf(context); // не WidgetRef: окно живёт дольше строки, из которой открыто
   final msg = ScaffoldMessenger.maybeOf(context);
-  final pal = ref.read(settingsProvider).palette;
   final first = refs.first;
   final existing = ref.read(marksProvider).noteOf(first);
   final label = (existing?['label'] as String?)?.isNotEmpty == true ? existing!['label'] as String : selectionLabel(refs, full: true);
@@ -20,57 +19,68 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
   final ctl = TextEditingController(text: (existing?['text'] as String?) ?? '');
   showSheet<void>(
     context,
-    pal,
+    initial: 0.5,
     title: existing != null ? t('Заметка') : t('Новая заметка'),
     subtitle: label,
-    body: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (verse.isNotEmpty)
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.only(left: 10),
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.accent, width: 3))),
-          child: Text(verse, maxLines: 6, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted, height: 1.35)),
-        ),
-      TextField(
-        controller: ctl,
-        autofocus: true,
-        minLines: 5,
-        maxLines: 10,
-        keyboardType: TextInputType.multiline,
-        style: TextStyle(color: pal.text),
-        decoration: InputDecoration(hintText: t('Ваши мысли, вопросы, ссылки…'), border: const OutlineInputBorder()),
-      ),
-      if (existing != null)
-        Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('Создана {date}', {'date': fmtDate(existing['at'], year: true)}), style: TextStyle(fontSize: 12, color: pal.muted))),
-    ]),
-    footer: Builder(
-      builder: (ctx) => Row(children: [
-        if (existing != null)
-          ConfirmButton(
-            pal: pal,
-            icon: Icons.delete_outline,
-            label: t('Удалить'),
-            confirmLabel: t('Удалить'),
-            onConfirm: () {
-              ref.read(marksProvider.notifier).setNote(first, '', '');
-              toastOn(msg, t('Заметка удалена'));
-              Navigator.pop(ctx);
-            },
+    body: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final pal = paletteOf(ref);
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (verse.isNotEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(color: mix(pal.accent, 0.06, pal.panel), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
+              child: Text(verse, style: TextStyle(fontSize: 15, height: 1.5, color: pal.text)),
+            ),
+          TextField(
+            controller: ctl,
+            autofocus: true,
+            minLines: 7,
+            maxLines: 12,
+            keyboardType: TextInputType.multiline,
+            style: TextStyle(fontSize: 16.3, height: 1.5, color: pal.text),
+            decoration: InputDecoration(
+              hintText: t('Ваши мысли, вопросы, ссылки…'),
+              hintStyle: TextStyle(color: pal.muted),
+              isDense: true,
+              filled: true,
+              fillColor: pal.bg,
+              contentPadding: const EdgeInsets.all(12),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.line)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.accent)),
+            ),
           ),
-        const Spacer(),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: pal.accent, foregroundColor: pal.onAccent),
-          icon: const Icon(Icons.save_outlined, size: 18),
-          label: Text(t('Сохранить')),
-          onPressed: () {
-            ref.read(marksProvider.notifier).setNote(first, ctl.text, label);
-            toastOn(msg, ctl.text.trim().isNotEmpty ? t('Заметка сохранена') : t('Заметка удалена'));
+          if (existing != null)
+            Padding(padding: const EdgeInsets.only(top: 12), child: Text(t('Создана {date}', {'date': fmtDate(existing['at'], year: true)}), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted))),
+        ]);
+      },
+    ),
+    footer: (ctx) => Row(children: [
+      if (existing != null)
+        ConfirmButton(
+          icon: LucideIcons.trash2,
+          label: t('Удалить'),
+          confirmLabel: t('Удалить'),
+          onConfirm: () {
+            ref.read(marksProvider.notifier).setNote(first, '', '');
+            toastOn(msg, t('Заметка удалена'));
             Navigator.pop(ctx);
           },
         ),
-      ]),
-    ),
+      const Spacer(),
+      AobButton(
+        kind: BtnKind.primary,
+        icon: LucideIcons.save,
+        label: t('Сохранить'),
+        onTap: () {
+          ref.read(marksProvider.notifier).setNote(first, ctl.text, label);
+          toastOn(msg, ctl.text.trim().isNotEmpty ? t('Заметка сохранена') : t('Заметка удалена'));
+          Navigator.pop(ctx);
+        },
+      ),
+    ]),
   ).whenComplete(ctl.dispose);
 }
 
@@ -78,57 +88,84 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId) 
 void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId) {
   final ref = ProviderScope.containerOf(context);
   final msg = ScaffoldMessenger.maybeOf(context);
-  final pal = ref.read(settingsProvider).palette;
   final items = <Json>[
     for (final r in refs) {'book': r.book, 'chapter': r.chapter, 'verse': r.verse, 'text': _cut(verseText(moduleId, r) ?? '', 200)},
   ];
   final ctl = TextEditingController();
   showSheet<void>(
     context,
-    pal,
+    initial: 0.5,
     title: t('В подборку'),
     subtitle: selectionLabel(refs, full: true),
-    body: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) {
-        final cols = ref.read(marksProvider).collections;
-        void add(String? id, String? name) {
-          ref.read(marksProvider.notifier).addToCollection(id, items, name, t('Подборка'));
-          final shown = name ?? cols.firstWhere((c) => c['id'] == id, orElse: () => {'name': ''})['name'];
-          toastOn(msg, t('Добавлено в подборку «{name}»', {'name': '$shown'}));
-          Navigator.pop(ctx);
-        }
+    body: (ctx) => Consumer(
+      builder: (ctx, wref, _) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final pal = paletteOf(wref);
+          final cols = ref.read(marksProvider).collections;
+          void add(String? id, String? name) {
+            ref.read(marksProvider.notifier).addToCollection(id, items, name, t('Подборка'));
+            final shown = name ?? cols.firstWhere((c) => c['id'] == id, orElse: () => {'name': ''})['name'];
+            toastOn(msg, t('Добавлено в подборку «{name}»', {'name': '$shown'}));
+            Navigator.pop(ctx);
+          }
 
-        bool has(Json c) => refs.every((r) => (c['items'] as List).any((x) => itemKey(x as Map) == refKey(r)));
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: ctl,
-                style: TextStyle(color: pal.text),
-                textInputAction: TextInputAction.done,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (v) => v.trim().isNotEmpty ? add(null, v.trim()) : null,
-                decoration: InputDecoration(hintText: t('Новая подборка: «К уроку», «Утешение»…'), border: const OutlineInputBorder(), isDense: true),
+          bool has(Json c) => refs.every((r) => (c['items'] as List).any((x) => itemKey(x as Map) == refKey(r)));
+          final canCreate = ctl.text.trim().isNotEmpty;
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Expanded(
+                  child: TextField(
+                    controller: ctl,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (v) => v.trim().isNotEmpty ? add(null, v.trim()) : null,
+                    style: TextStyle(fontSize: 16, color: pal.text),
+                    decoration: InputDecoration(
+                      hintText: t('Новая подборка: «К уроку», «Утешение»…'),
+                      hintStyle: TextStyle(color: pal.muted),
+                      isDense: true,
+                      filled: true,
+                      fillColor: pal.bg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.line)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.accent)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Opacity(
+                  opacity: canCreate ? 1 : 0.4,
+                  child: Tooltip(
+                    message: t('Создать подборку'),
+                    child: Material(
+                      color: pal.accent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.accent)),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(onTap: canCreate ? () => add(null, ctl.text.trim()) : null, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: Icon(LucideIcons.folderPlus, size: 18, color: pal.onAccent))),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+            if (cols.isNotEmpty) const SizedBox(height: 12),
+            for (final c in cols)
+              InkWell(
+                onTap: () => add('${c['id']}', null),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+                  child: Row(children: [
+                    Icon(LucideIcons.folder, size: 16, color: pal.accent),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text('${c['name']}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
+                    if (has(c)) Icon(LucideIcons.check, size: 15, color: pal.muted) else Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), style: TextStyle(fontSize: 13.1, color: pal.muted)),
+                  ]),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              tooltip: t('Создать подборку'),
-              style: IconButton.styleFrom(backgroundColor: pal.accent, foregroundColor: pal.onAccent),
-              icon: const Icon(Icons.create_new_folder_outlined),
-              onPressed: ctl.text.trim().isEmpty ? null : () => add(null, ctl.text.trim()),
-            ),
-          ]),
-          for (final c in cols)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.folder_outlined, color: pal.accent),
-              title: Text('${c['name']}', style: TextStyle(color: pal.text, fontWeight: FontWeight.w600)),
-              trailing: has(c) ? Icon(Icons.check, size: 18, color: pal.muted) : Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), style: TextStyle(color: pal.muted)),
-              onTap: () => add('${c['id']}', null),
-            ),
-        ]);
-      },
+          ]);
+        },
+      ),
     ),
   ).whenComplete(ctl.dispose);
 }
