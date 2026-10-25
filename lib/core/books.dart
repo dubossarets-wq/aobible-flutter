@@ -87,7 +87,58 @@ class Books {
       }
     }
     _extraAliases.forEach((id, keys) => keys.forEach((k) => add(k, id)));
+    books._generated();
     return instance = books;
+  }
+
+  /// Неканонические книги — после канонических: короткое сокращение достаётся канонической книге
+  static const _apocrypha = {'PrMan', '1Esd', 'Tob', 'Jdt', 'Wis', 'Sir', 'EpJer', 'Bar', '1Macc', '2Macc', '3Macc', '2Esd'};
+
+  /// Сокращения, которых нет в списках: начала названия от двух букв («фе», «фес», «фесс»), сокращения по согласным
+  /// («фс», «флп», «тм», «кр»), номер книги в любом виде («1фс», «1-е фес»); без номера — первая книга («фс» → 1 Фес).
+  /// Готовые сокращения и названия не перезаписываются; при совпадении побеждает книга, что раньше в Библии.
+  void _generated() {
+    final books = [
+      ..._ru.values.where((b) => !_apocrypha.contains(b.id)),
+      ..._ru.values.where((b) => _apocrypha.contains(b.id)),
+    ];
+    void put(String key, String id) {
+      if (key.length >= 2) _aliases.putIfAbsent(key, () => id);
+    }
+
+    final forms = <(String, String?, List<String>, List<String>)>[]; // id, номер, начала, согласные
+    for (final b in books) {
+      final m = RegExp(r'^([1-4])(?:-?[а-яё]{1,2})?\s*(.*)$').firstMatch(b.name.toLowerCase());
+      final n = m?.group(1);
+      var base = (m?.group(2) ?? b.name.toLowerCase()).replaceAll('ё', 'е');
+      final bases = <String>{base.replaceAll(RegExp(r'[\s.-]'), '')};
+      if (base.startsWith('от ')) bases.add(base.substring(3).replaceAll(RegExp(r'[\s.-]'), '')); // «От Матфея» → «матфея»
+      final starts = <String>[], skel = <String>[];
+      for (final x in bases) {
+        for (var k = 2; k <= x.length; k++) {
+          starts.add(x.substring(0, k));
+        }
+        // сокращение по согласным: первая буква + согласные дальше («фессалоникийцам» → «фсслнкцм»)
+        final cons = x[0] + x.substring(1).replaceAll(RegExp(r'[аеиоуыэюяйъь]'), '');
+        for (var k = 2; k <= cons.length; k++) {
+          skel.add(cons.substring(0, k));
+        }
+      }
+      forms.add((b.id, n, starts, skel));
+    }
+    // сначала начала названий всех книг, потом сокращения по согласным — «пр» скорее «Притчи», чем что-то по согласным
+    for (final pass in [0, 1]) {
+      for (final (id, n, starts, skel) in forms) {
+        for (final f in pass == 0 ? starts : skel) {
+          if (n != null) {
+            put('$n$f', id);
+            if (n == '1') put(f, id);
+          } else {
+            put(f, id);
+          }
+        }
+      }
+    }
   }
 
   static String _norm(String s) => s.toLowerCase().replaceAll(RegExp(r'[\s.]'), '').replaceAll('ё', 'е');

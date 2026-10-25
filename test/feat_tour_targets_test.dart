@@ -10,10 +10,14 @@ import 'package:aobible/core/i18n.dart';
 import 'package:aobible/core/modules.dart';
 import 'package:aobible/core/panes.dart';
 import 'package:aobible/core/settings.dart';
+import 'package:aobible/features/audio/audio_engine.dart';
 import 'package:aobible/features/features.dart';
+import 'package:aobible/features/maps/maps.dart' as maps;
+import 'package:aobible/features/study/study_tables.dart';
 import 'package:aobible/features/hub.dart';
 import 'package:aobible/features/shell/tour.dart';
 import 'package:aobible/features/shell/tour_targets.dart';
+import 'package:aobible/features/shell/news_sheet.dart' show markNewsSeen;
 import 'package:aobible/main.dart';
 import 'package:aobible/ui/kit.dart' show AobSheet;
 import 'package:flutter/material.dart';
@@ -36,7 +40,7 @@ void makeBible() {
   var n = 0;
   for (var v = 1; v <= 12; v++) {
     n++;
-    final text = 'Стих $v: {любовь|G26} и истина, {свет|G5457} мира.';
+    final text = '{Любовь|G26} стих $v и истина, {свет|G5457} мира.';
     db.execute('INSERT INTO verses VALUES (?,?,?,?,?)', [n, 'John', 1, v, text]);
     db.execute('INSERT INTO verses_fts(rowid, plain) VALUES (?,?)', [n, 'Стих $v любовь и истина свет мира']);
     // параллельные места, чтобы у стиха было число [⇅ n]
@@ -44,8 +48,24 @@ void makeBible() {
   }
   db.execute('INSERT INTO meta VALUES (?,?)', [
     'json',
-    jsonEncode({'id': 'rst-plus', 'type': 'bible', 'name': 'РСТ', 'title': 'Тестовый РСТ', 'language': 'ru', 'bookList': [{'id': 'John', 'name': 'John', 'short': 'John', 'chapters': 1}]}),
+    jsonEncode({'id': 'rst-plus', 'type': 'bible', 'name': 'РСТ', 'title': 'Тестовый РСТ', 'language': 'ru', 'features': {'strongs': true}, 'bookList': [{'id': 'John', 'name': 'John', 'short': 'John', 'chapters': 1}]}),
   ]);
+  db.close();
+}
+
+// Греческий словарь Стронга: без него у слова нет статей и подсвечивать в окне нечего
+void makeDict() {
+  final db = sqlite3.open('${dir.path}/strongs-ru-greek.db');
+  final j = {
+    'id': 'strongs-ru-greek', 'type': 'dictionary', 'name': 'Стронг: греческий', 'title': 'Тест', 'language': 'ru', 'catalogVersion': '1', 'dictionaryKind': 'strongs', 'license': 'PD',
+    'entries': {
+      'G26': {'lemma': 'ἀγάπη', 'xlit': 'agape', 'definition': 'любовь'},
+      'G5457': {'lemma': 'φῶς', 'xlit': 'phos', 'definition': 'свет'},
+    },
+  };
+  db.execute('CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)');
+  db.execute('INSERT INTO meta VALUES (?, ?)', ['json', jsonEncode({...j}..remove('entries'))]);
+  buildStudyTables(db, j, 'dictionary');
   db.close();
 }
 
@@ -58,10 +78,17 @@ void main() {
     await Books.load();
     dir = Directory('${Directory.systemTemp.path}/aob_tourt_${DateTime.now().microsecondsSinceEpoch}')..createSync(recursive: true);
     makeBible();
+    makeDict();
+    sqlite3.open('${dir.path}/maps-test.db')
+      ..execute('CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)')
+      ..execute('INSERT INTO meta VALUES (?, ?)', ['json', jsonEncode({'id': 'maps-test', 'type': 'maps', 'name': 'Карты', 'title': 'Карты', 'language': 'ru', 'catalogVersion': '1'})])
+      ..close();
     await ModuleStore.initAt(dir);
     await setLang('ru');
+    markNewsSeen();
     Hub.reset();
     registerFeatures();
+    maps.register(); // в features.dart «Карты» пока не подключены — подключаем здесь, чтобы проверить урок
     livePositions.clear();
     SyncHub.listeners.clear();
     SyncHub.driver = 0;
@@ -88,7 +115,7 @@ void main() {
         final c = ProviderContainer();
         addTearDown(c.dispose);
         await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const AoBibleApp()));
-        await pumpMs(tester, 800);
+        await pumpMs(tester, 2600); // стартовое окно (_showStartup) ждёт 2 с
 
         addTearDown(stopTour);
         startTour(tour.id);
@@ -98,6 +125,11 @@ void main() {
         for (var i = 0; i < steps.length; i++) {
           final s = steps[i];
           await pumpMs(tester, 700); // before шага (80 мс) и анимации окон
+          if (tour.id == 'audio' && i == 1) {
+            // в тесте нет записи чтеца — показываем проигрыватель с сообщением, как после нажатия без звука
+            AudioEngine.I.state.value = const AudioState(active: true, error: 'нет записи');
+            await pumpMs(tester, 300);
+          }
           final id = s.target;
           final how = id == null
               ? '—'
@@ -117,14 +149,23 @@ void main() {
           if (id != null && (r == null || (isWholeSheet && !sheetOk.contains(id)))) bad.add('шаг ${i + 1} «$id»: ${r == null ? "не найдена" : "подсвечено всё окно"}');
           final ex = tester.takeException();
           if (ex != null) {
-            bad.add('шаг ${i + 1}: исключение ${ex.toString().split("
-").take(12).join(" / ")}');
+            final head = ex.toString().split('\n').take(12).join(' / ');
+            bad.add('шаг ${i + 1}: исключение $head');
             // ignore: avoid_print
-            print('ИСКЛЮЧЕНИЕ ${ex.toString().split("
-").take(14).join("
-")}');
+            print('ИСКЛЮЧЕНИЕ $head');
           }
           if (i == steps.length - 1) break;
+          if (s.target == 'sermon-new') {
+            // шаг без «Далее»: человек сам впишет название и нажмёт «Создать» — делаем это за него
+            await tester.tap(find.text('Создать'), warnIfMissed: false);
+            await pumpMs(tester, 900);
+            continue; // шаг закончился сам (until) — «Далее» нажимать не нужно
+          }
+          if (tour.id == 'xref' && i == 1) {
+            // человек выбрал место в списке: оно открылось на второй половине экрана
+            c.read(panesProvider.notifier).toggleSplit();
+            await pumpMs(tester, 300);
+          }
           await tester.tap(find.text('Далее'), warnIfMissed: false);
           await pumpMs(tester, 600);
         }
@@ -132,6 +173,7 @@ void main() {
         print('--- ${tour.id} [$tag]\n${rows.join('\n')}');
         stopTour();
         await pumpMs(tester, 600);
+        AudioEngine.I.state.value = const AudioState();
         expect(bad, isEmpty, reason: '${tour.id}: ${bad.join('; ')}');
       });
     }

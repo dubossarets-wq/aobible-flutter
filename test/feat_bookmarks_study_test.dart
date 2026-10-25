@@ -220,7 +220,7 @@ void main() {
     expect(Hub.addFavoritePart, isNotNull);
     expect(Hub.openStrong, isNotNull);
     final ids = Hub.moreItems.map((x) => x.id).toList();
-    expect(ids, containsAll(['bookmark-here', 'bookmark-off', 'bookmark-last', 'mydata']));
+    expect(ids, contains('mydata')); // «Закладка на это место» / «К последней закладке» — в меню самой оболочки (тесты оболочки)
     // register можно звать повторно (смена языка): задания запуска не дублируются
     bm.register();
     expect(Hub.afterStart.where((f) => f == bootBackup).length, 1);
@@ -398,45 +398,6 @@ void main() {
   }
 
   // =========================== пункты «Ещё», копия, «Мои данные» ===========================
-
-  testWidgets('«Ещё»: закладка на это место и к последней закладке', (tester) async {
-    prefs.setString('panes', jsonEncode([{'moduleId': 'rst-plus', 'ref': _gen.toJson()}]));
-    late WidgetRef wref;
-    late BuildContext ctx;
-    final c = await _pump(tester, (context, ref) {
-      wref = ref;
-      ctx = context;
-      return const SizedBox();
-    });
-    MoreItem item(String id) => Hub.moreItems.firstWhere((x) => x.id == id);
-    expect(item('bookmark-here').visible!(wref), isTrue);
-    expect(item('bookmark-off').visible!(wref), isFalse);
-    expect(item('bookmark-last').visible!(wref), isFalse, reason: 'закладок нет');
-    // стоим на Быт. 1:1 — закладка с текстом стиха
-    item('bookmark-here').run(ctx, wref, 0);
-    var marks = c.read(marksProvider);
-    expect(marks.bookmarks.single['book'], 'Gen');
-    expect(marks.bookmarks.single['text'], contains('сотворил'));
-    expect(item('bookmark-here').visible!(wref), isFalse);
-    expect(item('bookmark-off').visible!(wref), isTrue);
-    expect(item('bookmark-last').visible!(wref), isTrue);
-    // новая закладка — первая в списке; «к последней» ведёт на неё
-    c.read(marksProvider.notifier).toggleBookmark(_john, 'Так возлюбил');
-    c.read(panesProvider.notifier).navigate(0, const VerseRef('Gen', 1, 3));
-    item('bookmark-last').run(ctx, wref, 0);
-    expect(c.read(panesProvider)[0].ref, _john);
-    // флаг меню выключен — пункта нет
-    c.read(settingsProvider.notifier).set({
-      'menu': {...(Settings.defaults['menu'] as Map), 'lastBookmark': false}
-    });
-    expect(item('bookmark-last').visible!(wref), isFalse);
-    // убрать закладку с текущего места
-    c.read(panesProvider.notifier).navigate(0, _john);
-    expect(item('bookmark-off').visible!(wref), isTrue);
-    item('bookmark-off').run(ctx, wref, 0);
-    marks = c.read(marksProvider);
-    expect(marks.isBookmarked(_john), isFalse);
-  });
 
   testWidgets('автокопия при первом запуске новой версии', (tester) async {
     late WidgetRef wref;

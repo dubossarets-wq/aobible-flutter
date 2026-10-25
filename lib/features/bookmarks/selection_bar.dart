@@ -82,14 +82,17 @@ class _SelectionBar extends ConsumerWidget {
       done();
     }
 
-    // .tb-icon: круглая кнопка; на панели шире 400 px — 44×44, уже — 36 (container query в styles.css)
-    final wide = MediaQuery.sizeOf(context).width >= 400;
+    // .tb-icon: круглая кнопка. С «Копировать» на панели кнопок до 9: от 460 px — 44 и «В любимые» на панели,
+    // 400–460 — 40 (любимые — в меню «⋯»), уже — 36; иначе строка не помещается
+    final screenW = MediaQuery.sizeOf(context).width;
+    final wide = screenW >= 460;
+    final btn = wide ? 44.0 : screenW >= 400 ? 40.0 : 36.0;
     final onColor = barOnColor(pal); // .toolbar .tb-icon.on — заметен и на светлой панели
     Widget tb(Widget Function(Color c) icon, String tip, VoidCallback? f, {bool on = false, Key? key}) => Tooltip(
           key: key,
           message: tip,
           child: SizedBox(
-            width: wide ? 44 : 36,
+            width: btn,
             height: 44,
             child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: f, child: Center(child: icon(on ? onColor : pal.barText)))),
           ),

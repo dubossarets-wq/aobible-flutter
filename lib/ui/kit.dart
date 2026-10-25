@@ -91,20 +91,35 @@ final sheetsOpen = ValueNotifier<int>(0);
 
 /// Следит за окнами: считает открытые PopupRoute (подключается в MaterialApp.navigatorObservers)
 class SheetObserver extends NavigatorObserver {
-  void _set(int d) => Future.microtask(() => sheetsOpen.value = (sheetsOpen.value + d).clamp(0, 99));
+  // Множество открытых окон, а не счётчик: пропущенное событие не сбивает число навсегда.
+  // Новое приложение (новый наблюдатель) — счёт с нуля
+  SheetObserver() {
+    _open.clear();
+    _sync();
+  }
+  static final _open = <Route<dynamic>>{};
+  void _sync() => Future.microtask(() => sheetsOpen.value = _open.length);
+
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is PopupRoute) _set(1);
+    if (route is PopupRoute && _open.add(route)) _sync();
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is PopupRoute) _set(-1);
+    if (_open.remove(route)) _sync();
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is PopupRoute) _set(-1);
+    if (_open.remove(route)) _sync();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _open.remove(oldRoute);
+    if (newRoute is PopupRoute) _open.add(newRoute);
+    _sync();
   }
 }
 
@@ -533,23 +548,39 @@ class AobInput extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    return TextField(
-      controller: controller,
-      autofocus: autofocus,
-      onSubmitted: onSubmitted,
-      onChanged: onChanged,
-      style: TextStyle(fontSize: 16, color: pal.text),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: pal.muted),
-        prefixIcon: icon == null ? null : Icon(icon, size: 18, color: pal.muted),
-        suffixIcon: trailing,
-        isDense: true,
-        filled: true,
-        fillColor: pal.bg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.line)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.accent)),
+    // Когда в поле что-то вписано — крестик «Очистить» (если своей кнопки справа нет), как .search-clear в веб-версии
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, v, _) => TextField(
+        controller: controller,
+        autofocus: autofocus,
+        onSubmitted: onSubmitted,
+        onChanged: onChanged,
+        style: TextStyle(fontSize: 16, color: pal.text),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: pal.muted),
+          prefixIcon: icon == null ? null : Icon(icon, size: 18, color: pal.muted),
+          suffixIcon: trailing ??
+              (v.text.isEmpty
+                  ? null
+                  : IconBtn(
+                      icon: LucideIcons.x,
+                      subtle: true,
+                      size: 18,
+                      tooltip: t('Очистить'),
+                      onTap: () {
+                        controller.clear();
+                        onChanged?.call('');
+                      },
+                    )),
+          isDense: true,
+          filled: true,
+          fillColor: pal.bg,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.line)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.accent)),
+        ),
       ),
     );
   }

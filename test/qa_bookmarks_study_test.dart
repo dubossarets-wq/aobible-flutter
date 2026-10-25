@@ -317,12 +317,16 @@ void main() {
       await _tapTip(tester, 'Убрать закладку');
       expect(c.read(marksProvider).isBookmarked(_john), false);
 
-      // любимые (кнопка видна на ширине 400)
+      // любимые: на ширине 400 (кнопок 9 с «Копировать») — в меню «⋯»
       await select();
-      await _tapTip(tester, 'В любимые');
+      await _tapTip(tester, 'Ещё действия');
+      await tester.tap(find.text('В любимые').last);
+      await _settle(tester);
       expect(c.read(marksProvider).isFavorite(_john), true);
       await select();
-      await _tapTip(tester, 'Убрать из любимых');
+      await _tapTip(tester, 'Ещё действия');
+      await tester.tap(find.text('Убрать из любимых').last);
+      await _settle(tester);
       expect(c.read(marksProvider).isFavorite(_john), false);
 
       // «Читать параллельно»: два перевода кроме открытого — одна кнопка открывает вторую панель сразу
@@ -332,7 +336,7 @@ void main() {
 
       // много стихов: подпись и счётчик
       await select([_john, const VerseRef('John', 3, 17), const VerseRef('John', 3, 18)]);
-      expect(_ft('3'), findsWidgets);
+      expect(_ft('Ин. 3:16–18'), findsWidgets); // число в кружке убрано — подпись показывает диапазон
       sel.clear(0);
       await tester.pump();
 
@@ -377,7 +381,10 @@ void main() {
       expect(_log, contains('listen'));
       await more('Картинка со стихом');
       expect(_log, contains('image'));
-      await more('Копировать');
+      // «Копировать» — значком на панели, не в меню
+      c.read(selectionProvider.notifier).toggle(0, _john);
+      await tester.pump();
+      await _tapTip(tester, 'Копировать');
       await more('Поделиться'); // плагина в тесте нет: ловим исключение и копируем текст
       // много стихов: «Параллельные места» скрыты
       sel

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/i18n.dart';
 import '../../ui/kit.dart' show AobSheet;
+import '../study/sheet.dart' show SheetScaffold;
 
 /// Ключи целей: tourKey('tb-ref') вешают на виджет через `key:`; на экране он должен быть один (первая панель)
 final tourKeys = <String, GlobalKey>{};
@@ -133,8 +134,10 @@ Rect? byType(String name, {bool first = true}) {
 bool hasType(String name) => findElement((e) => e.widget.runtimeType.toString() == name) != null;
 
 /// Открыто ли окно (AobSheet) и его прямоугольник; верхнее окно — последнее в порядке обхода
-bool sheetOpen() => findElement((e) => e.widget is AobSheet) != null;
-Rect? sheetRect() => rectOfElement(_cached('sheet', (e) => e.widget is AobSheet, first: false));
+// Окна функций — AobSheet (kit.dart), окна «изучения» (словарь, параллельные места, подстрочник…) — SheetScaffold
+bool _isSheet(Widget w) => w is AobSheet || w is SheetScaffold;
+bool sheetOpen() => findElement((e) => _isSheet(e.widget)) != null;
+Rect? sheetRect() => rectOfElement(_cached('sheet', (e) => _isSheet(e.widget), first: false));
 
 /// Есть ли на экране текст (по полному совпадению)
 bool hasText(String text) => findElement((e) => e.widget is Text && ((e.widget as Text).data ?? '') == text) != null;
@@ -173,7 +176,7 @@ Rect? targetRect(String id) {
       return _fieldBox(_cached('ref-form', (e) => e.widget is TextField && _inside(e, (w) => w.runtimeType.toString() == 'NavigatorSheet')));
     case 'sheet-input':
       // .sheet input: поле ввода в верхнем окне (поиск)
-      return _fieldBox(_cached('sheet-input', (e) => e.widget is TextField && _inside(e, (w) => w is AobSheet), first: false));
+      return _fieldBox(_cached('sheet-input', (e) => e.widget is TextField && _inside(e, _isSheet), first: false));
     case 'sheet-close':
       // .sheet [aria-label="Закрыть"] || .map-pane: крестик верхнего окна, а у карты — «Закрыть карту»
       return byTooltip(t('Закрыть'), last: true) ?? byTooltip(t('Закрыть карту'));
@@ -197,7 +200,8 @@ Rect? targetRect(String id) {
     case 'listen-fab':
       return byType('ListenFab');
     case 'audio-bar':
-      return byType('AudioBar');
+      final b = byType('AudioBar');
+      return b == null || b.height <= 1 ? null : b; // пока не играет — виджет нулевого размера
     case 'word-pop':
       return byType('_Popover');
     case 'scroller':

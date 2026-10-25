@@ -265,6 +265,7 @@ class _PopoverState extends ConsumerState<_Popover> {
       child: CustomPaint(
         foregroundPainter: _ArrowPainter(_arrow, pal.panel, pal.line),
         child: DecoratedBox(
+          key: tourKey('word-pop'), // цель инструкции: сама выборка, а не весь экран
           decoration: BoxDecoration(
             color: pal.panel,
             border: Border.all(color: pal.line),

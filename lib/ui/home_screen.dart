@@ -707,6 +707,14 @@ class TabBarOverlay extends StatelessWidget {
         return Stack(fit: StackFit.expand, children: [
           child,
           if (show) const Positioned(left: 0, right: 0, bottom: 0, child: _FocusHide(down: true, child: _TabBar())),
+          // верхний слой (инструкция) — над вкладками; своё Overlay — для подсказок и полей внутри него
+          ValueListenableBuilder<Widget?>(
+            key: Hub.topLayerHost,
+            valueListenable: Hub.topLayer,
+            builder: (_, layer, _) => layer == null
+                ? const Positioned(left: 0, top: 0, width: 0, height: 0, child: SizedBox.shrink())
+                : Positioned.fill(child: Overlay(key: ObjectKey(layer), initialEntries: [OverlayEntry(builder: (_) => layer)])),
+          ),
         ]);
       },
     );

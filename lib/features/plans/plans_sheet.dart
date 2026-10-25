@@ -377,9 +377,13 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => _setDays(days + 1)),
         ]),
         const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => _setDays(n)),
-        ]),
+        // в один ряд, каждая по ширине текста; не помещаются — ряд прокручивается с затуханием у края
+        SizedBox(
+          height: 36,
+          child: FadeRow(gap: 8, children: [
+            for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => _setDays(n)),
+          ]),
+        ),
       ];
 
   // «Параллельно»: разделы с галочкой и числом глав в день (.cp-streams)
@@ -415,10 +419,10 @@ class _Preset extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          // без alignment у Container: с ним плашка растягивалась на всю ширину
           child: Container(
             constraints: const BoxConstraints(minHeight: 36),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Text(label, style: TextStyle(fontSize: 13.8, color: on ? pal.onAccent : pal.text)),
           ),
         ),
@@ -895,7 +899,9 @@ class _BookPicker extends StatelessWidget {
   final void Function(String id) onToggle;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) {
+    final inPlan = planBookIds(); // неканонические — только если они есть в переводе плана
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         for (final (i, g) in [('OT', 'Ветхий Завет'), ('NT', 'Новый Завет')].indexed) ...[
           if (i > 0) const SizedBox(height: 10),
           Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(t(g.$2), style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: pal.muted))),
@@ -904,7 +910,7 @@ class _BookPicker extends StatelessWidget {
             final cols = math.max(1, ((c.maxWidth + 6) / 60).floor());
             final w = (c.maxWidth - 6 * (cols - 1)) / cols;
             return Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final b in Books.instance.all.where((b) => b.testament == g.$1))
+              for (final b in Books.instance.all.where((b) => b.testament == g.$1 && (inPlan.isEmpty || inPlan.contains(b.id))))
                 SizedBox(
                   width: w,
                   child: Tooltip(
@@ -930,4 +936,5 @@ class _BookPicker extends StatelessWidget {
         ],
         if (value.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(t('Выбрано книг: {n}', {'n': '${value.length}'}), style: TextStyle(fontSize: 13.1, color: pal.muted))),
       ]);
+  }
 }

@@ -30,18 +30,26 @@ OverlayEntry? _entry;
 
 /// Начать урок: поверх приложения встаёт TourOverlay
 void startTour(String id) {
+  // прежний (если остался от закрытого экрана) убираем: окно инструкции всегда одно
+  _entry?.remove();
+  _entry = null;
+  // над нижними вкладками, как в веб-версии: верхний слой рисует сам слой вкладок
+  if (Hub.topLayerHost.currentContext != null) {
+    tourState.value = (id: id, step: 0);
+    Hub.topLayer.value = const TourOverlay();
+    return;
+  }
   final nav = Hub.navigatorKey.currentState ?? (appContext() == null ? null : Navigator.of(appContext()!));
   final overlay = nav?.overlay;
   if (overlay == null) return;
   tourState.value = (id: id, step: 0);
-  // прежний (если остался от закрытого экрана) убираем: окно инструкции всегда одно и в нужном Overlay
-  _entry?.remove();
   _entry = OverlayEntry(builder: (_) => const TourOverlay());
   overlay.insert(_entry!);
 }
 
 void stopTour() {
   tourState.value = (id: null, step: 0);
+  Hub.topLayer.value = null;
   _entry?.remove();
   _entry?.dispose();
   _entry = null;
@@ -50,13 +58,16 @@ void stopTour() {
 void goStep(int step) => tourState.value = (id: tourState.value.id, step: step);
 
 /// Идёт ли урок
-bool get tourActive => _entry != null;
+bool get tourActive => _entry != null || Hub.topLayer.value != null;
 
 /// Чем шаг управляет приложением: открыть окно, закрыть всё, нажать на место (api в tours.js)
 class TourApi {
-  TourApi(this.context, this.ref);
-  final BuildContext context;
+  TourApi(this._own, this.ref);
+  final BuildContext _own;
   final WidgetRef ref;
+
+  /// Контекст под навигатором приложения: инструкция лежит над ним (выше нижних вкладок), окна открываются там
+  BuildContext get context => Hub.navigatorKey.currentContext ?? appContext() ?? _own;
 
   void openSheet(String kind) {
     switch (kind) {
@@ -140,7 +151,10 @@ bool _second(TourApi a) => a.ref.read(panesProvider).length > 1;
 bool _mapOpen(TourApi a) => a.ref.read(mapPaneProvider) != null;
 bool _wordPop() => hasType('_Popover');
 bool _menuPopup() => hasText(t('Картинка со стихом'));
-bool _menuOpen() => hasText(t('Ещё')) && sheetOpen();
+// Лист «Ещё» (телефон) / меню ⋮ (компьютер): окно с заголовком «Ещё». Закрывающееся окно другой функции не в счёт
+bool _menuOpen() => findElement((e) => e.widget is AobSheet && (e.widget as AobSheet).title == t('Ещё')) != null;
+// Проигрыватель на экране: виджет стоит в дереве всегда, но пока не играет — нулевого размера
+bool _audioOn() => (byType('AudioBar')?.height ?? 0) > 1;
 
 void _openMenu(TourApi a, bool phone) {
   if (!_menuOpen()) a.click(targetRect(phone ? 'tab-more' : 'tb-more'));
@@ -167,10 +181,14 @@ Rect? _special(String id) {
   return null;
 }
 
+const _orSheet = {'word-pop', 'sermon-new', 'sermon-done', 'tb-split-close'};
+
 Rect? stepRect(TourStep s) {
   final id = s.target;
   if (id == null) return null;
-  return _special(id) ?? targetRect(id) ?? sheetRect(); // места нет — подсвечено открытое окно (как document.querySelector('.sheet'))
+  final r = _special(id) ?? targetRect(id);
+  // Места нет: там, где в tours.js написано «|| $('.sheet')», подсвечено открытое окно; в остальных шагах — только затемнение
+  return r ?? (_orSheet.contains(id) ? sheetRect() : null);
 }
 
 final tourDefs = <TourDef>[
@@ -238,8 +256,8 @@ final tourDefs = <TourDef>[
     TourStep('Выберите план и нажмите «Начать». Дальше каждый день — «Читать»: всё на одной странице, отметки ставятся сами.', target: 'sheet', before: (a) => sheetOpen() ? null : a.openSheet('plans')),
   ]),
   TourDef('audio', LucideIcons.headphones, 'Слушать Библию', 'Чтение', (phone) => [
-    TourStep('Нажмите на наушники — чтец начнёт с того места, где вы читаете.', target: 'listen-fab', next: (a) => a.click(targetRect('listen-fab')), until: (a) => hasType('AudioBar')),
-    TourStep('Пауза, стих назад и вперёд. Стрелка вниз — скачать книгу и слушать без интернета.', target: 'audio-bar', before: (a) => !hasType('AudioBar') ? a.click(targetRect('listen-fab')) : null),
+    TourStep('Нажмите на наушники — чтец начнёт с того места, где вы читаете.', target: 'listen-fab', next: (a) => a.click(targetRect('listen-fab')), until: (a) => _audioOn()),
+    TourStep('Пауза, стих назад и вперёд. Стрелка вниз — скачать книгу и слушать без интернета.', target: 'audio-bar', before: (a) => !_audioOn() ? a.click(targetRect('listen-fab')) : null),
     TourStep('Ползунки — скорость и таймер сна. Крестик закрывает проигрыватель.', target: 'audio-bar'),
   ]),
   TourDef('image', LucideIcons.image, 'Картинка со стихом', 'Чтение', (phone) => [
@@ -394,16 +412,16 @@ class _TourOverlayState extends ConsumerState<TourOverlay> with SingleTickerProv
     final top = MediaQuery.paddingOf(context).top;
     // нижние вкладки лежат поверх окон (и выше инструкции): кнопки «Назад / Далее» ставим над ними
     final tabs = tabBarInset.value;
-    final W = size.width, Hf = size.height - MediaQuery.viewInsetsOf(context).bottom, H = Hf - tabs;
+    final W = size.width, hFull = size.height - MediaQuery.viewInsetsOf(context).bottom, H = hFull - tabs;
     final raw = stepRect(step);
     _goalRaw = step.target == null ? null : raw;
     final has = step.target != null && raw != null;
     final Rect goal = has
         ? Rect.fromLTRB(
             (raw.left - _pad).clamp(4, W - 4).toDouble(),
-            (raw.top - _pad).clamp(4, Hf - 4).toDouble(),
+            (raw.top - _pad).clamp(4, hFull - 4).toDouble(),
             (raw.right + _pad).clamp(4, W - 4).toDouble(),
-            (raw.bottom + _pad).clamp(4, Hf - 4).toDouble(),
+            (raw.bottom + _pad).clamp(4, hFull - 4).toDouble(),
           )
         : Rect.fromLTWH(W / 2, H / 2, 0, 0); // места нет — затемнён весь экран
     final ctrlH = (_ctrlKey.currentContext?.size?.height) ?? 110;

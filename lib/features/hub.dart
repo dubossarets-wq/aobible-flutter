@@ -130,6 +130,10 @@ class Hub {
   /// Уведомление внизу экрана из любого места (в том числе из Hub.afterStart, где нет context)
   static final messengerKey = GlobalKey<ScaffoldMessengerState>();
   static final navigatorKey = GlobalKey<NavigatorState>();
+  /// Верхний слой поверх всего, включая нижние вкладки (инструкция затемняет и их, как в веб-версии):
+  /// его рисует слой вкладок (TabBarOverlay) последним; topLayerHost — есть ли такой слой на экране
+  static final topLayer = ValueNotifier<Widget?>(null);
+  static final topLayerHost = GlobalKey(debugLabel: 'topLayer');
 
   /// Глава прочитана (видна до конца и на ней провели достаточно времени) — учёт для планов и статистики
   static void Function(BuildContext context, WidgetRef ref, String book, int chapter)? onChapterRead;

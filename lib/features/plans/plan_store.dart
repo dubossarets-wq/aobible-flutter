@@ -1,6 +1,7 @@
 // Активные планы — общее хранилище для окна планов, учёта прочитанного и напоминаний (prefs «plans»).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/bible.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
@@ -98,6 +99,12 @@ List<({String ref, int n})> _bookChapters(InstalledModule mod, String book) {
 InstalledModule? _planModule() {
   final mods = ModuleStore.instance.bibles;
   return mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.firstOrNull;
+}
+
+/// Книги, которые есть в переводе плана: неканонические — только если они в нём есть (иначе в выбор не попадают)
+Set<String> planBookIds() {
+  final m = _planModule();
+  return m == null ? const {} : {for (final b in bookList(m.id)) b['id'] as String};
 }
 
 /// Главы выбранных книг поровну по дням (по числу стихов — чтобы дни были ровными)
