@@ -237,8 +237,8 @@ void main() {
   }
 
   testWidgets('Окно выбора перевода: вторая панель, «Другие переводы» открывают библиотеку, список живёт по changes', (tester) async {
-    var libraryOpened = 0;
-    Hub.openLibrary = (c, r, p) => libraryOpened++; // признак: функция библиотеки подключена
+    String? libraryTab;
+    Hub.openLibraryTab = (c, tab) => libraryTab = tab; // библиотека открывается через общую точку, с вкладкой
     final c = await start(tester);
     await tester.tap(find.byTooltip('Читать параллельно'));
     await tester.pumpAndSettle();
@@ -257,9 +257,8 @@ void main() {
     await tester.tap(find.text('Другие переводы'));
     await tester.pumpAndSettle();
     expect(find.text('Перевод'), findsNothing); // окно выбора закрылось
-    expect(find.text('Каталог'), findsWidgets); // библиотека открыта на вкладке «Каталог»
+    expect(libraryTab, 'catalog'); // библиотека открыта на вкладке «Каталог»
     expect(tester.takeException(), isNull);
-    expect(libraryOpened, 0);
   });
 
   testWidgets('Перевод панели удалён: панель переходит на основной (или первый) перевод, место остаётся', (tester) async {

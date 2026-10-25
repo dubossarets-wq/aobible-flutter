@@ -308,7 +308,10 @@ void main() {
           tester,
           (context, ref) => Center(
                 child: TextButton(
-                  onPressed: () => Hub.onWordTap!(context, ref, WordTap(pane: 0, moduleId: 'rst-plus', ref: _gen, token: toks[idx], tokenIndex: idx, rect: const Rect.fromLTWH(180, 300, 60, 24), verseText: raw)),
+                  onPressed: () {
+                    activeWord.value = (pane: 0, ref: _gen, token: idx); // подсветку слова ставит читалка при нажатии
+                    Hub.onWordTap!(context, ref, WordTap(pane: 0, moduleId: 'rst-plus', ref: _gen, token: toks[idx], tokenIndex: idx, rect: const Rect.fromLTWH(180, 300, 60, 24), verseText: raw));
+                  },
                   child: const Text('слово'),
                 ),
               ),
