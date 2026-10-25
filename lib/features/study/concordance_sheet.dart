@@ -18,7 +18,7 @@ const _inlinePage = 200;
 bool strongsSame(String s, String num) => s.replaceFirstMapped(RegExp(r'^([HG])0*'), (m) => m.group(1)!) == num.replaceFirstMapped(RegExp(r'^([HG])0*'), (m) => m.group(1)!);
 
 /// Считает статистику после показа окна (первый раз — до сотни миллисекунд), результат запоминается
-Future<WordStats?> loadStats(String num) => Future(() => StudyData.strongStats(num));
+Future<WordStats?> loadStats(String num) => StudyData.strongStats(num);
 
 /// Открыть окно «Все места»; [onOpen] — нажатие на место
 Future<void> openConcordance(BuildContext context, {required String num, String? lemma, required OpenRef onOpen}) =>

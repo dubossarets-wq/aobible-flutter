@@ -388,20 +388,40 @@ class StudyData {
   static final _statsCache = <String, WordStats?>{};
 
   /// Где и сколько раз встречается номер Стронга в переводе с разметкой (RST+): считается один раз, запоминается
-  static WordStats? strongStats(String num) {
+  /// Статистика номера Стронга по переводу с номерами. Просмотр всего текста (LIKE по всем стихам) — в отдельном
+  /// потоке: первый подсчёт слова не останавливает интерфейс; результат запоминается.
+  static Future<WordStats?> strongStats(String num) async {
     _touch();
     if (_statsCache.containsKey(num)) return _statsCache[num];
     final mods = _store.bibles.where((m) => m.features['strongs'] == true).toList();
     final mod = mods.where((m) => m.id == 'rst-plus').firstOrNull ?? mods.where((m) => m.language == 'ru').firstOrNull ?? mods.firstOrNull;
     if (mod == null) return null; // перевода с номерами ещё нет — не запоминаем
+    final path = mod.path;
     final esc = num.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
-    // {слово|H1254 H853|TH8804} — номер среди номеров второго поля
-    final re = RegExp(r'\{([^|}]*)\|(?:[^|}]*\s)?' + esc + r'(?=[\s|}])[^}]*\}');
-    final byBook = <String, int>{};
-    final renderings = <String, int>{};
-    final refs = <(VerseRef, List<String>)>[];
-    var total = 0;
-    final rows = _store.db(mod.id).select('SELECT book, chapter, verse, text FROM verses WHERE text LIKE ? ORDER BY id', ['%$esc%']);
+    final s = await Isolate.run(() => _scanStrong(path, esc));
+    return _statsCache[num] = WordStats(
+      module: mod.name,
+      moduleId: mod.id,
+      total: s.total,
+      verses: s.refs.length,
+      byBook: s.byBook,
+      renderings: s.renderings,
+      refs: s.refs,
+    );
+  }
+}
+
+/// Подсчёт в отдельном потоке: база открывается здесь по пути к файлу
+({int total, List<(String, int)> byBook, List<(String, int)> renderings, List<(VerseRef, List<String>)> refs}) _scanStrong(String path, String esc) {
+  // {слово|H1254 H853|TH8804} — номер среди номеров второго поля
+  final re = RegExp(r'\{([^|}]*)\|(?:[^|}]*\s)?' + esc + r'(?=[\s|}])[^}]*\}');
+  final byBook = <String, int>{};
+  final renderings = <String, int>{};
+  final refs = <(VerseRef, List<String>)>[];
+  var total = 0;
+  final db = sqlite3.open(path, mode: OpenMode.readOnly);
+  try {
+    final rows = db.select('SELECT book, chapter, verse, text FROM verses WHERE text LIKE ? ORDER BY id', ['%$esc%']);
     for (final row in rows) {
       final words = <String>[];
       for (final m in re.allMatches(row['text'] as String)) {
@@ -415,19 +435,18 @@ class StudyData {
       total += words.length;
       refs.add((VerseRef(book, row['chapter'] as int, row['verse'] as int), words));
     }
-    // по убыванию числа; при равенстве — в порядке первого появления (сортировка в Dart не стабильна)
-    final order = {for (final (i, e) in renderings.entries.indexed) e.key: i};
-    final sorted = renderings.entries.toList()..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : order[a.key]!.compareTo(order[b.key]!));
-    return _statsCache[num] = WordStats(
-      module: mod.name,
-      moduleId: mod.id,
-      total: total,
-      verses: refs.length,
-      byBook: [for (final e in byBook.entries) (e.key, e.value)],
-      renderings: [for (final e in sorted) (e.key, e.value)],
-      refs: refs,
-    );
+  } finally {
+    db.close();
   }
+  // по убыванию числа; при равенстве — в порядке первого появления (сортировка в Dart не стабильна)
+  final order = {for (final (i, e) in renderings.entries.indexed) e.key: i};
+  final sorted = renderings.entries.toList()..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : order[a.key]!.compareTo(order[b.key]!));
+  return (
+    total: total,
+    byBook: [for (final e in byBook.entries) (e.key, e.value)],
+    renderings: [for (final e in sorted) (e.key, e.value)],
+    refs: refs,
+  );
 }
 
 class WordStats {

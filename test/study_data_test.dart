@@ -50,7 +50,7 @@ void main() {
 
     // Статистика слова
     sw = Stopwatch()..start();
-    final st = StudyData.strongStats('H1254')!;
+    final st = (await StudyData.strongStats('H1254'))!;
     // ignore: avoid_print
     print('H1254: ${st.total} раз в ${st.verses} стихах, ${st.byBook.length} книгах (${sw.elapsedMilliseconds} мс)');
     expect(st.total, greaterThan(40));
