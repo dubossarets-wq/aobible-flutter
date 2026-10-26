@@ -482,13 +482,16 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                 },
                 onSubmitted: (_) => _submit(),
                 cursorColor: pal.accent,
-                style: TextStyle(fontSize: 16, color: pal.text),
+                style: TextStyle(fontSize: 16, height: 1.25, color: pal.text),
+                // поле — ровно одна строка, по центру рамки (Row центрирует по высоте): отступы сверху и снизу
+                // на разных шрифтах уводили текст вверх
+                textAlignVertical: TextAlignVertical.center,
                 decoration: InputDecoration(
                   hintText: t('Слово, Ин 3:16 или G26'),
-                  hintStyle: TextStyle(color: pal.muted),
+                  hintStyle: TextStyle(color: pal.muted, height: 1.25),
                   border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.fromLTRB(12, 13, 4, 13),
+                  isCollapsed: true,
+                  contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
                 ),
               ),
             ),

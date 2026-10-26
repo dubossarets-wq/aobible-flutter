@@ -26,12 +26,21 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: f,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                if (!narrow) ...[Icon(icon, size: 16, color: pal.text), const SizedBox(width: 4)],
-                Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w500, color: pal.text))),
-              ]),
+            // высота 44 — как у круглой «Слушать»; подпись при нехватке места уменьшается, а не обрезается
+            child: SizedBox(
+              height: 44,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (!narrow) ...[Icon(icon, size: 16, color: pal.text), const SizedBox(width: 4)],
+                      Text(label, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w500, color: pal.text)),
+                    ]),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

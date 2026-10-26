@@ -452,10 +452,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       dir = dx.abs() > dy.abs() * 1.6 ? 1 : -1; // -1 — прокрутка, не трогаем
       _sw = (x: s.x, y: s.y, t: s.t, dir: dir);
     }
-    if (dir != 1) return;
-    final can = _target(dx < 0 ? 1 : -1) != null;
-    final shift = dx * (can ? 0.35 : 0.12);
-    _drag.value = (shift, 1 - math.min(0.35, dx.abs() / 900));
+    // текст за пальцем не сдвигается (по просьбе владельца): глава меняется только после отпускания — в _up
   }
 
   void _up(PointerEvent e) {

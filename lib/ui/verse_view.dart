@@ -883,75 +883,90 @@ class _PartInline extends ConsumerWidget {
     final ready = from != null && text.isNotEmpty;
     final at = VerseRef(book, item.chapter, item.verse);
     final label = '${Books.instance.meta(book).short} ${item.chapter}:${item.verse}';
-    Widget btn({IconData? icon, String? text, bool primary = false, required VoidCallback? onTap, String? tooltip}) {
-      final fg = primary ? pal.onAccent : pal.text;
-      final child = Opacity(
-        opacity: onTap == null ? 0.5 : 1,
-        child: Material(
-          color: primary ? pal.accent : pal.panel,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: primary ? pal.accent : pal.line)),
-          clipBehavior: Clip.antiAlias,
+    const h = 44.0; // все кнопки строки — одной высоты
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line));
+    // часть общей кнопки «♥ | копировать | ×»: значок 44×44, выключенный — бледнее
+    Widget seg(IconData icon, String tip, VoidCallback? onTap) => Tooltip(
+          message: tip,
           child: InkWell(
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-                if (icon != null) Icon(icon, size: 17, color: fg),
-                if (icon != null && text != null) const SizedBox(width: 6),
-                if (text != null) Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w500, color: fg))),
-              ]),
-            ),
+            child: SizedBox(width: h, height: h, child: Icon(icon, size: 18, color: onTap == null ? pal.text.withValues(alpha: 0.4) : pal.text)),
           ),
-        ),
-      );
-      return tooltip == null ? child : Tooltip(message: tooltip, child: child);
-    }
+        );
+    Widget divider() => Container(width: 1, height: h - 16, color: pal.line);
 
     return Padding(
       padding: const EdgeInsets.only(top: 3.2, bottom: 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
         Text(ready ? '«$text»' : t('Нажмите на первое и последнее слово.'), style: TextStyle(fontSize: 14.4, height: 1.4, fontStyle: FontStyle.italic, color: pal.muted)),
         const SizedBox(height: 8),
+        // «В проповедь» — цельная кнопка; «♥ | копировать | ×» — одна кнопка, разделённая вертикальными линиями
         Row(children: [
           Expanded(
-            child: btn(
-              icon: LucideIcons.scrollText,
-              text: t('В проповедь'),
-              primary: true,
-              onTap: ready
-                  ? () {
-                      Hub.addFragmentToSermon?.call(context, ref, at, ps.moduleId, text);
-                      _done(ref);
-                    }
-                  : null,
+            child: Opacity(
+              opacity: ready ? 1 : 0.5,
+              child: Material(
+                color: pal.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75)),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: ready
+                      ? () {
+                          Hub.addFragmentToSermon?.call(context, ref, at, ps.moduleId, text);
+                          _done(ref);
+                        }
+                      : null,
+                  child: SizedBox(
+                    height: h,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(LucideIcons.scrollText, size: 17, color: pal.onAccent),
+                          const SizedBox(width: 6),
+                          Text(t('В проповедь'), maxLines: 1, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w500, color: pal.onAccent)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          btn(
-            icon: LucideIcons.heart,
-            tooltip: t('В любимые'),
-            onTap: ready
-                ? () {
-                    Hub.addFavoritePart?.call(context, ref, at, ps.moduleId, lo, hi, text);
-                    _done(ref);
-                  }
-                : null,
+          Material(
+            color: pal.panel,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              seg(
+                LucideIcons.heart,
+                t('В любимые'),
+                ready
+                    ? () {
+                        Hub.addFavoritePart?.call(context, ref, at, ps.moduleId, lo, hi, text);
+                        _done(ref);
+                      }
+                    : null,
+              ),
+              divider(),
+              seg(
+                LucideIcons.copy,
+                t('Копировать'),
+                ready
+                    ? () async {
+                        final q = '"${text.replaceAll(RegExp(r'\s+'), ' ').trim()}" - $label';
+                        await Clipboard.setData(ClipboardData(text: q));
+                        Hub.toast(t('Часть стиха скопирована'));
+                        _done(ref);
+                      }
+                    : null,
+              ),
+              divider(),
+              seg(LucideIcons.x, t('Отмена'), () => partSelection.value = null),
+            ]),
           ),
-          const SizedBox(width: 8),
-          btn(
-            icon: LucideIcons.copy,
-            tooltip: t('Копировать'),
-            onTap: ready
-                ? () async {
-                    final q = '"${text.replaceAll(RegExp(r'\s+'), ' ').trim()}" - $label';
-                    await Clipboard.setData(ClipboardData(text: q));
-                    Hub.toast(t('Часть стиха скопирована'));
-                    _done(ref);
-                  }
-                : null,
-          ),
-          const SizedBox(width: 8),
-          btn(text: t('Отмена'), onTap: () => partSelection.value = null),
         ]),
       ]),
     );

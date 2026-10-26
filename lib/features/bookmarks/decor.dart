@@ -20,6 +20,13 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
   if (item.kind != ItemKind.verse) return null;
   // Строка действий — под последним выделенным стихом (SelectionInline в BibleReader.jsx)
   Widget? below;
+  // следим за тем, какой стих выделен последним и сколько их: сняли выделение с соседнего — строка под оставшимся
+  // стихом перестраивается (при одном стихе появляется «Часть стиха»)
+  ref.watch(selectionProvider.select((m) {
+    final v = m[pane];
+    if (v == null || v.isEmpty) return (null, 0);
+    return (refKey(sortedRefs(v).last), v.length);
+  }));
   final sel = ref.read(selectionProvider)[pane];
   if (sel != null && sel.isNotEmpty) {
     final refs = sortedRefs(sel);
