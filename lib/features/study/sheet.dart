@@ -124,14 +124,29 @@ class SheetScaffold extends ConsumerWidget {
           child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
         ),
         Container(
-          padding: EdgeInsets.fromLTRB(onBack != null ? 6 : 16, 0, 10, 8),
+          // как шапка AobSheet: стрелка, заголовок и крестик на одной линии
+          padding: EdgeInsets.fromLTRB(onBack != null ? 6 : 16, 4, 10, 6),
+          constraints: const BoxConstraints(minHeight: 48),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             if (onBack != null) IconBtn(icon: LucideIcons.chevronLeft, onTap: onBack, tooltip: t('Назад')),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: 18.4, fontWeight: FontWeight.w700, color: pal.text)),
-                if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                    textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                    style: TextStyle(fontSize: 18.4, height: 1.2, fontWeight: FontWeight.w700, color: pal.text)),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(fontSize: 13, height: 1.2, color: pal.muted)),
+                  ),
               ]),
             ),
             ...headerExtra,

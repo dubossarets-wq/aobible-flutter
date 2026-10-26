@@ -157,6 +157,9 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
     _set(next);
   }
 
+  /// «Отменить»/«Повторить» в редакторе: проповедь целиком — как была; сохраняется как обычная правка
+  void replace(Sermon next) => _touch('${next['id']}', (_) => next);
+
   void rename(String id, String title) => _touch(id, (s) => {...s, 'title': title});
   void setDate(String id, String date) => _touch(id, (s) => {...s, 'date': date});
 
@@ -184,6 +187,15 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
   /// Правка текста при наборе: дата изменения тоже обновляется
   void updateBlock(String id, String blockId, Map<String, dynamic> patch) =>
       _touch(id, (s) => {...s, 'blocks': [for (final b in blocksOf(s)) b['id'] == blockId ? {...b, ...patch} : b]});
+
+  /// Часть стиха: text — выбранный фрагмент (part = true) или полный текст стиха (part = false — пометка убирается)
+  void setPart(String id, String blockId, String text, bool part) => _touch(id, (s) => {
+        ...s,
+        'blocks': [
+          for (final b in blocksOf(s))
+            if (b['id'] != blockId) b else (<String, dynamic>{...b, 'text': text}..remove('part')..addAll(part ? {'part': true} : {}))
+        ]
+      });
 
   void removeBlock(String id, String blockId) => _touch(id, (s) => {...s, 'blocks': [for (final b in blocksOf(s)) if (b['id'] != blockId) b]});
 

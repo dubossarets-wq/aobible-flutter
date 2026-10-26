@@ -666,7 +666,14 @@ class _TabBarState extends ConsumerState<_TabBar> {
                                             ]),
                                           ),
                                           const SizedBox(height: 2),
-                                          Text(labels[id]!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.text : pal.muted)),
+                                          // подпись помещается целиком: шрифт поменьше, длинная (другие языки) ужимается по ширине вкладки
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text(labels[id]!, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10.5, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.text : pal.muted)),
+                                            ),
+                                          ),
                                         ]),
                                       ),
                                     ),

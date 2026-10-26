@@ -90,15 +90,19 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
     final size = MediaQuery.sizeOf(context);
     // .today-verse: min-height min(360px, 46vh); .today-text: clamp(1.3rem, 5.6vw, 1.75rem)
     final textSize = (size.width * 0.056).clamp(20.8, 28.0).toDouble();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      constraints: BoxConstraints(minHeight: math.min(360, size.height * 0.46)),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(kRadius + 10),
-        gradient: LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: [mix(pal.accent, 0.55, const Color(0xFF0B1020)), const Color(0xFF0B1020)]),
-      ),
-      clipBehavior: Clip.antiAlias,
+    // Фон-градиент — слоем под фото внутри одной обрезки: фон у самой рамки просвечивал тонкой каймой по скруглённому краю
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: ClipRRect(
+      borderRadius: BorderRadius.circular(kRadius + 10),
       child: Stack(children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: [mix(pal.accent, 0.55, const Color(0xFF0B1020)), const Color(0xFF0B1020)]),
+            ),
+          ),
+        ),
         if (_photo != null) Positioned.fill(child: SiteImage('images/verse-bg/${_photo!['file']}')),
         Positioned.fill(
           child: DecoratedBox(
@@ -111,7 +115,10 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
             ),
           ),
         ),
-        IntrinsicHeight(
+        // высота — у содержимого, а не у рамки: стих по центру свободного места, кнопки — внизу (без пустоты под ними)
+        ConstrainedBox(
+          constraints: BoxConstraints(minHeight: math.min(320, size.height * 0.42)),
+          child: IntrinsicHeight(
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // .today-verse-body: по центру свободного места, промежуток 14
             Expanded(
@@ -146,8 +153,10 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
             ),
             // Автор и лицензия фото — в «О приложении → Лицензии», не на карточке
           ]),
+          ),
         ),
       ]),
+      ),
     );
   }
 }

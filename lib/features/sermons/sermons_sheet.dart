@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph, RenderObject;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,9 +13,11 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/bible.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/markup.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/part_plate.dart';
 import '../shell/fonts.dart' show readerTextStyle;
 import '../plans/loc.dart';
 import '../plans/ui_kit.dart';
@@ -44,6 +47,76 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
   int? _insertAt; // куда вставлять найденные стихи (null — в конец)
   String? _scrollTo; // только что добавленный блок
   final _title = TextEditingController();
+
+  // История правок открытой проповеди (на время открытого окна, до 50 шагов): снимки проповеди целиком
+  final _undo = <String>[];
+  final _redo = <String>[];
+  String? _hId, _hCur, _hKey;
+  DateTime? _hAt;
+
+  String _snap(Sermon s) => jsonEncode({...s}..remove('updatedAt'));
+
+  void _ensureHist(Sermon? s) {
+    if (s == null || _hId == '${s['id']}') return;
+    _hId = '${s['id']}';
+    _hCur = _snap(s);
+    _hKey = null;
+    _undo.clear();
+    _redo.clear();
+  }
+
+  /// Правка одного поля: набор текста в одном блоке или в названии — склеивается в один шаг (пауза ~800 мс)
+  String? _kind(String oldS, String newS) {
+    final a = jsonDecode(oldS) as Map<String, dynamic>, b = jsonDecode(newS) as Map<String, dynamic>;
+    final keys = {...a.keys, ...b.keys}.where((k) => jsonEncode(a[k]) != jsonEncode(b[k])).toList();
+    if (keys.length == 1 && keys.first == 'title') return 'title';
+    if (keys.length == 1 && keys.first == 'blocks') {
+      final x = (a['blocks'] as List), y = (b['blocks'] as List);
+      if (x.length != y.length) return null;
+      String? hit;
+      for (var i = 0; i < x.length; i++) {
+        if (jsonEncode(x[i]) == jsonEncode(y[i])) continue;
+        final p = x[i] as Map, q = y[i] as Map;
+        final diff = {...p.keys, ...q.keys}.where((k) => jsonEncode(p[k]) != jsonEncode(q[k])).toList();
+        if (hit != null || diff.length != 1 || diff.first != 'text' || q['type'] != 'text') return null;
+        hit = 'b:${q['id']}';
+      }
+      return hit;
+    }
+    return null;
+  }
+
+  void _track(List<Sermon> list) {
+    final s = list.where((x) => x['id'] == _openId).firstOrNull;
+    if (s == null) return;
+    _ensureHist(s);
+    final snap = _snap(s);
+    if (snap == _hCur) return;
+    final now = DateTime.now();
+    final key = _kind(_hCur!, snap);
+    final merge = key != null && key == _hKey && _hAt != null && now.difference(_hAt!) < const Duration(milliseconds: 800);
+    if (!merge) {
+      _undo.add(_hCur!);
+      if (_undo.length > 50) _undo.removeAt(0);
+      _redo.clear();
+    }
+    _hKey = key;
+    _hAt = now;
+    _hCur = snap;
+    if (mounted) setState(() {});
+  }
+
+  void _step(bool back) {
+    final from = back ? _undo : _redo, to = back ? _redo : _undo;
+    if (from.isEmpty || _hCur == null) return;
+    to.add(_hCur!);
+    final snap = from.removeLast();
+    _hCur = snap;
+    _hKey = null;
+    final cur = ref.read(sermonsProvider.notifier).byId(_hId);
+    ref.read(sermonsProvider.notifier).replace({...(jsonDecode(snap) as Map<String, dynamic>), 'updatedAt': cur?['updatedAt'] ?? 0});
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -86,6 +159,8 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
     final sermons = ref.watch(sermonsProvider);
     final sermon = sermons.where((s) => s['id'] == _openId).firstOrNull;
     final moduleId = _moduleId;
+    _ensureHist(sermon);
+    ref.listen(sermonsProvider, (_, list) => _track(list));
 
     if (sermon != null && _adding) {
       return AobSheet(
@@ -112,6 +187,12 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
     return AobSheet(
       title: sermon != null ? t('Проповедь') : t('Проповеди'),
       onBack: canBack ? () => setState(() => _openId = null) : null,
+      actions: sermon == null
+          ? const []
+          : [
+              IconBtn(icon: LucideIcons.undo2, tooltip: t('Отменить'), color: _undo.isEmpty ? pal.muted.withValues(alpha: 0.4) : null, onTap: _undo.isEmpty ? null : () => _step(true)),
+              IconBtn(icon: LucideIcons.redo2, tooltip: t('Повторить'), color: _redo.isEmpty ? pal.muted.withValues(alpha: 0.4) : null, onTap: _redo.isEmpty ? null : () => _step(false)),
+            ],
       scroll: false,
       padding: EdgeInsets.zero,
       child: sermon != null
@@ -306,6 +387,7 @@ class _EditorState extends ConsumerState<_Editor> {
     final sermon = ref.watch(sermonsProvider).where((s) => s['id'] == widget.sermon['id']).firstOrNull ?? widget.sermon;
     final blocks = blocksOf(sermon);
     final verses = blocks.where(isVerse).length;
+    if (_title.text != '${sermon['title']}') _title.text = '${sermon['title']}'; // «Отменить»/«Повторить» меняют название
     _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим
     return ReorderableListView.builder(
       scrollController: _scroll,
@@ -314,10 +396,22 @@ class _EditorState extends ConsumerState<_Editor> {
       onReorderStart: (_) => HapticFeedback.mediumImpact(),
       onReorderItem: (a, b) => _store.moveBlock(_id, a, b),
       // .sermon-item.dragging: тень 0 14 34, фон панели
-      proxyDecorator: (child, i, anim) => Material(
-        color: Colors.transparent,
-        child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), color: pal.panel, boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 34, offset: Offset(0, 14))]), child: child),
-      ),
+      // Поднимается только карточка блока (без полос «+ Текст / + Стих»), тень — по её скруглённой рамке
+      proxyDecorator: (child, i, anim) => i >= blocks.length
+          ? child
+          : Material(
+              color: Colors.transparent,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 34, offset: Offset(0, 14))]),
+                    child: _BlockCard(pal: pal, block: blocks[i], sermonId: _id, fresh: false, onFreshDone: () {}, onGo: (_) {}, onDropVerse: (_) {}),
+                  ),
+                ),
+              ),
+            ),
       header: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // .sermon-head: название (линия снизу) и две кнопки; промежуток 8
         _TitleField(pal: pal, controller: _title, onChanged: (v) => _store.rename(_id, v)),
@@ -359,21 +453,17 @@ class _EditorState extends ConsumerState<_Editor> {
               Expanded(child: AobButton(wide: true, icon: LucideIcons.search, label: t('Стих'), onTap: () => widget.onAddVerse(null))),
             ]),
           ),
-        // .sermon-foot: подпись слева, «удалить проповедь» справа
+        // .sermon-foot: подпись, под ней — «Удалить» на всю ширину (красная, с подтверждением)
         Padding(
           padding: const EdgeInsets.only(top: 20),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Flexible(child: Text('${tx('{n} место Писания|{n} места Писания|{n} мест Писания', {'n': verses})} · ${t('сохраняется само')}', style: TextStyle(fontSize: 13.1, color: pal.muted))),
-            const SizedBox(width: 10),
-            ConfirmIcon(
-              linkText: t('удалить проповедь'),
-              confirmText: t('Удалить проповедь?'),
-              onConfirm: () {
-                _store.delete(_id);
-                widget.onBackToList();
-              },
-            ),
-          ]),
+          child: Text('${tx('{n} место Писания|{n} места Писания|{n} мест Писания', {'n': verses})} · ${t('сохраняется само')}', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.1, color: pal.muted)),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: _WideDelete(onConfirm: () {
+            _store.delete(_id);
+            widget.onBackToList();
+          }),
         ),
       ]),
       itemCount: blocks.length,
@@ -418,6 +508,42 @@ class _EditorState extends ConsumerState<_Editor> {
 }
 
 /// .sermon-title-input: 1,35rem, жирный, только линия снизу (при вводе — цвета акцента)
+/// «Удалить проповедь» внизу редактора: красная кнопка на всю ширину; первое нажатие просит подтвердить (3 секунды)
+class _WideDelete extends StatefulWidget {
+  const _WideDelete({required this.onConfirm});
+  final VoidCallback onConfirm;
+  @override
+  State<_WideDelete> createState() => _WideDeleteState();
+}
+
+class _WideDeleteState extends State<_WideDelete> {
+  bool _ask = false;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AobButton(
+        wide: true,
+        kind: BtnKind.danger,
+        icon: LucideIcons.trash2,
+        label: _ask ? t('Удалить проповедь?') : t('Удалить проповедь'),
+        onTap: () {
+          if (_ask) {
+            _timer?.cancel();
+            widget.onConfirm();
+            return;
+          }
+          setState(() => _ask = true);
+          _timer = Timer(const Duration(seconds: 3), () => mounted ? setState(() => _ask = false) : null);
+        },
+      );
+}
+
 class _TitleField extends StatelessWidget {
   const _TitleField({required this.pal, required this.controller, required this.onChanged});
   final Palette pal;
@@ -479,7 +605,7 @@ class _Inserter extends StatelessWidget {
   }
 }
 
-class _BlockCard extends ConsumerWidget {
+class _BlockCard extends ConsumerStatefulWidget {
   const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse});
   final Palette pal;
   final Block block;
@@ -490,9 +616,106 @@ class _BlockCard extends ConsumerWidget {
   final void Function(int verse) onDropVerse;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BlockCard> createState() => _BlockCardState();
+}
+
+class _BlockCardState extends ConsumerState<_BlockCard> {
+  bool _picking = false; // режим «Часть стиха»: слова полного текста нажимаются
+  int? _from, _to;
+  String _full = '';
+  List<Word> _words = const [];
+  final _textKey = GlobalKey();
+
+  Palette get pal => widget.pal;
+  Block get block => widget.block;
+
+  /// Полный текст стиха из модуля, в котором он добавлен (как при добавлении)
+  String? _fullText() {
+    final mid = block['moduleId'];
+    if (mid is! String || !isVerse(block)) return null;
+    return verseText(mid, VerseRef(block['book'] as String, block['chapter'] as int, block['verse'] as int));
+  }
+
+  void _start() {
+    final full = _fullText();
+    if (full == null || full.trim().isEmpty) return;
+    _full = full;
+    _words = wordsOf([Token(full)]);
+    setState(() {
+      _picking = true;
+      _from = _to = null;
+    });
+  }
+
+  void _tap(int i) => setState(() {
+        if (_from == null || _to != null) {
+          _from = i;
+          _to = null;
+        } else {
+          _to = i;
+        }
+      });
+
+  (int, int)? get _range => _from == null ? null : (_to == null ? (_from!, _from!) : (_from! < _to! ? (_from!, _to!) : (_to!, _from!)));
+
+  /// Слово под точкой нажатия: по позиции символа в абзаце (без распознавателей в TextSpan — они терялись при перестройке)
+  void _tapAt(Offset global) {
+    RenderParagraph? para;
+    void find(RenderObject o) {
+      if (para != null) return;
+      if (o is RenderParagraph) {
+        para = o;
+        return;
+      }
+      o.visitChildren(find);
+    }
+
+    final ro = _textKey.currentContext?.findRenderObject();
+    if (ro != null) find(ro);
+    final pr = para;
+    if (pr == null) return;
+    final off = pr.getPositionForOffset(pr.globalToLocal(global)).offset;
+    int? best;
+    var bestD = 1 << 30;
+    for (final (i, w) in _words.indexed) {
+      final d = off < w.start ? w.start - off : (off > w.end ? off - w.end : 0);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best != null && bestD <= 1) _tap(best);
+  }
+
+  Widget _pickText(TextStyle style) {
+    final r = _range;
+    // цельная плашка под текстом, как выбор части стиха в читалке (акцент 24 %)
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapUp: (d) => _tapAt(d.globalPosition),
+      child: Stack(children: [
+        if (r != null) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: PartPlate(_textKey, _words[r.$1].start, _words[r.$2].end, pal.accent.withValues(alpha: 0.24))))),
+        Text(_full, key: _textKey, style: style),
+      ]),
+    );
+  }
+
+  void _done() {
+    final r = _range;
+    if (r == null) return;
+    final text = partText([Token(_full)], _words, r.$1, r.$2);
+    if (text.isEmpty) return;
+    ref.read(sermonsProvider.notifier).setPart(widget.sermonId, '${block['id']}', text, true);
+    setState(() => _picking = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sermonId = widget.sermonId, fresh = widget.fresh, onFreshDone = widget.onFreshDone, onGo = widget.onGo, onDropVerse = widget.onDropVerse;
     final store = ref.read(sermonsProvider.notifier);
     final verse = isVerse(block);
+    final isPart = block['part'] == true;
+    final canPick = verse && block['to'] == null && !_picking && _fullText() != null;
     final texts = verse ? verseTexts(block) : null;
     final group = texts != null && texts.length > 1;
     final v0 = (block['verse'] ?? 0) as int;
@@ -509,6 +732,15 @@ class _BlockCard extends ConsumerWidget {
             onTap: () => onGo(v0),
             child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(blockRef(block), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent))),
           ),
+          if (_picking)
+            Padding(
+              padding: const EdgeInsets.only(top: 1, bottom: 1),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                _pickText(verseStyle),
+                if (_range == null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('Нажмите на первое и последнее слово.'), style: TextStyle(fontSize: 14.4, height: 1.4, fontStyle: FontStyle.italic, color: pal.muted))),
+              ]),
+            )
+          else
           for (final (k, l) in lines.indexed)
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
@@ -535,7 +767,20 @@ class _BlockCard extends ConsumerWidget {
           padding: const EdgeInsets.only(top: 4),
           child: Row(children: [
             Tooltip(message: t('Зажмите, чтобы перетащить'), child: SizedBox(width: 22, height: 30, child: Align(alignment: Alignment.centerLeft, child: Icon(LucideIcons.gripVertical, size: 17, color: pal.muted)))),
-            const Spacer(),
+            const SizedBox(width: 6),
+            Expanded(
+              child: canPick
+                  ? Wrap(spacing: 6, children: [
+                      AobButton(icon: LucideIcons.textSelect, label: t('Часть стиха'), small: true, onTap: _start),
+                      if (isPart) AobButton(icon: LucideIcons.textQuote, label: t('Весь стих'), small: true, onTap: () => store.setPart(sermonId, '${block['id']}', _fullText()!, false)),
+                    ])
+                  : const SizedBox.shrink(),
+            ),
+            if (_picking) ...[
+              AobButton(label: t('Отмена'), small: true, onTap: () => setState(() => _picking = false)),
+              const SizedBox(width: 8),
+              AobButton(label: t('Готово'), small: true, kind: BtnKind.primary, onTap: _range == null ? null : _done),
+            ] else
             Transform.translate(
               offset: const Offset(6, 0), // margin-right: -6px
               child: ConfirmIcon(icon: LucideIcons.trash2, size: 16, confirmText: t('Удалить'), tooltip: verse ? t('Удалить стих из проповеди') : t('Удалить текст'), onConfirm: () => store.removeBlock(sermonId, '${block['id']}')),
@@ -587,6 +832,7 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
   Widget build(BuildContext context) {
     final pal = widget.pal;
     final text = '${widget.block['text']}';
+    if (_ctl.text != text) _ctl.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length)); // «Отменить»/«Повторить»
     final editing = _edit || widget.fresh || text.trim().isEmpty;
     final style = TextStyle(fontSize: 16, height: 1.5, color: pal.text);
     if (editing) {

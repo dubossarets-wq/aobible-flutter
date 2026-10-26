@@ -1,6 +1,6 @@
 # AO Bible на Flutter
 
-Перенос веб-приложения AO Bible (React + Capacitor, исходники: `E:\AO Bible\src`) на Flutter — та же функциональность
+Перенос веб-приложения AO Bible (React + Capacitor, исходники: `G:\AO Bible\src`) на Flutter — та же функциональность
 и тот же вид, но быстрее. Веб-версия — образец: тексты кнопок, порядок пунктов, поведение берём оттуда.
 
 ## Общение и стиль
@@ -9,7 +9,7 @@
 
 ## Окружение (всё на диске E:, на C: мало места)
 ```sh
-. /e/flutter-sdk/env.sh      # PATH к Flutter, PUB_CACHE, ANDROID_HOME, JAVA_HOME
+. /g/flutter-sdk/env.sh      # PATH к Flutter, PUB_CACHE, ANDROID_HOME, JAVA_HOME
 flutter analyze lib/features/<ваша папка>
 flutter test test/<ваш тест>.dart
 ```
@@ -33,7 +33,7 @@ flutter test test/<ваш тест>.dart
 ## Данные
 - Пользовательские данные (закладки, заметки, выделения, проповеди, планы, настройки) — в `prefs` (JSON, ключи как
   в веб-версии: `bookmarks`, `notes`, `highlights`, `favorites`, `collections`, `sermons`, `plans`…), форматы — как
-  в веб-версии (`E:\AO Bible\src\core\*.js`), чтобы перенос из старого приложения и файлы «Мои данные» подходили.
+  в веб-версии (`G:\AO Bible\src\core\*.js`), чтобы перенос из старого приложения и файлы «Мои данные» подходили.
 - Не терять и не сбрасывать данные и настройки людей при обновлениях.
 
 ## Языки
@@ -50,7 +50,7 @@ flutter test test/<ваш тест>.dart
   (`ListView.builder`), без лишних перестроек (Riverpod `select`).
 
 ## Дизайн — один в один с веб-версией
-- Образец — живая веб-версия: компоненты `E:\AO Bible\src\components\*.jsx` и стили `E:\AO Bible\src\styles.css`
+- Образец — живая веб-версия: компоненты `G:\AO Bible\src\components\*.jsx` и стили `G:\AO Bible\src\styles.css`
   (внимание: многие правила переопределены ниже по файлу — смотрите последние правила для селектора).
   Эталонные снимки экранов (телефон 400 px, светлая тема): папка
   `C:\Users\stude\AppData\Local\Temp\claude\e--AO-Bible\2de710ea-f53d-4c78-909a-aa1d1c5e1a55\scratchpad\web\`.

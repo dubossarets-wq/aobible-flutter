@@ -17,6 +17,7 @@ import 'features/features.dart';
 import 'features/hub.dart';
 import 'ui/bootstrap_screen.dart';
 import 'ui/home_screen.dart';
+import 'ui/keyboard_emu.dart';
 import 'ui/kit.dart' show SheetObserver;
 
 Future<void> main() async {
@@ -89,7 +90,11 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       theme: ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true),
       // Строка состояния и нижняя системная панель — цвета темы. Через AnnotatedRegion: MaterialApp сам ставит
       // светлые/тёмные значки при каждой сборке, прямой вызов SystemChrome проиграл бы ему
-      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(value: systemBarsStyle(pal), child: TabBarOverlay(child: child ?? const SizedBox.shrink())),
+      builder: (context, child) {
+        final app = TabBarOverlay(child: child ?? const SizedBox.shrink());
+        // на компьютере — эмуляция экранной клавиатуры (проверять, как интерфейс подстраивается под неё)
+        return AnnotatedRegion<SystemUiOverlayStyle>(value: systemBarsStyle(pal), child: keyboardEmuAvailable ? KeyboardEmu(child: app) : app);
+      },
       home: _ready ? const HomeScreen() : BootstrapScreen(onReady: () => setState(() => _ready = true)),
     );
   }

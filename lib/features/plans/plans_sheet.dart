@@ -464,14 +464,16 @@ class _PlanTile extends StatelessWidget {
     return GestureDetector(
       onTap: onPick,
       child: Stack(clipBehavior: Clip.none, fit: StackFit.expand, children: [
-        Container(
+        // тень — у рамки, а градиент — слоем под фото внутри одной обрезки: иначе по скруглённому краю видна кайма
+        DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]),
             boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 16, offset: Offset(0, 6))],
           ),
-          clipBehavior: Clip.antiAlias,
+          child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
           child: Stack(fit: StackFit.expand, children: [
+            DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]))),
             SiteImage(_coverPath(m.id)),
             const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment(0, -0.2), end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0xB8000000)]))),
             Positioned(
@@ -494,6 +496,7 @@ class _PlanTile extends StatelessWidget {
               child: Text(t(m.name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16.3, height: 1.2, shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))])),
             ),
           ]),
+          ),
         ),
         // outline: 3px solid accent; outline-offset: 2px
         if (on) Positioned(left: -5, top: -5, right: -5, bottom: -5, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(21), border: Border.all(color: pal.accent, width: 3))))),

@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# живой режим (tool/live.mjs)
+tool/live.log
+tool/.reload

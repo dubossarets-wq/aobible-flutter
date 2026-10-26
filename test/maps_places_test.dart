@@ -86,7 +86,7 @@ void main() {
 
   // Настоящие данные из веб-проекта (если есть рядом): 1321 место, скорость запросов
   test('настоящий bible-places.json', () async {
-    final f = File(r'E:\AO Bible\public\modules\bible-places.json');
+    final f = File(r'G:\AO Bible\public\modules\bible-places.json');
     if (!f.existsSync()) return;
     final j = jsonDecode(utf8.decode(f.readAsBytesSync())) as Map<String, dynamic>;
     final real = Directory.systemTemp.createTempSync('aob_places_real');

@@ -336,7 +336,7 @@ void main() {
     // «Отмена»
     partSelection.value = const PartSelection(0, VerseRef('Gen', 1, 3), 'rst-plus');
     await go(tester);
-    await tester.tap(find.text('Отмена'));
+    await tester.tap(find.byTooltip('Отмена')); // крестик в общей кнопке ♥ | копировать | ×
     await go(tester);
     expect(partSelection.value, isNull);
     expect(c.read(selectionProvider)[0]?.isEmpty ?? true, isTrue);

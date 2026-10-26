@@ -1,6 +1,8 @@
-// Общие элементы интерфейса — один в один с веб-версией (E:\AO Bible\src\styles.css, src/components/ui.jsx,
+// Общие элементы интерфейса — один в один с веб-версией (G:\AO Bible\src\styles.css, src/components/ui.jsx,
 // BottomSheet.jsx). Значки — Lucide (как lucide-react в веб-версии): LucideIcons.<имя в camelCase>.
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,10 +66,23 @@ Future<T?> showAobSheet<T>(
     // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
     builder: (c) => _Nested(
       nested: nested,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(c).bottom),
-        child: FractionallySizedBox(heightFactor: page || nested ? 1 : initial, child: builder(c)),
-      ),
+      // С клавиатурой верх окна остаётся на месте, а низ встаёт над клавиатурой (окно «растягивается до клавиатуры»);
+      // выше окно уезжает, только если иначе ему не хватит места (меньше 280 px)
+      child: LayoutBuilder(builder: (c2, box) {
+        final kb = MediaQuery.viewInsetsOf(c).bottom;
+        final want = box.maxHeight * (page || nested ? 1 : initial);
+        final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
+        return Padding(
+          padding: EdgeInsets.only(bottom: kb),
+          // окно уже поднято над клавиатурой — внутрь её высоту не передаём: иначе Scaffold внутри окна ужимал бы
+          // содержимое второй раз, и между окном и клавиатурой просвечивало окно под ним
+          child: MediaQuery.removeViewInsets(
+            context: c,
+            removeBottom: true,
+            child: SizedBox(height: h, child: builder(c)),
+          ),
+        );
+      }),
     ),
   );
   // как activeTab в веб-версии: окно своего вида подсвечивает свою вкладку, пока открыто (если подсвечена «Библия»)
@@ -192,14 +207,30 @@ class AobSheet extends ConsumerWidget {
             child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
           ),
         Container(
-          padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 0, 10, 8),
+          // стрелка «назад», заголовок и крестик — на одной линии: одинаковые отступы сверху и снизу, у текста —
+          // без невидимых полей над первой и под последней строкой (иначе его середина ниже середины значков)
+          padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 4, 10, 6),
+          constraints: const BoxConstraints(minHeight: 48),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-          child: Row(children: [
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             if (back != null) IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: 18.4, fontWeight: FontWeight.w700, color: pal.text)),
-                if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: pal.muted)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                    textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                    style: TextStyle(fontSize: 18.4, height: 1.2, fontWeight: FontWeight.w700, color: pal.text)),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textHeightBehavior: const TextHeightBehavior(applyHeightToFirstAscent: false, applyHeightToLastDescent: false),
+                        style: TextStyle(fontSize: 13, height: 1.2, color: pal.muted)),
+                  ),
               ]),
             ),
             ...actions,

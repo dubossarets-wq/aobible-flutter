@@ -6,6 +6,7 @@
 // Подложки (слово под выборкой, найденное слово, мигание стиха, любимые части, выбор части стиха) рисуются
 // под текстом по границам строк — одной цельной плашкой, как partShape.js.
 import 'dart:async';
+import 'part_plate.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -799,60 +800,11 @@ class _PlatePainter extends CustomPainter {
         }
         continue;
       }
-      // Прямоугольники строк (несколько кусков одной строки — в один)
-      final lines = <Rect>[];
-      for (final b in boxes) {
-        final r = b.toRect();
-        if (r.width < 1 || r.height < 1) continue;
-        final i = lines.indexWhere((l) => ((l.top + l.bottom) / 2 - (r.top + r.bottom) / 2).abs() < r.height / 2);
-        if (i >= 0) {
-          lines[i] = lines[i].expandToInclude(r);
-        } else {
-          lines.add(r);
-        }
-      }
+      final lines = lineRects(boxes);
       if (lines.isEmpty) continue;
       lines.sort((x, y) => x.top.compareTo(y.top));
-      canvas.drawPath(_union(lines, p.r, p.inflate), paint);
+      canvas.drawPath(partPlatePath(lines, p.r, p.inflate), paint);
     }
-  }
-
-  // Цельная плашка со скруглёнными углами (partShape.js): строки стыкуются посередине промежутка,
-  // скругляются и выступающие углы, и внутренние — на стыке строк разной длины
-  static Path _union(List<Rect> src, double r, double pad) {
-    final ls = [
-      for (final l in src) [l.left, l.top, l.right, l.bottom]
-    ];
-    for (var i = 1; i < ls.length; i++) {
-      final y = (ls[i - 1][3] + ls[i][1]) / 2;
-      ls[i - 1][3] = y;
-      ls[i][1] = y;
-    }
-    ls.first[1] -= pad;
-    ls.last[3] += pad;
-    final path = Path();
-    void fillet(double x, double y, Offset c) {
-      final sq = Path()..addRect(Rect.fromLTWH(x, y, r, r));
-      final hole = Path()..addOval(Rect.fromCircle(center: c, radius: r - 0.25));
-      path.addPath(Path.combine(PathOperation.difference, sq, hole), Offset.zero);
-    }
-
-    for (var i = 0; i < ls.length; i++) {
-      final l = ls[i];
-      final prev = i > 0 ? ls[i - 1] : null;
-      final next = i + 1 < ls.length ? ls[i + 1] : null;
-      final left = l[0] - pad, right = l[2] + pad;
-      final tl = prev == null || prev[0] - pad > left + 1 ? r : 0.0;
-      final tr = prev == null || prev[2] + pad < right - 1 ? r : 0.0;
-      final bl = next == null || next[0] - pad > left + 1 ? r : 0.0;
-      final br = next == null || next[2] + pad < right - 1 ? r : 0.0;
-      path.addRRect(RRect.fromLTRBAndCorners(left, l[1], right, l[3], topLeft: Radius.circular(tl), topRight: Radius.circular(tr), bottomRight: Radius.circular(br), bottomLeft: Radius.circular(bl)));
-      if (next != null && next[0] - pad < left - r) fillet(left - r, l[3] - r, Offset(left - r, l[3] - r));
-      if (next != null && next[2] + pad > right + r) fillet(right, l[3] - r, Offset(right + r, l[3] - r));
-      if (prev != null && prev[0] - pad < left - r) fillet(left - r, l[1], Offset(left - r, l[1] + r));
-      if (prev != null && prev[2] + pad > right + r) fillet(right, l[1], Offset(right + r, l[1] + r));
-    }
-    return path;
   }
 
   @override

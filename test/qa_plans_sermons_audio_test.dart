@@ -542,7 +542,7 @@ void main() {
       await tapText(tester, 'Удалить', first: true);
       expect(blocksOf(c.read(sermonsProvider).single).length, 1);
       // удалить проповедь целиком
-      await tapText(tester, 'удалить проповедь');
+      await tapText(tester, 'Удалить проповедь', last: true);
       await tapText(tester, 'Удалить проповедь?');
       expect(c.read(sermonsProvider), isEmpty);
       expect(find.text('Проповедей пока нет'), findsOneWidget);

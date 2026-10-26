@@ -21,7 +21,7 @@ Apple Developer Program ($99 в год).
 git clone https://github.com/dubossarets-wq/aobible-flutter.git
 cd aobible-flutter
 ```
-Или скопировать папку `E:\aobible-flutter` на Макбук (без папок `build` и `.dart_tool`).
+Или скопировать папку `G:\aobible-flutter` на Макбук (без папок `build` и `.dart_tool`).
 
 ## 3. Подготовить проект
 ```sh
