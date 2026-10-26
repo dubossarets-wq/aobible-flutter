@@ -473,16 +473,16 @@ class _HistoryTab extends ConsumerWidget {
       itemBuilder: (_, k) {
         final (r, i) = items[k];
         final cur = i == p.hIndex;
-        return Container(
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-          child: InkWell(
+        // строка — от края до края окна, отступ 20 — у содержимого
+        return bleed(InkWell(
             // «go» на нужное число шагов от текущего места: окно закрывается, панель переходит
             onTap: () {
               Navigator.of(context).popUntil((route) => route.isFirst);
               ref.read(panesProvider.notifier).go(i0, i - p.hIndex);
             },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
               child: Row(children: [
                 Icon(LucideIcons.history, size: 16, color: cur ? pal.accent : pal.text),
                 const SizedBox(width: 10),
@@ -490,8 +490,7 @@ class _HistoryTab extends ConsumerWidget {
                 if (cur) Text(t('сейчас'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
               ]),
             ),
-          ),
-        );
+        ));
       },
     );
   }

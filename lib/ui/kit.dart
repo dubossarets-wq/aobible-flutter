@@ -4,7 +4,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox;
+import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -235,6 +235,9 @@ Route<dynamic>? topRoute(BuildContext context) {
 }
 
 /// Закрыть все открытые окна (нижние окна, окна изучения, меню) — до экрана чтения
+/// Переход к месту в Библии: закрываются все окна и страницы поверх читалки (и «Ещё», из которого открыли окно)
+void closeToReader(BuildContext context) => Navigator.of(context).popUntil((r) => r.isFirst);
+
 void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) => r is! PopupRoute);
 
 /// Высота нижних вкладок вместе с отступами (0 — вкладок нет: широкий экран, первая загрузка).
@@ -318,10 +321,12 @@ class AobSheet extends ConsumerWidget {
     final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
     final mq = MediaQuery.of(context);
     final system = MediaQueryData.fromView(View.of(context)).textScaler;
-    return MediaQuery(
+    final sheet = MediaQuery(
       data: mq.copyWith(textScaler: scale == 1 ? system : TextScaler.linear(system.scale(1) * scale)),
       child: _sheet(context, pal, body, back),
     );
+    // окно снизу (не вложенное): список уже у верха — потянули вниз дальше, и окно уезжает за пальцем и закрывается
+    return _Nested.of(context) ? sheet : _PullToClose(child: sheet);
   }
 
   Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back) {
@@ -386,6 +391,62 @@ class AobSheet extends ConsumerWidget {
       ]),
     );
   }
+}
+
+/// Свайп вниз по раскрытому окну, когда его список уже прокручен до верха: окно едет за пальцем;
+/// отпустили дальше 90 px — закрывается, ближе — плавно возвращается на место
+class _PullToClose extends StatefulWidget {
+  const _PullToClose({required this.child});
+  final Widget child;
+  @override
+  State<_PullToClose> createState() => _PullToCloseState();
+}
+
+class _PullToCloseState extends State<_PullToClose> with SingleTickerProviderStateMixin {
+  late final AnimationController _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 220))..addListener(() => setState(() => _pull = _from * (1 - Curves.fastOutSlowIn.transform(_back.value))));
+  double _pull = 0, _from = 0;
+  bool _closing = false;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _release() {
+    if (_pull <= 0 || _closing) return;
+    if (_pull > 90) {
+      _closing = true;
+      Navigator.of(context).maybePop();
+      return;
+    }
+    _from = _pull;
+    _back.forward(from: 0);
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical || _closing) return false;
+    if (n is OverscrollNotification && n.overscroll < 0 && n.dragDetails != null) {
+      _back.stop();
+      setState(() => _pull += -n.overscroll);
+    } else if (n is ScrollUpdateNotification && n.dragDetails != null && _pull > 0 && (n.scrollDelta ?? 0) > 0) {
+      // палец пошёл вверх, а окно ещё опущено: сначала поднимается окно, список внутри стоит на месте
+      // (его сдвиг тут же возвращаем; setPixels, а не jumpTo, — jumpTo оборвал бы перетаскивание)
+      final take = math.min(n.scrollDelta!, _pull);
+      final pos = Scrollable.maybeOf(n.context!)?.position;
+      if (pos != null) pos.setPixels(pos.pixels - take);
+      setState(() => _pull -= take);
+    } else if (n is ScrollEndNotification || (n is UserScrollNotification && n.direction == ScrollDirection.idle)) {
+      _release();
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: Transform.translate(offset: Offset(0, _pull), child: widget.child),
+      );
 }
 
 // --- Кнопки ---------------------------------------------------------------------------------------------
@@ -1031,6 +1092,12 @@ SnackBar aobSnackBar(Palette pal, String text, {String? actionLabel, VoidCallbac
 // --- Вкладки и ряд плашек -----------------------------------------------------------------------------------
 
 /// Расширить на поля окна (16 с каждой стороны): линия вкладок и ряд плашек — от края до края
+/// Подложка карточек в окнах (как «Свой план»): чистая нейтральная, чуть темнее окна — карточка видна без жирной рамки
+Color cardFill(Palette pal) => mix(pal.text, 0.055, pal.panel);
+
+/// Содержимое — от края до края окна (поверх его полей 16 px): строки списков, линии
+Widget bleed(Widget child) => _bleed(child);
+
 Widget _bleed(Widget child) => LayoutBuilder(
       builder: (context, box) => OverflowBox(minWidth: box.maxWidth + 32, maxWidth: box.maxWidth + 32, fit: OverflowBoxFit.deferToChild, child: child),
     );

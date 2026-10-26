@@ -313,7 +313,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
   void _goRef(VerseRef r) {
     _remember(_q.text.trim());
-    Navigator.pop(context);
+    closeToReader(context); // сразу в Библию
     ref.read(panesProvider.notifier).navigate(widget.pane, r);
   }
 
@@ -328,7 +328,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   // Место из другого перевода открывается в этом переводе
   void _open(SearchHit h, String moduleId) {
     _remember(_ran);
-    Navigator.pop(context);
+    closeToReader(context);
     final n = ref.read(panesProvider.notifier);
     if (moduleId != _pane.moduleId && ModuleStore.instance.get(moduleId) != null) n.setModule(widget.pane, moduleId);
     n.navigate(widget.pane, h.ref, highlight: _ran.isEmpty ? null : _ran);
@@ -553,40 +553,46 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
   List<Widget> _historyList(Palette pal) => [
         GroupTitle(t('Недавние')),
+        // строки — от края до края окна (и красная полоса удаления), отступ 20 — у содержимого
         for (final h in _history)
-          Dismissible(
+          bleed(Dismissible(
             key: ValueKey('sh-$h'),
             direction: DismissDirection.endToStart,
             background: Container(
               color: const Color(0xffd1342b),
               alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 18),
+              padding: const EdgeInsets.only(right: 20),
               child: const Icon(LucideIcons.trash2, size: 18, color: Colors.white),
             ),
             onDismissed: (_) => _forget(h),
-            child: Container(
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-              child: Row(children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      _setQuery(h);
-                      _remember(h);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-                      child: Row(children: [
-                        Icon(LucideIcons.clock, size: 16, color: pal.muted),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(h, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15, color: pal.text))),
-                      ]),
+            child: Material(
+              color: pal.panel,
+              child: InkWell(
+                onTap: () {
+                  _setQuery(h);
+                  _remember(h);
+                },
+                child: Container(
+                  // справа 12: у кнопки 32 значок 16 — его край приходится на 20
+                  padding: const EdgeInsets.only(left: 20, right: 12),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+                  child: Row(children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4, top: 12, bottom: 12),
+                        child: Row(children: [
+                          Icon(LucideIcons.clock, size: 16, color: pal.muted),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(h, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15, color: pal.text))),
+                        ]),
+                      ),
                     ),
-                  ),
+                    IconBtn(icon: LucideIcons.x, subtle: true, size: 16, tooltip: t('Убрать из истории'), onTap: () => _forget(h)),
+                  ]),
                 ),
-                IconBtn(icon: LucideIcons.x, subtle: true, size: 16, tooltip: t('Убрать из истории'), onTap: () => _forget(h)),
-              ]),
+              ),
             ),
-          ),
+          )),
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: Align(
@@ -607,12 +613,13 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   // Строка результата (.result-row): ссылка, метка перевода, текст с подсветкой, справа «Копировать»
   Widget _resultRow(Palette pal, TextStyle textStyle, SearchHit h, InstalledModule? mod, RegExp? re) {
     final label = Books.instance.formatRef(h.ref.book, h.ref.chapter, h.ref.verse);
-    return Stack(children: [
+    // строка — от края до края окна, отступ 20 — у содержимого; кнопка — на 12 от края (значок — на 20)
+    return bleed(Stack(children: [
       InkWell(
         onTap: () => _open(h, mod?.id ?? _pane.moduleId),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(4, 11, 44, 11),
+          padding: const EdgeInsets.fromLTRB(20, 11, 56, 11),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -631,8 +638,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           ]),
         ),
       ),
-      Positioned(top: 5, right: 0, child: IconBtn(icon: LucideIcons.copy, subtle: true, size: 16, tooltip: t('Копировать'), onTap: () => _copy(h))),
-    ]);
+      Positioned(top: 5, right: 12, child: IconBtn(icon: LucideIcons.copy, subtle: true, size: 16, tooltip: t('Копировать'), onTap: () => _copy(h))),
+    ]));
   }
 
   // Найденное — подсветкой (mark): ровно то, что совпало с запросом

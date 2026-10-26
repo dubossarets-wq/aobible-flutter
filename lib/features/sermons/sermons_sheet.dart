@@ -237,8 +237,9 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                   ]),
                 )
               else
+                // строки — от края до края окна (и красная полоса удаления тоже), как списки в настройках
                 for (final s in sermons)
-                  Dismissible(
+                  bleed(Dismissible(
                     key: ValueKey('${s['id']}'),
                     direction: DismissDirection.endToStart,
                     onDismissed: (_) => _remove(s),
@@ -256,7 +257,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                       ),
                     ),
                     child: SermonRow(pal: pal, sermon: s, onTap: () => setState(() => _openId = '${s['id']}')),
-                  ),
+                  )),
             ])),
     );
   }
@@ -282,7 +283,8 @@ class SermonRow extends StatelessWidget {
       child: InkWell(
         onTap: enabled ? onTap : null,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+          // строка стоит от края до края окна (bleed у списка) — отступы у содержимого
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             Icon(LucideIcons.scrollText, size: 18, color: pal.accent),
@@ -364,7 +366,7 @@ class _EditorState extends ConsumerState<_Editor> {
 
   // Нажатие на стих — к этому стиху в Библии
   void _goVerse(Block b, int verse) {
-    Navigator.of(context).pop();
+    closeToReader(context); // сразу в Библию
     ref.read(panesProvider.notifier).navigate(widget.pane, VerseRef(b['book'] as String, b['chapter'] as int, verse));
   }
 
@@ -1212,10 +1214,11 @@ class _VersePickerState extends ConsumerState<VersePicker> {
         }
         final h = hits![i - 1];
         final has = _has(h.ref);
+        // строка уже от края до края списка (у списка нет полей), отступ 20 — у содержимого, как в остальных окнах
         return InkWell(
           onTap: () => _addOne(h),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
             child: Row(children: [
               Expanded(

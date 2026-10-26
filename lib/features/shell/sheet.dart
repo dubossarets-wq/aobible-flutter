@@ -375,7 +375,15 @@ class _RangeRowState extends ConsumerState<RangeRow> {
                 child: SizedBox(
                   width: 44,
                   height: 44,
-                  child: Center(child: w.big ? Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 23, fontWeight: FontWeight.w600, height: 1, color: pal.text)) : Icon(icon, size: 18, color: pal.text)),
+                  // у заглавной «A» нет нижнего выносного элемента — без сдвига она садится ниже середины круга
+                  child: Center(
+                    child: w.big
+                        ? Transform.translate(
+                            offset: Offset(0, -(delta < 0 ? 13 : 23) * 0.08),
+                            child: Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 23, fontWeight: FontWeight.w600, height: 1, leadingDistribution: TextLeadingDistribution.even, color: pal.text)),
+                          )
+                        : Icon(icon, size: 18, color: pal.text),
+                  ),
                 ),
               ),
             ),
@@ -439,7 +447,7 @@ class Card2 extends ConsumerWidget {
     final all = [if (title != null) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      decoration: BoxDecoration(color: cardFill(pal), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // раскрывающийся блок (Reveal) сам несёт зазор сверху — свёрнутый не оставляет пустого места
         for (var i = 0; i < all.length; i++) ...[if (i > 0 && all[i] is! Reveal) const SizedBox(height: 14), all[i]],

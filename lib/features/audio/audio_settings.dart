@@ -100,8 +100,9 @@ class _OfflineRowState extends State<_OfflineRow> {
     final name = Books.instance.meta(book).name;
     final mod = ModuleStore.instance.get(audioId);
     final label = t('Удалить скачанную книгу {book}', {'book': name});
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    // строка — от края до края окна (линия тоже), отступ 20 — у содержимого; справа 12: значок кнопки 32 — на 20
+    return bleed(Container(
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
       child: Row(spacing: 8, children: [
         Expanded(
@@ -125,6 +126,6 @@ class _OfflineRowState extends State<_OfflineRow> {
         ] else
           IconBtn(icon: LucideIcons.trash2, subtle: true, size: 15, tooltip: label, onTap: () => setState(() => _armed = true)),
       ]),
-    );
+    ));
   }
 }

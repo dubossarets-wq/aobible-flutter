@@ -261,9 +261,10 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         } else {
           text = Text(tx, style: font);
         }
-        // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом
-        cmpItems.add(Container(
-          padding: EdgeInsets.only(top: b == shown.first ? 2 : 12, bottom: 12),
+        // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом;
+        // линия — от края до края окна, отступ 20 — у содержимого (справа 11: значок 20 в кнопке 38 — на 20 от края)
+        cmpItems.add(bleed(Container(
+          padding: EdgeInsets.fromLTRB(20, b == shown.first ? 2 : 12, 11, 12),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ConstrainedBox(
@@ -272,14 +273,13 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
                 Text(b.name, style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(isCur ? t('открыт сейчас') : b.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: pal.muted, fontSize: 13.6))),
-                if (!isCur)
-                  Transform.translate(offset: const Offset(8, 0), child: IconBtn(icon: LucideIcons.columns2, size: 20, color: pal.accent, tooltip: t('Читать параллельно'), onTap: () => _parallel(b))),
+                if (!isCur) IconBtn(icon: LucideIcons.columns2, size: 20, color: pal.accent, tooltip: t('Читать параллельно'), onTap: () => _parallel(b)),
               ]),
             ),
             const SizedBox(height: 4),
             text,
           ]),
-        ));
+        )));
       }
       children.add(Column(children: cmpItems));
       if (Hub.openLibrary != null) {

@@ -18,6 +18,7 @@ import '../plans/net_cache.dart' show SiteImage;
 import 'background.dart';
 import 'colors.dart';
 import 'fonts.dart';
+import 'intl_data.dart' show langDisplayNames;
 import 'sheet.dart';
 
 Future<void> openAppearance(BuildContext context, {String? block}) => showAppSheet(context, (_) => AppearanceSheet(block: block));
@@ -297,13 +298,11 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           ],
         ]),
       ]),
-      // .ap-list: линия сверху, строки не ниже 60
-      Container(
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
-        child: Column(children: [
-          for (final (i, b) in _shown.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _shown.length - 1),
-        ]),
-      ),
+      // .ap-list: линия сверху, строки не ниже 60; линия — от края до края окна, как у самих строк
+      Column(children: [
+        bleed(Container(height: 1, color: pal.line)),
+        for (final (i, b) in _shown.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _shown.length - 1),
+      ]),
       Center(
         child: ConfirmButton(
           block: true,
@@ -620,28 +619,68 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     final pal = effectivePalette(s);
     final inline = s.j['inlineCommentaries'];
     final fs = s.d('commentaryFontSize');
+    bool isOn(InstalledModule m) => inline is! List || inline.contains(m.id);
+    // сначала — на языке приложения, затем остальные (внутри — в прежнем порядке)
+    final sorted = [...list.where((m) => m.language == currentLang), ...list.where((m) => m.language != currentLang)];
+    final sample = sorted.where(isOn).firstOrNull ?? sorted.firstOrNull;
     return [
-      // размер текста в окне комментариев — с образцом
+      // образец — как комментарий в читалке: под стихом, с линией акцента слева и названием источника
       Card2(children: [
-        Text(t('Так выглядит текст комментария.'), style: TextStyle(fontSize: fs, height: 1.6, color: pal.text)),
+        Container(
+          padding: const EdgeInsets.only(left: 12),
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.accent, width: 3))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (sample != null) Text(sample.name, style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w700, color: pal.accent)),
+            const SizedBox(height: 2),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 160),
+              style: TextStyle(fontSize: fs, height: 1.6, color: pal.text),
+              child: Text(t('Так выглядит текст комментария.')),
+            ),
+          ]),
+        ),
         RangeRow(label: t('Размер текста'), big: true, value: fs, min: 14, max: 32, step: 1, onChanged: (v) => set({'commentaryFontSize': v}), word: (v) => '${v.round()} px'),
       ]),
-      Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
-      Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
-      Card2(children: [
-        for (final m in list)
-          SwitchField(
-            bold: true,
-            label: m.name,
-            hint: m.title == m.name ? null : m.title,
-            value: inline is! List || inline.contains(m.id),
-            onChanged: (on) {
-              final cur = inline is List ? inline.cast<String>() : [for (final x in list) x.id];
-              set({'inlineCommentaries': on ? {...cur, m.id}.toList() : [for (final x in cur) if (x != m.id) x]});
-            },
-          ),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        const SizedBox(height: 4),
+        Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+      ]),
+      // источники — строками от края до края, как списки в настройках: название, ниже описание и язык, справа переключатель
+      Column(children: [
+        for (final (i, m) in sorted.indexed)
+          bleed(InkWell(
+            onTap: () => _toggleInline(list, inline, m, !isOn(m)),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 11, 16, 11),
+              decoration: BoxDecoration(border: Border(top: i == 0 ? BorderSide(color: pal.line) : BorderSide.none, bottom: BorderSide(color: pal.line))),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(m.name, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.text)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        [if (m.title != m.name) m.title, langDisplayNames[currentLang]?[m.language] ?? m.language].join(' · '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12.6, height: 1.35, color: pal.muted),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(width: 12),
+                AobSwitch(value: isOn(m), onChanged: (v) => _toggleInline(list, inline, m, v)),
+              ]),
+            ),
+          )),
       ]),
     ];
+  }
+
+  void _toggleInline(List<InstalledModule> list, Object? inline, InstalledModule m, bool on) {
+    final cur = inline is List ? inline.cast<String>() : [for (final x in list) x.id];
+    set({'inlineCommentaries': on ? {...cur, m.id}.toList() : [for (final x in cur) if (x != m.id) x]});
   }
 
   void _setColor(String k, Color c) => set({'colorOverrides': {...overridesOf(ref.read(settingsProvider)), k: toHex(c)}});
@@ -729,36 +768,61 @@ class _ThemeTile extends StatelessWidget {
               width: 54,
               height: 54,
               clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(color: dark == null ? p.bg : null, gradient: dark == null ? null : LinearGradient(colors: [p.bg, p.bg, dark!.bg, dark!.bg], stops: const [0, 0.5, 0.5, 1]), shape: BoxShape.circle, border: Border.all(color: p.line), boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))]),
-              child: Stack(alignment: Alignment.center, children: [
+              decoration: BoxDecoration(color: p.bg, shape: BoxShape.circle, border: Border.all(color: p.line), boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))]),
+              // «Системная» — как соседние плитки, но левая половина светлой темы, правая — тёмной (сглаженными фигурами);
+              // «А» — светлой темы, «а» — тёмной, вплотную у середины, как одно слово
+              child: dark != null
+                  ? CustomPaint(
+                      painter: _HalfDark(dark!.bg, p.bar, dark!.bar),
+                      child: Transform.translate(
+                        offset: const Offset(0, 4),
+                        child: Row(children: [
+                          Expanded(child: Align(alignment: Alignment.centerRight, child: Text(t('Аа').substring(0, 1), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
+                          const SizedBox(width: 1),
+                          Expanded(child: Align(alignment: Alignment.centerLeft, child: Text(t('Аа').substring(1), style: TextStyle(color: dark!.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
+                        ]),
+                      ),
+                    )
+                  : Stack(alignment: Alignment.center, children: [
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
                   height: 54 * 0.26,
-                  child: dark == null ? ColoredBox(color: p.bar) : DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [p.bar, p.bar, dark!.bar, dark!.bar], stops: const [0, 0.5, 0.5, 1]))),
+                  child: ColoredBox(color: p.bar),
                 ),
-                if (dark == null)
-                  Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16)))
-                else
-                  // «А» — по центру светлой половины, «а» — по центру тёмной
-                  Positioned.fill(
-                    top: 8,
-                    child: Row(children: [
-                      Expanded(child: Center(child: Text(t('Аа').substring(0, 1), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
-                      Expanded(child: Center(child: Text(t('Аа').substring(1), style: TextStyle(color: dark!.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
-                    ]),
-                  ),
-                Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: (dark ?? p).accent, shape: BoxShape.circle))),
+                Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16))),
+                Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle))),
               ]),
             ),
           ),
           const SizedBox(height: 0),
-          Text(id == 'auto' ? t('Системная') : t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
+          // название целиком: длинное (другие языки, «Системная» жирным) ужимается, а не обрезается
+          FittedBox(fit: BoxFit.scaleDown, child: Text(id == 'auto' ? t('Системная') : t(p.label), maxLines: 1, softWrap: false, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text))),
         ]),
       ),
     );
   }
+}
+
+/// Плитка «Системная»: правая половина — фон тёмной темы, сверху полоса панели (слева светлая, справа тёмная);
+/// фигуры сглаженные (резкий переход градиента давал зубцы)
+class _HalfDark extends CustomPainter {
+  _HalfDark(this.color, this.barLight, this.barDark);
+  final Color color, barLight, barDark;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, half = w / 2, bar = h * 0.26;
+    Paint fill(Color c) => Paint()
+      ..color = c
+      ..isAntiAlias = true;
+    canvas.drawRect(Rect.fromLTWH(half, 0, w - half, h), fill(color));
+    canvas.drawRect(Rect.fromLTWH(0, 0, half, bar), fill(barLight));
+    canvas.drawRect(Rect.fromLTWH(half, 0, w - half, bar), fill(barDark));
+  }
+
+  @override
+  bool shouldRepaint(_HalfDark old) => old.color != color || old.barLight != barLight || old.barDark != barDark;
 }
 
 /// Схема вида текста (.view-tile): строки-палочки; «n» — номер стиха, «i» — красная строка

@@ -121,7 +121,9 @@ Future<void> reveal(WidgetTester tester, Finder f) async {
 }
 
 Future<void> toTop(WidgetTester tester) async {
-  await tester.drag(find.byType(Scrollable).first, const Offset(0, 6000));
+  // мгновенно к началу списка: рывок пальцем дальше верха закрыл бы окно (потянуть вниз — закрыть)
+  final st = tester.state<ScrollableState>(find.byType(Scrollable).first);
+  st.position.jumpTo(st.position.minScrollExtent);
   await spin(tester, 300);
 }
 
@@ -280,7 +282,8 @@ void main() {
       await reveal(tester, find.text('Новый Завет за 90 дней'));
       expect(find.text('Новый Завет за 90 дней'), findsOneWidget);
       expect(find.text('Евангелия за 30 дней'), findsOneWidget);
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, 5000));
+      // назад к стиху дня — прокруткой ровно до него: рывок дальше верха закрывает окно (потянуть вниз — закрыть)
+      await tester.scrollUntilVisible(find.text('Стих дня'), -300, scrollable: find.byType(Scrollable).first);
       await spin(tester, 200);
       await tapText(tester, 'Читать'); // «Читать» стиха дня
       expect(c.read(panesProvider).first.ref, isNot(startRef)); // сменили место

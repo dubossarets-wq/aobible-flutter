@@ -168,7 +168,8 @@ class AobListRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     final metaText = meta == null ? null : Text(meta!, style: TextStyle(fontSize: 13.1, fontWeight: FontWeight.w400, color: pal.muted));
-    return Dismissible(
+    // строка — от края до края окна (bleed поверх полей 16), и подсветка, и линия, и красная полоса; отступ 20 — у содержимого
+    return bleed(Dismissible(
       key: ValueKey(id),
       direction: DismissDirection.endToStart,
       onDismissed: (_) => onDelete(),
@@ -186,14 +187,16 @@ class AobListRow extends ConsumerWidget {
       ),
       child: Material(
         color: pal.panel,
-        child: Container(
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+          // справа 12: у кнопки 32 значок 16 — его край приходится на 20
+          padding: const EdgeInsets.only(left: 20, right: 12),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             Expanded(
-              child: InkWell(
-                onTap: onTap,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                  padding: const EdgeInsets.only(right: 4, top: 11, bottom: 11),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       Flexible(child: DefaultTextStyle.merge(style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text), child: title)),
@@ -204,14 +207,14 @@ class AobListRow extends ConsumerWidget {
                       Padding(padding: const EdgeInsets.only(top: 3), child: Text(text!, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14.1, height: 1.4, color: pal.muted))),
                   ]),
                 ),
-              ),
             ),
             ...extra,
             IconBtn(icon: LucideIcons.trash2, subtle: true, size: 16, tooltip: deleteLabel, onTap: onDelete),
           ]),
         ),
+        ),
       ),
-    );
+    ));
   }
 }
 

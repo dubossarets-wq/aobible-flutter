@@ -214,10 +214,13 @@ class _PopoverState extends ConsumerState<_Popover> {
   Widget build(BuildContext context) {
     final pal = paletteOf(ref);
     final res = widget.res;
-    final items = [
+    // сначала — статьи по номеру Стронга (G2423, H7225), ниже — остальные словари (по слову); внутри — прежний порядок
+    final all = [
       for (final r in res.results)
         for (final f in r.found) (module: r.module, key: f.key, label: f.label),
     ];
+    final strong = RegExp(r'^[GH]\d');
+    final items = [...all.where((x) => strong.hasMatch(x.key)), ...all.where((x) => !strong.hasMatch(x.key))];
     final rows = <Widget>[];
     const base = TextStyle(fontSize: 16); // font-size: 1rem
     final go = Icon(LucideIcons.chevronRight, size: 16, color: pal.muted);

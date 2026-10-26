@@ -122,7 +122,7 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
           const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
           GroupTitle(t('Или выберите проповедь')),
           const SizedBox(height: 2),
-          for (final s in sermons) SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(LucideIcons.plus, size: 18, color: pal.accent), onTap: () => _add('${s['id']}', '${s['title']}')),
+          for (final s in sermons) bleed(SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(LucideIcons.plus, size: 18, color: pal.accent), onTap: () => _add('${s['id']}', '${s['title']}'))),
         ],
       ]),
     );

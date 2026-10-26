@@ -430,30 +430,36 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
       if (bookMode && matches.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
       if (bookMode && matches.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: _grid(pal, fill, matches, at)),
       if (!bookMode && q.trim().isEmpty && recent.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: Text(t('Недавние'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: muted))),
-        const SizedBox(height: 8),
+        // Недавние — одной строкой ссылками, без плашек: заметны меньше и места почти не занимают
+        const SizedBox(height: 12),
         SizedBox(
-          height: 48,
-          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(vertical: 2), children: [
-            for (final b in recent)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Material(
-                  color: b.id == at.book ? mix(pal.accent, 0.14, pal.panel) : fill,
-                  shape: StadiumBorder(side: b.id == at.book ? BorderSide(color: pal.accent, width: 1.5) : BorderSide.none),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => _openBook(b),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      alignment: Alignment.center,
-                      child: Text(b.name, style: TextStyle(fontSize: 14.7, fontWeight: b.id == at.book ? FontWeight.w600 : FontWeight.w500, color: pal.text)),
+          height: 30,
+          child: Row(children: [
+            // значок истории, затем недавние книги
+            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: Icon(LucideIcons.history, size: 16, color: muted))),
+            Expanded(
+              // маленькие капсулы (высота 28) с лёгкой заливкой — видно, что это кнопки, и места почти не занимают;
+              // текущая книга — цветом акцента
+              child: FadeRow(gap: 6, children: [
+                for (final b in recent)
+                  Material(
+                    color: b.id == at.book ? mix(pal.accent, 0.12, pal.panel) : fill,
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _openBook(b),
+                      child: Container(
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Align(
+                          widthFactor: 1,
+                          child: Text(b.name, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: b.id == at.book ? accentOnTint(pal) : pal.text)),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+              ]),
+            ),
           ]),
         ),
       ],

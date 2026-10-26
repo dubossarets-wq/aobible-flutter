@@ -1,6 +1,7 @@
 // Главный экран: одна или две панели чтения, у каждой — шапка (перевод, место, история, вторая панель),
 // внизу на телефоне — плавающая капсула вкладок «Планы, Поиск, Библия, Закладки, Ещё».
 // Вид — как в веб-версии (ReaderToolbar.jsx, TabBar.jsx, SplitScreenReader.jsx, ModulePicker.jsx, styles.css).
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../core/modules.dart';
 import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
+import '../features/shell/intl_data.dart' show langDisplayNames;
 import 'kit.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
@@ -324,30 +326,39 @@ class _Pane extends ConsumerWidget {
             decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
             padding: const EdgeInsets.only(left: 8, right: 4),
             child: Row(children: [
-              // Перевод: короткое имя «RST+ ˅» — плашка
-              _BarChip(label: shortName(mod), tip: t('Перевод: {name}. Сменить перевод', {'name': mod?.name ?? module}), bg: chipBg, fg: fg, fontSize: narrow ? 14.1 : 15.2, weight: FontWeight.w800, maxWidth: paneW * 0.38, chevron: !tiny, onTap: () => _pickModule(context)),
-              const SizedBox(width: 2),
-              // Место: полное название книги («Бытие 1:1», «От Иоанна 3:16»); длинное или не помещается — сокращение
+              // Перевод и место — одна капсула: слева короткое имя перевода (мельче, приглушённо), тонкий разделитель,
+              // справа место — полное название книги («Бытие 1:1»), длинное или не помещается — сокращение; у каждой
+              // части своё нажатие: перевод → выбор перевода, место → «Перейти»
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, c) => Align(
+                child: LayoutBuilder(builder: (context, c) {
+                  final modLabel = shortName(mod);
+                  final modSize = narrow ? 13.4 : 14.1, refSize = narrow ? 16.3 : 17.4;
+                  final tp = TextPainter(text: TextSpan(text: modLabel, style: TextStyle(fontSize: modSize, fontWeight: FontWeight.w700, letterSpacing: .4)), textDirection: TextDirection.ltr, maxLines: 1, textScaler: MediaQuery.textScalerOf(context))..layout();
+                  final modW = math.min(tp.width + 26, c.maxWidth * 0.4);
+                  tp.dispose();
+                  return Align(
                     alignment: Alignment.centerLeft,
                     child: ValueListenableBuilder<VerseRef>(
                       valueListenable: livePosition(index, initial),
-                      builder: (_, r, _) => _BarChip(
-                        label: _refLabel(context, r, c.maxWidth, narrow ? 16.3 : 17.9, tiny),
-                        tip: t('{ref}. Выбрать место', {'ref': Books.instance.formatRef(r.book, r.chapter, r.verse, full: true)}),
+                      builder: (_, r, _) => _BarCrumb(
                         bg: chipBg,
                         fg: fg,
-                        fontSize: narrow ? 16.3 : 17.9,
-                        weight: FontWeight.w700,
+                        module: modLabel,
+                        moduleTip: t('Перевод: {name}. Сменить перевод', {'name': mod?.name ?? module}),
+                        moduleSize: modSize,
+                        moduleMaxWidth: modW,
+                        place: _refLabel(context, r, c.maxWidth - modW - 1, refSize, tiny),
+                        placeTip: t('{ref}. Выбрать место', {'ref': Books.instance.formatRef(r.book, r.chapter, r.verse, full: true)}),
+                        placeSize: refSize,
                         chevron: !tiny,
-                        onTap: () => openNavigator(context, index),
+                        onModule: () => _pickModule(context),
+                        onPlace: () => openNavigator(context, index),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }),
               ),
+              const SizedBox(width: 4),
               tbIcon(LucideIcons.arrowLeft, t('Назад по истории'), hist.$1 > 0 ? () => ref.read(panesProvider.notifier).go(index, -1) : null),
               if (hist.$1 < hist.$2 - 1) tbIcon(LucideIcons.arrowRight, t('Вперёд по истории'), () => ref.read(panesProvider.notifier).go(index, 1)),
               if (wide && index == 0) tbIcon(LucideIcons.search, t('Поиск'), () => openSearch(context, index)),
@@ -365,7 +376,7 @@ class _Pane extends ConsumerWidget {
       Expanded(
         child: ValueListenableBuilder<Map<int, ({String uid, int day})>>(
           valueListenable: planMode,
-          builder: (context, m, _) => m[index] != null && Hub.planView != null ? Hub.planView!(context, ref, index) : ReaderPane(index: index),
+          builder: (context, m, _) => m[index] != null && Hub.planView != null ? Hub.planView!(context, ref, index) : _readerOf(index),
         ),
       ),
     ]);
@@ -397,13 +408,20 @@ class _UpdateDot extends StatelessWidget {
 }
 
 /// Окно выбора перевода: книга, глава и стих сохраняются. У каждого перевода — звёздочка «сделать основным»
-class _ModulePicker extends ConsumerWidget {
+class _ModulePicker extends ConsumerStatefulWidget {
   const _ModulePicker({required this.pane, required this.outer});
   final int pane;
   final BuildContext outer;
+  @override
+  ConsumerState<_ModulePicker> createState() => _ModulePickerState();
+}
+
+class _ModulePickerState extends ConsumerState<_ModulePicker> {
+  String? _lang; // выбранный язык в выборке сверху; null — все
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final pane = widget.pane, outer = widget.outer;
     final pal = paletteOf(ref);
     final primary = ref.watch(settingsProvider.select((s) => s.get<String>('primaryModule')));
     final current = ref.watch(panesProvider.select((l) => pane < l.length ? l[pane].moduleId : ''));
@@ -411,10 +429,19 @@ class _ModulePicker extends ConsumerWidget {
     return ValueListenableBuilder<int>(
       valueListenable: ModuleStore.instance.changes,
       builder: (context, _, _) {
-        // основной (избранный ★) — первым, остальные в прежнем порядке
-        final list = ModuleStore.instance.bibles.where((m) => m.features['helper'] != true).toList();
-        final top = list.indexWhere((m) => m.id == primary);
-        if (top > 0) list.insert(0, list.removeAt(top));
+        // основной (избранный ★) — первым, остальные в прежнем порядке, подстрочники — всегда внизу
+        final all = ModuleStore.instance.bibles.where((m) => m.features['helper'] != true).toList();
+        final top = all.indexWhere((m) => m.id == primary);
+        if (top > 0) all.insert(0, all.removeAt(top));
+        final ordered = [...all.where((m) => m.features['interlinear'] != true), ...all.where((m) => m.features['interlinear'] == true)];
+        // выборка по языкам — если переводы на разных языках; язык приложения — первым
+        final langs = <String>{for (final m in ordered) m.language}.toList()..sort((a, b) => a == currentLang ? -1 : b == currentLang ? 1 : 0);
+        final lang = langs.contains(_lang) ? _lang : null;
+        final list = lang == null ? ordered : [for (final m in ordered) if (m.language == lang) m];
+        String langName(String code) {
+          final n = langDisplayNames[currentLang]?[code] ?? code;
+          return n.isEmpty ? code : '${n[0].toUpperCase()}${n.substring(1)}';
+        }
         return AobSheet(
           title: t('Перевод'),
           subtitle: pane == 1 ? t('Вторая панель') : t('Основная панель'),
@@ -423,6 +450,18 @@ class _ModulePicker extends ConsumerWidget {
           // подсветка нажатия и наведения и линии — от края до края окна
           padding: const EdgeInsets.only(bottom: 16),
           child: ListView(children: [
+            if (langs.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 12, 0, 10),
+                child: SizedBox(
+                  height: 34,
+                  child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+                    AobChip(label: t('Все'), on: lang == null, onTap: () => setState(() => _lang = null)),
+                    for (final l in langs) AobChip(label: langName(l), on: lang == l, onTap: () => setState(() => _lang = l)),
+                  ]),
+                ),
+              ),
+            if (langs.length > 1) Container(height: 1, color: pal.line),
             for (final (k, m) in list.indexed)
               InkWell(
                 onTap: () {
@@ -508,39 +547,69 @@ String _refLabel(BuildContext context, VerseRef r, double maxWidth, double fontS
   return b.formatRef(r.book, r.chapter, r.verse);
 }
 
-/// Плашка в шапке (.toolbar .tb-module / .tb-ref): высота 40, «таблетка», стрелка ˅
-class _BarChip extends StatelessWidget {
-  const _BarChip({required this.label, required this.bg, required this.fg, required this.fontSize, required this.weight, required this.onTap, this.maxWidth, this.tip, this.chevron = true});
-  final String label;
+/// Читалка панели — один и тот же экземпляр виджета: при изменении размера окна шапка перестраивается,
+/// а глава только перекладывается по новой ширине (новый ReaderPane на каждый шаг пересобирал все видимые стихи)
+final _readers = <int, Widget>{};
+Widget _readerOf(int index) => _readers.putIfAbsent(index, () => ReaderPane(index: index));
+
+/// Шапка панели: перевод и место — одна капсула высотой 40 из двух частей с тонким разделителем.
+/// Перевод — мельче и приглушённо (как подпись), место — крупно и жирно, со стрелкой ˅; подсветка нажатия — у своей части
+class _BarCrumb extends StatelessWidget {
+  const _BarCrumb({
+    required this.bg,
+    required this.fg,
+    required this.module,
+    required this.moduleTip,
+    required this.moduleSize,
+    required this.moduleMaxWidth,
+    required this.place,
+    required this.placeTip,
+    required this.placeSize,
+    required this.chevron,
+    required this.onModule,
+    required this.onPlace,
+  });
   final Color bg, fg;
-  final double fontSize;
-  final FontWeight weight;
-  final VoidCallback onTap;
-  final double? maxWidth;
-  final String? tip;
+  final String module, moduleTip, place, placeTip;
+  final double moduleSize, moduleMaxWidth, placeSize;
   final bool chevron;
+  final VoidCallback onModule, onPlace;
+
   @override
   Widget build(BuildContext context) {
-    final chip = Material(
+    Widget part(String tip, VoidCallback onTap, EdgeInsets pad, Widget child) => Tooltip(
+          message: tip,
+          // по ширине содержимого (hug): Container с alignment растягивался бы на всё доступное место
+          child: InkWell(onTap: onTap, child: Container(height: 40, padding: pad, child: Align(widthFactor: 1, child: child))),
+        );
+    return Material(
       color: bg,
       shape: const StadiumBorder(),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          // без alignment: Container с выравниванием растягивается на всю доступную ширину
-          height: 40,
-          padding: EdgeInsets.only(left: 12, right: chevron ? 10 : 12),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: fontSize, fontWeight: weight, color: fg, letterSpacing: .15))),
-            if (chevron) ...[const SizedBox(width: 3), Icon(LucideIcons.chevronDown, size: 16, color: fg.withValues(alpha: 0.7))],
-          ]),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: moduleMaxWidth),
+          child: part(
+            moduleTip,
+            onModule,
+            const EdgeInsets.only(left: 14, right: 11),
+            Text(module, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: moduleSize, fontWeight: FontWeight.w700, letterSpacing: .4, color: fg.withValues(alpha: 0.78))),
+          ),
         ),
-      ),
+        Container(width: 1, height: 20, color: fg.withValues(alpha: 0.2)),
+        Flexible(
+          child: part(
+            placeTip,
+            onPlace,
+            EdgeInsets.only(left: 11, right: chevron ? 10 : 14),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg))),
+              if (chevron) ...[const SizedBox(width: 4), Icon(LucideIcons.chevronDown, size: 16, color: fg.withValues(alpha: 0.6))],
+            ]),
+          ),
+        ),
+      ]),
     );
-    final w = tip == null ? chip : Tooltip(message: tip!, child: chip);
-    if (maxWidth == null) return w;
-    return ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth!), child: w);
   }
 }
 
@@ -721,7 +790,10 @@ class _TabFade extends ConsumerWidget {
       child: ValueListenableBuilder<int>(
         valueListenable: sheetsOpen,
         builder: (context, open, _) {
-          final c = open > 0 ? pal.panel : pal.bg;
+          // над главой затухание делает сама читалка (маской текста — виден настоящий фон страницы);
+          // здесь — только над открытым окном, цветом окна
+          if (open == 0) return const SizedBox.shrink();
+          final c = pal.panel;
           // капсула — 64 px с отступом 4 сверху (_TabBar)
           return LayoutBuilder(builder: (context, box) {
             final h = box.maxHeight <= 0 ? 1.0 : box.maxHeight;

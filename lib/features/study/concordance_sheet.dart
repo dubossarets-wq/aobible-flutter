@@ -152,11 +152,12 @@ class _Row extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final raw = StudyData.verse(moduleId, r) ?? '';
-    return InkWell(
+    // строка — от края до края окна (и в окне, и в карточке поиска — поля там тоже 16), отступ 20 — у содержимого
+    return bleed(InkWell(
       onTap: () => onOpen(r),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(fmtRef(r), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.6, color: pal.accent)),
@@ -173,7 +174,7 @@ class _Row extends ConsumerWidget {
           ),
         ]),
       ),
-    );
+    ));
   }
 }
 

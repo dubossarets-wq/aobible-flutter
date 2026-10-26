@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/kit.dart' show closeToReader;
 import 'map_pane.dart';
 import 'places_data.dart';
 
@@ -36,7 +37,7 @@ class MapScreen extends ConsumerWidget {
           place: place,
           onClose: () => Navigator.pop(context),
           onOpenVerse: (r) {
-            Navigator.pop(context);
+            closeToReader(context); // сразу в Библию
             ref.read(panesProvider.notifier).navigate(0, r);
           },
         ),

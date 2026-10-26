@@ -134,8 +134,9 @@ void main() {
 
   // Список в окне ленивый: к началу — прокрутить вверх, чтобы кнопка «Выбрать файлы» снова была в дереве
   Future<void> pickFiles(WidgetTester tester) async {
+    // прокрутка вверх ровно до кнопки: рывок дальше верха теперь закрывает окно (потянуть вниз — закрыть)
     final list = find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical).last;
-    await tester.drag(list, const Offset(0, 5000));
+    await tester.scrollUntilVisible(find.text('Выбрать файлы'), -300, scrollable: list);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выбрать файлы'));
     await imported(tester);
@@ -234,13 +235,14 @@ void main() {
         await tapText(tester, 'Комментарии', last: true);
         expect(find.text('Так выглядит текст комментария.'), findsOneWidget);
         expect(find.text('Комментарии в тексте'), findsOneWidget);
-        expect(find.textContaining('Толкование', findRichText: true), findsOneWidget);
-        expect(find.textContaining('Второе', findRichText: true), findsOneWidget);
-        // выключили «Второе»: остаётся один
-        await tester.tap(find.byType(AobSwitch).last);
+        // название первого включённого — ещё и в образце над текстом
+        expect(find.textContaining('Толкование', findRichText: true), findsWidgets);
+        expect(find.textContaining('Второе', findRichText: true), findsWidgets);
+        // выключили «Второе» (нажатие на строку; последнее «Второе» — строка списка, первое может быть в образце)
+        await tester.tap(find.textContaining('Второе').last);
         await tester.pumpAndSettle();
         expect(s().j['inlineCommentaries'], ['c1']);
-        await tester.tap(find.byType(AobSwitch).last);
+        await tester.tap(find.textContaining('Второе').last);
         await tester.pumpAndSettle();
         expect((s().j['inlineCommentaries'] as List).toSet(), {'c1', 'c2'});
         c.read(settingsProvider.notifier).set({'commentaryFontSize': 24.0});

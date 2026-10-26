@@ -1,32 +1,36 @@
 // Разметка стиха (формат aob-module, docs/MODULE_SCHEMA.md веб-версии):
 //   {текст|H7225}            — слово с номером Стронга
 //   {текст|H1254 H853|TH8804} — несколько номеров и морфология
+//   {текст|G976|N-NSF|βίβλος}  — в подстрочнике четвёртое поле: слово оригинала
 //   ‹текст›                  — слова, добавленные переводчиками (курсив)
 // Разбор — один проход регулярным выражением; результат кэшируется на уровне главы (см. bible_db.dart).
 
 class Token {
-  const Token(this.text, {this.strongs = const [], this.morph = const [], this.italic = false});
+  const Token(this.text, {this.strongs = const [], this.morph = const [], this.italic = false, this.orig});
   final String text;
+  final String? orig; // слово оригинала (подстрочник)
   final List<String> strongs;
   final List<String> morph;
   final bool italic;
   bool get tagged => strongs.isNotEmpty;
 }
 
-final _re = RegExp(r'\{([^|}]*)\|([^|}]*)(?:\|([^}]*))?\}|‹([^›]*)›');
+final _re = RegExp(r'\{([^|}]*)\|([^|}]*)(?:\|([^|}]*))?(?:\|([^}]*))?\}|‹([^›]*)›');
 
 List<Token> parseVerse(String raw) {
   final out = <Token>[];
   var pos = 0;
   for (final m in _re.allMatches(raw)) {
     if (m.start > pos) out.add(Token(raw.substring(pos, m.start)));
-    if (m.group(4) != null) {
-      out.add(Token(m.group(4)!, italic: true));
+    if (m.group(5) != null) {
+      out.add(Token(m.group(5)!, italic: true));
     } else {
+      final orig = m.group(4);
       out.add(Token(
         m.group(1)!,
         strongs: m.group(2)!.split(' ').where((s) => s.isNotEmpty).toList(),
         morph: (m.group(3) ?? '').split(' ').where((s) => s.isNotEmpty).toList(),
+        orig: orig == null || orig.isEmpty ? null : orig,
       ));
     }
     pos = m.end;
@@ -36,7 +40,7 @@ List<Token> parseVerse(String raw) {
 }
 
 /// Текст без разметки — для поиска, копирования и «Поделиться»
-String plainText(String raw) => raw.replaceAllMapped(_re, (m) => m.group(4) ?? m.group(1)!);
+String plainText(String raw) => raw.replaceAllMapped(_re, (m) => m.group(5) ?? m.group(1)!);
 
 /// Слово стиха — то, на что можно нажать (tokenize/wordAt в веб-версии): слово с номером Стронга — целиком,
 /// в обычном тексте — каждое слово отдельно. start/end — границы внутри текста фрагмента token.

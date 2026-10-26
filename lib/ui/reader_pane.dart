@@ -440,7 +440,10 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       _sw = null;
       _pinchStart();
     } else if (_pointers.length == 1) {
-      final w = MediaQuery.sizeOf(context).width;
+      // ширина экрана — из View, а не MediaQuery: MediaQuery в обработчике касания подписал бы всю читалку на
+      // перестройку при каждом изменении размера окна (растягивание окна на компьютере сильно тормозило)
+      final view = View.of(context);
+      final w = view.physicalSize.width / view.devicePixelRatio;
       final edge = e.position.dx < 24 || e.position.dx > w - 24; // у края — системные жесты телефона
       _sw = _busy() || edge ? null : (x: e.position.dx, y: e.position.dy, t: DateTime.now().millisecondsSinceEpoch, dir: 0);
       _back.stop();
@@ -679,7 +682,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
                 textDirection: rtl ? TextDirection.rtl : Directionality.of(context),
                 child: ValueListenableBuilder<(double, double)>(
                   valueListenable: _drag,
-                  child: list,
+                  child: _TabFadeMask(child: list),
                   // Всегда в одной обёртке: иначе список пересоздавался бы и терял место при каждом свайпе
                   builder: (context, d, child) => Opacity(opacity: d.$2, child: Transform.translate(offset: Offset(d.$1, 0), child: child)),
                 ),
@@ -806,6 +809,34 @@ class _RefHelper {
   final WidgetRef r;
   void remember(int i, VerseRef at) => r.read(panesProvider.notifier).remember(i, at);
   bool get syncOn => r.read(settingsProvider).get<bool>('syncScroll') && r.read(panesProvider).length > 1;
+}
+
+/// Текст главы растворяется под нижними вкладками — от верха капсулы к её середине. Это маска самого текста,
+/// поэтому сквозь неё виден настоящий фон страницы (свой цвет, фото), а не наложенный цвет темы
+class _TabFadeMask extends StatelessWidget {
+  const _TabFadeMask({required this.child});
+  final Widget child;
+  // Строение всегда одно и то же (ShaderMask есть всегда, без затухания — сплошная маска): если бы маска
+  // появлялась и пропадала (вкладки показались после первого кадра, спрятались в режиме чтения), список главы
+  // переезжал бы в дереве, создавался заново и терял место
+  @override
+  Widget build(BuildContext context) {
+    final on = MediaQuery.paddingOf(context).bottom > 0; // верхняя панель при разделении по строкам — без маски
+    return ValueListenableBuilder<double>(
+      valueListenable: tabBarInset,
+      child: child,
+      builder: (context, inset, child) => LayoutBuilder(builder: (context, box) {
+        final h = box.maxHeight;
+        final fade = on && inset > 0 && h > 0;
+        final top = fade ? ((h - inset + 4) / h).clamp(0.0, 1.0) : 1.0, mid = fade ? ((h - inset + 36) / h).clamp(0.0, 1.0) : 1.0; // капсула — 64 px, отступ 4
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (r) => LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0, top, mid, 1], colors: [Colors.white, Colors.white, fade ? const Color(0x00FFFFFF) : Colors.white, fade ? const Color(0x00FFFFFF) : Colors.white]).createShader(r),
+          child: child,
+        );
+      }),
+    );
+  }
 }
 
 /// Кнопка внизу панели — над проигрывателем и вкладками (их высота — MediaQuery.padding.bottom).

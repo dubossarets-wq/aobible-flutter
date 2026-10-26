@@ -1,5 +1,6 @@
 // «Карты» в меню «Ещё» (образец — MapsSheet.jsx): поиск места по названию и библейские карты (модуль bible-maps) с увеличением.
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -88,14 +89,8 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
   void _goVerse(String osis) {
     final v = parseOsis(osis);
     if (v == null) return;
-    Navigator.pop(context);
+    closeToReader(context); // сразу в Библию, а не в меню, из которого открыли карты
     ref.read(panesProvider.notifier).navigate(widget.pane, v);
-  }
-
-  // Увеличение — от 1× до 6×, шаг ×1,5 (как в веб-версии)
-  void _zoom(double k) {
-    final s = (_tc.value.getMaxScaleOnAxis() * k).clamp(1.0, 6.0);
-    _tc.value = Matrix4.diagonal3Values(s, s, 1);
   }
 
   @override
@@ -112,12 +107,6 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
                 _open = null;
                 _tc.value = Matrix4.identity();
               }),
-      actions: [
-        if (open != null) ...[
-          IconBtn(icon: LucideIcons.zoomOut, size: 20, tooltip: t('Уменьшить'), onTap: () => _zoom(1 / 1.5)),
-          IconBtn(icon: LucideIcons.zoomIn, size: 20, tooltip: t('Увеличить'), onTap: () => _zoom(1.5)),
-        ],
-      ],
       child: open != null ? _Viewer(map: open, pal: pal, controller: _tc, onVerse: _goVerse) : _list(pal),
     );
   }
@@ -133,15 +122,16 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
             GroupTitle('${t('Места')} · $_placeCount'),
             const SizedBox(height: 2),
             AobInput(controller: _q, hint: t('Найти место: Хеврон, Вифлеем…'), onChanged: (_) => setState(() {})),
+            // найденные места — строками от края до края окна, отступ 20 — у содержимого
             for (final p in found)
-              InkWell(
+              bleed(InkWell(
                 onTap: () {
                   Navigator.pop(context);
                   openPlaceMap(context, p);
                 },
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                  padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
@@ -153,7 +143,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
                     Text([p.type, p.modern].where((s) => s.isNotEmpty).join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14.08, height: 1.4, color: pal.muted)),
                   ]),
                 ),
-              ),
+              )),
             if (query.length >= 2 && found.isEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(t('Ничего не найдено.'), style: TextStyle(fontSize: 13.12, height: 1.4, color: pal.muted))),
             const SizedBox(height: 14),
           ]),
@@ -196,6 +186,88 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
   }
 }
 
+/// Карта на весь экран: увеличение пальцами и колесом (1×–6×), кнопки «−» «+» и ✕ — закрыть
+Future<void> openMapFull(BuildContext context, Uint8List data, String title, TransformationController tc) async {
+  tc.value = Matrix4.identity();
+  // размер самой карты — чтобы знать, где она лежит на экране (вписана по центру, поля сверху/снизу или по бокам)
+  final img = await decodeImageFromList(data);
+  final ratio = img.width / img.height;
+  img.dispose();
+  if (!context.mounted) return;
+  var view = Size.zero;
+  // Кнопки «−» «+»: увеличение к середине видимой части карты (а не экрана и не левого верхнего угла);
+  // на 1× — карта снова целиком по центру
+  void zoom(double k) {
+    final s0 = tc.value.getMaxScaleOnAxis();
+    final s1 = (s0 * k).clamp(1.0, 6.0);
+    if (s1 <= 1.0001) {
+      tc.value = Matrix4.identity();
+      return;
+    }
+    // где карта на экране сейчас: вписанный прямоугольник, сдвинутый и увеличенный текущим преобразованием
+    final w = math.min(view.width, view.height * ratio), h = w / ratio;
+    final base = Rect.fromLTWH((view.width - w) / 2, (view.height - h) / 2, w, h);
+    final m = tc.value;
+    final shown = Rect.fromPoints(MatrixUtils.transformPoint(m, base.topLeft), MatrixUtils.transformPoint(m, base.bottomRight));
+    final seen = shown.intersect(Offset.zero & view);
+    final c = seen.isEmpty ? shown.center : seen.center;
+    final f = s1 / s0, cx = c.dx, cy = c.dy;
+    tc.value = Matrix4.translationValues(cx, cy, 0).multiplied(Matrix4.diagonal3Values(f, f, 1)).multiplied(Matrix4.translationValues(-cx, -cy, 0)).multiplied(tc.value);
+  }
+
+  tabBarSuppress.value++; // на весь экран — нижние вкладки не мешают
+  final done = showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black.withValues(alpha: 0.92),
+    transitionDuration: const Duration(milliseconds: 220),
+    transitionBuilder: (c, a, s, child) => FadeTransition(opacity: CurvedAnimation(parent: a, curve: Curves.fastOutSlowIn), child: child),
+    pageBuilder: (c, a, s) => SafeArea(
+      child: Stack(children: [
+        Positioned.fill(
+          child: LayoutBuilder(builder: (_, box) {
+            view = box.biggest;
+            return InteractiveViewer(transformationController: tc, minScale: 1, maxScale: 6, child: Center(child: Image.memory(data, fit: BoxFit.contain)));
+          }),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Row(children: [
+            for (final (icon, tip, k) in [(LucideIcons.zoomOut, t('Уменьшить'), 1 / 1.5), (LucideIcons.zoomIn, t('Увеличить'), 1.5)])
+              _FullBtn(icon: icon, tip: tip, onTap: () => zoom(k)),
+            const SizedBox(width: 6),
+            _FullBtn(icon: LucideIcons.x, tip: t('Закрыть'), onTap: () => Navigator.pop(c)),
+          ]),
+        ),
+      ]),
+    ),
+  );
+  return done.whenComplete(() => tabBarSuppress.value--);
+}
+
+/// Круглая кнопка поверх карты на весь экран
+class _FullBtn extends StatelessWidget {
+  const _FullBtn({required this.icon, required this.tip, required this.onTap});
+  final IconData icon;
+  final String tip;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: Tooltip(
+          message: tip,
+          // тёмный круг с белым значком — виден и на светлой, и на тёмной карте
+          child: Material(
+            color: const Color(0xCC1B1A18),
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(onTap: onTap, child: SizedBox(width: 44, height: 44, child: Icon(icon, size: 20, color: Colors.white))),
+          ),
+        ),
+      );
+}
+
 /// .map-row: рамка, скругление, картинка 4:3 сверху, название и описание в одну строку
 class _MapTile extends StatelessWidget {
   const _MapTile({required this.map, required this.pal, required this.onTap});
@@ -235,7 +307,7 @@ class _Thumb extends StatelessWidget {
       );
 }
 
-/// Просмотр карты с увеличением (жесты и кнопки в шапке окна), описание и стихи
+/// Просмотр карты: картинка (нажатие — на весь экран с увеличением), описание и стихи
 class _Viewer extends StatelessWidget {
   const _Viewer({required this.map, required this.pal, required this.controller, required this.onVerse});
   final BibleMap map;
@@ -254,8 +326,28 @@ class _Viewer extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: FutureBuilder<Uint8List>(
           future: _image(m.image),
+          // в окне карта не увеличивается (прокрутка и жесты листают окно); нажатие — на весь экран
           builder: (_, s) => s.hasData
-              ? InteractiveViewer(transformationController: controller, minScale: 1, maxScale: 6, child: Image.memory(s.data!, fit: BoxFit.contain))
+              ? GestureDetector(
+                  onTap: () => openMapFull(context, s.data!, m.title, controller),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.zoomIn,
+                    child: Stack(fit: StackFit.expand, children: [
+                      Image.memory(s.data!, fit: BoxFit.contain),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: pal.panel.withValues(alpha: 0.9), shape: BoxShape.circle, border: Border.all(color: pal.line)),
+                            child: Icon(LucideIcons.maximize2, size: 16, color: pal.text),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                )
               : Center(
                   child: s.hasError
                       ? Padding(padding: const EdgeInsets.all(12), child: Text(t('Карта не загрузилась. Проверьте интернет.'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)))

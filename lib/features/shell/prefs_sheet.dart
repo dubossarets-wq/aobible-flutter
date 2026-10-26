@@ -238,14 +238,15 @@ class _LangRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    return InkWell(
+    // строка — от края до края окна (и подложка выбранного, и линия), отступ 20 — у содержимого
+    return bleed(InkWell(
       onTap: onTap,
       // выбранный язык: подложка и галочка проявляются плавно
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),
         curve: Curves.fastOutSlowIn,
         constraints: const BoxConstraints(minHeight: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+        padding: const EdgeInsets.fromLTRB(20, 9, 20, 9),
         decoration: BoxDecoration(color: pal.accent.withValues(alpha: on ? 0.08 : 0), border: last ? null : Border(bottom: BorderSide(color: pal.line))),
         child: Row(children: [
           Flag(l.flag, size: 30),
@@ -263,6 +264,6 @@ class _LangRow extends ConsumerWidget {
           ),
         ]),
       ),
-    );
+    ));
   }
 }

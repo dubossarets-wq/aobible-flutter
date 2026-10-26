@@ -107,8 +107,9 @@ class _NarratorSettingsState extends State<NarratorSettings> {
     final v = NarratorVoice.I;
     TextStyle note() => TextStyle(color: pal.muted, fontSize: 12.5);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      // строка — от края до края окна (линия тоже), отступ 20 — у содержимого; справа 12: значок кнопки 32 — на 20
+      bleed(Container(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
         child: ListenableBuilder(
           listenable: Listenable.merge([v.installed, v.busy, v.progress, v.bytes]),
@@ -144,7 +145,7 @@ class _NarratorSettingsState extends State<NarratorSettings> {
             ]);
           },
         ),
-      ),
+      )),
       SwitchRow(
         label: t('Читать диктором, когда нет записи'),
         hint: t('Если живой записи нет, главу прочитает голос диктора — на телефоне, без интернета'),

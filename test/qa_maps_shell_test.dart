@@ -379,9 +379,8 @@ void main() {
           await Future<void>.delayed(const Duration(milliseconds: 300));
         });
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('Увеличить'));
-        await tester.tap(find.byTooltip('Уменьшить'));
-        await tester.pumpAndSettle();
+        // увеличение — только на весь экран (нажатием на карту); в окне кнопок масштаба нет
+        expect(find.byTooltip('Увеличить'), findsNothing);
         expect(find.text('Путь из Египта'), findsOneWidget);
         await tester.tap(find.byIcon(LucideIcons.chevronLeft).last);
         await tester.pumpAndSettle();

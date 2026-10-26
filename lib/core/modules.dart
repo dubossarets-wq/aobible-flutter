@@ -18,12 +18,16 @@ import 'i18n.dart';
 import 'markup.dart';
 import 'net.dart';
 
+/// Короткие названия модулей (не длиннее «Лопухин»): длинные не помещались в строки и подписи.
+/// Полное название остаётся в title. Действует и для уже скачанных модулей
+const shortModuleNames = {'desp-notes': 'Десницкий', 'otnt-notes': 'Откр. НЗ'};
+
 class CatalogEntry {
   CatalogEntry(this.json);
   final Map<String, dynamic> json;
   String get id => json['id'] as String;
   String get type => json['type'] as String? ?? 'bible';
-  String get name => json['name'] as String? ?? id;
+  String get name => shortModuleNames[id] ?? json['name'] as String? ?? id;
   String get title => json['title'] as String? ?? name;
   String get language => json['language'] as String? ?? 'ru';
   String get version => json['version']?.toString() ?? '';
@@ -41,7 +45,7 @@ class InstalledModule {
   final Map<String, dynamic> meta;
   final String path;
   String get type => meta['type'] as String? ?? 'bible';
-  String get name => meta['name'] as String? ?? id;
+  String get name => shortModuleNames[id] ?? meta['name'] as String? ?? id;
   String get title => meta['title'] as String? ?? name;
   String get language => meta['language'] as String? ?? 'ru';
   Map<String, dynamic> get features => (meta['features'] as Map?)?.cast<String, dynamic>() ?? const {};

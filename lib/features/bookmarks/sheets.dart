@@ -187,11 +187,12 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
               ]),
             ),
             if (cols.isNotEmpty) const SizedBox(height: 12),
+            // подборки — строками от края до края окна, отступ 20 — у содержимого
             for (final c in cols)
-              InkWell(
+              bleed(InkWell(
                 onTap: () => add('${c['id']}', null),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
+                  padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                   child: Row(children: [
                     Icon(LucideIcons.folder, size: 16, color: pal.accent),
@@ -207,7 +208,7 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                     ),
                   ]),
                 ),
-              ),
+              )),
             _DisposeWith(ctl),
           ]);
         },

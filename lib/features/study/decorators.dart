@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/bible.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/modules.dart' show ModuleStore;
 import '../../core/settings.dart';
 import '../../ui/kit.dart' show LucideIcons;
 import '../hub.dart';
@@ -60,8 +61,11 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
   if (!bookMode) {
     final list = StudyData.commentaryIndex(book)[key];
     if (list != null) {
+      // у стиха — только комментарии на языке этого перевода (у синодального — русские, у KJV — английские)
+      final lang = ModuleStore.instance.get(moduleId)?.language;
       for (final (id, name) in list) {
         if (inline is List && !inline.contains(id)) continue;
+        if (lang != null && (ModuleStore.instance.get(id)?.language ?? lang) != lang) continue;
         // .cm: .62em, жирный, muted, padding 0 .2em, margin-left .25em, приподнят на .45em
         final f = fs * 0.62;
         spans.add(_btn(

@@ -135,7 +135,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   }
 
   void _go(VerseRef r) {
-    Navigator.of(context).pop();
+    closeToReader(context); // сразу в Библию, а не в окно под планами
     ref.read(panesProvider.notifier).navigate(widget.pane, r);
   }
 
@@ -336,7 +336,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       // лёгкая подложка цвета акцента — карточка отделяется от окна
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: mix(pal.text, 0.055, pal.panel)), // чистая нейтральная подложка — белые плитки на ней видны
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)), // чистая нейтральная подложка — белые плитки на ней видны
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(
@@ -925,7 +925,7 @@ class _ReminderCardState extends State<_ReminderCard> {
     final pal = widget.pal;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: pal.bg),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: cardFill(pal)),
       child: Column(children: [
         // .switch-field: подпись с «!» (пояснение по нажатию) и переключатель, отступ 2
         GestureDetector(

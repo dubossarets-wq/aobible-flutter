@@ -77,11 +77,12 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
           final it = refs[i - 1];
           final tx = _texts[it.osis] ??= StudyData.textForRef(widget.moduleId, it.ref);
           final (parts, truncated) = tx;
-          return InkWell(
+          // строка — от края до края окна, отступ 20 — у содержимого
+          return bleed(InkWell(
             onTap: () => openRefInOther(context, ref, widget.pane, it.ref.start),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+              padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(fmtOsis(it.ref, full: true), style: TextStyle(fontWeight: FontWeight.w700, color: pal.accent, fontSize: 14.7)),
@@ -101,7 +102,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
                   Text(t('В переводе {module} нет этой книги.', {'module': module?.name ?? '', 'book': Books.instance.meta(it.ref.book).name}), style: TextStyle(color: pal.muted, fontSize: 16, height: 1.5)),
               ]),
             ),
-          );
+          ));
         },
       ));
     }

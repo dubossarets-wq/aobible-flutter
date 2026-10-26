@@ -17,6 +17,7 @@ import '../core/bible.dart';
 import '../core/books.dart';
 import '../core/i18n.dart';
 import '../core/markup.dart';
+import '../core/modules.dart' show ModuleStore;
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/colors.dart' show headingColor, strongColor;
@@ -456,6 +457,8 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     final cont = isContinuous(s);
     final numbers = s.get<bool>('showVerseNumbers') && !book;
     final strongsOn = s.get<bool>('showStrongs') && !book;
+    // подстрочник: каждое слово — столбик «перевод / оригинал / номер Стронга» (в режиме «как книга» — обычный текст)
+    final interOn = !book && ModuleStore.instance.get(v.moduleId)?.features['interlinear'] == true;
     final verses = _verses;
     final ps = partSelection.value;
     final aw = activeWord.value;
@@ -515,6 +518,16 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
       for (var i = 0; i < tokens.length; i++) {
         final tk = tokens[i];
         final start = at;
+        if (interOn && tk.tagged) {
+          add(_interWord(tk, fs));
+          // всё слово-столбик — один знак текста: нажатие и подсветка — по нему целиком
+          while (wp < words.length && words[wp].token == i) {
+            vr.words.add((start, at));
+            vr.wordToken.add(i);
+            wp++;
+          }
+          continue;
+        }
         add(TextSpan(text: tk.text, style: tk.italic ? const TextStyle(fontStyle: FontStyle.italic) : null));
         while (wp < words.length && words[wp].token == i) {
           vr.words.add((start + words[wp].start, start + words[wp].end));
@@ -593,6 +606,33 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     }
     if (seg != null && cont) seg!.span = TextSpan(children: ch);
     return segs;
+  }
+
+  // Слово подстрочника (.iw в веб-версии): сверху перевод слова, под ним слово оригинала (иврит — справа налево),
+  // ниже — номер Стронга без буквы и нулей. «·» — слово оригинала без перевода (обычно артикль): сверху пусто
+  InlineSpan _interWord(Token tk, double fs) {
+    final s = v.settings;
+    final pal = s.palette;
+    final base = readerTextStyle(s).copyWith(color: pal.text, height: 1.25);
+    final heb = tk.orig != null && RegExp(r'[\u0590-\u05FF]').hasMatch(tk.orig!);
+    final num = tk.strongs.first.replaceFirst(RegExp(r'^[HG]0*'), '');
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: Padding(
+        padding: EdgeInsets.only(right: fs * 0.12, bottom: fs * 0.25),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(tk.text == '·' ? ' ' : tk.text, style: base.copyWith(fontSize: fs, fontStyle: tk.italic ? FontStyle.italic : null)),
+          if (tk.orig != null)
+            Text(
+              tk.orig!,
+              textDirection: heb ? TextDirection.rtl : TextDirection.ltr,
+              style: TextStyle(fontSize: fs * 0.78, height: 1.2, color: mix(pal.text, 0.75, pal.bg), fontFamily: heb ? 'Noto Serif Hebrew' : null),
+            ),
+          if (tk.orig != null) Text(num, style: TextStyle(fontSize: fs * 0.5, height: 1.2, color: strongColor(s))),
+        ]),
+      ),
+    );
   }
 
   // Номера Стронга: размер, цвет и положение (над строкой / в строке / под строкой) — по настройкам
