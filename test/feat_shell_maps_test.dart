@@ -364,8 +364,14 @@ void main() {
         final before = store.changes.value;
         expect(find.byType(RowSwitch), findsWidgets);
         expect(store.installed.map((m) => m.id), contains('d1'));
-        // у перевода переключателя нет, только звезда
-        expect(find.byType(RowSwitch).evaluate().length, store.allInstalled.where((m) => m.type != 'bible').length);
+        // у перевода переключателя нет, только звезда; строки выше (полное название в две строки), при крупном
+        // шрифте нижние за краем ещё не построены — считаем по фильтру вида
+        expect(find.byType(RowSwitch).evaluate().length, lessThanOrEqualTo(store.allInstalled.where((m) => m.type != 'bible').length));
+        await tester.tap(find.widgetWithText(AobChip, 'Переводы'));
+        await tester.pumpAndSettle();
+        expect(find.byType(RowSwitch), findsNothing);
+        await tester.tap(find.widgetWithText(AobChip, 'Все'));
+        await tester.pumpAndSettle();
 
         // нажатие
         final sw = find.byType(RowSwitch).first;

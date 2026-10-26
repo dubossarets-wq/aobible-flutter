@@ -525,13 +525,14 @@ class AobButton extends ConsumerWidget {
 
 /// .chip: плашка-«таблетка»; on — цвет акцента; ghost — без фона
 class AobChip extends ConsumerWidget {
-  const AobChip({super.key, required this.label, this.onTap, this.on = false, this.icon, this.ghost = false, this.count});
+  const AobChip({super.key, required this.label, this.onTap, this.on = false, this.icon, this.ghost = false, this.count, this.compact = false});
   final String label;
   final VoidCallback? onTap;
   final bool on;
   final IconData? icon;
   final bool ghost;
   final int? count;
+  final bool compact; // ряды фильтров: высота 30, число мельче и серее
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -551,12 +552,19 @@ class AobChip extends ConsumerWidget {
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
-                Text(label, style: TextStyle(fontSize: 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)),
-                if (count != null) ...[const SizedBox(width: 5), Text('$count', style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8)))],
-              ]),
+              padding: EdgeInsets.symmetric(horizontal: 11, vertical: compact ? 0 : 5),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: compact ? 30 : 0),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
+                  Text(label, style: TextStyle(fontSize: compact ? 13.5 : 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)),
+                  if (count != null) ...[
+                    SizedBox(width: compact ? 4 : 5),
+                    // в компактном ряду число тише: серое у невыбранной плашки
+                    Text('$count', style: TextStyle(fontSize: compact ? 11.5 : 12, color: compact ? Color.lerp(pal.muted, pal.onAccent, v)!.withValues(alpha: 0.85) : fg.withValues(alpha: 0.8))),
+                  ],
+                ]),
+              ),
             ),
           ),
         );
@@ -1116,7 +1124,7 @@ class AobTabs<T> extends ConsumerWidget {
     final pal = paletteOf(ref);
     final scale = MediaQuery.textScalerOf(context);
     const label = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
-    Widget tab((T, String, int?) x, {bool expand = false}) {
+    Widget tab((T, String, int?) x, {int? flex}) {
       final on = x.$1 == value;
       // смена вкладки — плавно: линия и цвет надписи перетекают
       final w = InkWell(
@@ -1127,7 +1135,7 @@ class AobTabs<T> extends ConsumerWidget {
           curve: Curves.fastOutSlowIn,
           builder: (context, v, _) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            alignment: expand ? Alignment.center : null,
+            alignment: flex != null ? Alignment.center : null,
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.accent.withValues(alpha: v), width: 2))),
             child: Text.rich(
               TextSpan(children: [
@@ -1141,18 +1149,19 @@ class AobTabs<T> extends ConsumerWidget {
           ),
         ),
       );
-      return expand ? Expanded(child: w) : w;
+      return flex != null ? Expanded(flex: flex, child: w) : w;
     }
 
     final bar = LayoutBuilder(builder: (context, box) {
-      final need = tabs.fold<double>(0, (a, x) {
-        return a + _textWidth('${x.$2}${x.$3 != null ? ' ${x.$3}' : ''}', label, scale) + 24;
-      });
+      final widths = [for (final x in tabs) _textWidth('${x.$2}${x.$3 != null ? ' ${x.$3}' : ''}', label, scale) + 24];
+      final need = widths.fold<double>(0, (a, w) => a + w);
       final inner = box.maxWidth - 32;
+      // поровну — если каждая подпись влезает в свою долю; иначе доля по длине подписи, чтобы длинная не обрезалась
+      final even = widths.fold<double>(0, math.max) * tabs.length <= inner;
       return Container(
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
         child: need <= inner
-            ? Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final x in tabs) tab(x, expand: true)]))
+            ? Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final (i, x) in tabs.indexed) tab(x, flex: even ? 1 : (widths[i] * 10).round())]))
             : FadeRow(gap: 4, padding: const EdgeInsets.symmetric(horizontal: 16), children: [for (final x in tabs) tab(x)]),
       );
     });

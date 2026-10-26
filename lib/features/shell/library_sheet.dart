@@ -24,12 +24,6 @@ const moduleTypeNames = <String, String>{
   'bible': 'Перевод Библии', 'commentary': 'Комментарий', 'dictionary': 'Словарь', 'maps': 'Карты',
   'crossrefs': 'Параллельные места', 'audio': 'Аудиокнига', 'illustrations': 'Иллюстрации',
 };
-// Значки видов — как TYPE_ICON в веб-версии (у остальных видов — BookText)
-const _typeIcon = <String, IconData>{
-  'bible': LucideIcons.bookOpen, 'commentary': LucideIcons.messageSquareText, 'dictionary': LucideIcons.bookText, 'maps': LucideIcons.map,
-  'crossrefs': LucideIcons.link2, 'audio': LucideIcons.headphones,
-};
-
 // Языки модулей: порядок показа — русский, затем живые языки по числу говорящих, в конце древние языки Писания
 const _langNames = <String, String>{
   'ru': 'Русский', 'en': 'English', 'zh': 'Китайский', 'hi': 'Хинди', 'es': 'Испанский', 'ar': 'Арабский', 'fr': 'Французский',
@@ -71,8 +65,7 @@ class _Item {
   bool get unavailable => json['unavailable'] == true;
 }
 
-// Цвета --ok и --danger из styles.css
-Color _ok(Palette p) => p.dark ? const Color(0xff7cc68a) : const Color(0xff2f6339);
+// Цвет --danger из styles.css
 Color _danger(Palette p) => p.dark ? const Color(0xffef8a78) : const Color(0xffb4412f);
 
 /// Закрашенная звезда (Star с fill="currentColor"): в наборе значков есть только контурная
@@ -115,6 +108,45 @@ class _Act extends StatelessWidget {
       width: 44,
       height: 44,
       child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Center(child: child))),
+    );
+    return tip == null ? w : Tooltip(message: tip!, child: w);
+  }
+}
+
+/// Кнопка-капсула в строке модуля: «Скачать» — заливка акцентом, «Обновить» — рамкой; высота 30, поле нажатия 44
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.pal, this.tip, this.onTap, this.outline = false});
+  final String label;
+  final Palette pal;
+  final String? tip;
+  final VoidCallback? onTap;
+  final bool outline;
+  @override
+  Widget build(BuildContext context) {
+    final w = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        height: 44,
+        child: Center(
+          widthFactor: 1,
+          child: Material(
+            color: outline ? Colors.transparent : pal.accent,
+            shape: StadiumBorder(side: BorderSide(color: pal.accent)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                child: SizedBox(
+                  height: 30,
+                  child: Center(widthFactor: 1, child: Text(label, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: outline ? pal.accent : pal.onAccent))),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
     return tip == null ? w : Tooltip(message: tip!, child: w);
   }
@@ -224,7 +256,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
 
     // .filter-chips: одна строка, прокручивается вбок
     // у края, за которым есть ещё плашки, — затухание вместо обрезки
-    Widget chips(List<Widget> items) => SizedBox(height: 34, child: FadeRow(padding: const EdgeInsets.symmetric(horizontal: 16), children: items));
+    Widget chips(List<Widget> items) => SizedBox(height: 32, child: FadeRow(padding: const EdgeInsets.symmetric(horizontal: 16), children: items));
 
     // Группы по типам: выбранный тип (или все), только непустые — при любом сочетании типа, языка и поиска
     final groups = [
@@ -250,16 +282,16 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: AobInput(controller: _search, hint: t('Поиск: Лопухин, Стронг, KJV…'), onChanged: (v) => setState(() => _q = v)),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             chips([
-              AobChip(label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
-              for (final e in moduleSections) AobChip(label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
+              AobChip(compact: true, label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+              for (final e in moduleSections) AobChip(compact: true, label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
             ]),
             if (langCodes.length >= 2) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               chips([
-                AobChip(label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
-                for (final c in langCodes) AobChip(label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
+                AobChip(compact: true, label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
+                for (final c in langCodes) AobChip(compact: true, label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
               ]),
             ],
           ],
@@ -290,29 +322,23 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         if (!isImport)
         for (final g in groups)
           if (g.$3.isNotEmpty)
-            // .nav-group: заголовок h4 и список в рамке; зазор 8
+            // группа: подзаголовок (мелко, серо, 20 от края окна) и строки от края до края, как другие списки
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
                 child: Text.rich(TextSpan(children: [
                   TextSpan(text: t(g.$2)),
-                  TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
-                ]), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+                  TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400)),
+                ]), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
               ),
-              Container(
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
-                child: Column(children: [
-                  for (final (i, m) in g.$3.indexed) _row(m, s, pal, first: i == 0),
-                ]),
-              ),
+              for (final (i, m) in g.$3.indexed) _row(m, s, pal, last: i == g.$3.length - 1),
             ]),
         if (_tab == 'catalog') _sourceFold(pal),
       ],
     );
   }
 
-  Widget _row(_Item m, Settings s, Palette pal, {required bool first}) {
+  Widget _row(_Item m, Settings s, Palette pal, {required bool last}) {
     final installed = m.installed;
     final busy = _busy[m.id];
     final isPrimary = installed != null && s.get<String>('primaryModule') == installed.id;
@@ -320,16 +346,24 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     final open = _open == m.id;
     Widget action;
     if (busy != null) {
-      // .row-act.busy: вертушка и проценты цветом акцента
-      action = Container(
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [Spin(color: pal.accent), const SizedBox(width: 4), Text('${(busy.$1 * 100).round()}%', style: TextStyle(color: pal.accent, fontSize: 12.5))]),
+      // идёт загрузка: на месте кнопки — кольцо прогресса и проценты цветом акцента
+      final pct = (busy.$1 * 100).round();
+      action = Semantics(
+        label: t('Загрузка {pct}%', {'pct': '$pct'}),
+        child: SizedBox(
+          height: 44,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(value: busy.$1.clamp(0.0, 1.0), strokeWidth: 2.4, color: pal.accent, backgroundColor: pal.line)),
+            const SizedBox(width: 6),
+            Text('$pct%', style: TextStyle(color: pal.accent, fontSize: 13, fontFeatures: const [FontFeature.tabularFigures()])),
+            const SizedBox(width: 2),
+          ]),
+        ),
       );
     } else if (_tab == 'catalog' && m.unavailable) {
-      action = _Act(tip: t('Нет свободной электронной версии'), child: Icon(LucideIcons.ban, size: 20, color: pal.muted));
+      action = _Act(tip: t('Нет свободной электронной версии'), child: Icon(LucideIcons.ban, size: 18, color: pal.muted));
     } else if (updatable) {
-      action = _Act(tip: t('Есть новая версия'), onTap: () => _install(m.cat!), child: Icon(LucideIcons.refreshCw, size: 20, color: pal.accent));
+      action = _Pill(pal: pal, outline: true, label: t('Обновить'), tip: t('Есть новая версия'), onTap: () => _install(m.cat!));
     } else if (_tab == 'installed' && installed?.type == 'bible' && installed?.features['helper'] != true) {
       action = _Act(
         tip: isPrimary ? t('Основной перевод') : t('Сделать основным'),
@@ -348,62 +382,61 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         },
       );
     } else if (installed != null) {
-      action = _Act(tip: t('Установлен'), child: Icon(LucideIcons.circleCheck, size: 20, color: _ok(pal)));
+      // установлен — тихая подпись с галочкой, без яркого цвета
+      action = Padding(
+        padding: const EdgeInsets.only(left: 4, right: 2),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(LucideIcons.check, size: 14, color: pal.muted),
+          const SizedBox(width: 4),
+          Text(t('Установлен'), style: TextStyle(fontSize: 13, color: pal.muted)),
+        ]),
+      );
     } else {
-      action = _Act(
-        tip: '${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}',
+      action = _Pill(
+        pal: pal,
+        label: t('Скачать'),
+        tip: m.size > 0 ? '${t('Скачать')} · ${fmtSize(m.size)}' : null,
         onTap: () => _install(m.cat ?? CatalogEntry(m.json)),
-        child: Icon(LucideIcons.download, size: 20, color: pal.accent),
       );
     }
-    final sub = [if (m.language.isNotEmpty) langName(m.language), m.title.isNotEmpty ? m.title : t(moduleTypeNames[m.type] ?? m.type)].join(' · ');
+    // полное название — если оно не повторяет короткое; ниже мелко язык и размер для скачивания
+    final title = m.title.isNotEmpty && m.title != m.name ? m.title : null;
+    final meta = [if (m.language.isNotEmpty) langName(m.language), if (installed == null && m.size > 0) fmtSize(m.size)].join(' · ');
     void toggle() => setState(() {
           _was = _open;
           _open = open ? null : m.id;
         });
     final off = _tab == 'installed' && installed != null && installed.type != 'bible' && !ModuleStore.instance.isEnabled(installed.id);
-    return Opacity(opacity: off ? 0.72 : 1, child: Container(
-      decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: pal.line))),
+    // строка от края до края окна (подсветка и линия), отступ содержимого 20 — как PrefRow
+    return Opacity(opacity: off ? 0.72 : 1, child: bleed(Container(
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Row(children: [
-            // .mod-main: значок вида цвета акцента, название и ниже язык · описание
-            Expanded(
-              child: InkWell(
-                onTap: toggle,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
-                  child: Row(children: [
-                    Icon(_typeIcon[m.type] ?? LucideIcons.bookText, size: 20, color: pal.accent),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Opacity(
-                        opacity: m.unavailable ? 0.6 : 1,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(m.name, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w700, color: pal.text)),
-                          const SizedBox(height: 1),
-                          Text(sub, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.1, color: pal.muted)),
-                        ]),
-                      ),
-                    ),
+        InkWell(
+          onTap: toggle,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+            child: Row(children: [
+              Expanded(
+                child: Opacity(
+                  opacity: m.unavailable ? 0.6 : 1,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(m.name, style: TextStyle(fontSize: 15.5, height: 1.3, fontWeight: FontWeight.w700, color: pal.text)),
+                    if (title != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.8, height: 1.35, color: pal.text.withValues(alpha: 0.82)))),
+                    if (meta.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted))),
                   ]),
                 ),
               ),
-            ),
-            action,
-            // .row-chev: 40×44, при раскрытии переворачивается
-            InkWell(
-              onTap: toggle,
-              child: SizedBox(width: 40, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 20, color: pal.muted)))),
-            ),
-            const SizedBox(width: 4),
-          ]),
+              const SizedBox(width: 10),
+              action,
+              // стрелка подробностей: маленькая и тихая, при раскрытии переворачивается
+              SizedBox(width: 32, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 16, color: pal.muted.withValues(alpha: 0.75))))),
+            ]),
+          ),
         ),
-        // подробности раскрываются плавно; собираем их только у открытой и сворачивающейся карточки — строк в списке сотни
+        // подробности раскрываются плавно; собираем их только у открытой и сворачивающейся строки — строк в списке сотни
         Reveal(open: open, child: open || _was == m.id ? _details(m, pal, isPrimary, updatable, busy != null) : const SizedBox(width: double.infinity)),
       ]),
-    ));
+    )));
   }
 
   /// «Источник каталога»: свой адрес aob-catalog, возврат к встроенному, обновление списка
@@ -469,9 +502,9 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       if (m.str('author') != null) (t('Автор'), m.str('author')!),
       if (m.str('source') != null) (t('Источник'), m.str('source')!),
     ];
-    // .mod-more: поля 0 14 12 46, зазор 10
+    // подробности: поля 20 по бокам, как у строки
     return Padding(
-      padding: const EdgeInsets.fromLTRB(46, 0, 14, 12),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (m.str('description') != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(m.str('description')!, style: TextStyle(fontSize: 14.4, color: pal.text, height: 1.45))),
         // .mod-facts: две колонки, подписи бледные, 13.1
