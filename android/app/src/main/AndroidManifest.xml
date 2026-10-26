@@ -9,10 +9,17 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Напоминание о плане не требует точного будильника: без этого разрешения уведомление приходит с точностью до минут -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <!-- Как в прежнем приложении: корни Let's Encrypt для Android 7.0 (проигрыватель, карты, обновления идут системной
+         сетью), резервная копия только данных человека (backup_rules / data_extraction_rules) -->
     <application
         android:label="${appName}"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

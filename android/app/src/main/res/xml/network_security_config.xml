@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 7.0 не знает корень Let's Encrypt (ISRG Root X1 появился в системе с 7.1.1), а им подписаны
+     aobible.app (через Cloudflare) и зеркало на github.io — без этого приложение там не подключалось.
+     Доверяем системным сертификатам и, дополнительно, корням Let's Encrypt (с letsencrypt.org/certs,
+     отпечатки SHA-256: X1 96:BC:EC:06…, X2 69:72:9B:8E…). -->
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/isrg_root_x1" />
+            <certificates src="@raw/isrg_root_x2" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Резервная копия Android (до Android 11): только данные человека. Настройки, закладки, заметки, проповеди, планы
+     Flutter-версии — в FlutterSharedPreferences.xml; старое хранилище веб-версии (localStorage WebView) — тоже,
+     чтобы перенос из прежнего приложения сработал и после восстановления на новом телефоне.
+     Модули не копируем: они большие (лимит копии 25 МБ) и скачиваются заново. -->
+<full-backup-content>
+    <include domain="sharedpref" path="FlutterSharedPreferences.xml" />
+    <include domain="root" path="app_webview/Default/Local Storage/" />
+</full-backup-content>
