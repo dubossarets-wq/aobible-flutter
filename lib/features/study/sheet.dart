@@ -164,7 +164,7 @@ class SheetScaffold extends ConsumerWidget {
         child: Column(children: [
           drag,
           // вкладки лежат поверх окна: внизу тела (или под нижней панелью) — отступ под них
-          Expanded(child: tabInsetBuilder(context, (inset) => footer != null ? body : Padding(padding: EdgeInsets.only(bottom: inset), child: body))),
+          Expanded(child: tabInsetBuilder(context, (inset) => footer != null ? body : MediaQuery(data: MediaQuery.of(context).copyWith(padding: MediaQuery.paddingOf(context).copyWith(bottom: MediaQuery.paddingOf(context).bottom + inset)), child: body))),
           if (footer != null) Container(padding: const EdgeInsets.fromLTRB(16, 10, 16, 10), decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))), child: footer),
           if (footer != null) tabInsetBuilder(context, (inset) => SizedBox(height: inset)),
         ]),

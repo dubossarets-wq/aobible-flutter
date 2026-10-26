@@ -210,7 +210,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                 _adding = true;
               }),
             )
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 20), children: [
+          : Builder(builder: (bc) => ListView(padding: padTabs(bc, const EdgeInsets.fromLTRB(16, 12, 16, 20)), children: [
               // .ref-form: поле и кнопка «Создать» в одну строку, промежуток 8
               // IntrinsicHeight: в списке высота не ограничена — stretch тянется до высоты поля
               IntrinsicHeight(
@@ -257,7 +257,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                     ),
                     child: SermonRow(pal: pal, sermon: s, onTap: () => setState(() => _openId = '${s['id']}')),
                   ),
-            ]),
+            ])),
     );
   }
 }
@@ -391,7 +391,7 @@ class _EditorState extends ConsumerState<_Editor> {
     _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим
     return ReorderableListView.builder(
       scrollController: _scroll,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      padding: padTabs(context, const EdgeInsets.fromLTRB(16, 12, 16, 20)),
       buildDefaultDragHandles: false, // тянуть — зажав сам блок (как в веб-версии)
       onReorderStart: (_) => HapticFeedback.mediumImpact(),
       onReorderItem: (a, b) => _store.moveBlock(_id, a, b),

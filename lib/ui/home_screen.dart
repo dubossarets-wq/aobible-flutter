@@ -108,6 +108,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         autofocus: true,
         child: Scaffold(
           backgroundColor: pal.bg,
+          // текст уходит под проигрыватель и вкладки, а не обрезается над ними; их высота приходит панелям
+          // как MediaQuery.padding.bottom (стрелки глав и запас в конце главы встают над проигрывателем)
+          extendBody: true,
           body: SafeArea(bottom: false, child: slots.length == 1 ? slots.first : _Split(columns: columns, first: slots[0], second: slots[1])),
           bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
             if (Hub.audioBar != null) Hub.audioBar!(context, ref),
@@ -197,7 +200,9 @@ class _SplitState extends ConsumerState<_Split> {
         },
         onStep: (d) => _save(ratio + d),
       );
-      final kids = [slot(widget.first, first), divider, slot(widget.second, total - first)];
+      // верхняя панель (разделение по строкам) не доходит до проигрывателя — нижний запас ей не нужен
+      final top = cols ? widget.first : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first);
+      final kids = [slot(top, first), divider, slot(widget.second, total - first)];
       return cols ? Row(children: kids) : Column(children: kids);
     });
   }
@@ -374,7 +379,7 @@ class _Pane extends ConsumerWidget {
     final barH = ProviderScope.containerOf(context, listen: false).read(settingsProvider).d('barHeight');
     final top = (box != null && box.hasSize ? box.localToGlobal(Offset.zero).dy : mq.padding.top) + barH;
     final avail = mq.size.height - mq.padding.top;
-    final initial = ((mq.size.height - top) / avail).clamp(0.4, 0.95).toDouble();
+    final initial = ((mq.size.height - top - 5) / avail).clamp(0.4, 0.95).toDouble(); // до панели, зазор 5 px
     showAobSheet(context, initial: initial, builder: (c) => _ModulePicker(pane: index, outer: context));
   }
 }
@@ -412,7 +417,7 @@ class _ModulePicker extends ConsumerWidget {
           subtitle: pane == 1 ? t('Вторая панель') : t('Основная панель'),
           scroll: false,
           // список — сразу под линией шапки, без пробела; строки без плашек, разделены тонкой линией;
-          // подсветка нажатия и наведения — от края до края окна, линии — с отступом 16
+          // подсветка нажатия и наведения и линии — от края до края окна
           padding: const EdgeInsets.only(bottom: 16),
           child: ListView(children: [
             for (final (k, m) in list.indexed)
@@ -421,11 +426,10 @@ class _ModulePicker extends ConsumerWidget {
                   ref.read(panesProvider.notifier).setModule(pane, m.id);
                   Navigator.pop(context);
                 },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
+                // и подсветка, и линии — от края до края окна; отступы — у содержимого строки
+                child: Container(
                     decoration: BoxDecoration(border: k == list.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
-                    padding: const EdgeInsets.fromLTRB(4, 12, 0, 12),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
                     child: Row(children: [
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -442,7 +446,6 @@ class _ModulePicker extends ConsumerWidget {
                         Tooltip(message: t('Основной перевод'), child: SizedBox(width: 32, height: 32, child: Center(child: CustomPaint(size: const Size(16, 16), painter: _StarPainter(pal.accent))))),
                     ]),
                   ),
-                ),
               ),
             if (Hub.openLibraryTab != null)
               Padding(
@@ -569,6 +572,9 @@ class _TabBarState extends ConsumerState<_TabBar> {
 
   // «Библия» или повторное нажатие на открытую вкладку закрывает окно; остальные открывают своё окно поверх чтения
   void _open(String id) {
+    // поверх может быть и страница (большой проигрыватель) — нажатие на вкладку закрывает и её
+    final nav = Navigator.of(_nav);
+    if (nav.canPop()) nav.popUntil((r) => r.isFirst);
     if (id == 'bible' || tabActive.value == id) return closeAllSheets(_nav);
     // нажали вкладку при открытых окнах: сперва закрываем их все, потом открываем раздел
     if (sheetsOpen.value > 0 || topRoute(_nav) is PopupRoute) closeAllSheets(_nav);
@@ -698,6 +704,31 @@ class _TabBarState extends ConsumerState<_TabBar> {
 
 /// Нижние вкладки поверх навигатора (.tabbar поверх .sheet): остаются видимыми и нажимаемыми над открытыми окнами,
 /// затемнение окон их не перекрывает. Только на узком экране, когда главный экран на месте.
+/// Затухание под вкладками: от верха капсулы (прозрачно) до её середины — цвет того, что под ней
+/// (открытое окно — panel, иначе фон страницы), ниже — сплошной цвет
+class _TabFade extends ConsumerWidget {
+  const _TabFade();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return IgnorePointer(
+      child: ValueListenableBuilder<int>(
+        valueListenable: sheetsOpen,
+        builder: (context, open, _) {
+          final c = open > 0 ? pal.panel : pal.bg;
+          // капсула — 64 px с отступом 4 сверху (_TabBar)
+          return LayoutBuilder(builder: (context, box) {
+            final h = box.maxHeight <= 0 ? 1.0 : box.maxHeight;
+            return DecoratedBox(
+              decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [(4 / h).clamp(0.0, 1.0), (36 / h).clamp(0.0, 1.0)], colors: [c.withValues(alpha: 0), c])),
+            );
+          });
+        },
+      ),
+    );
+  }
+}
+
 class TabBarOverlay extends StatelessWidget {
   const TabBarOverlay({super.key, required this.child});
   final Widget child;
@@ -716,7 +747,14 @@ class TabBarOverlay extends StatelessWidget {
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
           child,
-          if (show) const Positioned(left: 0, right: 0, bottom: 0, child: _FocusHide(down: true, child: _TabBar())),
+          if (show)
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              // под вкладками всё (глава, окно, список) плавно гаснет с их середины, чтобы не торчало снизу
+              child: _FocusHide(down: true, child: Stack(children: [Positioned.fill(child: _TabFade()), _TabBar()])),
+            ),
           // верхний слой (инструкция) — над вкладками; своё Overlay — для подсказок и полей внутри него
           ValueListenableBuilder<Widget?>(
             key: Hub.topLayerHost,

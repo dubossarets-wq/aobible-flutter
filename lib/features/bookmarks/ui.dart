@@ -50,14 +50,14 @@ Future<T?> showSheet<T>(BuildContext context, {required String title, String? su
             scroll: false,
             padding: EdgeInsets.zero,
             child: Column(children: [
-              Expanded(child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 20), child: body(ctx))),
+              Expanded(child: Builder(builder: (bc) => SingleChildScrollView(padding: footer != null ? const EdgeInsets.fromLTRB(16, 12, 16, 20) : padTabs(bc, const EdgeInsets.fromLTRB(16, 12, 16, 20)), child: body(ctx)))),
               if (footer != null)
-                Container(
+                Builder(builder: (bc) => Container(
                   width: double.infinity,
-                  padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.paddingOf(ctx).bottom),
+                  padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.paddingOf(bc).bottom),
                   decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
                   child: footer(ctx),
-                ),
+                )),
             ]),
           ),
         );

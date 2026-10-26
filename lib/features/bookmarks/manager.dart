@@ -123,7 +123,7 @@ class _BookmarksTab extends ConsumerWidget {
       undoToast(context, t('Закладка удалена'), () => n.update((m) => m.copyWith(bookmarks: putBack(m.bookmarks, i, b))));
     }
 
-    return ListView(padding: _bodyPad, children: [
+    return ListView(padding: padTabs(context, _bodyPad), children: [
       // .continue-card
       Material(
         color: mix(pal.accent, 0.07, pal.bg),
@@ -172,7 +172,7 @@ class _FavoritesTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final n = ref.read(marksProvider.notifier);
     final list = ref.watch(marksProvider.select((m) => m.favorites));
-    if (list.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.heart, title: t('Любимых стихов пока нет'), text: t('Дважды нажмите на стих — он станет любимым.'))]);
+    if (list.isEmpty) return ListView(padding: padTabs(context, _bodyPad), children: [EmptyState(icon: LucideIcons.heart, title: t('Любимых стихов пока нет'), text: t('Дважды нажмите на стих — он станет любимым.'))]);
     void drop(Json f) {
       final i = list.indexOf(f);
       n.update((m) => m.copyWith(favorites: [for (final x in m.favorites) if (x != f) x]));
@@ -180,7 +180,7 @@ class _FavoritesTab extends ConsumerWidget {
     }
 
     return ListView.builder(
-      padding: _bodyPad,
+      padding: padTabs(context, _bodyPad),
       itemCount: list.length,
       itemBuilder: (_, i) {
         final f = list[i];
@@ -229,7 +229,7 @@ class _NotesTabState extends ConsumerState<_NotesTab> {
       for (final e in notes.entries)
         if (parseKey(e.key) != null) (parseKey(e.key)!, e.value as Json),
     ]..sort((a, b) => ((b.$2['updated'] ?? b.$2['at'] ?? 0) as num).compareTo((a.$2['updated'] ?? a.$2['at'] ?? 0) as num));
-    if (all.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.notebookPen, title: t('Заметок пока нет'), text: t('Зажмите стих и нажмите «Заметка».'))]);
+    if (all.isEmpty) return ListView(padding: padTabs(context, _bodyPad), children: [EmptyState(icon: LucideIcons.notebookPen, title: t('Заметок пока нет'), text: t('Зажмите стих и нажмите «Заметка».'))]);
     final q = _norm(_q.trim());
     final shown = q.isEmpty
         ? all
@@ -247,7 +247,7 @@ class _NotesTabState extends ConsumerState<_NotesTab> {
 
     final searching = all.length > 3;
     return ListView.builder(
-      padding: _bodyPad,
+      padding: padTabs(context, _bodyPad),
       itemCount: shown.length + (searching ? 1 : 0),
       itemBuilder: (_, k) {
         if (searching && k == 0) {
@@ -288,7 +288,7 @@ class _HighlightsTabState extends ConsumerState<_HighlightsTab> {
     final pal = paletteOf(ref);
     final store = ref.read(marksProvider.notifier);
     final (highlights, hlLabels) = ref.watch(marksProvider.select((m) => (m.highlights, m.hlLabels)));
-    if (highlights.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.highlighter, title: t('Выделений пока нет'), text: t('Зажмите стих и нажмите маркер.'))]);
+    if (highlights.isEmpty) return ListView(padding: padTabs(context, _bodyPad), children: [EmptyState(icon: LucideIcons.highlighter, title: t('Выделений пока нет'), text: t('Зажмите стих и нажмите маркер.'))]);
     final counts = <String, int>{};
     for (final c in highlights.values) {
       counts[c] = (counts[c] ?? 0) + 1;
@@ -321,7 +321,7 @@ class _HighlightsTabState extends ConsumerState<_HighlightsTab> {
       ),
       Expanded(
         child: ListView.builder(
-          padding: _bodyPad,
+          padding: padTabs(context, _bodyPad),
           itemCount: list.length,
           itemBuilder: (_, i) {
             final x = list[i];
@@ -394,7 +394,7 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
     final pal = paletteOf(ref);
     final cols = ref.watch(marksProvider.select((m) => m.collections));
     final n = ref.read(marksProvider.notifier);
-    if (cols.isEmpty) return ListView(padding: _bodyPad, children: [EmptyState(icon: LucideIcons.folder, title: t('Подборок пока нет'), text: t('Зажмите стих → «⋯» → «В подборку…».'))]);
+    if (cols.isEmpty) return ListView(padding: padTabs(context, _bodyPad), children: [EmptyState(icon: LucideIcons.folder, title: t('Подборок пока нет'), text: t('Зажмите стих → «⋯» → «В подборку…».'))]);
     final c = cols.where((x) => x['id'] == _cur).firstOrNull;
 
     void dropItem(Json c, Json x) {
@@ -413,7 +413,7 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
 
     if (c != null) {
       final items = [...(c['items'] as List).cast<Json>()]..sort((a, b) => byBible(refOf(a)!, refOf(b)!));
-      return ListView(padding: _bodyPad, children: [
+      return ListView(padding: padTabs(context, _bodyPad), children: [
         Align(alignment: Alignment.centerLeft, child: AobButton(small: true, icon: LucideIcons.chevronLeft, label: t('Все подборки'), onTap: () => setState(() => _cur = null))),
         const SizedBox(height: 12),
         GroupTitle('${c['name']} · ${items.length}'),
@@ -430,7 +430,7 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
       ]);
     }
     return ListView.builder(
-      padding: _bodyPad,
+      padding: padTabs(context, _bodyPad),
       itemCount: cols.length,
       itemBuilder: (_, i) {
         final x = cols[i];
@@ -459,7 +459,7 @@ class _HistoryTab extends ConsumerWidget {
     final i0 = pane < ref.read(panesProvider).length ? pane : 0;
     final items = [for (var i = p.history.length - 1; i >= 0; i--) (p.history[i], i)];
     return ListView.builder(
-      padding: _bodyPad,
+      padding: padTabs(context, _bodyPad),
       itemCount: items.length,
       itemBuilder: (_, k) {
         final (r, i) = items[k];

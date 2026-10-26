@@ -73,19 +73,22 @@ class AppSheet extends ConsumerWidget {
           child: Column(children: [
             ?fixed,
             Expanded(
-              child: ListView.separated(
+              child: Builder(builder: (bc) => ListView.separated(
                 key: ValueKey(title), // другая страница окна («Меню «Ещё»», подраздел «Оформления») — с самого верха, а не с прежнего места прокрутки
-                padding: padding.copyWith(bottom: padding.bottom + mq.padding.bottom),
+                padding: padding.copyWith(bottom: padding.bottom + MediaQuery.paddingOf(bc).bottom),
                 itemCount: children.length,
                 separatorBuilder: (_, _) => SizedBox(height: gap),
                 itemBuilder: (_, i) => children[i],
-              ),
+              )),
             ),
             if (footer != null)
-              Container(
-                padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + mq.padding.bottom),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
-                child: footer,
+              // подвал — над вкладками: нижний отступ берём внутри окна (там к системному уже прибавлена высота вкладок)
+              Builder(
+                builder: (bc) => Container(
+                  padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.paddingOf(bc).bottom),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                  child: footer,
+                ),
               ),
           ]),
         ),

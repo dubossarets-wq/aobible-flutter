@@ -1,5 +1,6 @@
 // Тексты и подписи стихов (общие для планов и проповедей): как selectionLabel/quoteVerse в веб-версии (SelectionBar.jsx).
 import '../../core/books.dart';
+import '../../core/i18n.dart';
 import '../../core/markup.dart';
 import '../../core/modules.dart';
 
@@ -37,9 +38,13 @@ String selectionLabel(List<VerseRef> refs, {bool full = false}) {
 String quoteLabel(List<VerseRef> refs) => selectionLabel(refs).replaceAll('–', '-');
 String quoteVerse(String text, String label) => '"${text.replaceAll(RegExp(r'\s+'), ' ').trim()}" - $label';
 
-/// Переводы для стиха дня и виджета: перевод первой панели, основной из настроек, затем любые установленные
+/// Переводы для стиха дня и виджета: перевод первой панели, основной из настроек, затем любые установленные —
+/// но только на языке приложения (читают греческий текст — стих дня всё равно по-русски); другие языки — лишь если
+/// на языке приложения не установлено ни одного перевода
 List<InstalledModule> verseModules(String? paneModule, String primary) {
   final store = ModuleStore.instance;
   final ids = <String>{?paneModule, primary, for (final m in store.bibles) m.id};
-  return [for (final id in ids) if (store.get(id) != null && store.get(id)!.type == 'bible') store.get(id)!];
+  final all = [for (final id in ids) if (store.get(id) != null && store.get(id)!.type == 'bible') store.get(id)!];
+  final own = [for (final m in all) if (m.language == currentLang) m];
+  return own.isEmpty ? all : own;
 }

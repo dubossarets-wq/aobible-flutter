@@ -125,7 +125,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
   Widget _list(Palette pal) {
     final found = _found(); // запрос к базе — только когда изменилась строка поиска, а не на каждую перестройку
     final query = _q.text.trim();
-    return CustomScrollView(slivers: [
+    return Builder(builder: (bc) => CustomScrollView(slivers: [
       if (_placeCount > 0)
         SliverToBoxAdapter(
           // .nav-group: заголовок, поле поиска, найденные места (промежутки 8)
@@ -191,8 +191,8 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
             itemBuilder: (_, i) => _MapTile(map: _maps[i], pal: pal, onTap: () => setState(() => _open = _maps[i])),
           );
         }),
-      const SliverToBoxAdapter(child: SizedBox(height: 8)),
-    ]);
+      SliverToBoxAdapter(child: SizedBox(height: 8 + MediaQuery.paddingOf(bc).bottom)),
+    ]));
   }
 }
 

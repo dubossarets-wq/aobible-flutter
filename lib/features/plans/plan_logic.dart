@@ -267,7 +267,10 @@ ReadStats readStats() => readStatsOf(readLogData());
 // --- Свой план: главы поровну по дням (по числу стихов) --------------------------------------------
 
 /// chapters — [(«Книга.Глава», число стихов)] по порядку
-List<List<String>> splitChapters(List<({String ref, int n})> chapters, int days) {
+List<List<String>> splitChapters(List<({String ref, int n})> chapters, int days) => splitChaptersRaw(chapters, days).where((r) => r.isNotEmpty).toList();
+
+/// То же, но ровно days дней: дни без глав остаются пустыми (для параллельного плана «За срок»)
+List<List<String>> splitChaptersRaw(List<({String ref, int n})> chapters, int days) {
   final total = chapters.fold<int>(0, (a, c) => a + c.n);
   if (total == 0 || days < 1) return [];
   final per = total / days;
@@ -278,7 +281,7 @@ List<List<String>> splitChapters(List<({String ref, int n})> chapters, int days)
     readings[day].add(c.ref);
     acc += c.n;
   }
-  return readings.where((r) => r.isNotEmpty).toList();
+  return readings;
 }
 
 // --- Параллельное чтение (PlansSheet: «Свой план» → «Параллельно»; src/core/plans.js: STREAMS, streamList, makeParallelPlan) ---
@@ -333,8 +336,20 @@ int parallelDays(List<StreamSel> streams, List<({String ref, int n})> Function(L
   return math.min(3650, days);
 }
 
-/// Дни параллельного плана: [['Gen.1', 'Matt.1', 'Ps.1'], …]; короткий раздел начинается заново; длина — по самому длинному
-List<List<String>> makeParallelPlan(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters) {
+/// Дни параллельного плана: [['Gen.1', 'Matt.1', 'Ps.1'], …]; короткий раздел начинается заново; длина — по самому длинному.
+/// period — число дней: каждый раздел делится на них поровну по числу стихов (без повторов), все кончаются в последний день
+List<List<String>> makeParallelPlan(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters, {int? period}) {
+  if (period != null) {
+    final parts = <List<List<String>>>[];
+    for (final x in streams) {
+      final ch = chapters(x.books);
+      if (ch.isNotEmpty) parts.add(splitChaptersRaw(ch, period));
+    }
+    return [
+      for (var d = 0; d < period; d++)
+        if (parts.any((p) => p.length > d && p[d].isNotEmpty)) <String>{for (final p in parts) if (p.length > d) ...p[d]}.toList(),
+    ];
+  }
   final ok = <({int per, List<({String ref, int n})> ch})>[];
   for (final x in streams) {
     final ch = chapters(x.books);

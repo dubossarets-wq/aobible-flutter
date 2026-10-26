@@ -4,7 +4,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -39,6 +39,70 @@ Color accentOnTint(Palette pal) => mix(pal.accent, 0.85, pal.text);
 
 /// Сколько полноэкранных страниц (проигрыватель) сейчас поверх — нижние вкладки на это время прячутся
 final tabBarSuppress = ValueNotifier<int>(0);
+
+/// Насколько проигрыватель ещё «не вырос» (px), пока раскрываются или прячутся его настройки: высота уже отдана
+/// в раскладку целиком, а фон едет плавно. Стрелки глав (BarShiftDown) опускаются на столько же при рисовании.
+class BarShift extends ChangeNotifier {
+  double Function() read = () => 0;
+  void tick() => notifyListeners();
+}
+
+final barShift = BarShift();
+
+/// Сдвигает ребёнка вниз на barShift при рисовании и нажатии — без пересчёта раскладки на каждом кадре.
+/// Ребёнок и сам сдвиг — в своих слоях: на кадре переставляется готовая картинка, остальной экран не перерисовывается
+class BarShiftDown extends StatelessWidget {
+  const BarShiftDown({super.key, this.enabled = true, required this.child});
+  final bool enabled;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(child: _BarShiftBox(enabled: enabled, child: RepaintBoundary(child: child)));
+}
+
+class _BarShiftBox extends SingleChildRenderObjectWidget {
+  const _BarShiftBox({this.enabled = true, super.child});
+  final bool enabled;
+  @override
+  RenderObject createRenderObject(BuildContext context) => RenderBarShift(enabled);
+  @override
+  void updateRenderObject(BuildContext context, RenderBarShift renderObject) => renderObject.enabled = enabled;
+}
+
+class RenderBarShift extends RenderProxyBox {
+  RenderBarShift(this._enabled);
+  bool _enabled;
+  set enabled(bool v) {
+    if (v == _enabled) return;
+    _enabled = v;
+    markNeedsPaint();
+  }
+
+  double get _dy => _enabled ? barShift.read() : 0;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    barShift.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    barShift.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child != null) context.paintChild(child!, offset + Offset(0, _dy));
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      child != null && result.addWithPaintOffset(offset: Offset(0, _dy), position: position, hitTest: (r, p) => child!.hitTest(r, position: p));
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) => transform.translateByDouble(0, _dy, 0, 1);
+}
 
 /// Узкий экран (телефон): одиночные кнопки — на всю ширину
 bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
@@ -76,7 +140,11 @@ Future<T?> showAobSheet<T>(
       // выше окно уезжает, только если иначе ему не хватит места (меньше 280 px)
       child: LayoutBuilder(builder: (c2, box) {
         final kb = MediaQuery.viewInsetsOf(c).bottom;
-        final want = box.maxHeight * (page || nested ? 1 : initial);
+        // окно поднимается максимум до нижнего края верхней панели (плашки перевода и места) с зазором 5 px;
+        // окна поверх окна и страницы — на весь экран
+        final barH = ProviderScope.containerOf(c, listen: false).read(settingsProvider).d('barHeight');
+        final cap = page || nested ? box.maxHeight : box.maxHeight - barH - 5;
+        final want = math.min(box.maxHeight * (page || nested ? 1 : initial), cap);
         final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
         return Padding(
           padding: EdgeInsets.only(bottom: kb),
@@ -162,6 +230,9 @@ Widget tabInsetBuilder(BuildContext context, Widget Function(double inset) build
       builder: (c, v, _) => build(MediaQuery.viewInsetsOf(c).bottom > 0 ? 0 : v),
     );
 
+/// Нижний отступ списка в окне: прежний + высота вкладок, лежащих поверх окна (MediaQuery.padding.bottom)
+EdgeInsets padTabs(BuildContext context, EdgeInsets p) => p.copyWith(bottom: p.bottom + MediaQuery.paddingOf(context).bottom);
+
 class _Nested extends InheritedWidget {
   const _Nested({required this.nested, required super.child});
   final bool nested;
@@ -243,11 +314,18 @@ class AobSheet extends ConsumerWidget {
             IconBtn(icon: LucideIcons.x, tooltip: t('Закрыть'), onTap: onClose ?? () => closeAllSheets(context)),
           ]),
         ),
-        // внизу — отступ под вкладки, лежащие поверх окна
+        // Содержимое доходит до самого низа и уходит под вкладки, лежащие поверх окна (как в веб-версии);
+        // высота вкладок — запасом прокрутки внизу: окно с прокруткой добавляет его само, списку внутри окна он
+        // приходит как MediaQuery.padding.bottom (список прибавляет его к своему нижнему отступу)
         Expanded(
           child: tabInsetBuilder(
             context,
-            (inset) => scroll ? SingleChildScrollView(child: Column(children: [body, SizedBox(height: inset)])) : Padding(padding: EdgeInsets.only(bottom: inset), child: body),
+            (inset) => scroll
+                ? SingleChildScrollView(child: Column(children: [body, SizedBox(height: inset)]))
+                : MediaQuery(
+                    data: MediaQuery.of(context).copyWith(padding: MediaQuery.paddingOf(context).copyWith(bottom: MediaQuery.paddingOf(context).bottom + inset)),
+                    child: body,
+                  ),
           ),
         ),
       ]),

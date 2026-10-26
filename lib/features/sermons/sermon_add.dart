@@ -66,8 +66,8 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
       return AobSheet(
         title: t('Добавлено'),
         scroll: false,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        child: Column(key: tourKey('sermon-done'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        padding: EdgeInsets.zero,
+        child: Builder(builder: (bc) => Padding(padding: padTabs(bc, const EdgeInsets.fromLTRB(16, 12, 16, 20)), child: Column(key: tourKey('sermon-done'), crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(
             child: Center(
               child: Container(
@@ -98,7 +98,7 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
           ),
           const SizedBox(height: 8),
           AobButton(wide: true, label: t('Читать дальше'), onTap: () => Navigator.of(context).pop()),
-        ]),
+        ]))),
       );
     }
     return AobSheet(

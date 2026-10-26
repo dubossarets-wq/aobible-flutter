@@ -2,10 +2,12 @@
 // (книга читается из SQLite синхронно, без ожидания сети и без промежуточных экранов).
 import 'dart:io' show Platform;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_update/in_app_update.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/books.dart';
@@ -22,6 +24,9 @@ import 'ui/kit.dart' show SheetObserver;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Звук на компьютере (проверка на Windows) — через media_kit: прежний плеер для Windows слал сообщения из чужого
+  // потока и подвешивал окно. На Android и iOS just_audio работает своим родным плеером, это их не касается
+  if (Platform.isWindows || Platform.isLinux) JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
   final started = DateTime.now();
   prefs = await SharedPreferences.getInstance();
   systemDark.value = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
@@ -87,6 +92,8 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       navigatorKey: Hub.navigatorKey,
       navigatorObservers: [SheetObserver()],
       debugShowCheckedModeBanner: false,
+      // перетаскивание мышью листает списки и ряды плашек (на компьютере — как пальцем на телефоне)
+      scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse, PointerDeviceKind.trackpad, PointerDeviceKind.stylus}),
       theme: ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true),
       // Строка состояния и нижняя системная панель — цвета темы. Через AnnotatedRegion: MaterialApp сам ставит
       // светлые/тёмные значки при каждой сборке, прямой вызов SystemChrome проиграл бы ему

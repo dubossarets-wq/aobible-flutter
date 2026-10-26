@@ -62,6 +62,9 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   List<String> _own = [];
   Map<String, int> _streams = {'ot': 1, 'nt': 1, 'ps': 1};
   int _parDays = 0; // сколько дней выйдет у параллельного плана
+  String _parMode = 'perday'; // «Глав в день» или «За срок»
+  int _periodDays = 90;
+  late final _periodCtl = TextEditingController(text: '$_periodDays');
 
   List<String> get _ownOrdered => [for (final b in Books.instance.all) if (_own.contains(b.id)) b.id];
 
@@ -71,18 +74,35 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
       if (m != null) _mode = jsonDecode(m) == 'par' ? 'par' : 'seq';
       final o = prefs.getString('customPlanBooks');
       if (o != null) _own = [for (final x in jsonDecode(o) as List) '$x'];
+      final pm = prefs.getString('customPlanParMode');
+      if (pm != null) _parMode = jsonDecode(pm) == 'period' ? 'period' : 'perday';
+      final pd = prefs.getString('customPlanParDays');
+      if (pd != null) _periodDays = ((jsonDecode(pd) as num).toInt()).clamp(7, 730);
+      _periodCtl.text = '$_periodDays';
       final s = prefs.getString('customPlanStreams');
       if (s != null) _streams = {for (final e in (jsonDecode(s) as Map).entries) '${e.key}': ((e.value as num).toInt()).clamp(1, 10)};
     } catch (_) {}
     _recalc();
   }
 
-  void _recalc() => _parDays = _mode == 'par' ? parallelDays(streamList(_streams, _ownOrdered), chapterList) : 0;
+  void _recalc() => _parDays = _mode == 'par' && _parMode == 'perday' ? parallelDays(streamList(_streams, _ownOrdered), chapterList) : 0;
 
   void _setMode(String m) => setState(() {
         _mode = m;
         prefs.setString('customPlanMode', jsonEncode(m));
         _recalc();
+      });
+
+  void _setParMode(String m) => setState(() {
+        _parMode = m;
+        prefs.setString('customPlanParMode', jsonEncode(m));
+        _recalc();
+      });
+
+  void _setPeriod(int v) => setState(() {
+        _periodDays = v.clamp(7, 730);
+        _periodCtl.text = '$_periodDays';
+        prefs.setString('customPlanParDays', jsonEncode(_periodDays));
       });
 
   void _setStreams(Map<String, int> s) => setState(() {
@@ -109,6 +129,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   @override
   void dispose() {
     _daysCtl.dispose();
+    _periodCtl.dispose();
     super.dispose();
   }
 
@@ -164,10 +185,11 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
       await Future<void>.delayed(const Duration(milliseconds: 30)); // дать перерисоваться индикатору
       if (_mode == 'par') {
         final list = streamList(_streams, _ownOrdered);
-        final readings = makeParallelPlan(list, chapterList);
+        final period = _parMode == 'period' ? _periodDays.clamp(7, 730) : null;
+        final readings = makeParallelPlan(list, chapterList, period: period);
         if (readings.isEmpty) throw Exception(t('Выберите книги'));
         final names = [for (final x in list) x.key == 'own' ? _ownLabel() : t(planStreams.firstWhere((s) => s.key == x.key).short)].join(' + ');
-        _add({'planId': 'custom', 'name': t('{list} параллельно', {'list': names}), 'readings': readings});
+        _add({'planId': 'custom', 'name': period != null ? t('{scope} за {n} дн.', {'scope': names, 'n': '${readings.length}'}) : t('{list} параллельно', {'list': names}), 'readings': readings});
         return;
       }
       final books = _scope == 'own' ? _ownOrdered : planScopes.firstWhere((s) => s.id == _scope).books();
@@ -200,7 +222,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
       title: t('Планы чтения'),
       scroll: false,
       padding: EdgeInsets.zero,
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 20), children: [
+      child: Builder(builder: (bc) => ListView(padding: padTabs(bc, const EdgeInsets.fromLTRB(16, 12, 16, 20)), children: [
         VerseOfDayCard(pane: widget.pane, onRead: _go),
         gap,
         for (final p in plans) ...[
@@ -286,7 +308,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
             ),
         const SizedBox(height: 18), // gap 12 + margin-top 6 у .custom-plan
         _customPlan(pal, days),
-      ]),
+      ])),
     );
   }
 
@@ -294,8 +316,9 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   Widget _customPlan(Palette pal, int days) {
     final par = _mode == 'par';
     final needOwn = (par ? _streams.containsKey('own') : _scope == 'own') && _own.isEmpty;
-    final startLabel = par ? (_parDays > 0 ? t('Начать на {n} дн.', {'n': '$_parDays'}) : t('Выберите книги')) : t('Начать на {n} дн.', {'n': '$days'});
-    final off = _busy != null || needOwn || (par && _parDays == 0);
+    final period = par && _parMode == 'period';
+    final startLabel = period ? t('Начать на {n} дн.', {'n': '${_periodDays.clamp(7, 730)}'}) : par ? (_parDays > 0 ? t('Начать на {n} дн.', {'n': '$_parDays'}) : t('Выберите книги')) : t('Начать на {n} дн.', {'n': '$days'});
+    final off = _busy != null || needOwn || (par && !period && _parDays == 0);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.panel),
@@ -316,7 +339,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           ),
         ]),
         const SizedBox(height: 14),
-        Segmented<String>(value: _mode, onChanged: _setMode, options: [('seq', t('Подряд')), ('par', t('Параллельно'))]),
+        Segmented<String>(value: _mode, onChanged: _setMode, options: [('seq', t('Последовательно')), ('par', t('Параллельно'))]),
         const SizedBox(height: 10),
         if (par) ..._parallelBody(pal) else ..._seqBody(pal, days),
         const SizedBox(height: 14),
@@ -327,7 +350,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
 
   Widget _label(Palette pal, String s) => Text(s, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted));
 
-  // «Подряд»: раздел или свои книги за N дней
+  // «Последовательно»: раздел или свои книги за N дней
   List<Widget> _seqBody(Palette pal, int days) => [
         _label(pal, t('Что читать')),
         const SizedBox(height: 10),
@@ -357,51 +380,62 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
         }),
         if (_scope == 'own') ...[const SizedBox(height: 10), _BookPicker(pal: pal, value: _own, onToggle: _toggleBook)],
         const SizedBox(height: 12),
+        ..._daysBlock(pal, days, _daysCtl, _setDays, (v) => setState(() => _days = int.tryParse(v) ?? 90)),
+      ];
+
+  // «За сколько дней»: число с «−»/«+» и быстрые значения — общий для «Последовательно» и «Параллельно → За срок»
+  List<Widget> _daysBlock(Palette pal, int days, TextEditingController ctl, void Function(int) set, void Function(String) changed) => [
         _label(pal, t('За сколько дней')),
         const SizedBox(height: 10),
         Row(children: [
-          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), onTap: () => _setDays(days - 1)),
+          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), onTap: () => set(days - 1)),
           const SizedBox(width: 8),
           Expanded(
             child: PlainInput(
-              controller: _daysCtl,
+              controller: ctl,
               height: 44,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17.6, fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()]),
-              onChanged: (v) => setState(() => _days = int.tryParse(v) ?? 90),
-              onSubmitted: (_) => _setDays(_days),
+              onChanged: changed,
+              onSubmitted: (_) => set(int.tryParse(ctl.text) ?? 90),
             ),
           ),
           const SizedBox(width: 8),
-          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => _setDays(days + 1)),
+          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => set(days + 1)),
         ]),
         const SizedBox(height: 10),
         // в один ряд, каждая по ширине текста; не помещаются — ряд прокручивается с затуханием у края
         SizedBox(
           height: 36,
           child: FadeRow(gap: 8, children: [
-            for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => _setDays(n)),
+            for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => set(n)),
           ]),
         ),
       ];
 
   // «Параллельно»: разделы с галочкой и числом глав в день (.cp-streams)
   List<Widget> _parallelBody(Palette pal) => [
-        _label(pal, t('Разделы и глав в день')),
+        Segmented<String>(value: _parMode, onChanged: _setParMode, options: [('perday', t('Глав в день')), ('period', t('За срок'))]),
+        const SizedBox(height: 10),
+        _label(pal, _parMode == 'period' ? t('Разделы') : t('Разделы и глав в день')),
         const SizedBox(height: 10),
         for (final s in planStreams) ...[
           _StreamRow(
             pal: pal,
             label: t(s.label),
             per: _streams[s.key],
+            steps: _parMode != 'period',
             onToggle: () => _setStreams(_streams.containsKey(s.key) ? {for (final e in _streams.entries) if (e.key != s.key) e.key: e.value} : {..._streams, s.key: 1}),
             onPer: (d) => _setStreams({..._streams, s.key: ((_streams[s.key] ?? 1) + d).clamp(1, 10)}),
           ),
           const SizedBox(height: 8),
         ],
         if (_streams.containsKey('own')) ...[_BookPicker(pal: pal, value: _own, onToggle: _toggleBook), const SizedBox(height: 10)],
-        Text(t('Короткие разделы начинаются заново, пока идут длинные.'), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
+        if (_parMode == 'period')
+          ..._daysBlock(pal, _periodDays, _periodCtl, _setPeriod, (v) => setState(() => _periodDays = int.tryParse(v) ?? 90))
+        else
+          Text(t('Короткие разделы начинаются заново, пока идут длинные.'), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
       ];
 }
 
@@ -844,9 +878,10 @@ class _ReadHeroState extends State<_ReadHero> {
 
 /// .cp-stream: строка раздела — галочка, название и «− N гл. в день +»
 class _StreamRow extends StatelessWidget {
-  const _StreamRow({required this.pal, required this.label, required this.per, required this.onToggle, required this.onPer});
+  const _StreamRow({required this.pal, required this.label, required this.per, required this.onToggle, required this.onPer, this.steps = true});
   final Palette pal;
   final String label;
+  final bool steps; // false («За срок») — шаги «− n гл. в день +» скрыты, галочка остаётся
   final int? per; // null — раздел выключен
   final VoidCallback onToggle;
   final void Function(int delta) onPer;
@@ -882,7 +917,7 @@ class _StreamRow extends StatelessWidget {
             ),
           ),
         ),
-        if (on) ...[
+        if (on && steps) ...[
           _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), size: 34, radius: 10, iconSize: 16, onTap: per! <= 1 ? null : () => onPer(-1)),
           const SizedBox(width: 6),
           Text(t('{n} гл. в день', {'n': '$per'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),

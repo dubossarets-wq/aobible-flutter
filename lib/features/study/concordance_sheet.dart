@@ -99,7 +99,6 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
     final renderings = counts.entries.toList()..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : order[a.key]!.compareTo(order[b.key]!));
     final shown = list.take(_shown).toList();
     final more = list.length > _shown;
-    final bottom = MediaQuery.of(context).padding.bottom;
     if (widget.inline) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
@@ -113,8 +112,8 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
         if (more) Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _inlinePage))),
       ]);
     }
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + bottom),
+    return Builder(builder: (bc) => ListView.builder(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
       itemCount: 1 + shown.length + (more ? 1 : 0),
       itemBuilder: (context, i) {
         if (i == 0) {
@@ -139,7 +138,7 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
         final r = shown[i - 1].$1;
         return _Row(r: r, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen);
       },
-    );
+    ));
   }
 }
 

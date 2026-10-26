@@ -30,7 +30,7 @@ bool _open = false;
 void openAudioPlayer(BuildContext context) {
   if (_open) return;
   _open = true;
-  tabBarSuppress.value++; // проигрыватель на весь экран — нижние вкладки не закрывают его кнопки (как в веб-версии)
+  // нижние вкладки остаются поверх проигрывателя (его кнопки — над ними); нажатие на вкладку закрывает его
   Navigator.of(context, rootNavigator: true)
       .push(PageRouteBuilder<void>(
         opaque: true,
@@ -40,10 +40,7 @@ void openAudioPlayer(BuildContext context) {
         transitionsBuilder: (_, anim, _, child) =>
             SlideTransition(position: Tween(begin: const Offset(0, 1), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic)).animate(anim), child: child),
       ))
-      .whenComplete(() {
-        _open = false;
-        tabBarSuppress.value--;
-      });
+      .whenComplete(() => _open = false);
 }
 
 const _backAfter = Duration(milliseconds: 3500); // через сколько после ручной прокрутки текст возвращается к стиху
@@ -256,9 +253,10 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
   Widget _controls(AudioState a, Palette pal, VerseRef r) {
     final left = sleepLeftMinutes(a.sleep);
     final sleepLabel = a.sleep == null ? t('Выкл') : a.sleep!.kind == 'chapter' ? t('Конец главы') : t('{n} мин', {'n': '${left ?? a.sleep!.minutes}'});
-    // .ap-controls: промежуток 10 (14 при высоте окна от 760 px), поля 4 22 max(22, нижний отступ − 8)
+    // .ap-controls: промежуток 10 (14 при высоте окна от 760 px), поля 4 22 max(22, нижний отступ − 8);
+    // есть нижние вкладки — кнопки над ними
     final gap = MediaQuery.sizeOf(context).height >= 760 ? 14.0 : 10.0;
-    final bottom = math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
+    final bottom = tabBarInset.value > 0 ? tabBarInset.value + 6 : math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -307,12 +305,12 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
             ),
             // .ap-transport: промежуток 28; .ap-btn 60×60 (значок 30), .ap-play 78×78 (значок 34)
             Row(mainAxisAlignment: MainAxisAlignment.center, spacing: 28, children: [
-              _big(LucideIcons.skipBack, 30, () => _e.stepVerse(-1), pal, t('Предыдущий стих')),
+              _big(Icons.skip_previous_rounded, 38, () => _e.stepVerse(-1), pal, t('Предыдущий стих')),
               Container(
                 decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: pal.accent.withValues(alpha: 0.38), blurRadius: 26, offset: const Offset(0, 8))]),
                 child: audioPlayButton(a, pal, 78, iconSize: 34),
               ),
-              _big(LucideIcons.skipForward, 30, () => _e.stepVerse(1), pal, t('Следующий стих')),
+              _big(Icons.skip_next_rounded, 38, () => _e.stepVerse(1), pal, t('Следующий стих')),
             ]),
             // Громкость (.ap-volume: промежуток 10, значки 18)
             Row(spacing: 10, children: [
@@ -517,8 +515,8 @@ class _SleepPickerState extends State<SleepPicker> {
     final e = AudioEngine.I;
     final w = MediaQuery.sizeOf(context).width;
     final half = math.min(w, 560.0) / 2 - _spStep / 2;
-    // .sp: поля 18 0 max(22, нижний отступ − 8)
-    final bottom = math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
+    // .sp: поля 18 0 max(22, нижний отступ − 8); есть нижние вкладки — над ними
+    final bottom = tabBarInset.value > 0 ? tabBarInset.value + 6 : math.max(22.0, MediaQuery.paddingOf(context).bottom - 8);
     final timeSize = (w * 0.13).clamp(41.6, 57.6).toDouble();
     return Padding(
       padding: EdgeInsets.fromLTRB(0, 18, 0, bottom),

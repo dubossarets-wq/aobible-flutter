@@ -417,6 +417,9 @@ void main() {
         expect(find.textContaining('http://127.0.0.1:1/catalog.json'), findsWidgets);
         expect(find.text('Встроенный каталог'), findsOneWidget);
         await tester.ensureVisible(find.text('Встроенный каталог'));
+        // ensureVisible подводит кнопку к самому низу окна, а там вкладки поверх — докручиваем до конца: запас прокрутки поднимает её над вкладками
+        await tester.drag(find.byType(ListView).last, const Offset(0, -300));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Встроенный каталог'));
         await real(tester, 100);
         expect(find.text('Даль'), findsOneWidget);

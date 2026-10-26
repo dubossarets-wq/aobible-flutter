@@ -21,7 +21,7 @@ export 'audio_settings.dart' show AudioOfflineList, AudioSettingsPage, openAudio
 void register() {
   // Над вкладками: кнопка «К плану · N из M» (у оболочки для неё нет отдельной точки; живёт, пока человек читает вне плана)
   // и мини-проигрыватель
-  Hub.audioBar = (context, ref) => const Column(mainAxisSize: MainAxisSize.min, children: [PlanReturnPill(), AudioBar()]);
+  Hub.audioBar = (context, ref) => const Column(mainAxisSize: MainAxisSize.min, children: [PlanReturnPill(), RepaintBoundary(child: AudioBar())]);
   Hub.listenFab = (context, ref, pane) => ListenFab(pane: pane);
   Hub.openAudio = (context, ref, pane) => openAudioFrom(context, ref, pane);
   Hub.listenFrom = (context, ref, pane, from) => listenFromRef(context, pane, from);

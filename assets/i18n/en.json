@@ -1342,5 +1342,6 @@
  "Глав в день": "Chapters per day",
  "За срок": "Over a period",
  "Разделы": "Sections",
- "В этом переводе нет книги «{book}»": "This translation has no book “{book}”"
+ "В этом переводе нет книги «{book}»": "This translation has no book “{book}”",
+ "Отсюда": "From here"
 }

@@ -429,9 +429,9 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       subtitle: m == null ? null : (multi ? '${t('Во всех модулях')} · ${targets.length}' : '${m.name} · ${m.title}'),
       scroll: false,
       padding: EdgeInsets.zero,
-      child: ListView.builder(
+      child: Builder(builder: (bc) => ListView.builder(
         controller: _scroll,
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         itemCount: 1 + count + (more ? 1 : 0),
         itemBuilder: (context, i) {
@@ -452,7 +452,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           final mod = multi ? ModuleStore.instance.get(_hitMods[i - 1]) : null;
           return _resultRow(pal, textStyle, hits![i - 1], mod, re);
         },
-      ),
+      )),
     );
   }
 
@@ -482,13 +482,14 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                 },
                 onSubmitted: (_) => _submit(),
                 cursorColor: pal.accent,
-                style: TextStyle(fontSize: 16, height: 1.25, color: pal.text),
+                style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
                 // поле — ровно одна строка, по центру рамки (Row центрирует по высоте): отступы сверху и снизу
                 // на разных шрифтах уводили текст вверх
                 textAlignVertical: TextAlignVertical.center,
                 decoration: InputDecoration(
                   hintText: t('Слово, Ин 3:16 или G26'),
-                  hintStyle: TextStyle(color: pal.muted, height: 1.25),
+                  // подсказка — того же размера и с той же строкой, что и текст, иначе встаёт ниже середины
+                  hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
                   border: InputBorder.none,
                   isCollapsed: true,
                   contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 0),

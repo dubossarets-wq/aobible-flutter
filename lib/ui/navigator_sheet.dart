@@ -277,6 +277,8 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
         child: SlideTransition(position: Tween<Offset>(begin: Offset(_forward ? 0.12 : -0.12, 0), end: Offset.zero).animate(anim), child: child),
       );
 
+  double _tabBottom = 0; // нижний отступ внутри окна: системный + вкладки поверх окна
+
   @override
   Widget build(BuildContext context) {
     final pal = paletteOf(ref);
@@ -289,13 +291,13 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     final selBook = _book == null ? null : books.where((b) => b.id == _book).firstOrNull;
     final single = selBook?.chapters == 1;
     final title = selBook == null ? t('Перейти') : (_chapter != null && !single ? '${selBook.name} $_chapter' : selBook.name);
-    final Widget step;
+    final Widget Function() step; // строится внутри окна (Builder): тогда MediaQuery.padding уже несёт высоту вкладок
     if (selBook == null) {
-      step = _list(pal, fill, muted, books, p, at);
+      step = () => _list(pal, fill, muted, books, p, at);
     } else if (_chapter == null) {
-      step = _chapters(pal, fill, selBook, at);
+      step = () => _chapters(pal, fill, selBook, at);
     } else {
-      step = _verseStep(pal, fill, selBook, _chapter!, at);
+      step = () => _verseStep(pal, fill, selBook, _chapter!, at);
     }
     // Свайп по окну влево-вправо переключает Ветхий / Новый Завет / Апокрифы
     final groups = _groups();
@@ -316,7 +318,10 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,
           transitionBuilder: (child, anim) => _slide(child, anim),
-          child: KeyedSubtree(key: ValueKey('$_book|$_chapter'), child: step),
+          child: KeyedSubtree(key: ValueKey('$_book|$_chapter'), child: Builder(builder: (bc) {
+            _tabBottom = MediaQuery.paddingOf(bc).bottom;
+            return step();
+          })),
         ),
       ),
     );
@@ -339,7 +344,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     }
     final recent = [for (final id in ids) ?books.where((x) => x.id == id).firstOrNull];
     final focused = _focus.hasFocus;
-    final bottomPad = 20 + MediaQuery.paddingOf(context).bottom;
+    final bottomPad = 20 + _tabBottom;
 
     final top = <Widget>[
       // Строка ссылки (.bn-search): высота 50, скругление 15; в фокусе — рамка акцента и кольцо
@@ -562,7 +567,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
       });
 
   Widget _chapters(Palette pal, Color fill, _Book b, VerseRef at) => SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + MediaQuery.paddingOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + _tabBottom),
         child: _numGrid(pal, fill, b.chapters, (n) => at.book == b.id && at.chapter == n, _openChapter),
       );
 
@@ -570,7 +575,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     final counts = _verses(b.id);
     final n = ch <= counts.length ? counts[ch - 1] : 0;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + MediaQuery.paddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + _tabBottom),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Material(
           color: mix(pal.accent, 0.13, pal.panel),

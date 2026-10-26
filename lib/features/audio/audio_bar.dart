@@ -1,14 +1,18 @@
 // Мини-проигрыватель над вкладками (AudioBar.jsx): ▶/⏸, предыдущий/следующий стих, место, скорость, таймер сна,
 // скачивание книги. Нажатие на свободную часть или свайп вверх — раскрыть проигрыватель на весь экран.
 import 'dart:async';
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/panes.dart' show livePositions;
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../hub.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
 import 'audio_player.dart';
@@ -48,9 +52,38 @@ class AudioBar extends ConsumerStatefulWidget {
   ConsumerState<AudioBar> createState() => _AudioBarState();
 }
 
-class _AudioBarState extends ConsumerState<AudioBar> {
+class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderStateMixin {
   bool _opts = false;
+  bool _optsShown = false; // панель настроек на экране (в том числе пока уезжает)
   Timer? _tick;
+  // Раскрытие настроек: высота проигрывателя меняется один раз (в начале раскрытия / в конце скрытия), а плавно
+  // едут только фон с рамкой и обрезка содержимого — это перерисовка без раскладки, глава под проигрывателем
+  // не пересчитывается на каждом кадре
+  late final _oc = AnimationController(vsync: this, duration: const Duration(milliseconds: 240));
+  late final _ov = CurvedAnimation(parent: _oc, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+  final _panelH = _Height(); // высота панели настроек — пишется при раскладке, читается при рисовании
+
+  void _toggleOpts() {
+    if (!_opts) {
+      setState(() => _opts = _optsShown = true);
+      _oc.forward();
+    } else {
+      setState(() => _opts = false);
+      _oc.reverse().then((_) {
+        if (mounted && !_opts) setState(() => _optsShown = false);
+      });
+    }
+  }
+
+  // стрелки глав едут вместе с фоном проигрывателя (BarShiftDown)
+  void _bindShift() {
+    if (barShift.read == _hidden) return;
+    barShift.read = _hidden;
+    _oc.addListener(barShift.tick);
+  }
+
+  /// Сколько панели настроек ещё скрыто сверху (0 — раскрыта целиком)
+  double _hidden() => _optsShown ? _panelH.value * (1 - _ov.value) : 0;
 
   @override
   void initState() {
@@ -64,11 +97,15 @@ class _AudioBarState extends ConsumerState<AudioBar> {
   @override
   void dispose() {
     _tick?.cancel();
+    if (barShift.read == _hidden) barShift.read = () => 0;
+    _oc.removeListener(barShift.tick);
+    _oc.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    _bindShift();
     final pal = ref.watch(settingsProvider).palette;
     final e = AudioEngine.I;
     return ValueListenableBuilder<AudioState>(
@@ -88,23 +125,24 @@ class _AudioBarState extends ConsumerState<AudioBar> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 640),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-                // .audio-bar: рамка line, скругление radius+4, тень 0 10 34 rgba(0,0,0,.2)
-                decoration: BoxDecoration(
-                  color: pal.panel,
-                  borderRadius: BorderRadius.circular(kRadius + 4),
-                  border: Border.all(color: pal.line),
-                  boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 34, offset: Offset(0, 10))],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Material(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                // .audio-bar: рамка line, капсула (скругление 32 — как у панели вкладок; с настройками — 16), тень 0 10 34 rgba(0,0,0,.2)
+                child: CustomPaint(
+                  painter: _BarBg(pal: pal, anim: _ov, hidden: _hidden),
+                  child: _ClipCached(
+                    clipper: _BarClip(anim: _ov, hidden: _hidden),
+                    child: Material(
                   color: Colors.transparent,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     DownloadNote(pal: pal),
-                    if (_opts)
-                      // .audio-opts: колонка с отступом 10, поля 12 12 4, линия снизу
-                      Container(
+                    if (_optsShown)
+                      // .audio-opts: колонка с отступом 10, поля 12 12 4, линия снизу; проявляется вместе с фоном
+                      FadeTransition(
+                        opacity: _ov,
+                        child: _Measure(
+                        height: _panelH,
+                        child: Container(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                         child: Column(children: [
@@ -113,6 +151,8 @@ class _AudioBarState extends ConsumerState<AudioBar> {
                           _Field(label: t('Таймер сна'), pal: pal, child: Segmented<String>(value: sleepKey(a.sleep), options: sleepOptions(), onChanged: applySleepKey)),
                           const SizedBox(height: 10),
                         ]),
+                      ),
+                      ),
                       ),
                     if (a.offer)
                       NarratorOffer(pal: pal, error: a.error)
@@ -127,52 +167,79 @@ class _AudioBarState extends ConsumerState<AudioBar> {
                         padding: const EdgeInsets.all(6),
                         child: Row(children: [
                           // .audio-main: промежуток 2 между кнопками, у .audio-info отступ 0 6
-                          _Btn(icon: LucideIcons.skipBack, label: t('Предыдущий стих'), onTap: () => e.stepVerse(-1), pal: pal, size: 20),
+                          _Btn(icon: Icons.skip_previous_rounded, label: t('Предыдущий стих'), onTap: () => e.stepVerse(-1), pal: pal, size: 24),
                           const SizedBox(width: 2),
                           _PlayBtn(a: a, pal: pal, size: 46, iconSize: 22),
                           const SizedBox(width: 2),
-                          _Btn(icon: LucideIcons.skipForward, label: t('Следующий стих'), onTap: () => e.stepVerse(1), pal: pal, size: 20),
+                          _Btn(icon: Icons.skip_next_rounded, label: t('Следующий стих'), onTap: () => e.stepVerse(1), pal: pal, size: 24),
                           const SizedBox(width: 2),
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 6),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                                 // Человек ушёл в другое место — место чтения становится кнопкой «вернуться»
-                                if (r != null && !a.follow)
+                                // …а под ней — «▶ Слушать отсюда»: читать с места, где человек сейчас в тексте
+                                if (r != null && !a.follow) ...[
                                   Tooltip(
                                     message: t('К звучащему месту'),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(999),
                                       onTap: () => e.resumeFollow(jump: true),
                                       child: Container(
-                                        padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
+                                        padding: const EdgeInsets.fromLTRB(7, 2, 9, 2),
                                         decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
                                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                                           Icon(LucideIcons.cornerUpLeft, size: 14, color: pal.accent),
                                           const SizedBox(width: 4),
-                                          Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
+                                          Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
                                         ]),
                                       ),
                                     ),
-                                  )
+                                  ),
+                                  if (Hub.listenFrom != null)
+                                    Builder(builder: (context) {
+                                      final here = livePositions[a.pane]?.value;
+                                      return InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: here == null ? null : () => Hub.listenFrom!(context, ref, a.pane, here),
+                                        child: Padding(
+                                          padding: const EdgeInsets.fromLTRB(4, 3, 4, 1),
+                                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                            Icon(LucideIcons.play, size: 11, color: pal.accent),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                here == null ? t('Слушать отсюда') : '${t('Слушать отсюда')} · ${Books.instance.formatRef(here.book, here.chapter, here.verse)}',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: pal.accent),
+                                              ),
+                                            ),
+                                          ]),
+                                        ),
+                                      );
+                                    }),
+                                ]
                                 else
                                   Semantics(
                                     label: r == null ? null : '${Books.instance.formatRef(r.book, r.chapter, r.verse)} — ${t('Открыть проигрыватель')}',
                                     child: Text(r == null ? '' : Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.text)),
                                   ),
-                                if (sub.isNotEmpty) Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted)),
+                                if (sub.isNotEmpty && (r == null || a.follow)) Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted)),
                               ]),
                             ),
                           ),
                           if (recorded) DownloadButton(audioId: a.source!, book: r.book, pal: pal),
                           const SizedBox(width: 2),
-                          _Btn(icon: LucideIcons.slidersHorizontal, label: t('Настройки чтения вслух'), onTap: () => setState(() => _opts = !_opts), pal: pal, on: _opts, size: 19),
+                          _Btn(icon: LucideIcons.slidersHorizontal, label: t('Настройки чтения вслух'), onTap: _toggleOpts, pal: pal, on: _opts, size: 19),
                           const SizedBox(width: 2),
                           _Btn(icon: LucideIcons.x, label: t('Закрыть аудио'), onTap: e.stop, pal: pal, size: 20),
                         ]),
                       ),
                     ),
                   ]),
+                ),
+                  ),
                 ),
               ),
             ),
@@ -196,6 +263,75 @@ class _Field extends StatelessWidget {
         child,
       ]);
 }
+
+/// Фон проигрывателя: тень, заливка и рамка; верх опускается на ещё скрытую часть панели настроек,
+/// скругление — от 32 (капсула) к 16 (раскрыты настройки)
+class _BarBg extends CustomPainter {
+  _BarBg({required this.pal, required this.anim, required this.hidden}) : super(repaint: anim);
+  final Palette pal;
+  final Animation<double> anim;
+  final double Function() hidden;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = _barRect(size, hidden(), anim.value);
+    canvas.drawRRect(r.shift(const Offset(0, 10)), Paint()
+      ..color = const Color(0x33000000)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, Shadow.convertRadiusToSigma(34)));
+    canvas.drawRRect(r, Paint()..color = pal.panel);
+    canvas.drawRRect(r.deflate(0.5), Paint()
+      ..style = PaintingStyle.stroke
+      ..color = pal.line);
+  }
+
+  @override
+  bool shouldRepaint(_BarBg old) => old.pal != pal;
+}
+
+/// Обрезка по фону; содержимое — в своём слое, поэтому при каждом кадре не перерисовывается
+class _ClipCached extends StatelessWidget {
+  const _ClipCached({required this.clipper, required this.child});
+  final CustomClipper<Path> clipper;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ClipPath(clipper: clipper, child: RepaintBoundary(child: child));
+}
+
+class _BarClip extends CustomClipper<Path> {
+  _BarClip({required this.anim, required this.hidden}) : super(reclip: anim);
+  final Animation<double> anim;
+  final double Function() hidden;
+  @override
+  Path getClip(Size size) => Path()..addRRect(_barRect(size, hidden(), anim.value));
+  @override
+  bool shouldReclip(_BarClip old) => false;
+}
+
+/// Высота, записанная при раскладке (_Measure), — чтобы рисование не лезло в дерево виджетов
+class _Height {
+  double value = 0;
+}
+
+class _Measure extends SingleChildRenderObjectWidget {
+  const _Measure({required this.height, super.child});
+  final _Height height;
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderMeasure(height);
+  @override
+  void updateRenderObject(BuildContext context, _RenderMeasure r) => r.height = height;
+}
+
+class _RenderMeasure extends RenderProxyBox {
+  _RenderMeasure(this.height);
+  _Height height;
+  @override
+  void performLayout() {
+    super.performLayout();
+    height.value = size.height;
+  }
+}
+
+RRect _barRect(Size size, double top, double t) =>
+    RRect.fromRectAndRadius(Rect.fromLTRB(0, top, size.width, size.height), Radius.circular(lerpDouble(32, 16, t)!));
 
 /// .audio-btn: круглая 40×40; включённая — фон accent 12 % и цвет accent
 class _Btn extends StatelessWidget {
@@ -239,7 +375,7 @@ class _PlayBtn extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(shape: BoxShape.circle, color: pal.accent),
-            child: a.loading ? _Spin(icon: LucideIcons.loader2, size: iconSize, color: pal.onAccent) : Icon(a.playing ? LucideIcons.pause : LucideIcons.play, size: iconSize, color: pal.onAccent),
+            child: a.loading ? _Spin(icon: LucideIcons.loader2, size: iconSize, color: pal.onAccent) : Icon(a.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: iconSize * 1.3, color: pal.onAccent), // залитые
           ),
         ),
       );

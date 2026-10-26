@@ -244,7 +244,10 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       final ps = partSelection.value;
       if (ps != null && ps.pane == idx) partSelection.value = null;
     });
-    livePosition(widget.index, p.ref).value = p.ref;
+    // _open вызывается и из build (смена перевода): место панели обновляем после кадра, иначе слушатели
+    // (шапка, проигрыватель) перестраивались бы посреди построения экрана — ошибка и подвисание
+    final live = livePosition(widget.index, p.ref), at = p.ref;
+    if (live.value != at) WidgetsBinding.instance.addPostFrameCallback((_) => live.value = at);
   }
 
   // Режим «Сплошной» / «Как книга» или показ заголовков поменялись — строки другие, встаём на то же место
@@ -610,6 +613,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final nextBook = bi >= 0 && bi < books.length - 1 ? books[bi + 1]['id'] as String : null;
     final mod = ModuleStore.instance.get(book.module);
     final rtl = mod?.language == 'he';
+    final inset = MediaQuery.paddingOf(context).bottom; // проигрыватель и вкладки поверх текста
 
     final list = ScrollablePositionedList.builder(
       key: ValueKey('${book.module}|${book.book}|$_listKey'),
@@ -624,7 +628,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
         if (i == _rows.length) {
           // Конец книги: переход к следующей и запас снизу, чтобы последний стих вставал к верхнему краю
           return Padding(
-            padding: EdgeInsets.only(top: 16, bottom: MediaQuery.sizeOf(context).height * 0.45),
+            padding: EdgeInsets.only(top: 16, bottom: MediaQuery.sizeOf(context).height * 0.45 + MediaQuery.paddingOf(context).bottom),
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: nextBook == null
@@ -686,15 +690,16 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           // Полоса прогресса чтения книги — тонкая полоска вверху панели
           Positioned(left: 0, right: 0, top: 0, child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct)),
           // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио)
-          Positioned(left: 14, bottom: 16, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1))),
-          Positioned(right: 14, bottom: 16, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1))),
+          // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
+          Positioned(left: 14, bottom: 16 + inset, child: BarShiftDown(enabled: inset > 0, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1)))),
+          Positioned(right: 14, bottom: 16 + inset, child: BarShiftDown(enabled: inset > 0, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1)))),
           if (Hub.listenFab != null)
-            Positioned(left: 0, right: 0, bottom: 16, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
+            Positioned(left: 0, right: 0, bottom: 16 + inset, child: Center(child: BarShiftDown(enabled: inset > 0, child: Hub.listenFab!(context, ref, widget.index))))
           else if (Hub.listenFrom != null)
             Positioned(
               left: 0,
               right: 0,
-              bottom: 16,
+              bottom: 16 + inset,
               child: Center(
                 child: RoundFab(
                   icon: LucideIcons.headphones,

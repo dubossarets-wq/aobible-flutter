@@ -215,5 +215,36 @@ void main() {
       expect(makeParallelPlan(streamList({'own': 1}, const []), chapters), isEmpty);
       expect(parallelDays(streamList({'own': 1}, const []), chapters), 0);
     });
+
+    test('«За срок»: ВЗ + НЗ + Псалтирь за 365 дней — ровно 365 дней, все разделы кончаются в последний день, без повторов', () {
+      final list = streamList({'ot': 1, 'nt': 1, 'ps': 1}, const []);
+      final plan = makeParallelPlan(list, chapters, period: 365);
+      expect(plan.length, 365);
+      final all = [for (final d in plan) ...d];
+      expect(all.toSet().length, all.length, reason: 'главы не повторяются');
+      // каждая глава каждого раздела прочитана ровно один раз
+      final want = {for (final x in list) ...chapters(x.books).map((c) => c.ref)};
+      expect(all.toSet(), want);
+      // последние главы разделов — в последних днях (деление по середине главы), самые длинные — в последнем
+      final tail = [for (final d in plan.skip(363)) ...d];
+      expect(tail, containsAll(['Rev.22', 'Ps.150', 'Mal.4']));
+      expect(plan.last, contains('Mal.4'));
+      // первый день начинается с первых глав разделов
+      expect(plan.first, containsAll(['Gen.1', 'Matt.1']));
+      // порядок разделов в дне: ВЗ, НЗ, Псалтирь
+      final d1 = plan[1];
+      expect(plan.first.indexOf('Gen.1') < plan.first.indexOf('Matt.1'), true);
+      expect(d1.indexOf('Matt.2') < d1.indexOf('Ps.1'), true);
+    });
+
+    test('«За срок»: короткий раздел не повторяется, пустые дни убираются; пустой выбор — пустой план', () {
+      final plan = makeParallelPlan(streamList({'ps': 1}, const []), chapters, period: 300);
+      expect(plan.length, 150); // глав меньше дней
+      expect(plan.first, ['Ps.1']);
+      expect(plan.last, ['Ps.150']);
+      expect(makeParallelPlan(streamList({'own': 1}, const []), chapters, period: 30), isEmpty);
+      // шаги «глав в день» на «За срок» не влияют
+      expect(makeParallelPlan(streamList({'nt': 5}, const []), chapters, period: 30), makeParallelPlan(streamList({'nt': 1}, const []), chapters, period: 30));
+    });
   });
 }

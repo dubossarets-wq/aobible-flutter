@@ -52,15 +52,14 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final module = ModuleStore.instance.get(widget.moduleId);
     final refs = _refs;
-    final bottom = MediaQuery.of(context).padding.bottom;
     Widget body;
     if (refs == null) {
       body = SheetList(children: [Loading(t('Загрузка…'))]);
     } else if (refs.isEmpty) {
       body = SheetList(children: [if (_source.isNotEmpty) QuoteBox(_source), Empty(icon: LucideIcons.link2, title: t('Параллельных мест нет'))]);
     } else {
-      body = ListView.builder(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + bottom),
+      body = Builder(builder: (bc) => ListView.builder(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
         itemCount: refs.length + 1,
         itemBuilder: (context, i) {
           if (i == 0) {
@@ -104,7 +103,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
             ),
           );
         },
-      );
+      ));
     }
     return SheetScaffold(
       title: t('Параллельные места · {ref}', {'ref': fmtRef(widget.at)}),
