@@ -278,7 +278,7 @@ void main() {
 
       testWidgets('Тема «Как в системе»', (tester) async {
         final c = await start(tester, look, (ctx, r) => openAppearance(ctx));
-        final tile = find.text('Как в системе');
+        final tile = find.text('Системная');
         await tester.dragUntilVisible(tile, find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.horizontal).first, const Offset(-150, 0));
         await tester.tap(tile);
         await tester.pumpAndSettle();

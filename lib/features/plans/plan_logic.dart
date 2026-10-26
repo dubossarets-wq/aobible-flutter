@@ -302,14 +302,46 @@ class PlanStream {
       };
 }
 
+// в библейском порядке: так же идут и в чтении за день
 const planStreams = <PlanStream>[
   PlanStream('ot', 'Ветхий Завет', 'ВЗ', true),
-  PlanStream('nt', 'Новый Завет', 'НЗ', true),
   PlanStream('ps', 'Псалтирь', 'Псалтирь', false),
   PlanStream('prov', 'Притчи', 'Притчи', false),
   PlanStream('gospels', 'Евангелия', 'Евангелия', false),
+  PlanStream('nt', 'Новый Завет', 'НЗ', true),
   PlanStream('own', 'Свои книги', 'Свои книги', false),
 ];
+
+/// Что из широкого раздела (ВЗ/НЗ) читается отдельно — подпись «кроме: Псалтирь, Притчи» под строкой
+List<String> streamExcluded(String wide, Map<String, int> on, List<String> own) {
+  final part = wide == 'ot' ? 'OT' : 'NT';
+  final ids = {for (final b in Books.instance.all) if (b.testament == part) b.id};
+  return [
+    for (final s in planStreams)
+      if (!s.wide && on[s.key] != null && s.books(own).any(ids.contains)) s.label,
+  ];
+}
+
+/// Первый день параллельного плана «по главам в день»: «Быт. 1–2 · Пс. 1 · Мф. 1»
+String firstDayText(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters) {
+  String name(String ref) {
+    final p = ref.split('.');
+    return '${Books.instance.meta(p[0]).short} ${p[1]}';
+  }
+
+  final parts = <String>[];
+  for (final x in streams) {
+    final ch = chapters(x.books).take(x.perDay).map((c) => c.ref).toList();
+    if (ch.isEmpty) continue;
+    if (ch.length == 1) {
+      parts.add(name(ch.first));
+    } else {
+      final a = ch.first.split('.'), b = ch.last.split('.');
+      parts.add(a[0] == b[0] ? '${name(ch.first)}–${b[1]}' : '${name(ch.first)} – ${name(ch.last)}');
+    }
+  }
+  return parts.join(' · ');
+}
 
 class StreamSel {
   const StreamSel(this.key, this.perDay, this.books);
@@ -318,25 +350,63 @@ class StreamSel {
   final List<String> books;
 }
 
-/// Книги разделов без повторов: книги включённых узких разделов (Псалтирь, Евангелия, свои) не читаются ещё раз в ВЗ/НЗ.
+/// Книги разделов без повторов: книги включённых узких разделов (Псалтирь, Притчи, Евангелия, свои) не читаются ещё
+/// раз в ВЗ/НЗ, а в своих книгах — те, что уже есть в Псалтири, Притчах, Евангелиях.
+/// Порядок разделов в дне — библейский, по первой книге: ВЗ, Псалтирь, Притчи, Евангелия, НЗ (свои — по своему месту).
 /// on — { ключ раздела: глав в день }
 List<StreamSel> streamList(Map<String, int> on, List<String> own) {
   final keys = [for (final s in planStreams) if (on[s.key] != null) s];
+  final fixed = {for (final s in keys) if (!s.wide && s.key != 'own') ...s.books(own)};
   final narrow = {for (final s in keys) if (!s.wide) ...s.books(own)};
-  return [for (final s in keys) StreamSel(s.key, on[s.key]!, s.wide ? [for (final b in s.books(const [])) if (!narrow.contains(b)) b] : s.books(own))];
+  final out = [
+    for (final s in keys)
+      StreamSel(
+        s.key,
+        on[s.key]!,
+        s.wide
+            ? [for (final b in s.books(const [])) if (!narrow.contains(b)) b]
+            : s.key == 'own'
+                ? [for (final b in own) if (!fixed.contains(b)) b]
+                : s.books(own),
+      ),
+  ];
+  final pos = {for (final (i, b) in Books.instance.all.indexed) b.id: i};
+  int first(StreamSel x) => x.books.isEmpty ? 1 << 30 : x.books.map((b) => pos[b] ?? 1 << 30).reduce((a, b) => a < b ? a : b);
+  return _stableSort(out, (a, b) => first(a).compareTo(first(b)));
+}
+
+/// Устойчивая сортировка: при равенстве — прежний порядок
+List<T> _stableSort<T>(List<T> l, int Function(T, T) cmp) {
+  final idx = [for (var i = 0; i < l.length; i++) i]..sort((a, b) {
+      final c = cmp(l[a], l[b]);
+      return c != 0 ? c : a.compareTo(b);
+    });
+  return [for (final i in idx) l[i]];
 }
 
 /// Сколько дней выйдет: по самому длинному разделу
+/// Разделы, которые читаются по кругу: Псалтирь и Притчи задуманы для постоянного чтения (псалом каждый день,
+/// Притчи — по главе на день месяца). Остальные (ВЗ, НЗ, Евангелия, свои книги) — сплошное чтение, один раз
+const cyclicStreams = {'ps', 'prov'};
+
+/// Длина плана: по самому длинному разделу из читаемых один раз (если выбраны только Псалтирь/Притчи — по ним)
 int parallelDays(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters) {
-  var days = 0;
+  var once = 0, loop = 0;
   for (final x in streams) {
     final n = chapters(x.books).length;
-    if (n > 0 && x.perDay > 0) days = math.max(days, (n / x.perDay).ceil());
+    if (n <= 0 || x.perDay <= 0) continue;
+    final d = (n / x.perDay).ceil();
+    if (cyclicStreams.contains(x.key)) {
+      loop = math.max(loop, d);
+    } else {
+      once = math.max(once, d);
+    }
   }
-  return math.min(3650, days);
+  return math.min(3650, once > 0 ? once : loop);
 }
 
-/// Дни параллельного плана: [['Gen.1', 'Matt.1', 'Ps.1'], …]; короткий раздел начинается заново; длина — по самому длинному.
+/// Дни параллельного плана: [['Gen.1', 'Ps.1', 'Matt.1'], …]; Псалтирь и Притчи идут по кругу, остальные — один раз
+/// (закончившийся раздел просто пропадает из дней); длина — по parallelDays.
 /// period — число дней: каждый раздел делится на них поровну по числу стихов (без повторов), все кончаются в последний день
 List<List<String>> makeParallelPlan(List<StreamSel> streams, List<({String ref, int n})> Function(List<String> books) chapters, {int? period}) {
   if (period != null) {
@@ -350,18 +420,19 @@ List<List<String>> makeParallelPlan(List<StreamSel> streams, List<({String ref, 
         if (parts.any((p) => p.length > d && p[d].isNotEmpty)) <String>{for (final p in parts) if (p.length > d) ...p[d]}.toList(),
     ];
   }
-  final ok = <({int per, List<({String ref, int n})> ch})>[];
+  final ok = <({bool loop, int per, List<({String ref, int n})> ch})>[];
   for (final x in streams) {
     final ch = chapters(x.books);
-    if (x.perDay > 0 && ch.isNotEmpty) ok.add((per: x.perDay, ch: ch));
+    if (x.perDay > 0 && ch.isNotEmpty) ok.add((loop: cyclicStreams.contains(x.key), per: x.perDay, ch: ch));
   }
   if (ok.isEmpty) return [];
-  final days = math.min(3650, ok.map((x) => (x.ch.length / x.per).ceil()).reduce(math.max));
+  final days = parallelDays(streams, chapters);
   return [
     for (var d = 0; d < days; d++)
       {
         for (final x in ok)
-          for (var k = 0; k < math.min(x.per, x.ch.length); k++) x.ch[(d * x.per + k) % x.ch.length].ref,
+          for (var k = 0; k < math.min(x.per, x.ch.length); k++)
+            if (x.loop || d * x.per + k < x.ch.length) x.ch[(d * x.per + k) % x.ch.length].ref,
       }.toList(),
   ];
 }

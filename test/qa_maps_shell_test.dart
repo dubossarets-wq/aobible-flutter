@@ -411,6 +411,7 @@ void main() {
       expect(find.text('Хеврон'), findsWidgets);
       await tester.tap(find.textContaining('населённый пункт').first);
       await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300)); // подробности раскрываются плавно (на карте pumpAndSettle не дождётся)
       expect(find.text('Город в горах Иудеи'), findsOneWidget);
       expect(find.textContaining('Эль-Халиль'), findsOneWidget);
       await tester.tap(find.byType(AobChip).first);

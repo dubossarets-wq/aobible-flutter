@@ -292,8 +292,12 @@ class LibFold extends ConsumerWidget {
           ]),
         ),
       ),
-      if (open)
-        for (final c in children) Padding(padding: const EdgeInsets.only(top: 10), child: c),
+      Reveal(
+        open: open,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (final c in children) Padding(padding: const EdgeInsets.only(top: 10), child: c),
+        ]),
+      ),
     ]);
   }
 }

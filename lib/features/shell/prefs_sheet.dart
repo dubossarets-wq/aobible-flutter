@@ -212,7 +212,19 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
         ];
         body = [Column(children: [for (var i = 0; i < rows.length; i++) rows[i](i == rows.length - 1)])];
     }
-    return AppSheet(title: title, onBack: _page == null ? null : () => setState(() => _page = null), children: body);
+    final key = ValueKey(_page ?? '');
+    // переход в подменю и обратно — слайдом: вглубь новая страница въезжает справа, прежняя уходит влево; назад — наоборот
+    final dir = _page != null ? 1.0 : -1.0;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      switchInCurve: Curves.fastOutSlowIn,
+      switchOutCurve: Curves.fastOutSlowIn,
+      layoutBuilder: (cur, prev) => Stack(children: [...prev, ?cur]),
+      transitionBuilder: (child, anim) => ClipRect(
+        child: SlideTransition(position: Tween(begin: Offset(child.key == key ? dir : -dir, 0), end: Offset.zero).animate(anim), child: child),
+      ),
+      child: AppSheet(key: key, title: title, onBack: _page == null ? null : () => setState(() => _page = null), children: body),
+    );
   }
 }
 
@@ -228,10 +240,13 @@ class _LangRow extends ConsumerWidget {
     final pal = paletteOf(ref);
     return InkWell(
       onTap: onTap,
-      child: Container(
+      // выбранный язык: подложка и галочка проявляются плавно
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.fastOutSlowIn,
         constraints: const BoxConstraints(minHeight: 56),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
-        decoration: BoxDecoration(color: on ? pal.accent.withValues(alpha: 0.08) : null, border: last ? null : Border(bottom: BorderSide(color: pal.line))),
+        decoration: BoxDecoration(color: pal.accent.withValues(alpha: on ? 0.08 : 0), border: last ? null : Border(bottom: BorderSide(color: pal.line))),
         child: Row(children: [
           Flag(l.flag, size: 30),
           const SizedBox(width: 14),
@@ -241,7 +256,11 @@ class _LangRow extends ConsumerWidget {
               if (local.isNotEmpty && local.toLowerCase() != l.name.toLowerCase()) Padding(padding: const EdgeInsets.only(top: 1), child: Text(local, style: TextStyle(fontSize: 13.4, color: pal.muted))),
             ]),
           ),
-          if (on) Icon(LucideIcons.check, size: 20, color: pal.accent),
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 240),
+            opacity: on ? 1 : 0,
+            child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(LucideIcons.check, size: 20, color: pal.accent)),
+          ),
         ]),
       ),
     );

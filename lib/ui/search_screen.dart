@@ -392,12 +392,16 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           value: _allMods,
           onChanged: (v) => _setOption('searchAllModules', v, () => _allMods = v),
         ),
-      if (_canAll && _allMods && _hasOrig)
-        SwitchRow(
-          label: t('И в оригиналах'),
-          hint: t('Еврейский и греческий текст — для поиска слов на иврите и греческом.'),
-          value: _withOrig,
-          onChanged: (v) => _setOption('searchOriginals', v, () => _withOrig = v),
+      // «И в оригиналах» — под включённым «Во всех модулях», раскрывается плавно
+      if (_canAll && _hasOrig)
+        Reveal(
+          open: _allMods,
+          child: SwitchRow(
+            label: t('И в оригиналах'),
+            hint: t('Еврейский и греческий текст — для поиска слов на иврите и греческом.'),
+            value: _withOrig,
+            onChanged: (v) => _setOption('searchOriginals', v, () => _withOrig = v),
+          ),
         ),
       if (_refHit != null) ...[gap, _refCard(pal, textStyle, m)],
       if (_strongHit != null && Hub.strongSearchCard != null)

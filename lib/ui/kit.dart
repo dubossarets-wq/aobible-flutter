@@ -105,8 +105,9 @@ class RenderBarShift extends RenderProxyBox {
 }
 
 /// Плавно раскрывает и сворачивает содержимое: высота и прозрачность, как у настроек проигрывателя
-/// (мягкий разгон и остановка, 280 мс). Свёрнутое не строится. Содержимое раскладывается один раз —
-/// на кадре меняется только обрезка (Align.heightFactor), поэтому анимация лёгкая
+/// (мягкий разгон и остановка, 280 мс). Свёрнутое собрано и разложено заранее, но скрыто (Offstage: не рисуется,
+/// не нажимается, места не занимает) — при раскрытии ничего не строится, и первый кадр не «съедает» анимацию.
+/// На кадре меняется только обрезка (Align.heightFactor) — содержимое заново не раскладывается
 class Reveal extends StatefulWidget {
   const Reveal({super.key, required this.open, required this.child});
   final bool open;
@@ -135,9 +136,10 @@ class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _c,
         child: FadeTransition(opacity: _a, child: RepaintBoundary(child: widget.child)),
-        builder: (context, child) => _c.isDismissed
-            ? const SizedBox(width: double.infinity)
-            : ClipRect(child: Align(alignment: Alignment.topCenter, heightFactor: _a.value, child: child)),
+        builder: (context, child) => ClipRect(
+          clipBehavior: _c.isCompleted ? Clip.none : Clip.hardEdge, // раскрытое не обрезаем: тени и рамки целы (как .reveal в вебе)
+          child: Align(alignment: Alignment.topCenter, heightFactor: _a.value, child: Offstage(offstage: _c.isDismissed, child: child)),
+        ),
       );
 }
 
@@ -163,39 +165,55 @@ Future<T?> showAobSheet<T>(
   String? tab, // вкладка этого окна (plans, search, saved, more): подсвечивается, если окно открыто не с неё
 }) {
   final nested = topRoute(context) is PopupRoute;
-  final f = showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: nested ? 0.12 : 0.32), // второе затемнение поверх первого — слабее
-    enableDrag: !nested, // окно поверх окна — на весь экран, не сворачивается: «назад» и крестик
-    // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
-    builder: (c) => _Nested(
-      nested: nested,
-      // С клавиатурой верх окна остаётся на месте, а низ встаёт над клавиатурой (окно «растягивается до клавиатуры»);
-      // выше окно уезжает, только если иначе ему не хватит места (меньше 280 px)
-      child: LayoutBuilder(builder: (c2, box) {
-        final kb = MediaQuery.viewInsetsOf(c).bottom;
-        // окно поднимается максимум до нижнего края верхней панели (плашки перевода и места) с зазором 5 px;
-        // окна поверх окна и страницы — на весь экран
-        final barH = ProviderScope.containerOf(c, listen: false).read(settingsProvider).d('barHeight');
-        final cap = page || nested ? box.maxHeight : box.maxHeight - barH - 5;
-        final want = math.min(box.maxHeight * (page || nested ? 1 : initial), cap);
-        final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
-        return Padding(
-          padding: EdgeInsets.only(bottom: kb),
-          // окно уже поднято над клавиатурой — внутрь её высоту не передаём: иначе Scaffold внутри окна ужимал бы
-          // содержимое второй раз, и между окном и клавиатурой просвечивало окно под ним
-          child: MediaQuery.removeViewInsets(
-            context: c,
-            removeBottom: true,
-            child: SizedBox(height: h, child: builder(c)),
+  // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
+  Widget body(BuildContext c) => _Nested(
+        nested: nested,
+        // С клавиатурой верх окна остаётся на месте, а низ встаёт над клавиатурой (окно «растягивается до клавиатуры»);
+        // выше окно уезжает, только если иначе ему не хватит места (меньше 280 px)
+        child: LayoutBuilder(builder: (c2, box) {
+          final kb = MediaQuery.viewInsetsOf(c).bottom;
+          // окно поднимается максимум до нижнего края верхней панели (плашки перевода и места) с зазором 5 px;
+          // окна поверх окна и страницы — на весь экран
+          final barH = ProviderScope.containerOf(c, listen: false).read(settingsProvider).d('barHeight');
+          final cap = page || nested ? box.maxHeight : box.maxHeight - barH - 5;
+          final want = math.min(box.maxHeight * (page || nested ? 1 : initial), cap);
+          final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
+          return Padding(
+            padding: EdgeInsets.only(bottom: kb),
+            // окно уже поднято над клавиатурой — внутрь её высоту не передаём: иначе Scaffold внутри окна ужимал бы
+            // содержимое второй раз, и между окном и клавиатурой просвечивало окно под ним
+            child: MediaQuery.removeViewInsets(
+              context: c,
+              removeBottom: true,
+              child: SizedBox(height: h, child: builder(c)),
+            ),
+          );
+        }),
+      );
+  final Future<T?> f = nested
+      // окно поверх окна (подменю: «Ещё» → «Настройки») — на весь экран, въезжает справа и уезжает вправо
+      ? showGeneralDialog<T>(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black.withValues(alpha: 0.12),
+          transitionDuration: const Duration(milliseconds: 300),
+          transitionBuilder: (c, a, s, child) => SlideTransition(
+            position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.fastOutSlowIn, reverseCurve: Curves.fastOutSlowIn.flipped)),
+            child: child,
           ),
+          pageBuilder: (c, a, s) => SafeArea(
+            bottom: false,
+            child: Align(alignment: Alignment.bottomCenter, child: Material(type: MaterialType.transparency, child: body(c))),
+          ),
+        )
+      : showModalBottomSheet<T>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          barrierColor: Colors.black.withValues(alpha: 0.32),
+          builder: body,
         );
-      }),
-    ),
-  );
   // как activeTab в веб-версии: окно своего вида подсвечивает свою вкладку, пока открыто (если подсвечена «Библия»)
   if (tab != null && tabActive.value == 'bible') {
     tabActive.value = tab;
@@ -427,7 +445,7 @@ class AobButton extends ConsumerWidget {
     };
     final content = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
       if (icon != null) ...[Icon(icon, size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
-      Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, color: fg))),
+      Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg))),
     ]);
     return Opacity(
       opacity: onTap == null ? 0.5 : 1,
@@ -457,22 +475,31 @@ class AobChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    final fg = on ? pal.onAccent : ghost ? pal.muted : pal.text;
-    return Material(
-      color: on ? pal.accent : ghost ? Colors.transparent : pal.bg,
-      shape: StadiumBorder(side: BorderSide(color: on ? pal.accent : pal.line)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
-            Text(label, style: TextStyle(fontSize: 13.8, color: fg)),
-            if (count != null) ...[const SizedBox(width: 5), Text('$count', style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8)))],
-          ]),
-        ),
-      ),
+    // выбор — плавно: фон, рамка и надпись перетекают в цвет акцента
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: on ? 1.0 : 0.0),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.fastOutSlowIn,
+      builder: (context, v, _) {
+        final fg = Color.lerp(ghost ? pal.muted : pal.text, pal.onAccent, v)!;
+        return Material(
+          animationDuration: Duration.zero,
+          color: Color.lerp(ghost ? pal.accent.withValues(alpha: 0) : pal.bg, pal.accent, v),
+          shape: StadiumBorder(side: BorderSide(color: Color.lerp(pal.line, pal.accent, v)!)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
+                Text(label, style: TextStyle(fontSize: 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)),
+                if (count != null) ...[const SizedBox(width: 5), Text('$count', style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8)))],
+              ]),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -493,10 +520,11 @@ class PrefRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    return InkWell(
+    // как список переводов: подсветка нажатия и линии — от края до края окна, отступы — у содержимого
+    return _bleed(InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
         decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line))),
         child: Row(children: [
           leading ??
@@ -516,13 +544,14 @@ class PrefRow extends ConsumerWidget {
           trailing ?? Icon(LucideIcons.chevronRight, size: 18, color: pal.muted),
         ]),
       ),
-    );
+    ));
   }
 }
 
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
 class MenuRow extends ConsumerWidget {
-  const MenuRow({super.key, required this.icon, required this.label, required this.onTap, this.extra, this.color});
+  const MenuRow({super.key, required this.icon, required this.label, required this.onTap, this.extra, this.color, this.flat = false});
+  final bool flat; // в окне — от края до края, без скругления (меню «Ещё»); во всплывающем меню — со скруглением
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -534,12 +563,12 @@ class MenuRow extends ConsumerWidget {
     final pal = paletteOf(ref);
     return Material(
       type: MaterialType.transparency,
-      borderRadius: BorderRadius.circular(kRadius * 0.6),
-      clipBehavior: Clip.antiAlias,
+      borderRadius: flat ? null : BorderRadius.circular(kRadius * 0.6),
+      clipBehavior: flat ? Clip.none : Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
           child: Row(children: [
             Icon(icon, size: 20, color: color ?? pal.accent),
             const SizedBox(width: 12),
@@ -553,9 +582,10 @@ class MenuRow extends ConsumerWidget {
 }
 
 class MenuSep extends ConsumerWidget {
-  const MenuSep({super.key});
+  const MenuSep({super.key, this.full = false});
+  final bool full; // от края до края окна
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Container(height: 1, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
+  Widget build(BuildContext context, WidgetRef ref) => Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
 }
 
 /// Подзаголовок группы (h4 в окнах веб-версии)
@@ -649,20 +679,28 @@ double _textWidth(String text, TextStyle style, TextScaler scale) {
   return w;
 }
 
-class Segmented<T> extends ConsumerWidget {
+class Segmented<T> extends ConsumerStatefulWidget {
   const Segmented({super.key, required this.options, required this.value, required this.onChanged});
   final List<(T, String)> options;
   final T value;
   final ValueChanged<T> onChanged;
+  @override
+  ConsumerState<Segmented<T>> createState() => _SegmentedState<T>();
+}
+
+class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
+  int? _drag; // ведут пальцем: плашка идёт за ним, выбор — когда отпустили (как нижнее меню и веб-версия)
 
   // Ширина вариантов — как flex: 1 1 auto в веб-версии: по тексту плюс поровну свободного места строки;
   // не помещаются в строку — переносятся (flex-wrap), и каждая строка тоже растягивается на всю ширину.
   // Плашка выбранного варианта — одна, она переезжает к новому выбору (в том числе на другую строку)
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final options = widget.options;
     final pal = paletteOf(ref);
     final scale = MediaQuery.textScalerOf(context);
-    TextStyle style(bool on) => TextStyle(fontSize: 14.08, fontWeight: on ? FontWeight.w600 : FontWeight.w400, color: on ? pal.accent : pal.text);
+    // запас строки — поровну сверху и снизу: надпись ровно посередине плашки
+    TextStyle style(bool on) => TextStyle(fontSize: 14.08, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: on ? FontWeight.w600 : FontWeight.w400, color: on ? pal.accent : pal.text);
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(kRadius * 0.75)),
@@ -704,9 +742,41 @@ class Segmented<T> extends ConsumerWidget {
         }
         flush();
         final height = math.max(0.0, y - gap);
-        final sel = options.indexWhere((o) => o.$1 == value);
-        const dur = Duration(milliseconds: 300);
-        return SizedBox(
+        final chosen = options.indexWhere((o) => o.$1 == widget.value);
+        final sel = _drag ?? chosen;
+        final dur = Duration(milliseconds: _drag != null ? 140 : 300);
+        // вариант под пальцем: в той же строке — ближайший по горизонтали
+        int at(Offset p) {
+          var best = chosen < 0 ? 0 : chosen;
+          var bestD = double.infinity;
+          for (var i = 0; i < rects.length; i++) {
+            final r = rects[i];
+            final dy = p.dy < r.top ? r.top - p.dy : (p.dy > r.bottom ? p.dy - r.bottom : 0.0);
+            final dx = p.dx < r.left ? r.left - p.dx : (p.dx > r.right ? p.dx - r.right : 0.0);
+            final d = dy * 1000 + dx;
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          }
+          return best;
+        }
+
+        void end() {
+          final i = _drag;
+          setState(() => _drag = null);
+          if (i != null && i != chosen) widget.onChanged(options[i].$1);
+        }
+
+        return GestureDetector(
+          onHorizontalDragStart: (d) => setState(() => _drag = at(d.localPosition)),
+          onHorizontalDragUpdate: (d) {
+            final i = at(d.localPosition);
+            if (i != _drag) setState(() => _drag = i);
+          },
+          onHorizontalDragEnd: (_) => end(),
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          child: SizedBox(
           width: maxW,
           height: height,
           child: Stack(children: [
@@ -731,7 +801,7 @@ class Segmented<T> extends ConsumerWidget {
                 rect: rects[i],
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => onChanged(options[i].$1),
+                  onTap: () => widget.onChanged(options[i].$1),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Center(
@@ -746,6 +816,7 @@ class Segmented<T> extends ConsumerWidget {
                 ),
               ),
           ]),
+          ),
         );
       }),
     );
@@ -980,20 +1051,26 @@ class AobTabs<T> extends ConsumerWidget {
     const label = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
     Widget tab((T, String, int?) x, {bool expand = false}) {
       final on = x.$1 == value;
+      // смена вкладки — плавно: линия и цвет надписи перетекают
       final w = InkWell(
         onTap: () => onChanged(x.$1),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          alignment: expand ? Alignment.center : null,
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: on ? pal.accent : Colors.transparent, width: 2))),
-          child: Text.rich(
-            TextSpan(children: [
-              TextSpan(text: x.$2),
-              if (x.$3 != null) TextSpan(text: ' ${x.$3}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w400, color: pal.muted)),
-            ]),
-            maxLines: 1,
-            softWrap: false,
-            style: label.copyWith(fontWeight: on ? FontWeight.w600 : FontWeight.w500, color: on ? pal.accent : pal.muted),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: on ? 1.0 : 0.0),
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.fastOutSlowIn,
+          builder: (context, v, _) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            alignment: expand ? Alignment.center : null,
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.accent.withValues(alpha: v), width: 2))),
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: x.$2),
+                if (x.$3 != null) TextSpan(text: ' ${x.$3}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w400, color: pal.muted)),
+              ]),
+              maxLines: 1,
+              softWrap: false,
+              style: label.copyWith(fontWeight: on ? FontWeight.w600 : FontWeight.w500, color: Color.lerp(pal.muted, pal.accent, v)),
+            ),
           ),
         ),
       );

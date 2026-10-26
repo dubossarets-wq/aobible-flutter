@@ -203,6 +203,19 @@ Map<String, dynamic> plan({String start = '2026-01-01', int days = 6, String nam
       'done': <String, dynamic>{},
     };
 
+
+/// Число дней в капсуле «− | 90 | +» (последнее видимое поле)
+String daysValue(WidgetTester tester) => tester.widget<TextField>(find.byType(TextField).last).controller!.text;
+
+/// Кнопка «Начать» своего плана — последняя (у готового плана своя «Начать» выше)
+Future<void> tapStart(WidgetTester tester) async {
+  final f = find.text('Начать').last;
+  await tester.ensureVisible(f);
+  await tester.pump();
+  await tester.tap(f);
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -301,7 +314,7 @@ void main() {
       await openPlans(tester, v);
       await tapText(tester, 'Новый Завет за 90 дней');
       expect(find.text('Читаем Новый Завет.'), findsOneWidget);
-      await tapText(tester, 'Начать');
+      await tapText(tester, 'Начать', first: true); // у готового плана; ниже — «Начать» своего плана
       await real(tester);
       await spin(tester, 400);
       expect(c.read(plansProvider).length, 1);
@@ -355,25 +368,25 @@ void main() {
 
     testWidgets('планы [${v.name}]: «Свой план» подряд — раздел, дни, шаги «− +», пресеты, свои книги', (tester) async {
       await openPlans(tester, v);
-      await reveal(tester, find.text('Начать на 90 дн.'));
-      expect(find.text('Начать на 90 дн.'), findsOneWidget);
-      await tapText(tester, '7 дн.');
-      expect(find.text('Начать на 7 дн.'), findsOneWidget);
+      await reveal(tester, find.text('За сколько дней'));
+      expect(daysValue(tester), '90');
+      await tapText(tester, 'Неделя');
+      expect(daysValue(tester), '7');
       await tapTip(tester, 'Увеличить');
-      expect(find.text('Начать на 8 дн.'), findsOneWidget);
+      expect(daysValue(tester), '8');
       await tapTip(tester, 'Уменьшить');
       await tapTip(tester, 'Уменьшить'); // 6 → не меньше 7
-      expect(find.text('Начать на 7 дн.'), findsOneWidget);
+      expect(daysValue(tester), '7');
       await tester.enterText(find.byType(TextField).last, '14');
       await spin(tester, 100);
-      expect(find.text('Начать на 14 дн.'), findsOneWidget);
+      expect(daysValue(tester), '14');
       // свои книги: пока ничего не выбрано — кнопка выключена
       await tapText(tester, 'Свои книги');
       final isa = Books.instance.meta('Isa'), acts = Books.instance.meta('Acts');
       await tapTip(tester, isa.name);
       await tapTip(tester, acts.name);
       expect(find.text('Выбрано книг: 2'), findsOneWidget);
-      await tapText(tester, 'Начать на 14 дн.');
+      await tapStart(tester);
       await spin(tester, 400);
       final plans = c.read(plansProvider);
       expect(plans.length, 1);
@@ -402,8 +415,8 @@ void main() {
       expect(find.text('Выбрано книг: 0'), findsNothing);
       await tapTip(tester, Books.instance.meta('Isa').name);
       await tapText(tester, 'Свои книги', last: true); // выключить раздел
-      expect(find.textContaining('Начать на'), findsOneWidget);
-      await tapText(tester, find.textContaining('Начать на').evaluate().map((e) => (e.widget as Text).data!).first);
+      expect(find.text('Начать'), findsWidgets);
+      await tapStart(tester);
       await spin(tester, 400);
       expect(c.read(plansProvider).length, 1);
       expect('${c.read(plansProvider).first['name']}', contains('параллельно'));

@@ -50,6 +50,7 @@ void register() {
   NarratorVoice.I.refresh().catchError((Object _) {});
   audioSettingsExtras
     ..clear() // register() вызывается заново при смене языка — без повторов
+    ..add((context, ref) => const AudioFollowSwitch())
     ..add((context, ref) => NarratorSettings(pal: paletteOf(ref)))
     ..add((context, ref) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           GroupTitle(t('Книги без интернета')),

@@ -166,6 +166,7 @@ void main() {
 
       // первое нажатие — начало, второе — конец, третье — заново
       await tapWord(tester, 'возлюбил');
+      await tester.pumpAndSettle(); // подсказка сворачивается плавно
       expect(find.text('Нажмите на первое и последнее слово.'), findsNothing, reason: 'нажатие по слову не отмечено');
       await tapWord(tester, 'Бог');
       expect(find.text('Нажмите на первое и последнее слово.'), findsNothing);

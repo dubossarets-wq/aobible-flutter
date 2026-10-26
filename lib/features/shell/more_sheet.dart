@@ -141,11 +141,11 @@ class MoreSheet extends ConsumerWidget {
     for (final (_, e) in sorted) {
       // Линии между группами (как menu-sep в moreItems.jsx): перед переключателями и перед своими пунктами
       if (!sepOther && e.keep && e.order >= 500 && e.order < 900 && children.isNotEmpty) {
-        children.add(const MenuSep());
+        children.add(const MenuSep(full: true));
         sepOther = true;
       }
       if (!sepOwn && e.order >= 900 && children.isNotEmpty) {
-        children.add(const MenuSep());
+        children.add(const MenuSep(full: true));
         sepOwn = true;
       }
       // .more-list .menu-item: отступы 12 сверху и снизу (в MenuRow — 10, остальное добавляет Padding)
@@ -153,6 +153,7 @@ class MoreSheet extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: e.sub == null
             ? MenuRow(
+                flat: true,
                 icon: e.icon,
                 label: e.label,
                 extra: e.extra == null ? null : Text(e.extra!, style: TextStyle(color: pal.muted, fontSize: 13.4)),
@@ -161,8 +162,8 @@ class MoreSheet extends ConsumerWidget {
             : _Row2(entry: e, onTap: () => e.run(context, ref)),
       ));
     }
-    // .more-list: поля -4 / -6, поэтому значки стоят ближе к краю, чем заголовок
-    return AppSheet(title: t('Ещё'), padding: const EdgeInsets.fromLTRB(10, 8, 10, 20), gap: 0, children: children);
+    // строки — от края до края окна (подсветка и линии), отступы — у содержимого строки
+    return AppSheet(title: t('Ещё'), padding: const EdgeInsets.fromLTRB(0, 8, 0, 20), gap: 0, children: children);
   }
 }
 
@@ -176,12 +177,10 @@ class _Row2 extends ConsumerWidget {
     final pal = effectivePalette(ref.watch(settingsProvider));
     return Material(
       type: MaterialType.transparency,
-      borderRadius: BorderRadius.circular(kRadius * 0.6),
-      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(children: [
             Icon(entry.icon, size: 20, color: pal.accent),
             const SizedBox(width: 12),

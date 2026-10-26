@@ -23,10 +23,26 @@ class AudioSettingsPage extends ConsumerWidget {
     return AobSheet(
       title: t('Аудио'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const AudioFollowSwitch(),
         NarratorSettings(pal: pal),
         GroupTitle(t('Книги без интернета')),
         AudioOfflineList(pal: pal),
       ]),
+    );
+  }
+}
+
+/// «Озвучка — на языке перевода»: сменили перевод во время чтения вслух — запись переключается на его язык
+class AudioFollowSwitch extends ConsumerWidget {
+  const AudioFollowSwitch({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(settingsProvider.select((s) => s.get<bool>('audioFollowsTranslation'))) != false;
+    return SwitchRow(
+      label: t('Озвучка — на языке перевода'),
+      hint: t('Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)'),
+      value: on,
+      onChanged: (v) => ref.read(settingsProvider.notifier).set({'audioFollowsTranslation': v}),
     );
   }
 }

@@ -732,32 +732,39 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             onTap: () => onGo(v0),
             child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(blockRef(block), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent))),
           ),
-          if (_picking)
-            Padding(
+          // «Часть стиха»: полный текст для выбора слов и обычные строки сменяют друг друга плавно
+          Reveal(
+            open: _picking,
+            child: Padding(
               padding: const EdgeInsets.only(top: 1, bottom: 1),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 _pickText(verseStyle),
-                if (_range == null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('Нажмите на первое и последнее слово.'), style: TextStyle(fontSize: 14.4, height: 1.4, fontStyle: FontStyle.italic, color: pal.muted))),
+                Reveal(open: _range == null, child: Padding(padding: const EdgeInsets.only(top: 6), child: Text(t('Нажмите на первое и последнее слово.'), style: TextStyle(fontSize: 14.4, height: 1.4, fontStyle: FontStyle.italic, color: pal.muted)))),
               ]),
-            )
-          else
-          for (final (k, l) in lines.indexed)
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onGo(l.v),
-                  child: Padding(
-                    padding: EdgeInsets.only(top: group && k > 0 ? 6 : 1, bottom: 1),
-                    child: Text.rich(TextSpan(children: [
-                      if (group) WidgetSpan(alignment: PlaceholderAlignment.top, child: Padding(padding: const EdgeInsets.only(right: 5), child: Text('${l.v}', style: TextStyle(fontSize: 10.8, color: pal.accent, fontWeight: FontWeight.w700)))),
-                      TextSpan(text: l.text),
-                    ]), style: verseStyle),
+            ),
+          ),
+          Reveal(
+            open: !_picking,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (final (k, l) in lines.indexed)
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onGo(l.v),
+                      child: Padding(
+                        padding: EdgeInsets.only(top: group && k > 0 ? 6 : 1, bottom: 1),
+                        child: Text.rich(TextSpan(children: [
+                          if (group) WidgetSpan(alignment: PlaceholderAlignment.top, child: Padding(padding: const EdgeInsets.only(right: 5), child: Text('${l.v}', style: TextStyle(fontSize: 10.8, color: pal.accent, fontWeight: FontWeight.w700)))),
+                          TextSpan(text: l.text),
+                        ]), style: verseStyle),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              if (group) Padding(padding: EdgeInsets.only(top: k > 0 ? 4 : 0), child: ConfirmIcon(icon: LucideIcons.x, size: 15, confirmText: t('Убрать'), tooltip: t('Убрать стих'), onConfirm: () => onDropVerse(l.v))),
+                  if (group) Padding(padding: EdgeInsets.only(top: k > 0 ? 4 : 0), child: ConfirmIcon(icon: LucideIcons.x, size: 15, confirmText: t('Убрать'), tooltip: t('Убрать стих'), onConfirm: () => onDropVerse(l.v))),
+                ]),
             ]),
+          ),
         ] else
           _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone),
         // .sermon-block-tools: пунктир сверху, «ручка» перетаскивания слева, корзина справа
@@ -1219,7 +1226,17 @@ class _VersePickerState extends ConsumerState<VersePicker> {
                 ]),
               ),
               const SizedBox(width: 12),
-              Tooltip(message: has ? t('Уже в проповеди') : t('Добавить в проповедь'), child: Icon(has ? LucideIcons.check : LucideIcons.plus, size: 20, color: has ? kOkSoft : pal.muted)),
+              // добавили — плюс плавно сменяется галочкой
+              Tooltip(
+                message: has ? t('Уже в проповеди') : t('Добавить в проповедь'),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 240),
+                  switchInCurve: Curves.fastOutSlowIn,
+                  switchOutCurve: Curves.fastOutSlowIn,
+                  transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
+                  child: Icon(has ? LucideIcons.check : LucideIcons.plus, key: ValueKey(has), size: 20, color: has ? kOkSoft : pal.muted),
+                ),
+              ),
             ]),
           ),
         );

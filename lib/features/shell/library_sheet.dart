@@ -138,6 +138,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   bool _srcOpen = false;
   final Map<String, (double, String)> _busy = {};
   String? _open;
+  String? _was; // карточка, которая сейчас сворачивается: её подробности живут до конца анимации
 
   @override
   void initState() {
@@ -356,7 +357,10 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       );
     }
     final sub = [if (m.language.isNotEmpty) langName(m.language), m.title.isNotEmpty ? m.title : t(moduleTypeNames[m.type] ?? m.type)].join(' · ');
-    void toggle() => setState(() => _open = open ? null : m.id);
+    void toggle() => setState(() {
+          _was = _open;
+          _open = open ? null : m.id;
+        });
     final off = _tab == 'installed' && installed != null && installed.type != 'bible' && !ModuleStore.instance.isEnabled(installed.id);
     return Opacity(opacity: off ? 0.72 : 1, child: Container(
       decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: pal.line))),
@@ -396,7 +400,8 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             const SizedBox(width: 4),
           ]),
         ),
-        if (open) _details(m, pal, isPrimary, updatable, busy != null),
+        // подробности раскрываются плавно; собираем их только у открытой и сворачивающейся карточки — строк в списке сотни
+        Reveal(open: open, child: open || _was == m.id ? _details(m, pal, isPrimary, updatable, busy != null) : const SizedBox(width: double.infinity)),
       ]),
     ));
   }

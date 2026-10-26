@@ -197,7 +197,14 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                     Icon(LucideIcons.folder, size: 16, color: pal.accent),
                     const SizedBox(width: 10),
                     Expanded(child: Text('${c['name']}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
-                    if (has(c)) Icon(LucideIcons.check, size: 15, color: pal.muted) else Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), style: TextStyle(fontSize: 13.1, color: pal.muted)),
+                    // стих добавлен в подборку — вместо числа плавно проявляется галочка
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      switchInCurve: Curves.fastOutSlowIn,
+                      switchOutCurve: Curves.fastOutSlowIn,
+                      transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
+                      child: has(c) ? Icon(LucideIcons.check, key: const ValueKey('has'), size: 15, color: pal.muted) : Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), key: const ValueKey('n'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
+                    ),
                   ]),
                 ),
               ),

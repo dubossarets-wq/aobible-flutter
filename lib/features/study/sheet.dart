@@ -309,13 +309,20 @@ class TabsRow extends ConsumerWidget {
             sub
                 ? Padding(
                     padding: const EdgeInsets.only(right: 4),
-                    child: Material(
-                      color: i == index ? tint(pal.accent, pal.panel, 0.1) : Colors.transparent,
-                      shape: StadiumBorder(side: BorderSide(color: i == index ? pal.accent : pal.line)),
-                      child: InkWell(
-                        customBorder: const StadiumBorder(),
-                        onTap: () => onTap(i),
-                        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5), child: Text(labels[i], style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w500, color: i == index ? pal.accent : pal.muted))),
+                    // выбор — плавно: фон, рамка и надпись перетекают
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: i == index ? 1.0 : 0.0),
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.fastOutSlowIn,
+                      builder: (context, v, _) => Material(
+                        animationDuration: Duration.zero,
+                        color: tint(pal.accent, pal.panel, 0.1).withValues(alpha: v),
+                        shape: StadiumBorder(side: BorderSide(color: Color.lerp(pal.line, pal.accent, v)!)),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: () => onTap(i),
+                          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5), child: Text(labels[i], style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w500, color: Color.lerp(pal.muted, pal.accent, v)))),
+                        ),
                       ),
                     ),
                   )
@@ -323,10 +330,16 @@ class TabsRow extends ConsumerWidget {
                     padding: EdgeInsets.only(right: i == labels.length - 1 ? 0 : 4),
                     child: InkWell(
                       onTap: () => onTap(i),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: i == index ? pal.accent : Colors.transparent, width: 2))),
-                        child: Text(labels[i], style: TextStyle(fontWeight: FontWeight.w500, color: i == index ? pal.accent : pal.muted)),
+                      // смена вкладки — плавно: линия и цвет надписи перетекают
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(end: i == index ? 1.0 : 0.0),
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.fastOutSlowIn,
+                        builder: (context, v, _) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.accent.withValues(alpha: v), width: 2))),
+                          child: Text(labels[i], style: TextStyle(fontWeight: FontWeight.w500, color: Color.lerp(pal.muted, pal.accent, v))),
+                        ),
                       ),
                     ),
                   ),

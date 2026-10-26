@@ -357,24 +357,33 @@ class _ColorChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    final fg = on ? pal.onAccent : pal.text;
-    return Material(
-      color: on ? pal.accent : pal.bg,
-      shape: StadiumBorder(side: BorderSide(color: on ? pal.accent : pal.line)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _swatch(color),
-            const SizedBox(width: 5),
-            Text(label, style: TextStyle(fontSize: 13.8, color: fg)),
-            const SizedBox(width: 5),
-            Text('$count', style: TextStyle(fontSize: 11, color: on ? fg.withValues(alpha: 0.8) : pal.muted)),
-          ]),
-        ),
-      ),
+    // выбор — плавно: фон, рамка и надпись перетекают в цвет акцента
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: on ? 1.0 : 0.0),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.fastOutSlowIn,
+      builder: (context, v, _) {
+        final fg = Color.lerp(pal.text, pal.onAccent, v)!;
+        return Material(
+          animationDuration: Duration.zero,
+          color: Color.lerp(pal.bg, pal.accent, v),
+          shape: StadiumBorder(side: BorderSide(color: Color.lerp(pal.line, pal.accent, v)!)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                _swatch(color),
+                const SizedBox(width: 5),
+                Text(label, style: TextStyle(fontSize: 13.8, color: fg)),
+                const SizedBox(width: 5),
+                Text('$count', style: TextStyle(fontSize: 11, color: Color.lerp(pal.muted, fg.withValues(alpha: 0.8), v))),
+              ]),
+            ),
+          ),
+        );
+      },
     );
   }
 }

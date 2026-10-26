@@ -16,6 +16,7 @@ import 'net_cache.dart';
 import 'plan_logic.dart';
 import 'plan_mode.dart';
 import 'plan_store.dart';
+import '../shell/intl_data.dart' show monthDayTemplates;
 import 'reminders.dart';
 import 'ui_kit.dart';
 import 'verse_card.dart';
@@ -156,7 +157,19 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
       if (cal) 'year': DateTime.now().year,
     });
     scheduleReminders();
-    toast(context, t('План «{name}» начат — нажмите «Читать»', {'name': t('${plan['name']}')}));
+    final started = t('План «{name}» начат — нажмите «Читать»', {'name': t('${plan['name']}')});
+    // без напоминания планы чаще бросают — сразу предлагаем включить
+    if (remindersSupported && !getReminder().on) {
+      final pal = paletteOf(ref);
+      ScaffoldMessenger.of(context).showSnackBar(aobSnackBar(pal, started, actionLabel: t('Напоминать о чтении'), action: () async {
+        final ok = await setReminder(on: true);
+        if (!mounted) return;
+        setState(() {});
+        toast(context, ok ? t('Напомню в {time}', {'time': getReminder().time}) : t('Уведомления запрещены — разрешите их в настройках телефона'));
+      }));
+    } else {
+      toast(context, started);
+    }
   }
 
   Future<void> _start(PlanMeta m) async {
@@ -317,12 +330,13 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     final par = _mode == 'par';
     final needOwn = (par ? _streams.containsKey('own') : _scope == 'own') && _own.isEmpty;
     final period = par && _parMode == 'period';
-    final startLabel = period ? t('Начать на {n} дн.', {'n': '${_periodDays.clamp(7, 730)}'}) : par ? (_parDays > 0 ? t('Начать на {n} дн.', {'n': '$_parDays'}) : t('Выберите книги')) : t('Начать на {n} дн.', {'n': '$days'});
+    // срок и дата окончания — в строке нагрузки над кнопкой
+    final startLabel = par && !period && _parDays == 0 ? t('Выберите книги') : t('Начать');
     final off = _busy != null || needOwn || (par && !period && _parDays == 0);
     return Container(
       padding: const EdgeInsets.all(16),
       // лёгкая подложка цвета акцента — карточка отделяется от окна
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: mix(pal.accent, 0.05, pal.panel)),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: mix(pal.text, 0.055, pal.panel)), // чистая нейтральная подложка — белые плитки на ней видны
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(
@@ -335,16 +349,18 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(t('Свой план'), style: TextStyle(fontSize: 16.8, fontWeight: FontWeight.w700, height: 1.25, color: pal.text)),
-              Padding(padding: const EdgeInsets.only(top: 2), child: Text(par ? t('Каждый день — понемногу из каждого раздела.') : t('Главы делятся на дни поровну по числу стихов.'), style: TextStyle(fontSize: 13.4, color: pal.muted, height: 1.35))),
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text(par ? t('Каждый день — немного из разных частей Библии') : t('Читаете книги по порядку, понемногу каждый день'), style: TextStyle(fontSize: 13.4, color: pal.muted, height: 1.35))),
             ]),
           ),
         ]),
         const SizedBox(height: 14),
         Segmented<String>(value: _mode, onChanged: _setMode, options: [('seq', t('Последовательно')), ('par', t('Параллельно'))]),
         const SizedBox(height: 10),
-        if (par) ..._parallelBody(pal) else ..._seqBody(pal, days),
+        // «Последовательно» ↔ «Параллельно»: одно сворачивается, другое раскрывается
+        Reveal(open: par, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _parallelBody(pal))),
+        Reveal(open: !par, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _seqBody(pal, days))),
         const SizedBox(height: 14),
-        _busy == 'custom' ? BusyButton(label: startLabel) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: startLabel, onTap: off ? null : _startCustom),
+        _busy == 'custom' ? BusyButton(label: startLabel) : AobButton(kind: BtnKind.primary, wide: true, icon: Icons.play_arrow_rounded, label: startLabel, onTap: off ? null : _startCustom),
       ]),
     );
   }
@@ -361,18 +377,33 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           return Wrap(spacing: 8, runSpacing: 8, children: [
             for (final (i, s) in items.indexed)
               SizedBox(
-                width: i == 0 ? c.maxWidth : w,
-                child: Material(
-                  color: _scope == s.$1 ? mix(pal.accent, 0.12, pal.bg) : pal.bg,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _scope == s.$1 ? pal.accent : pal.line, width: _scope == s.$1 ? 2 : 1)),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => setState(() => _scope = s.$1),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      alignment: Alignment.center,
-                      child: Text(t(s.$2), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: _scope == s.$1 ? accentOnTint(pal) : pal.text)),
+                width: i == 0 || s.$1 == 'own' ? c.maxWidth : w, // «Вся Библия» и «Свои книги» — на всю ширину
+                // выбранный вариант — рамка, фон и надпись перетекают плавно
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(end: _scope == s.$1 ? 1.0 : 0.0),
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.fastOutSlowIn,
+                  builder: (context, v, _) => Material(
+                    animationDuration: Duration.zero,
+                    color: Color.lerp(pal.panel, mix(pal.accent, 0.12, pal.panel), v), // на подложке карточки — белые
+                    // очень лёгкая обводка — плашка чуть чётче на подложке
+                    // без рамки у невыбранных: белые плитки на подложке и так видны — меньше линий, спокойнее
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Color.lerp(plateEdge(pal), pal.accent, v)!, width: 1.5)),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => setState(() => _scope = s.$1),
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        alignment: Alignment.center,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          // у каждого раздела свой значок (как у готовых планов): Библия — книга, Ветхий — свиток,
+                          // Новый — книга с крестом, Евангелия — крест, Псалтирь — нота, свои книги — список с отметками (выборка)
+                          _scopeIcon(s.$1, 17, Color.lerp(pal.muted, accentOnTint(pal), v)!),
+                          const SizedBox(width: 7),
+                          Flexible(child: Text(t(s.$2), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: Color.lerp(pal.text, accentOnTint(pal), v)))),
+                        ]),
+                      ),
                     ),
                   ),
                 ),
@@ -382,39 +413,35 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
         // свои книги раскрываются и сворачиваются плавно
         Reveal(open: _scope == 'own', child: Padding(padding: const EdgeInsets.only(top: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
         const SizedBox(height: 12),
-        ..._daysBlock(pal, days, _daysCtl, _setDays, (v) => setState(() => _days = int.tryParse(v) ?? 90)),
+        ..._daysBlock(pal, days, _daysCtl, _setDays, (v) => setState(() => _days = int.tryParse(v) ?? 90), _seqBooks),
       ];
 
   // «За сколько дней»: число с «−»/«+» и быстрые значения — общий для «Последовательно» и «Параллельно → За срок»
-  List<Widget> _daysBlock(Palette pal, int days, TextEditingController ctl, void Function(int) set, void Function(String) changed) => [
+  List<Widget> _daysBlock(Palette pal, int days, TextEditingController ctl, void Function(int) set, void Function(String) changed, List<String> books) => [
         _label(pal, t('За сколько дней')),
         const SizedBox(height: 10),
-        Row(children: [
-          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), onTap: () => set(days - 1)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: PlainInput(
-              controller: ctl,
-              height: 44,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17.6, fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()]),
-              onChanged: changed,
-              onSubmitted: (_) => set(int.tryParse(ctl.text) ?? 90),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), onTap: () => set(days + 1)),
-        ]),
+        _DaysStepper(pal: pal, days: days, ctl: ctl, set: set, changed: changed),
+        const SizedBox(height: 8),
+        // во что выльется выбор: «≈ 13 гл. в день · до 24 января»
+        _LoadLine(pal: pal, books: books, days: days),
         const SizedBox(height: 10),
-        // в один ряд, каждая по ширине текста; не помещаются — ряд прокручивается с затуханием у края
-        SizedBox(
-          height: 36,
-          child: FadeRow(gap: 8, children: [
-            for (final n in [7, 14, 30, 90, 180, 365]) _Preset(pal: pal, label: t('{n} дн.', {'n': '$n'}), on: days == n, onTap: () => set(n)),
+        // сроки словами — два ряда по три, точное число — кнопками «− / +» выше
+        for (final (r, row) in const [
+          [(7, 'Неделя'), (14, '2 недели'), (30, 'Месяц')],
+          [(90, '3 месяца'), (180, 'Полгода'), (365, 'Год')],
+        ].indexed) ...[
+          if (r > 0) const SizedBox(height: 6),
+          Row(children: [
+            for (final (i, (n, label)) in row.indexed) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(child: _Preset(pal: pal, label: t(label), on: days == n, center: true, onTap: () => set(n))),
+            ],
           ]),
-        ),
+        ],
       ];
+
+  List<String> get _seqBooks => _scope == 'own' ? _ownOrdered : planScopes.firstWhere((s) => s.id == _scope).books();
+  List<String> get _parBooks => [for (final x in streamList(_streams, _ownOrdered)) ...x.books];
 
   // «Параллельно»: разделы с галочкой и числом глав в день (.cp-streams)
   List<Widget> _parallelBody(Palette pal) => [
@@ -434,32 +461,56 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           const SizedBox(height: 8),
         ],
         Reveal(open: _streams.containsKey('own'), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
-        if (_parMode == 'period')
-          ..._daysBlock(pal, _periodDays, _periodCtl, _setPeriod, (v) => setState(() => _periodDays = int.tryParse(v) ?? 90))
-        else
-          Text(t('Короткие разделы начинаются заново, пока идут длинные.'), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
+        // «За срок» ↔ «Глав в день»: срок и пояснение сменяют друг друга плавно
+        Reveal(open: _parMode == 'period', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _daysBlock(pal, _periodDays, _periodCtl, _setPeriod, (v) => setState(() => _periodDays = int.tryParse(v) ?? 90), _parBooks))),
+        Reveal(
+          open: _parMode != 'period',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // как выглядит обычный день — меняется с каждым нажатием
+            if (_streams.isNotEmpty)
+              Builder(builder: (context) {
+                final first = firstDayText(streamList(_streams, _ownOrdered), chapterList);
+                return first.isEmpty
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(t('Первый день: {list}', {'list': first}), style: TextStyle(fontSize: 13.6, height: 1.4, fontWeight: FontWeight.w600, color: pal.text)),
+                      );
+              }),
+            Text(t('Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».', {'mode': t('За срок')}), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
+          ]),
+        ),
       ];
 }
 
 /// .cp-presets .chip: плашка выше обычной (min-height 36, отступы 6/14)
 class _Preset extends StatelessWidget {
-  const _Preset({required this.pal, required this.label, required this.on, required this.onTap});
+  const _Preset({required this.pal, required this.label, required this.on, required this.onTap, this.center = false});
   final Palette pal;
   final String label;
   final bool on;
+  final bool center; // в ряду равной ширины — надпись по центру
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Material(
-        color: on ? pal.accent : pal.bg,
-        shape: StadiumBorder(side: BorderSide(color: on ? pal.accent : pal.line)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          // без alignment у Container: с ним плашка растягивалась на всю ширину
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 36),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Text(label, style: TextStyle(fontSize: 13.8, color: on ? pal.onAccent : pal.text)),
+  // выбор — плавно: фон, рамка и надпись перетекают в цвет акцента
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(end: on ? 1.0 : 0.0),
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.fastOutSlowIn,
+        builder: (context, v, _) => Material(
+          animationDuration: Duration.zero,
+          color: Color.lerp(pal.panel, pal.accent, v),
+          shape: StadiumBorder(side: BorderSide(color: Color.lerp(plateEdge(pal), pal.accent, v)!)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            // без alignment у Container: с ним плашка растягивалась на всю ширину
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 36),
+              padding: EdgeInsets.symmetric(horizontal: center ? 4 : 14, vertical: 8),
+              alignment: center ? Alignment.center : null,
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: Color.lerp(pal.text, pal.onAccent, v))),
+            ),
           ),
         ),
       );
@@ -477,12 +528,167 @@ class _Step extends StatelessWidget {
   Widget build(BuildContext context) => Opacity(
         opacity: onTap == null ? 0.4 : 1,
         child: Material(
-          color: pal.bg,
+          color: pal.panel,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius), side: BorderSide(color: pal.line)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: SizedBox(width: size, height: size, child: Icon(icon, size: iconSize, color: pal.text)))),
         ),
       );
+}
+
+const _scopeIcons = {
+  'all': LucideIcons.bookOpen,
+  'ot': LucideIcons.scroll,
+  'ps': LucideIcons.music,
+  'own': LucideIcons.listChecks,
+};
+
+// Новый Завет — книга с крестом (рядом со свитком Ветхого Завета);
+// Евангелия — латинский крест: жизнь, смерть и воскресение Христа
+Widget _scopeIcon(String id, double size, Color color) => id == 'nt' || id == 'gospels'
+    ? CustomPaint(size: Size.square(size), painter: _LineIcon(id, color))
+    : Icon(_scopeIcons[id] ?? LucideIcons.bookOpen, size: size, color: color);
+
+/// Свои значки в манере Lucide: сетка 24, линия 2, скруглённые концы и углы
+class _LineIcon extends CustomPainter {
+  _LineIcon(this.id, this.color);
+  final String id;
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 24);
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    if (id == 'nt') {
+      // книга с крестом на обложке (рядом со свитком Ветхого Завета — христианское Писание)
+      canvas.drawPath(
+        Path()
+          ..moveTo(4, 19.5)
+          ..lineTo(4, 4.5)
+          ..arcToPoint(const Offset(6.5, 2), radius: const Radius.circular(2.5))
+          ..lineTo(19, 2)
+          ..arcToPoint(const Offset(20, 3), radius: const Radius.circular(1))
+          ..lineTo(20, 21)
+          ..arcToPoint(const Offset(19, 22), radius: const Radius.circular(1))
+          ..lineTo(6.5, 22)
+          ..arcToPoint(const Offset(6.5, 17), radius: const Radius.circular(2.5))
+          ..lineTo(20, 17),
+        p,
+      );
+      canvas.drawLine(const Offset(12, 6), const Offset(12, 13), p);
+      canvas.drawLine(const Offset(9.5, 8.5), const Offset(14.5, 8.5), p);
+    } else {
+      // латинский крест контуром (с объёмом, как соседние значки): длинный нижний конец
+      canvas.drawPath(
+        Path()..addPolygon(const [
+          Offset(10, 2), Offset(14, 2), Offset(14, 7), Offset(19, 7), Offset(19, 11), Offset(14, 11), //
+          Offset(14, 22), Offset(10, 22), Offset(10, 11), Offset(5, 11), Offset(5, 7), Offset(10, 7),
+        ], true),
+        p,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LineIcon old) => old.color != color || old.id != id;
+}
+
+/// Очень лёгкая обводка плашек на подложке карточки
+Color plateEdge(Palette pal) => mix(pal.text, 0.09, pal.panel);
+
+/// Дата окончания плана из N дней, начатого сегодня: «24 января» (другой год — с годом)
+String planEndText(int days) {
+  final now = DateTime.now();
+  final end = DateTime(now.year, now.month, now.day + (days < 1 ? 1 : days) - 1);
+  final tpl = monthDayTemplates[currentLang];
+  final s = tpl == null ? fmtDay(end, full: true) : tpl[end.month - 1].replaceFirst('{d}', '${end.day}');
+  return end.year != now.year ? '$s ${end.year}' : s;
+}
+
+/// Нагрузка: «≈ 13 гл. в день · до 24 января»; больше часа чтения в день (~8 с на стих) — цветом предупреждения
+class _LoadLine extends StatelessWidget {
+  const _LoadLine({required this.pal, required this.books, required this.days});
+  final Palette pal;
+  final List<String> books;
+  final int days;
+  @override
+  Widget build(BuildContext context) {
+    final ch = chapterList(books);
+    if (ch.isEmpty || days <= 0) return const SizedBox.shrink();
+    final d = math.min(days, ch.length); // глав меньше, чем дней, — дней столько, сколько глав
+    final verses = ch.fold<int>(0, (a, c) => a + c.n);
+    final per = (ch.length / d).round().clamp(1, 1 << 20);
+    final minutes = (verses / d * 8 / 60).round().clamp(1, 1 << 20); // ~8 секунд на стих
+    final heavy = minutes > 60;
+    // по центру, под капсулой с числом дней
+    return Text(
+      '≈ ${t('{n} гл. в день', {'n': '$per'})} · ${t('до {date}', {'date': planEndText(d)})}',
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 13.1, height: 1.35, fontWeight: FontWeight.w600, color: heavy ? dangerOf(pal) : pal.muted),
+    );
+  }
+}
+
+/// Число дней: одна капсула «− | 90 дней | +» — кнопки по краям, тонкие разделители, посередине крупное
+/// число (его можно вписать) и подпись в нужной форме
+class _DaysStepper extends StatelessWidget {
+  const _DaysStepper({required this.pal, required this.days, required this.ctl, required this.set, required this.changed});
+  final Palette pal;
+  final int days;
+  final TextEditingController ctl;
+  final void Function(int) set;
+  final void Function(String) changed;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(IconData icon, String tip, VoidCallback? onTap) => Tooltip(
+          message: tip,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: AnimatedOpacity(duration: const Duration(milliseconds: 200), opacity: onTap == null ? 0.35 : 1, child: Icon(icon, size: 20, color: pal.accent)),
+            ),
+          ),
+        );
+    final divider = Container(width: 1, height: 28, color: pal.line);
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: plateEdge(pal))),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Row(children: [
+          btn(LucideIcons.minus, t('Уменьшить'), days <= 1 ? null : () => set(days - 1)),
+          divider,
+          Expanded(
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              TextField(
+                controller: ctl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                textInputAction: TextInputAction.done,
+                cursorColor: pal.accent,
+                style: TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()]),
+                decoration: const InputDecoration.collapsed(hintText: ''),
+                onChanged: changed,
+                onSubmitted: (_) => set(int.tryParse(ctl.text) ?? 90),
+              ),
+              const SizedBox(height: 1),
+              Text(tn('день|дня|дней', days), style: TextStyle(fontSize: 11.5, height: 1.1, fontWeight: FontWeight.w600, color: pal.muted)),
+            ]),
+          ),
+          divider,
+          btn(LucideIcons.plus, t('Увеличить'), () => set(days + 1)),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Готовый план — вертикальная обложка с фотографией и названием (.plan-tile)
@@ -740,8 +946,10 @@ class _ReminderCardState extends State<_ReminderCard> {
             ]),
           ),
         ),
-        if (_r.on)
-          Padding(
+        // время — под включённым переключателем, раскрывается плавно
+        Reveal(
+          open: _r.on,
+          child: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 10),
             child: Row(children: [
               Text(t('Время'), style: TextStyle(fontSize: 15, color: pal.muted)),
@@ -758,6 +966,7 @@ class _ReminderCardState extends State<_ReminderCard> {
               ),
             ]),
           ),
+        ),
       ]),
     );
   }
@@ -793,8 +1002,9 @@ class _ReadHeroState extends State<_ReadHero> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(kRadius + 6),
-        border: Border.all(color: mix(pal.accent, 0.22, pal.line)),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [mix(pal.accent, 0.16, pal.bg), mix(pal.accent, 0.04, pal.bg)]),
+        // чистая нейтральная подложка (смесь с коричневым акцентом выглядела грязной)
+        border: Border.all(color: pal.line),
+        color: mix(pal.text, 0.04, pal.panel),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -891,13 +1101,17 @@ class _StreamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final on = per != null;
-    return Container(
+    const dur = Duration(milliseconds: 240);
+    // включение раздела — плавно: рамка и фон перетекают, галочка проявляется, шаги «− n гл. в день +» выезжают
+    return AnimatedContainer(
+      duration: dur,
+      curve: Curves.fastOutSlowIn,
       constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.fromLTRB(4, 4, 6, 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: on ? mix(pal.accent, 0.55, pal.line) : pal.line),
-        color: on ? mix(pal.accent, 0.07, pal.bg) : pal.bg,
+        border: Border.all(color: on ? mix(pal.accent, 0.55, pal.line) : plateEdge(pal)), // у выключенных — очень лёгкая обводка
+        color: on ? mix(pal.accent, 0.07, pal.panel) : pal.panel,
       ),
       child: Row(children: [
         Expanded(
@@ -907,25 +1121,43 @@ class _StreamRow extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Row(children: [
-                Container(
+                AnimatedContainer(
+                  duration: dur,
+                  curve: Curves.fastOutSlowIn,
                   width: 22,
                   height: 22,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: on ? pal.accent : null, border: Border.all(color: on ? pal.accent : mix(pal.muted, 0.6, Colors.transparent), width: 1.5)),
-                  child: on ? Icon(LucideIcons.check, size: 14, color: pal.onAccent) : null,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: on ? pal.accent : pal.accent.withValues(alpha: 0), border: Border.all(color: on ? pal.accent : mix(pal.muted, 0.6, Colors.transparent), width: 1.5)),
+                  child: AnimatedOpacity(
+                    duration: dur,
+                    opacity: on ? 1 : 0,
+                    child: AnimatedScale(duration: dur, curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(LucideIcons.check, size: 14, color: pal.onAccent)),
+                  ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(child: Text(label, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.text))),
+                Expanded(child: Text(label, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: pal.text))),
               ]),
             ),
           ),
         ),
-        if (on && steps) ...[
-          _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), size: 34, radius: 10, iconSize: 16, onTap: per! <= 1 ? null : () => onPer(-1)),
-          const SizedBox(width: 6),
-          Text(t('{n} гл. в день', {'n': '$per'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
-          const SizedBox(width: 6),
-          _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), size: 34, radius: 10, iconSize: 16, onTap: per! >= 10 ? null : () => onPer(1)),
-        ],
+        AnimatedSwitcher(
+          duration: dur,
+          switchInCurve: Curves.fastOutSlowIn,
+          switchOutCurve: Curves.fastOutSlowIn,
+          // выезжают справа: ширина от 0 и прозрачность
+          transitionBuilder: (child, a) => FadeTransition(
+            opacity: a,
+            child: ClipRect(child: AnimatedBuilder(animation: a, child: child, builder: (_, c) => Align(alignment: Alignment.centerRight, widthFactor: a.value, child: c))),
+          ),
+          child: on && steps
+              ? Row(key: const ValueKey('steps'), mainAxisSize: MainAxisSize.min, children: [
+                  _Step(pal: pal, icon: LucideIcons.minus, tip: t('Уменьшить'), size: 34, radius: 10, iconSize: 16, onTap: per! <= 1 ? null : () => onPer(-1)),
+                  const SizedBox(width: 6),
+                  Text(t('{n} гл. в день', {'n': '$per'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
+                  const SizedBox(width: 6),
+                  _Step(pal: pal, icon: LucideIcons.plus, tip: t('Увеличить'), size: 34, radius: 10, iconSize: 16, onTap: per! >= 10 ? null : () => onPer(1)),
+                ])
+              : const SizedBox(key: ValueKey('no-steps'), height: 34),
+        ),
       ]),
     );
   }
@@ -956,8 +1188,8 @@ class _BookPicker extends StatelessWidget {
                   child: Tooltip(
                     message: Books.instance.meta(b.id).name,
                     child: Material(
-                      color: value.contains(b.id) ? pal.accent : pal.bg,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: value.contains(b.id) ? pal.accent : pal.line)),
+                      color: value.contains(b.id) ? pal.accent : pal.panel,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: value.contains(b.id) ? pal.accent : plateEdge(pal))),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
                         onTap: () => onToggle(b.id),
@@ -965,7 +1197,9 @@ class _BookPicker extends StatelessWidget {
                           constraints: const BoxConstraints(minHeight: 38),
                           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                           alignment: Alignment.center,
-                          child: Text(Books.instance.meta(b.id).short.replaceFirst(RegExp(r'\.$'), ''), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: value.contains(b.id) ? pal.onAccent : pal.text)),
+                          child: Text(Books.instance.meta(b.id).short.replaceFirst(RegExp(r'\.$'), ''), maxLines: 1, softWrap: false, overflow: TextOverflow.clip, textAlign: TextAlign.center,
+                              // запас строки — поровну сверху и снизу: название ровно по середине плашки
+                              style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: value.contains(b.id) ? pal.onAccent : pal.text)),
                         ),
                       ),
                     ),

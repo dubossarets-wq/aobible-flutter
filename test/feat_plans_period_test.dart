@@ -150,6 +150,19 @@ Future<void> finish(WidgetTester tester) async {
   expect(tester.takeException(), isNull);
 }
 
+
+/// Число дней в капсуле «− | 90 | +» (последнее видимое поле)
+String daysValue(WidgetTester tester) => tester.widget<TextField>(find.byType(TextField).last).controller!.text;
+
+/// Кнопка «Начать» своего плана — последняя (у готового плана своя «Начать» выше)
+Future<void> tapStart(WidgetTester tester) async {
+  final f = find.text('Начать').last;
+  await tester.ensureVisible(f);
+  await tester.pump();
+  await tester.tap(f);
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -182,6 +195,7 @@ void main() {
       expect(find.text('Последовательно'), findsOneWidget);
       expect(find.text('Подряд'), findsNothing);
       await tapText(tester, 'Параллельно');
+      await tester.pumpAndSettle(); // «Последовательно» сворачивается плавно
       expect(find.text('Глав в день'), findsOneWidget);
       expect(find.text('За срок'), findsOneWidget);
       expect(find.text('Разделы и глав в день'), findsOneWidget);
@@ -189,24 +203,25 @@ void main() {
       expect(find.text('За сколько дней'), findsNothing);
       // «За срок»: шаги разделов скрыты, галочки остались, появился выбор дней
       await tapText(tester, 'За срок');
+      await tester.pumpAndSettle(); // шаги разделов уезжают плавно
       expect(find.text('1 гл. в день'), findsNothing);
       expect(find.text('Разделы'), findsOneWidget);
       expect(find.text('Ветхий Завет'), findsWidgets);
       await reveal(tester, find.text('За сколько дней'));
       expect(find.text('За сколько дней'), findsOneWidget);
-      for (final n in [7, 14, 30, 90, 180, 365]) {
-        expect(find.text('$n дн.'), findsOneWidget, reason: 'пресет $n');
+      for (final n in ['Неделя', '2 недели', 'Месяц', '3 месяца', 'Полгода', 'Год']) {
+        expect(find.text(n), findsOneWidget, reason: 'срок «$n»');
       }
-      expect(find.text('Начать на 90 дн.'), findsOneWidget);
-      await tapText(tester, '14 дн.');
-      expect(find.text('Начать на 14 дн.'), findsOneWidget);
+      expect(daysValue(tester), '90');
+      await tapText(tester, '2 недели');
+      expect(daysValue(tester), '14');
       for (var i = 0; i < 9; i++) {
         await tapTip(tester, 'Уменьшить', last: true);
       }
-      expect(find.text('Начать на 7 дн.'), findsOneWidget); // не меньше 7
+      expect(daysValue(tester), '7'); // не меньше 7
       await tester.enterText(find.byType(TextField).last, '20');
       await spin(tester, 100);
-      expect(find.text('Начать на 20 дн.'), findsOneWidget);
+      expect(daysValue(tester), '20');
       // запомнилось
       expect(prefs.getString('customPlanParMode'), '"period"');
       // «Глав в день» возвращает шаги
@@ -214,16 +229,16 @@ void main() {
       expect(find.text('1 гл. в день'), findsWidgets);
       expect(prefs.getString('customPlanParMode'), '"perday"');
       await tapText(tester, 'За срок');
-      await reveal(tester, find.text('Начать на 20 дн.'));
-      expect(find.text('Начать на 20 дн.'), findsOneWidget); // срок сохранился
-      await tapText(tester, 'Начать на 20 дн.');
+      await reveal(tester, find.text('За сколько дней'));
+      expect(daysValue(tester), '20'); // срок сохранился
+      await tapStart(tester);
       await spin(tester, 400);
       final plans = c.read(plansProvider);
       expect(plans.length, 1);
       final days = readingsOf(plans.first);
       expect(days.length, lessThanOrEqualTo(20));
       expect(days.length, greaterThan(10));
-      expect('${plans.first['name']}', 'ВЗ + НЗ + Псалтирь за ${days.length} дн.');
+      expect('${plans.first['name']}', 'ВЗ + Псалтирь + НЗ за ${days.length} дн.');
       final all = [for (final d in days) ...d];
       expect(all.toSet().length, all.length);
       expect(all, containsAll(['Gen.6', 'John.3', 'Ps.6'])); // все разделы дочитаны
@@ -235,8 +250,8 @@ void main() {
       prefs.setString('customPlanParMode', jsonEncode('period'));
       prefs.setString('customPlanParDays', jsonEncode(30));
       await open(tester, v);
-      await reveal(tester, find.text('Начать на 30 дн.'));
-      expect(find.text('Начать на 30 дн.'), findsOneWidget);
+      await reveal(tester, find.text('За сколько дней'));
+      expect(daysValue(tester), '30');
       expect(find.text('1 гл. в день'), findsNothing);
       await finish(tester);
     });

@@ -364,8 +364,10 @@ class _PlaceCard extends StatelessWidget {
             ),
           ),
         ),
-        if (open)
-          Flexible(
+        // подробности о месте раскрываются и сворачиваются плавно
+        Flexible(
+          child: Reveal(
+            open: open,
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: DefaultTextStyle(
@@ -427,6 +429,7 @@ class _PlaceCard extends StatelessWidget {
               ),
             ),
           ),
+        ),
       ]),
     );
   }

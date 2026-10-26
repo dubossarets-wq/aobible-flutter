@@ -181,31 +181,37 @@ void main() {
 
     setUp(() async => Books.load());
 
-    test('книги узких разделов не повторяются в ВЗ и НЗ', () {
+    test('книги узких разделов не повторяются в ВЗ и НЗ; порядок — библейский', () {
       final l = streamList({'ot': 1, 'nt': 1, 'ps': 1, 'gospels': 1, 'own': 1}, ['Isa', 'Acts']);
-      expect(l.map((x) => x.key), ['ot', 'nt', 'ps', 'gospels', 'own']);
+      // по первой книге: ВЗ (Быт), Псалтирь, свои (Ис), Евангелия (Мф), НЗ (Рим — Евангелия и Деяния ушли в свои разделы)
+      expect(l.map((x) => x.key), ['ot', 'ps', 'own', 'gospels', 'nt']);
       expect(l[0].books, isNot(contains('Ps')));
       expect(l[0].books, isNot(contains('Isa')));
       expect(l[0].books.first, 'Gen');
-      expect(l[1].books, isNot(contains('John')));
-      expect(l[1].books, isNot(contains('Acts')));
-      expect(l[2].books, ['Ps']);
-      expect(l[4].books, ['Isa', 'Acts']);
+      expect(l[4].books, isNot(contains('John')));
+      expect(l[4].books, isNot(contains('Acts')));
+      expect(l[1].books, ['Ps']);
+      expect(l[2].books, ['Isa', 'Acts']);
+      // в своих книгах нет тех, что уже читаются в Псалтири и Притчах
+      expect(streamList({'ps': 1, 'prov': 1, 'own': 1}, ['Job', 'Ps', 'Prov']).map((x) => x.books), [['Job'], ['Ps'], ['Prov']]);
       // без узких разделов ВЗ и НЗ целиком
       final w = streamList({'ot': 1, 'nt': 1}, const []);
       expect(w[0].books, contains('Ps'));
       expect(w[1].books, contains('John'));
     });
 
-    test('ВЗ + НЗ + Псалтирь по 1 главе — 779 дней, первый день Быт 1, Мф 1, Пс 1', () {
+    test('ВЗ + НЗ + Псалтирь по 1 главе — 779 дней, первый день Быт 1, Пс 1, Мф 1', () {
       final list = streamList({'ot': 1, 'nt': 1, 'ps': 1}, const []);
       final plan = makeParallelPlan(list, chapters);
       expect(plan.length, 779);
       expect(parallelDays(list, chapters), 779);
-      expect(plan.first, ['Gen.1', 'Matt.1', 'Ps.1']);
-      // НЗ (260 глав) начинается заново, Псалтирь (150) — тоже
-      expect(plan[260][1], 'Matt.1');
-      expect(plan[150][2], 'Ps.1');
+      expect(plan.first, ['Gen.1', 'Ps.1', 'Matt.1']);
+      // Псалтирь (150) идёт по кругу, НЗ (260) — один раз: после него в дне только ВЗ и Псалтирь
+      expect(plan[150][1], 'Ps.1');
+      expect(plan[259][2], 'Rev.22');
+      expect(plan[260].length, 2);
+      expect(plan[260][1], startsWith('Ps.'));
+      expect(plan.expand((d) => d).where((r) => r == 'Matt.1').length, 1);
     });
 
     test('несколько глав в день; пустой выбор — пустой план', () {

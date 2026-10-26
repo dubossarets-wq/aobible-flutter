@@ -411,7 +411,10 @@ class _ModulePicker extends ConsumerWidget {
     return ValueListenableBuilder<int>(
       valueListenable: ModuleStore.instance.changes,
       builder: (context, _, _) {
+        // основной (избранный ★) — первым, остальные в прежнем порядке
         final list = ModuleStore.instance.bibles.where((m) => m.features['helper'] != true).toList();
+        final top = list.indexWhere((m) => m.id == primary);
+        if (top > 0) list.insert(0, list.removeAt(top));
         return AobSheet(
           title: t('Перевод'),
           subtitle: pane == 1 ? t('Вторая панель') : t('Основная панель'),
@@ -427,8 +430,12 @@ class _ModulePicker extends ConsumerWidget {
                   Navigator.pop(context);
                 },
                 // и подсветка, и линии — от края до края окна; отступы — у содержимого строки
+                // открытый сейчас перевод — отмечен фоном (от края до края)
                 child: Container(
-                    decoration: BoxDecoration(border: k == list.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
+                    decoration: BoxDecoration(
+                      color: m.id == current ? mix(pal.accent, 0.09, pal.panel) : null,
+                      border: k == list.length - 1 ? null : Border(bottom: BorderSide(color: pal.line)),
+                    ),
                     padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
                     child: Row(children: [
                       Expanded(
@@ -438,7 +445,6 @@ class _ModulePicker extends ConsumerWidget {
                           Text('${m.title}${m.features['strongs'] == true ? ' · ${t('номера Стронга')}' : ''}', style: TextStyle(fontSize: 12.75, color: pal.muted)),
                         ]),
                       ),
-                      if (m.id == current) Padding(padding: const EdgeInsets.only(left: 8), child: Icon(LucideIcons.check, size: 18, color: pal.accent)),
                       const SizedBox(width: 4),
                       if (primary != m.id)
                         IconBtn(icon: LucideIcons.star, subtle: true, tooltip: t('Сделать основным'), onTap: () => ref.read(settingsProvider.notifier).set({'primaryModule': m.id}))
@@ -630,7 +636,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
                     child: Container(
                       height: 64,
                       decoration: BoxDecoration(
-                        color: pal.panel.withValues(alpha: 0.8),
+                        color: pal.panel, // сплошной белый (на светлых темах), без просвечивания
                         borderRadius: BorderRadius.circular(32),
                         border: Border.all(color: pal.text.withValues(alpha: 0.09)),
                         boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 24, offset: Offset(0, 6))],
@@ -672,13 +678,13 @@ class _TabBarState extends ConsumerState<_TabBar> {
                                               if (id == 'more' && upd) Positioned(top: 2, right: 12, child: _UpdateDot(ring: pal.panel)),
                                             ]),
                                           ),
-                                          const SizedBox(height: 2),
+                                          const SizedBox(height: 2), // зазор между значком и подписью
                                           // подпись помещается целиком: шрифт поменьше, длинная (другие языки) ужимается по ширине вкладки
                                           Padding(
                                             padding: const EdgeInsets.symmetric(horizontal: 2),
                                             child: FittedBox(
                                               fit: BoxFit.scaleDown,
-                                              child: Text(labels[id]!, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10.5, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.text : pal.muted)),
+                                              child: Text(labels[id]!, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10.5, height: 1.15, leadingDistribution: TextLeadingDistribution.even, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.text : pal.muted)),
                                             ),
                                           ),
                                         ]),

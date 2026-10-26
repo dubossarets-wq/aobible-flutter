@@ -51,6 +51,8 @@ Future<void> onWordTap(BuildContext context, WidgetRef ref, WordTap tap) async {
 }
 
 Future<void> _showPopover(BuildContext context, WidgetRef ref, WordTap tap, LookupResult res, List<WordMenuItem> hubItems, Rect anchor, void Function(Future<void>) follow) async {
+  // снизу экран закрывают вкладки и проигрыватель (у читалки это MediaQuery.padding.bottom) — туда выборку не ставим
+  final bottomInset = math.max(MediaQuery.paddingOf(context).bottom, tabBarInset.value);
   await showGeneralDialog<void>(
     context: context,
     barrierDismissible: true, // касание вне выборки только закрывает её
@@ -60,6 +62,7 @@ Future<void> _showPopover(BuildContext context, WidgetRef ref, WordTap tap, Look
     transitionBuilder: (c, a, s, child) => FadeTransition(opacity: a, child: child),
     pageBuilder: (dctx, a, s) => _Popover(
       anchor: anchor,
+      bottomInset: bottomInset,
       res: res,
       before: [for (final x in hubItems) if (x.order < 100) x],
       after: [for (final x in hubItems) if (x.order >= 100) x],
@@ -111,8 +114,9 @@ class _Arrow {
 }
 
 class _Layout extends SingleChildLayoutDelegate {
-  _Layout(this.anchor, this.arrow);
+  _Layout(this.anchor, this.arrow, this.bottomInset);
   final Rect anchor;
+  final double bottomInset;
   final ValueNotifier<_Arrow> arrow;
 
   @override
@@ -120,8 +124,8 @@ class _Layout extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size child) {
-    // Под словом, а если внизу мало места — над ним; по горизонтали — в пределах экрана
-    final below = anchor.bottom + _gap + child.height < size.height - 8 || anchor.top - _gap - child.height < 8;
+    // Под словом, а если внизу мало места (низ закрывают вкладки и проигрыватель) — над ним; по горизонтали — в пределах экрана
+    final below = anchor.bottom + _gap + child.height < size.height - 8 - bottomInset || anchor.top - _gap - child.height < 8;
     final left = math.max(8.0, math.min(size.width - child.width - 8, anchor.left + anchor.width / 2 - child.width / 2));
     final x = math.max(16.0, math.min(child.width - 16, anchor.left + anchor.width / 2 - left));
     arrow.value = _Arrow(x, below);
@@ -129,7 +133,7 @@ class _Layout extends SingleChildLayoutDelegate {
   }
 
   @override
-  bool shouldRelayout(_Layout old) => old.anchor != anchor;
+  bool shouldRelayout(_Layout old) => old.anchor != anchor || old.bottomInset != bottomInset;
 }
 
 /// Стрелочка к слову (.word-pop::before): квадрат 14×14 со скруглением 2, повёрнутый на 45°, цвета панели;
@@ -161,8 +165,9 @@ class _ArrowPainter extends CustomPainter {
 }
 
 class _Popover extends ConsumerStatefulWidget {
-  const _Popover({required this.anchor, required this.res, required this.before, required this.after, required this.onChoose, required this.onItem, required this.onLibrary});
+  const _Popover({required this.anchor, this.bottomInset = 0, required this.res, required this.before, required this.after, required this.onChoose, required this.onItem, required this.onLibrary});
   final Rect anchor;
+  final double bottomInset; // высота вкладок и проигрывателя снизу
   final LookupResult res;
   final List<WordMenuItem> before;
   final List<WordMenuItem> after;
@@ -261,7 +266,7 @@ class _PopoverState extends ConsumerState<_Popover> {
     }
 
     return CustomSingleChildLayout(
-      delegate: _Layout(widget.anchor, _arrow),
+      delegate: _Layout(widget.anchor, _arrow, widget.bottomInset),
       child: CustomPaint(
         foregroundPainter: _ArrowPainter(_arrow, pal.panel, pal.line),
         child: DecoratedBox(

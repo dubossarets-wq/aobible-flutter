@@ -268,11 +268,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
             child: OverflowBox(
               minWidth: c.maxWidth + 32,
               maxWidth: c.maxWidth + 32,
-              child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-                for (final e in themes.entries) _ThemeTile(id: e.key, p: e.value, ring: pal.accent, text: pal.text, on: s.get<String>('theme') == e.key, onTap: () => set({'theme': e.key})),
-                // «Как в системе»: половина светлой темы, половина тёмной
-                _ThemeTile(id: 'auto', p: themes['light']!, dark: themes['dark'], ring: pal.accent, text: pal.text, on: s.get<String>('theme') == 'auto', onTap: () => set({'theme': 'auto'})),
-              ]),
+              // все плитки строятся сразу (их немного): ряд прокручивается, а не создаётся по мере прокрутки
+              child: SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(children: [
+                // порядок: Системная, Светлая, Тёмная, Тёплая, Сепия, затем остальные
+                for (final id in ['auto', 'light', 'dark', 'warm', 'sepia', for (final k in themes.keys) if (!['light', 'dark', 'warm', 'sepia'].contains(k)) k])
+                  id == 'auto'
+                      // «Системная»: половина светлой темы, половина тёмной
+                      ? _ThemeTile(id: 'auto', p: themes['light']!, dark: themes['dark'], ring: pal.accent, text: pal.text, on: s.get<String>('theme') == 'auto', onTap: () => set({'theme': 'auto'}))
+                      : _ThemeTile(id: id, p: themes[id]!, ring: pal.accent, text: pal.text, on: s.get<String>('theme') == id, onTap: () => set({'theme': id})),
+              ])),
             ),
           ),
         ),
@@ -336,11 +340,14 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           for (final (i, e) in defs.indexed)
             InkWell(
               onTap: () => set({'fontFamily': e.key}),
-              child: Container(
+              // выбранный шрифт: подложка проявляется плавно
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.fastOutSlowIn,
                 constraints: const BoxConstraints(minHeight: 62),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
-                  color: s.get<String>('fontFamily') == e.key ? pal.accent.withValues(alpha: 0.09) : null,
+                  color: pal.accent.withValues(alpha: s.get<String>('fontFamily') == e.key ? 0.09 : 0),
                   border: i == defs.length - 1 ? null : Border(bottom: BorderSide(color: pal.line)),
                 ),
                 child: Row(children: [
@@ -350,7 +357,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                       Text(t(e.value.label), style: TextStyle(fontSize: 13.1, color: s.get<String>('fontFamily') == e.key ? pal.text : pal.muted)),
                     ]),
                   ),
-                  SizedBox(width: 22, child: s.get<String>('fontFamily') == e.key ? Icon(LucideIcons.check, size: 20, color: pal.accent) : null),
+                  // галочка выбранного шрифта проявляется плавно
+                  SizedBox(
+                    width: 22,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 240),
+                      opacity: s.get<String>('fontFamily') == e.key ? 1 : 0,
+                      child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: s.get<String>('fontFamily') == e.key ? 1 : 0.6, child: Icon(LucideIcons.check, size: 20, color: pal.accent)),
+                    ),
+                  ),
                 ]),
               ),
             ),
@@ -377,6 +392,12 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       ]),
     ];
   }
+
+  // Настройки под включённым переключателем карточки: раскрываются и сворачиваются плавно (зазор 14 — внутри)
+  Widget _more(bool open, List<Widget> items) => Reveal(
+        open: open,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final w in items) Padding(padding: const EdgeInsets.only(top: 14), child: w)]),
+      );
 
   List<Widget> _nums(Settings s) {
     final pal = effectivePalette(s);
@@ -413,19 +434,19 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           if (s.get<bool>('showVerseNumbers')) TextSpan(text: '2 ', style: TextStyle(color: pal.verseNum, fontSize: fs * 0.6)),
           TextSpan(text: t('Земля же была безвидна и пуста, и тьма над бездною, и Дух Божий носился над водою.')),
         ]),
-        if (s.get<bool>('showVerseNumbers')) ...[
+        _more(s.get<bool>('showVerseNumbers'), [
           RangeRow(label: t('Размер'), value: s.d('verseNumSize'), min: 0.4, max: 1.2, step: 0.05, onChanged: (v) => set({'verseNumSize': v}), word: _sizeW(0.52, 0.8)),
           SegRow<String>(label: t('Положение'), value: s.get<String>('verseNumPos'), options: [for (final k in const ['sup', 'inline']) (k, t(_pos[k]!), null)], onChanged: (v) => set({'verseNumPos': v})),
-        ],
+        ]),
       ]),
       Card2(children: [
         SwitchField(bold: true, big: true, label: t('Номера Стронга'), hint: t('Только в переводах с номерами Стронга, например RST+'), value: s.get<bool>('showStrongs'), onChanged: (v) => set({'showStrongs': v})),
         mini(withStrongs(), lines: 3),
-        if (s.get<bool>('showStrongs')) ...[
+        _more(s.get<bool>('showStrongs'), [
           RangeRow(label: t('Размер'), value: s.d('strongSize'), min: 0.35, max: 1, step: 0.05, onChanged: (v) => set({'strongSize': v}), word: _sizeW(0.45, 0.7)),
           SegRow<String>(label: t('Положение'), value: s.get<String>('strongPos'), options: [for (final k in const ['sup', 'inline', 'sub']) (k, t(_pos[k]!), null)], onChanged: (v) => set({'strongPos': v})),
           _ColorPick(label: t('Цвет'), s: s, colorKey: 'strong', list: _accents, onChanged: (v) => _setColor('strong', v), onReset: () => _resetColors(['strong']), changed: over['strong'] != null),
-        ],
+        ]),
       ]),
       Card2(children: [
         SwitchField(bold: true, big: true, label: t('Заголовки разделов'), value: s.get<bool>('showHeadings'), onChanged: (v) => set({'showHeadings': v})),
@@ -440,10 +461,10 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
             ]),
           ),
         ),
-        if (s.get<bool>('showHeadings')) ...[
+        _more(s.get<bool>('showHeadings'), [
           RangeRow(label: t('Размер'), value: s.d('headingSize'), min: 0.6, max: 1.4, step: 0.05, onChanged: (v) => set({'headingSize': v}), word: _sizeW(0.72, 1)),
           _ColorPick(label: t('Цвет'), s: s, colorKey: 'heading', list: _accents, onChanged: (v) => _setColor('heading', v), onReset: () => _resetColors(['heading']), changed: over['heading'] != null),
-        ],
+        ]),
       ]),
       Card2(title: t('Заголовки глав'), children: [
         mini([TextSpan(text: t('Глава {n}', {'n': '1'}), style: TextStyle(fontSize: s.d('chapterTitleSize') * 16, fontWeight: FontWeight.w800, height: 1.1))], lines: 1),
@@ -496,9 +517,11 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           message: tip ?? '',
           child: GestureDetector(
             onTap: onTap,
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.fastOutSlowIn,
               padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), border: Border.all(color: selected ? pal.accent : Colors.transparent, width: 3)),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), border: Border.all(color: selected ? pal.accent : pal.accent.withValues(alpha: 0), width: 3)),
               child: AspectRatio(
                 aspectRatio: 1,
                 child: Container(
@@ -565,12 +588,20 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           );
         },
       ),
-      if (on)
-        Card2(children: [
-          RangeRow(label: t('Картинку видно'), value: 100 - bgVeil(s), min: 5, max: 70, step: 1, onChanged: (v) => set({'bgVeil': 100 - v}), word: (v) => '${v.round()}%'),
-          RangeRow(label: t('Размытие'), value: bgBlur(s), min: 0, max: 20, step: 1, onChanged: (v) => set({'bgBlur': v}), word: _blurW),
-        ]),
-      Text(t('Картинка хранится только на этом устройстве.'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+      // ползунки картинки раскрываются плавно; зазор 18 — внутри, чтобы свёрнутые не оставляли места
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Reveal(
+          open: on,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: Card2(children: [
+              RangeRow(label: t('Картинку видно'), value: 100 - bgVeil(s), min: 5, max: 70, step: 1, onChanged: (v) => set({'bgVeil': 100 - v}), word: (v) => '${v.round()}%'),
+              RangeRow(label: t('Размытие'), value: bgBlur(s), min: 0, max: 20, step: 1, onChanged: (v) => set({'bgBlur': v}), word: _blurW),
+            ]),
+          ),
+        ),
+        Text(t('Картинка хранится только на этом устройстве.'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+      ]),
     ];
   }
 
@@ -631,13 +662,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         changed: over['bar'] != null,
       ),
       const _HlLabels(),
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Card2(title: t('Тонкая настройка цветов'), children: [
         Column(children: [
           for (final k in colorKeys.where((k) => k.$1 != 'strong' && k.$1 != 'heading'))
             _ColorLine(label: t(k.$2), color: colorFor(s, k.$1), changed: over[k.$1] != null, onPick: (c) => _setColor(k.$1, c), onReset: () => _resetColors([k.$1])),
         ]),
       ]),
-      if (over.isNotEmpty) Align(alignment: Alignment.centerLeft, child: AobButton(block: true, icon: LucideIcons.rotateCcw, label: t('Все цвета — как в теме'), onTap: () => set({'colorOverrides': <String, dynamic>{}}))),
+      Reveal(open: over.isNotEmpty, child: Padding(padding: const EdgeInsets.only(top: 18), child: Align(alignment: Alignment.centerLeft, child: AobButton(block: true, icon: LucideIcons.rotateCcw, label: t('Все цвета — как в теме'), onTap: () => set({'colorOverrides': <String, dynamic>{}}))))),
+      ]),
     ];
   }
 
@@ -670,7 +703,7 @@ class _ThemeTile extends StatelessWidget {
   const _ThemeTile({required this.id, required this.p, this.dark, required this.ring, required this.text, required this.on, required this.onTap});
   final String id;
   final Palette p;
-  final Palette? dark; // у плитки «Как в системе» — тёмная половина
+  final Palette? dark; // у плитки «Системная» — тёмная половина
   final Color ring, text;
   final bool on;
   final VoidCallback onTap;
@@ -685,11 +718,13 @@ class _ThemeTile extends StatelessWidget {
         padding: const EdgeInsets.only(top: 6, bottom: 2),
         child: Column(children: [
           // обводка выбранной — снаружи кружка: 3 px акцента с отступом 2
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.fastOutSlowIn,
             width: 54 + 10,
             height: 54 + 10,
             alignment: Alignment.center,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: on ? ring : Colors.transparent, width: 3)),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: on ? ring : ring.withValues(alpha: 0), width: 3)),
             child: Container(
               width: 54,
               height: 54,
@@ -706,12 +741,12 @@ class _ThemeTile extends StatelessWidget {
                 if (dark == null)
                   Transform.translate(offset: const Offset(-3, 4), child: Text(t('Аа'), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.16)))
                 else
-                  Transform.translate(
-                    offset: const Offset(0, 4),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(t('Аа').substring(0, 1), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)),
-                      const SizedBox(width: 3),
-                      Text(t('Аа').substring(1), style: TextStyle(color: dark!.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)),
+                  // «А» — по центру светлой половины, «а» — по центру тёмной
+                  Positioned.fill(
+                    top: 8,
+                    child: Row(children: [
+                      Expanded(child: Center(child: Text(t('Аа').substring(0, 1), style: TextStyle(color: p.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
+                      Expanded(child: Center(child: Text(t('Аа').substring(1), style: TextStyle(color: dark!.text, fontWeight: FontWeight.w600, fontSize: 16, height: 1)))),
                     ]),
                   ),
                 Positioned(right: 7, bottom: 10, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: (dark ?? p).accent, shape: BoxShape.circle))),
@@ -719,7 +754,7 @@ class _ThemeTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 0),
-          Text(id == 'auto' ? t('Как в системе') : t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
+          Text(id == 'auto' ? t('Системная') : t(p.label), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: text)),
         ]),
       ),
     );
@@ -748,14 +783,16 @@ class _ViewTile extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.fastOutSlowIn,
           constraints: const BoxConstraints(minHeight: 84),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: pal.bg,
             border: Border.all(color: on ? pal.accent : pal.line),
             borderRadius: BorderRadius.circular(12),
-            boxShadow: on ? [BoxShadow(color: pal.accent, spreadRadius: 2)] : null,
+            boxShadow: [BoxShadow(color: on ? pal.accent : pal.accent.withValues(alpha: 0), spreadRadius: on ? 2 : 0)],
           ),
           child: LayoutBuilder(
             builder: (context, c) {
@@ -836,7 +873,9 @@ class _ColorPick extends ConsumerWidget {
               height: 44 + 8,
               alignment: Alignment.center,
               // место под кольцо: 2 + 2 снаружи
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.fastOutSlowIn,
                 width: 44,
                 height: 44,
                 alignment: Alignment.center,
@@ -847,7 +886,15 @@ class _ColorPick extends ConsumerWidget {
                   boxShadow: on ? [BoxShadow(color: pal.panel, spreadRadius: 2), BoxShadow(color: pal.text, spreadRadius: 4)].reversed.toList() : null,
                 ),
                 foregroundDecoration: null,
-                child: dashed && !on ? CustomPaint(size: const Size(44, 44), painter: _DashedCircle(pal.muted), child: Center(child: child)) : (on ? Icon(LucideIcons.check, size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : child),
+                child: dashed && !on
+                    ? CustomPaint(size: const Size(44, 44), painter: _DashedCircle(pal.muted), child: Center(child: child))
+                    : AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        switchInCurve: Curves.fastOutSlowIn,
+                        switchOutCurve: Curves.fastOutSlowIn,
+                        transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
+                        child: on ? Icon(LucideIcons.check, key: const ValueKey('on'), size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : KeyedSubtree(key: const ValueKey('off'), child: child ?? const SizedBox.shrink()),
+                      ),
               ),
             ),
           ),

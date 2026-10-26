@@ -72,6 +72,7 @@ class Settings {
     'splitLayout': 'auto',
     'splitRatio': 0.5,
     'primaryModule': 'rst-plus',
+    'audioFollowsTranslation': true, // сменили перевод во время чтения вслух — запись на его языке
     // Оформление и меню (функция «Оболочка», lib/features/shell) — ключи и значения как в веб-версии
     'fontFamily': 'system',
     'fontWeight': 400,

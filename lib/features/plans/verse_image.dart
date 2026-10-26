@@ -361,17 +361,20 @@ class _Bg extends StatelessWidget {
           message: tip,
           child: GestureDetector(
             onTap: onTap,
-            child: Container(
+            // рамка выбранного фона проявляется плавно
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.fastOutSlowIn,
               width: 52,
               height: 64,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: on ? pal.accent : Colors.transparent, width: 2),
+                border: Border.all(color: on ? pal.accent : pal.accent.withValues(alpha: 0), width: 2),
                 color: pal.line,
                 gradient: gradient == null ? null : LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: gradient!),
               ),
-              foregroundDecoration: on ? BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: pal.panel, width: 2)) : null,
+              foregroundDecoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: on ? pal.panel : pal.panel.withValues(alpha: 0), width: 2)),
               child: child,
             ),
           ),

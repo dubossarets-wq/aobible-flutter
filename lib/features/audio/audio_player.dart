@@ -414,18 +414,25 @@ class _ApChip extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 54, minHeight: 38),
-            padding: const EdgeInsets.symmetric(horizontal: 13),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: on ? mix(pal.accent, 0.5, pal.line) : pal.line),
-              color: mix(pal.panel, 0.72, Colors.transparent),
-            ),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.1, color: on ? pal.accent : pal.text, fontFeatures: const [ui.FontFeature.tabularFigures()]),
-              child: child,
+          // включённая — рамка и надпись перетекают в цвет акцента
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: on ? 1.0 : 0.0),
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.fastOutSlowIn,
+            child: child,
+            builder: (context, v, child) => Container(
+              constraints: const BoxConstraints(minWidth: 54, minHeight: 38),
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Color.lerp(pal.line, mix(pal.accent, 0.5, pal.line), v)!),
+                color: mix(pal.panel, 0.72, Colors.transparent),
+              ),
+              child: DefaultTextStyle.merge(
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.1, color: Color.lerp(pal.text, pal.accent, v), fontFeatures: const [ui.FontFeature.tabularFigures()]),
+                child: child!,
+              ),
             ),
           ),
         ),

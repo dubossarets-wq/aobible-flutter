@@ -184,12 +184,37 @@ class AudioEngine {
     final c = _c;
     final init = c == null ? const VerseRef('Gen', 1, 1) : (c.read(panesProvider).elementAtOrNull(pane)?.ref ?? const VerseRef('Gen', 1, 1));
     _live = livePosition(pane, init)..addListener(_onLive);
+    // перевод этой панели сменили — озвучка переходит на запись на его языке
+    _moduleSub?.close();
+    _moduleSub = c?.listen<String?>(panesProvider.select((l) => l.elementAtOrNull(pane)?.moduleId), (_, next) => _onModule(next));
   }
 
   void _unwatchLive() {
     _live?.removeListener(_onLive);
     _live = null;
     _livePane = -1;
+    _moduleSub?.close();
+    _moduleSub = null;
+  }
+
+  ProviderSubscription<String?>? _moduleSub;
+
+  /// Сменили перевод панели во время чтения вслух: запись подходит и к нему — читает дальше; нет — берём запись
+  /// на его языке (ту, что слушали раньше, или первую) с того же места; записи нет — звучит прежняя.
+  /// Настройка «Озвучка — на языке перевода» (audioFollowsTranslation)
+  Future<void> _onModule(String? moduleId) async {
+    final a = s, c = _c, at = a.ref;
+    if (moduleId == null || c == null || at == null || !a.active || a.narrated || a.source == null || moduleId == a.moduleId) return;
+    if (c.read(settingsProvider).get<bool>('audioFollowsTranslation') == false) return;
+    final src = await audioSourcesFor(moduleId, at);
+    if (!s.active || s.pane != a.pane) return;
+    if (src.recorded.any((m) => m.id == a.source)) return _set((x) => x.copyWith(moduleId: moduleId));
+    final pref = _load<String?>('audioSource', null);
+    final next = src.recorded.any((m) => m.id == pref) ? pref : src.recorded.firstOrNull?.id;
+    if (next == null) return;
+    final wasPlaying = s.playing;
+    await start(c, pane: a.pane, moduleId: moduleId, ref: s.ref ?? at, source: next);
+    if (!wasPlaying) await pause();
   }
 
   // Место в панели изменилось не по нашему переходу — человек листает сам

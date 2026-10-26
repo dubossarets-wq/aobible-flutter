@@ -179,7 +179,7 @@ class _SwitchFieldState extends ConsumerState<SwitchField> {
           ),
         ),
       ),
-      if (_hint && widget.hint != null) Padding(padding: const EdgeInsets.only(top: 4, bottom: 4), child: HintBubble(widget.hint!)),
+      if (widget.hint != null) Reveal(open: _hint, child: Padding(padding: const EdgeInsets.only(top: 4, bottom: 4), child: HintBubble(widget.hint!))),
     ]);
   }
 }
@@ -441,7 +441,8 @@ class Card2 extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        for (var i = 0; i < all.length; i++) ...[if (i > 0) const SizedBox(height: 14), all[i]],
+        // раскрывающийся блок (Reveal) сам несёт зазор сверху — свёрнутый не оставляет пустого места
+        for (var i = 0; i < all.length; i++) ...[if (i > 0 && all[i] is! Reveal) const SizedBox(height: 14), all[i]],
       ]),
     );
   }
