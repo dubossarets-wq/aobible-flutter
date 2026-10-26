@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
+import '../../core/settings.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import '../../ui/kit.dart';
 import '../study/dictionary_sheet.dart' show openRefInOther;
 import '../study/sheet.dart' show LinkedText, splitRefs;
@@ -34,6 +36,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, 
     body: (ctx) => Consumer(
       builder: (ctx, wref, _) {
         final pal = paletteOf(wref);
+        final font = readerTextStyle(wref.watch(settingsProvider), size: 16.3, weight: 400); // --font-text
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (verse.isNotEmpty)
             Container(
@@ -41,7 +44,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, 
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(color: mix(pal.accent, 0.06, pal.panel), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
-              child: Text(verse, style: TextStyle(fontSize: 15, height: 1.5, color: pal.text)),
+              child: Text(verse, style: font.copyWith(fontSize: 15, height: 1.5, color: pal.text)),
             ),
           TextField(
             controller: ctl,
@@ -49,7 +52,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, 
             minLines: 7,
             maxLines: 12,
             keyboardType: TextInputType.multiline,
-            style: TextStyle(fontSize: 16.3, height: 1.5, color: pal.text),
+            style: font.copyWith(height: 1.5, color: pal.text),
             decoration: InputDecoration(
               hintText: t('Ваши мысли, вопросы, ссылки…'),
               hintStyle: TextStyle(color: pal.muted),
@@ -76,7 +79,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, 
                         decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius * 0.75)),
                         child: LinkedText(
                           text: v.text,
-                          style: TextStyle(fontSize: 16.3, height: 1.5, color: pal.text),
+                          style: font.copyWith(height: 1.5, color: pal.text),
                           onOpen: (r) {
                             ref.read(marksProvider.notifier).setNote(first, ctl.text, label);
                             openRefInOther(ctx, wref, fromPane, r);

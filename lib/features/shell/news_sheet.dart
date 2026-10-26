@@ -6,6 +6,7 @@ import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import 'colors.dart';
+import 'intl_data.dart';
 import 'news_data.dart';
 import 'sheet.dart';
 
@@ -21,10 +22,14 @@ List<NewsEntry> pendingNews() {
 
 void markNewsSeen() => prefs.setString(_key, news.first.id);
 
-/// 2026-10-24 → 24.10.2026
+/// 2026-10-24 → «24 октября» на языке интерфейса (как toLocaleDateString(locale, {day, month: 'long'}) в веб-версии)
 String fmtNewsDate(String id) {
   final p = id.split('-');
-  return p.length < 3 ? id : '${p[2].replaceAll(RegExp(r'\D'), '').padLeft(2, '0')}.${p[1]}.${p[0]}';
+  if (p.length < 3) return id;
+  final day = int.tryParse(p[2].replaceAll(RegExp(r'\D'), '')), month = int.tryParse(p[1]);
+  final tpl = monthDayTemplates[currentLang] ?? monthDayTemplates['ru']!;
+  if (day == null || month == null || month < 1 || month > 12) return id;
+  return tpl[month - 1].replaceFirst('{d}', '$day');
 }
 
 Future<void> openNews(BuildContext context, {List<NewsEntry>? items}) {

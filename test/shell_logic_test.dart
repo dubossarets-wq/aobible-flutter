@@ -116,7 +116,7 @@ void main() {
     // вышла запись новее просмотренной
     prefs.setString('newsSeen', news[1].id);
     expect(pendingNews().map((n) => n.id), [news.first.id]);
-    expect(fmtNewsDate('2026-10-24'), '24.10.2026');
+    expect(fmtNewsDate('2026-10-24'), '24 октября'); // как toLocaleDateString(ru, {day, month: 'long'}) в веб-версии
     expect(news.every((n) => n.items.isNotEmpty), true);
   });
 

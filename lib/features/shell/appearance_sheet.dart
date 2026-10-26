@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
@@ -139,7 +140,7 @@ class Sample extends StatelessWidget {
             child: Row(children: [
               Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: mix(pal.barText, 0.14, pal.bar), borderRadius: BorderRadius.circular(99)), child: Text('RST+', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 12.75))),
               const SizedBox(width: 8),
-              Text('${t('Быт')} 1:1', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 15)),
+              Text('${Books.instance.meta('Gen').short} 1:1', style: TextStyle(color: pal.barText, fontWeight: FontWeight.w700, fontSize: 15)),
             ]),
           ),
         Padding(

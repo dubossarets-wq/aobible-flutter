@@ -38,7 +38,8 @@ void toast(BuildContext? context, String text) {
 }
 
 /// Открыть нижнее окно (как BottomSheet с initial={2} в веб-версии — почти на весь экран)
-Future<T?> showAppSheet<T>(BuildContext context, WidgetBuilder builder) => showAobSheet<T>(context, builder: builder);
+// окна оболочки (настройки, библиотека, о приложении, что нового, инструкция, оформление) — вкладка «Ещё», как в вебе
+Future<T?> showAppSheet<T>(BuildContext context, WidgetBuilder builder) => showAobSheet<T>(context, builder: builder, tab: 'more');
 
 /// Каркас окна: полоска, заголовок (+ подзаголовок), стрелка «‹» или крестик, линия под шапкой — это AobSheet;
 /// здесь добавлены закреплённая часть под шапкой (fixed), прокручиваемое содержимое со зазором 12 между блоками

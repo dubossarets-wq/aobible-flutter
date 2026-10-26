@@ -1334,5 +1334,12 @@
  "Голос диктора удалён": "Voce narrante eliminata",
  "Удалить голос диктора": "Elimina la voce narrante",
  "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Voce narrante «Dmitri» (Piper, ru_RU-dmitri)",
- "Диктор, книги без интернета": "Voce narrante, libri senza internet"
+ "Диктор, книги без интернета": "Voce narrante, libri senza internet",
+ "МБ": "MB",
+ "КБ": "KB",
+ "Не удалось подключиться к серверу. Проверьте интернет.": "Impossibile connettersi al server. Controlla la connessione internet.",
+ "Скоро": "Prossimamente",
+ "Конец книги": "Fine del libro",
+ "Предыдущая глава": "Capitolo precedente",
+ "Следующая глава": "Capitolo successivo"
 }

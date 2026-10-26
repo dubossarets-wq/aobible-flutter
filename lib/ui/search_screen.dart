@@ -73,7 +73,7 @@ class _Memo {
 _Memo? _memo;
 
 Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope}) =>
-    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope));
+    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search');
 
 class SearchSheet extends ConsumerStatefulWidget {
   const SearchSheet({super.key, required this.pane, this.query, this.scope});

@@ -40,6 +40,9 @@ Palette paletteOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.p
 
 // --- Нижнее окно (BottomSheet.jsx): скруглённый верх, полоска, заголовок, крестик ------------------------
 
+/// Какая нижняя вкладка сейчас открыта: plans, search, bible, saved, more (activeTab в TabBar.jsx)
+final tabActive = ValueNotifier<String>('bible');
+
 /// Открыть окно: initial — доля высоты экрана (как initial={1|2} в веб-версии: 0.5 или 0.92).
 /// Окно, открытое поверх другого окна (из «Ещё», из «Настроек»…), получает стрелку «назад» к нему,
 /// а крестик закрывает все окна разом.
@@ -48,9 +51,10 @@ Future<T?> showAobSheet<T>(
   required Widget Function(BuildContext context) builder,
   double initial = 0.92,
   bool page = false,
+  String? tab, // вкладка этого окна (plans, search, saved, more): подсвечивается, если окно открыто не с неё
 }) {
   final nested = topRoute(context) is PopupRoute;
-  return showModalBottomSheet<T>(
+  final f = showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -66,6 +70,14 @@ Future<T?> showAobSheet<T>(
       ),
     ),
   );
+  // как activeTab в веб-версии: окно своего вида подсвечивает свою вкладку, пока открыто (если подсвечена «Библия»)
+  if (tab != null && tabActive.value == 'bible') {
+    tabActive.value = tab;
+    f.whenComplete(() {
+      if (tabActive.value == tab) tabActive.value = 'bible';
+    });
+  }
+  return f;
 }
 
 /// Верхний маршрут навигатора (popUntil с «да» на первом же ничего не закрывает)

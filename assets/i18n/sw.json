@@ -1328,5 +1328,12 @@
  "Голос диктора удалён": "Sauti ya msomaji imefutwa",
  "Удалить голос диктора": "Futa sauti ya msomaji",
  "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Sauti ya msomaji «Dmitri» (Piper, ru_RU-dmitri)",
- "Диктор, книги без интернета": "Msomaji, vitabu bila intaneti"
+ "Диктор, книги без интернета": "Msomaji, vitabu bila intaneti",
+ "МБ": "MB",
+ "КБ": "KB",
+ "Не удалось подключиться к серверу. Проверьте интернет.": "Imeshindwa kuunganisha na seva. Angalia intaneti.",
+ "Скоро": "Inakuja hivi karibuni",
+ "Конец книги": "Mwisho wa kitabu",
+ "Предыдущая глава": "Sura iliyotangulia",
+ "Следующая глава": "Sura inayofuata"
 }

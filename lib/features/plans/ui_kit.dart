@@ -19,10 +19,11 @@ const kDangerLink = Color(0xFFC0392B); // .link-btn.danger
 
 /// Окно почти на весь экран (initial=2 в веб-версии); page — отдельная страница (variant="page").
 /// Свой ScaffoldMessenger: сообщения («Отменить», «Засчитано…») показываются внутри окна, а не под ним.
-Future<T?> showPage<T>(BuildContext context, WidgetBuilder builder, {double height = 0.92, bool page = false}) => showAobSheet<T>(
+Future<T?> showPage<T>(BuildContext context, WidgetBuilder builder, {double height = 0.92, bool page = false, String? tab}) => showAobSheet<T>(
       context,
       initial: height,
       page: page,
+      tab: tab,
       builder: (_) => ScaffoldMessenger(child: Scaffold(backgroundColor: Colors.transparent, body: Builder(builder: builder))),
     );
 

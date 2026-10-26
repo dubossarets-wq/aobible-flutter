@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import '../../ui/kit.dart';
 import 'study_data.dart';
 
@@ -493,7 +494,8 @@ class QuoteBox extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
-      child: Text(text, style: const TextStyle(height: 1.5)),
+      // .xref-source / .guide-card: шрифт читалки (--font-text)
+      child: Text(text, style: readerTextStyle(ref.watch(settingsProvider), size: 15, weight: 400).copyWith(height: 1.5)),
     );
   }
 }

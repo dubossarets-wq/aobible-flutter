@@ -1336,5 +1336,12 @@
  "Голос диктора удалён": "Vocea crainicului a fost ștearsă",
  "Удалить голос диктора": "Șterge vocea crainicului",
  "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Vocea crainicului „Dmitri” (Piper, ru_RU-dmitri)",
- "Диктор, книги без интернета": "Crainic, cărți fără internet"
+ "Диктор, книги без интернета": "Crainic, cărți fără internet",
+ "МБ": "MB",
+ "КБ": "KB",
+ "Не удалось подключиться к серверу. Проверьте интернет.": "Nu s-a putut conecta la server. Verificați internetul.",
+ "Скоро": "În curând",
+ "Конец книги": "Sfârșitul cărții",
+ "Предыдущая глава": "Capitolul anterior",
+ "Следующая глава": "Capitolul următor"
 }

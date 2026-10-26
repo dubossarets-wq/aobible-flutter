@@ -26,7 +26,7 @@ void register() {
     label: t('Проповеди'),
     order: 20,
     visible: (ref) => menuFlag(ref.watch(settingsProvider), 'sermons'),
-    run: (context, ref, pane) => showPage(context, (_) => SermonsSheet(pane: pane), page: true),
+    run: (context, ref, pane) => showPage(context, (_) => SermonsSheet(pane: pane), page: true, tab: 'more'),
   ));
   Hub.verseDecorators.add(_decor);
   Hub.afterStart.add(_watchSermons);

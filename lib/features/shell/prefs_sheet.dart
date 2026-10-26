@@ -17,6 +17,7 @@ import 'colors.dart';
 import 'flags.dart';
 import 'fonts.dart';
 import 'help_sheet.dart';
+import 'intl_data.dart';
 import 'library_sheet.dart';
 import 'news_sheet.dart';
 import 'plural.dart';
@@ -48,13 +49,6 @@ class Flag extends ConsumerWidget {
     );
   }
 }
-
-// Название языка на языке интерфейса (второй строкой в списке языков): в русском интерфейсе — по-русски
-const _ruNames = <String, String>{
-  'uk': 'Украинский', 'ro': 'Румынский', 'en': 'Английский', 'es': 'Испанский', 'pt': 'Португальский', 'fr': 'Французский', 'de': 'Немецкий',
-  'it': 'Итальянский', 'pl': 'Польский', 'be': 'Белорусский', 'bg': 'Болгарский', 'sr': 'Сербский', 'cs': 'Чешский', 'ka': 'Грузинский',
-  'hy': 'Армянский', 'ko': 'Корейский', 'zh': 'Китайский', 'ja': 'Японский', 'id': 'Индонезийский', 'hi': 'Хинди', 'sw': 'Суахили',
-};
 
 // Что показывать в меню «Ещё» (остальное — в «Настройках»)
 const _menuItems = <(String, String, String?)>[
@@ -137,7 +131,8 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
             for (var i = 0; i < langs.length; i++)
               _LangRow(
                 l: langs[i],
-                local: langs[i].code == currentLang || currentLang != 'ru' ? '' : (_ruNames[langs[i].code] ?? ''),
+                // второй строкой — название языка на языке интерфейса («Украинский», «Ukrainian»), как Intl.DisplayNames в вебе
+                local: langs[i].code == currentLang ? '' : (langDisplayNames[currentLang]?[langs[i].code] ?? ''),
                 on: langs[i].code == currentLang,
                 last: i == langs.length - 1,
                 onTap: () async {

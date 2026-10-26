@@ -9,6 +9,7 @@ import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import 'colors.dart';
+import 'intl_data.dart';
 import 'library_import.dart';
 import 'sheet.dart';
 
@@ -44,9 +45,10 @@ int langRank(String code) => _order.contains(code) ? _order.indexOf(code) : _ord
 /// Название языка: в русском интерфейсе — по-русски, в остальных — на самом языке (если он среди языков приложения)
 String langName(String code) {
   if (code.isEmpty) return t('Другие');
+  // не русский интерфейс — название на языке интерфейса, как Intl.DisplayNames в веб-версии
   if (currentLang != 'ru') {
-    final l = langs.where((x) => x.code == code).firstOrNull;
-    if (l != null) return l.name;
+    final s = langDisplayNames[currentLang]?[code];
+    if (s != null) return s;
   }
   return _langNames[code] ?? code.toUpperCase();
 }

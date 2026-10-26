@@ -49,7 +49,7 @@ Future<Uint8List> _image(String path) => _images.putIfAbsent(path, () => downloa
     }));
 
 void openMapsSheet(BuildContext context, WidgetRef ref, int pane) {
-  showAobSheet(context, builder: (_) => _MapsSheet(pane: pane, outer: context));
+  showAobSheet(context, builder: (_) => _MapsSheet(pane: pane, outer: context), tab: 'more');
 }
 
 class _MapsSheet extends ConsumerStatefulWidget {

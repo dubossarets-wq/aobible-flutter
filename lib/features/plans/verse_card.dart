@@ -11,6 +11,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import 'net_cache.dart';
 import 'ui_kit.dart';
 import 'verse_image.dart';
@@ -119,7 +120,7 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(t('Стих дня'), style: const TextStyle(color: Color(0xE0FFFFFF), fontSize: 13.8, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
-                  Text(v.text, style: TextStyle(color: Colors.white, fontSize: textSize, height: 1.38, fontWeight: FontWeight.w500, shadows: const [Shadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 1))])),
+                  Text(v.text, style: readerTextStyle(ref.watch(settingsProvider), size: textSize, weight: 500).copyWith(color: Colors.white, height: 1.38, fontWeight: FontWeight.w500, shadows: const [Shadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 1))])),
                   const SizedBox(height: 14),
                   Opacity(
                     opacity: 0.95,

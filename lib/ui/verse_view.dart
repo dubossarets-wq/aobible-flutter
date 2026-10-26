@@ -426,15 +426,21 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
           )
         : Stack(fit: StackFit.passthrough, children: [paint(1), text]);
     if (cont) return stack;
-    return Container(
-      margin: EdgeInsets.only(bottom: fs * s.d('verseSpacing')),
-      decoration: BoxDecoration(
-        color: seg.bg,
-        border: seg.selected ? Border(left: BorderSide(color: pal.accent, width: 3)) : null,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      padding: seg.bg != null ? const EdgeInsets.symmetric(horizontal: 4) : EdgeInsets.zero,
+    // Смена цвета фона плавная (пульс сердечка идёт ступеньками раз в 160 мс — между ними цвет перетекает)
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: seg.bg ?? pal.bg.withValues(alpha: 0)), // «нет фона» — прозрачный цвета страницы, чтобы затухание не темнело
+      duration: s.get<bool>('animations') ? const Duration(milliseconds: 170) : Duration.zero,
       child: stack,
+      builder: (context, bg, child) => Container(
+        margin: EdgeInsets.only(bottom: fs * s.d('verseSpacing')),
+        decoration: BoxDecoration(
+          color: bg,
+          border: seg.selected ? Border(left: BorderSide(color: pal.accent, width: 3)) : null,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        padding: seg.bg != null ? const EdgeInsets.symmetric(horizontal: 4) : EdgeInsets.zero,
+        child: child,
+      ),
     );
   }
 

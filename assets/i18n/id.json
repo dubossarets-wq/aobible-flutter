@@ -1320,5 +1320,12 @@
  "Голос диктора удалён": "Suara pembaca dihapus",
  "Удалить голос диктора": "Hapus suara pembaca",
  "Голос диктора «Дмитрий» (Piper, ru_RU-dmitri)": "Suara pembaca “Dmitri” (Piper, ru_RU-dmitri)",
- "Диктор, книги без интернета": "Pembaca, kitab tanpa internet"
+ "Диктор, книги без интернета": "Pembaca, kitab tanpa internet",
+ "МБ": "MB",
+ "КБ": "KB",
+ "Не удалось подключиться к серверу. Проверьте интернет.": "Tidak dapat terhubung ke server. Periksa koneksi internet.",
+ "Скоро": "Segera hadir",
+ "Конец книги": "Akhir kitab",
+ "Предыдущая глава": "Pasal sebelumnya",
+ "Следующая глава": "Pasal berikutnya"
 }

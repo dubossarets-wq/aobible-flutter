@@ -2,6 +2,7 @@
 // отличается от открытого, подсвечены. У каждого перевода — кнопка «Параллельно»: экран делится, в другой
 // панели открывается этот перевод на том же месте.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/bible.dart';
@@ -10,6 +11,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import '../../ui/kit.dart';
 import '../hub.dart';
 import 'interlinear.dart';
@@ -90,6 +92,59 @@ List<(String, bool)> diffWords(String base, String other) {
   return out;
 }
 
+/// Текст с подсвеченными отличиями (mark.diff: #f2a65a 38 %, скругление 3, поля 1 px по бокам) — плашки рисуем
+/// под текстом по границам слов, как в вебе: у фона TextSpan скруглений не бывает
+class DiffText extends StatefulWidget {
+  const DiffText({super.key, required this.parts, required this.style});
+  final List<(String, bool)> parts;
+  final TextStyle style;
+  @override
+  State<DiffText> createState() => _DiffTextState();
+}
+
+class _DiffTextState extends State<DiffText> {
+  final _key = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final ranges = <(int, int)>[];
+    var at = 0;
+    for (final (s, d) in widget.parts) {
+      if (d) ranges.add((at, at + s.length));
+      at += s.length;
+    }
+    return CustomPaint(
+      painter: _DiffPainter(_key, ranges),
+      child: Text.rich(key: _key, TextSpan(children: [for (final (s, _) in widget.parts) TextSpan(text: s)]), style: widget.style),
+    );
+  }
+}
+
+class _DiffPainter extends CustomPainter {
+  _DiffPainter(this.key, this.ranges);
+  final GlobalKey key;
+  final List<(int, int)> ranges;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rp = key.currentContext?.findRenderObject();
+    if (rp is! RenderParagraph || !rp.hasSize) return;
+    final paint = Paint()..color = const Color(0x61F2A65A);
+    for (final (a, b) in ranges) {
+      try {
+        for (final x in rp.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: b))) {
+          final r = x.toRect();
+          if (r.width < 1) continue;
+          canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(r.left - 1, r.top, r.right + 1, r.bottom), const Radius.circular(3)), paint);
+        }
+      } catch (_) {}
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DiffPainter old) => old.ranges != ranges || old.key != key;
+}
+
 const _langOrder = ['ru', 'en', 'zh', 'hi', 'es', 'ar', 'fr', 'pt', 'id', 'de', 'ja', 'tr', 'sw', 'vi', 'tl', 'ko', 'fa', 'it', 'pl', 'uk', 'ro', 'nl', 'el', 'sv', 'cs', 'sr', 'sq', 'hy', 'hr', 'da', 'nb', 'be', 'eo', 'he', 'grc', 'la', 'cu', 'syr'];
 const _langRu = {
   'ru': 'Русский', 'en': 'English', 'zh': 'Китайский', 'hi': 'Хинди', 'es': 'Испанский', 'ar': 'Арабский', 'fr': 'Французский', 'pt': 'Португальский',
@@ -167,6 +222,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
     final shown = _ordered.where((b) => b.id == widget.moduleId || _lang == 'all' || b.language == _lang).toList();
     final texts = _texts;
     final pane = widget.pane ?? paneOf(ref.read(panesProvider), widget.moduleId);
+    final font = readerTextStyle(ref.watch(settingsProvider), size: 16.32, weight: 400).copyWith(height: 1.5); // .cmp-text: --font-text
     final children = <Widget>[];
     if (others.isEmpty) {
       children.add(Empty(
@@ -201,15 +257,9 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         if (tx.isEmpty) {
           text = Text(t('В этом переводе нет такого места.'), style: TextStyle(color: pal.muted, fontSize: 16.32, height: 1.5));
         } else if (!isCur && current != null && (texts[widget.moduleId] ?? '').isNotEmpty && b.language == current.language) {
-          text = Text.rich(
-            TextSpan(children: [
-              for (final (s, d) in _diffs[b.id] ??= diffWords(texts[widget.moduleId]!, tx))
-                TextSpan(text: s, style: d ? const TextStyle(backgroundColor: Color(0x61F2A65A)) : null), // mark.diff: #f2a65a 38%
-            ]),
-            style: const TextStyle(fontSize: 16.32, height: 1.5),
-          );
+          text = DiffText(parts: _diffs[b.id] ??= diffWords(texts[widget.moduleId]!, tx), style: font);
         } else {
-          text = Text(tx, style: const TextStyle(fontSize: 16.32, height: 1.5));
+          text = Text(tx, style: font);
         }
         // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом
         cmpItems.add(Container(

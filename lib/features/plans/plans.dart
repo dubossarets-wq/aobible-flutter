@@ -21,7 +21,7 @@ import 'verse_widget.dart';
 
 void register() {
   Hub.onChapterRead = planChapterRead;
-  Hub.openPlans = (context, ref, pane) => showPage(context, (_) => PlansSheet(pane: pane));
+  Hub.openPlans = (context, ref, pane) => showPage(context, (_) => PlansSheet(pane: pane), tab: 'plans');
   Hub.openVerseImage = (context, ref, refs, moduleId) => showPage(context, (_) => VerseImageSheet(refs: refs, moduleId: moduleId));
   Hub.planView = (context, ref, pane) => PlanHost(pane: pane);
   Hub.afterStart.add(_afterStart);

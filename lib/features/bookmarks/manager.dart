@@ -13,7 +13,7 @@ import 'sheets.dart';
 import 'ui.dart';
 
 void openBookmarksPage(BuildContext context, WidgetRef ref, int pane) {
-  showAobSheet<void>(context, builder: (_) => BookmarksPage(pane: pane)); // BookmarksManager.jsx: BottomSheet initial={2}
+  showAobSheet<void>(context, builder: (_) => BookmarksPage(pane: pane), tab: 'saved'); // BookmarksManager.jsx: BottomSheet initial={2}
 }
 
 class BookmarksPage extends ConsumerWidget {

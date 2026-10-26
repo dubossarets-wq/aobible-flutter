@@ -15,6 +15,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import '../plans/loc.dart';
 import '../plans/ui_kit.dart';
 import '../plans/verse_text.dart';
@@ -497,7 +498,7 @@ class _BlockCard extends ConsumerWidget {
     final v0 = (block['verse'] ?? 0) as int;
     // Старый диапазон, который не удалось разбить, — одним абзацем, как раньше
     final lines = texts != null ? [for (final (k, x) in texts.indexed) (v: v0 + k, text: x)] : verse ? [(v: v0, text: '${block['text']}')] : <({int v, String text})>[];
-    final verseStyle = TextStyle(fontSize: 16.8, height: 1.5, color: pal.text);
+    final verseStyle = readerTextStyle(ref.watch(settingsProvider), size: 16.8, weight: 400).copyWith(height: 1.5, color: pal.text); // .sermon-verse-text: --font-text
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
@@ -731,7 +732,7 @@ class _PulpitState extends ConsumerState<Pulpit> {
   }
 
   List<Widget> _block(Palette pal, Block b) {
-    final lh = TextStyle(fontSize: _size, height: 1.55, color: pal.text);
+    final lh = readerTextStyle(ref.read(settingsProvider), size: _size, weight: 400).copyWith(height: 1.55, color: pal.text); // .pulpit-body: --font-text
     if (isVerse(b)) {
       final tx = verseTexts(b) ?? ['${b['text']}'];
       // .pulpit-verse: отступы 1.1em сверху и снизу; cite — название места акцентом, .78em

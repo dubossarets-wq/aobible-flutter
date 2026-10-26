@@ -28,7 +28,7 @@ void _pulse(WidgetRef ref, VerseRef at) {
   var step = 0;
   favPulse[k] = 0.3;
   bump.bump();
-  // Плавного затухания фона у читалки нет — гасим ступенями (каждые 160 мс), глазу это тот же ease-out
+  // Гасим ступенями (каждые 160 мс); verse_view перетекает цвет между ступенями за 170 мс — выходит плавный ease-out
   _pulseTimers[k] = Timer.periodic(const Duration(milliseconds: 160), (tm) {
     step++;
     if (step >= _pulseSteps) {

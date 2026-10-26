@@ -18,8 +18,8 @@ import 'navigator_sheet.dart';
 import 'reader_pane.dart';
 import 'search_screen.dart';
 
-/// Какая нижняя вкладка сейчас открыта: plans, search, bible, saved, more (activeTab в TabBar.jsx)
-final tabActive = ValueNotifier<String>('bible');
+export 'kit.dart' show tabActive; // переехал в kit.dart (его подсвечивают и окна функций)
+
 
 /// Главный экран на месте (не первая загрузка) — только тогда показываются нижние вкладки
 final homeMounted = ValueNotifier<bool>(false);

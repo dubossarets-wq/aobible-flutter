@@ -78,7 +78,7 @@ class NavigatorSheet extends ConsumerStatefulWidget {
   ConsumerState<NavigatorSheet> createState() => _NavigatorSheetState();
 }
 
-class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
+class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTickerProviderStateMixin {
   final _input = TextEditingController();
   final _focus = FocusNode();
   final _listCtl = ScrollController();
@@ -90,6 +90,11 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
   String _err = '';
   bool _forward = true; // куда едут шаги: вперёд — справа
   double _listOffset = 0; // где был список книг — туда же вернёмся «назад»
+  // Вкладка ВЗ/НЗ/Апокрифы как дробный номер: содержимое и «таблетка» переключателя тянутся за пальцем
+  late final ValueNotifier<double> _pos;
+  late final AnimationController _anim;
+  double _animFrom = 0, _animTo = 0;
+  int _dragBase = 0;
 
   @override
   void initState() {
@@ -100,6 +105,9 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
     final cur = Books.instance.meta(at.book).testament;
     final groups = _groups();
     _tab = groups.contains(cur) ? cur : (groups.isEmpty ? 'OT' : groups.first);
+    _pos = ValueNotifier(groups.indexOf(_tab).clamp(0, 99).toDouble());
+    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))
+      ..addListener(() => _pos.value = _animFrom + (_animTo - _animFrom) * Curves.easeOutCubic.transform(_anim.value));
     _input.addListener(() => setState(() => _err = ''));
     _focus.addListener(() => setState(() {}));
   }
@@ -109,6 +117,8 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
     _input.dispose();
     _focus.dispose();
     _listCtl.dispose();
+    _anim.dispose();
+    _pos.dispose();
     super.dispose();
   }
 
@@ -169,14 +179,45 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
   }
 
   void _pickTab(String id) {
-    if (id == _tab) return;
+    final i = _groups().indexOf(id);
+    if (i >= 0) _settle(i);
+  }
+
+  /// Доезжаем (или возвращаемся) к вкладке i с анимацией
+  void _settle(int i) {
     final groups = _groups();
-    setState(() {
-      _forward = groups.indexOf(id) > groups.indexOf(_tab);
-      _tab = id;
-    });
+    if (i < 0 || i >= groups.length) return;
+    final changed = groups[i] != _tab;
+    _animFrom = _pos.value;
+    _animTo = i.toDouble();
+    if (changed) setState(() => _tab = groups[i]);
     // Переключатель «прилип» к верху — новый список показываем с начала, а не с середины
-    if (_listCtl.positions.length == 1 && _listCtl.offset > 0) _listCtl.jumpTo(0);
+    if (changed && _listCtl.positions.length == 1 && _listCtl.offset > 0) _listCtl.jumpTo(0);
+    if ((_animFrom - _animTo).abs() < 0.001) {
+      _anim.stop();
+      _pos.value = _animTo;
+    } else {
+      _anim.forward(from: 0);
+    }
+  }
+
+  void _dragStart(DragStartDetails d) {
+    _anim.stop();
+    _dragBase = _pos.value.round();
+  }
+
+  void _dragUpdate(DragUpdateDetails d) {
+    final w = context.size?.width ?? 400;
+    final last = (_groups().length - 1).toDouble();
+    _pos.value = (_pos.value - d.delta.dx / w).clamp(0.0, last);
+  }
+
+  void _dragEnd(DragEndDetails d) {
+    final v = d.primaryVelocity ?? 0;
+    var i = _pos.value.round();
+    if (v < -250) i = _dragBase + 1;
+    if (v > 250) i = _dragBase - 1;
+    _settle(i.clamp(0, _groups().length - 1));
   }
 
   List<_Book> _match(List<_Book> books, String q) {
@@ -258,6 +299,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
     }
     // Свайп по окну влево-вправо переключает Ветхий / Новый Завет / Апокрифы
     final groups = _groups();
+    final swipe = selBook == null && groups.length > 1 && _input.text.trim().isEmpty;
     return AobSheet(
       title: title,
       subtitle: selBook != null ? t(_categoryOf(selBook.id).$1) : (module?.title ?? module?.name),
@@ -266,14 +308,10 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
       padding: EdgeInsets.zero,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: selBook != null || groups.length < 2
-            ? null
-            : (d) {
-                final v = d.primaryVelocity ?? 0;
-                if (v.abs() < 250) return;
-                final i = groups.indexOf(_tab) + (v < 0 ? 1 : -1);
-                if (i >= 0 && i < groups.length) _pickTab(groups[i]);
-              },
+        onHorizontalDragStart: swipe ? _dragStart : null,
+        onHorizontalDragUpdate: swipe ? _dragUpdate : null,
+        onHorizontalDragEnd: swipe ? _dragEnd : null,
+        onHorizontalDragCancel: swipe ? () => _settle(_pos.value.round()) : null,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,
@@ -418,15 +456,13 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
     ];
 
     final showBooks = !bookMode && q.trim().isEmpty;
-    final shown = books.where((b) => b.testament == group).toList();
     // Разделы по порядку «Пятикнижие … Откровение», внутри — в порядке перевода
-    final byCat = <(String, int, List<String>), List<_Book>>{};
-    for (final b in shown) {
-      byCat.putIfAbsent(_categoryOf(b.id), () => []).add(b);
-    }
-    final panel = KeyedSubtree(
-      key: ValueKey('tab-$group'),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Widget panelOf(String g) {
+      final byCat = <(String, int, List<String>), List<_Book>>{};
+      for (final b in books.where((b) => b.testament == g)) {
+        byCat.putIfAbsent(_categoryOf(b.id), () => []).add(b);
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         for (final c in [..._categories, _otherCat])
           if (byCat.containsKey(c)) ...[
             const SizedBox(height: 22),
@@ -439,25 +475,41 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
             const SizedBox(height: 10),
             _grid(pal, fill, byCat[c]!, at),
           ],
-      ]),
-    );
+      ]);
+    }
+
+    // Две соседние вкладки рядом: та, что ближе, — в потоке, вторая рядом со сдвигом на ширину окна
+    final panels = LayoutBuilder(builder: (context, c) {
+      final shift = c.maxWidth + 32;
+      return ValueListenableBuilder<double>(
+        valueListenable: _pos,
+        builder: (_, pos, _) {
+          if (groups.isEmpty) return const SizedBox.shrink(); // разделов нет (например, пока вводят текст) — clamp(0, -1) упал бы
+          final cur = pos.round().clamp(0, groups.length - 1);
+          final other = pos > cur ? cur + 1 : (pos < cur ? cur - 1 : -1);
+          return ClipRect(
+            clipper: _WideClip(16),
+            child: Stack(children: [
+              Transform.translate(offset: Offset((cur - pos) * shift, 0), child: KeyedSubtree(key: ValueKey('tab-${groups[cur]}'), child: panelOf(groups[cur]))),
+              if (other >= 0 && other < groups.length)
+                Positioned(top: 0, left: 0, right: 0, child: Transform.translate(offset: Offset((other - pos) * shift, 0), child: KeyedSubtree(key: ValueKey('tab-${groups[other]}'), child: panelOf(groups[other])))),
+            ]),
+          );
+        },
+      );
+    });
 
     return CustomScrollView(
       controller: _listCtl,
       slivers: [
         SliverPadding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 0), sliver: SliverList.list(children: top)),
         if (showBooks && groups.length > 1)
-          SliverPersistentHeader(pinned: true, delegate: _SegHeader(bg: pal.panel, child: _Seg(groups: groups, tab: group, fill: fill, muted: muted, pal: pal, onPick: _pickTab))),
+          SliverPersistentHeader(pinned: true, delegate: _SegHeader(bg: pal.panel, child: _Seg(groups: groups, tab: group, pos: _pos, fill: fill, muted: muted, pal: pal, onPick: _pickTab))),
         if (showBooks)
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPad),
             sliver: SliverToBoxAdapter(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, anim) => _slide(child, anim),
-                layoutBuilder: (cur, prev) => Stack(alignment: Alignment.topCenter, children: [...prev, ?cur]),
-                child: panel,
-              ),
+              child: panels,
             ),
           )
         else
@@ -544,6 +596,16 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> {
   }
 }
 
+/// Обрезка по краям окна без полей списка: соседняя вкладка не торчит за пределы
+class _WideClip extends CustomClipper<Rect> {
+  const _WideClip(this.pad);
+  final double pad;
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(-pad, 0, size.width + pad, size.height);
+  @override
+  bool shouldReclip(_WideClip old) => old.pad != pad;
+}
+
 /// Закреплённый переключатель Ветхий / Новый Завет / Апокрифы: при прокрутке остаётся сверху (.bn-seg-wrap)
 class _SegHeader extends SliverPersistentHeaderDelegate {
   _SegHeader({required this.bg, required this.child});
@@ -561,15 +623,15 @@ class _SegHeader extends SliverPersistentHeaderDelegate {
 
 /// Дорожка с «таблеткой»: выбранный раздел — плашка цвета окна, переезжает к новому
 class _Seg extends StatelessWidget {
-  const _Seg({required this.groups, required this.tab, required this.fill, required this.muted, required this.pal, required this.onPick});
+  const _Seg({required this.groups, required this.tab, required this.pos, required this.fill, required this.muted, required this.pal, required this.onPick});
   final List<String> groups;
   final String tab;
+  final ValueListenable<double> pos;
   final Color fill, muted;
   final Palette pal;
   final void Function(String) onPick;
   @override
   Widget build(BuildContext context) {
-    final i = groups.indexOf(tab);
     final label = {for (final x in _testaments) x.$1: x.$2};
     return Container(
       padding: const EdgeInsets.all(3),
@@ -579,13 +641,9 @@ class _Seg extends StatelessWidget {
         return SizedBox(
           height: 44,
           child: Stack(children: [
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeOutBack,
-              left: w * i,
-              top: 0,
-              bottom: 0,
-              width: w,
+            ValueListenableBuilder<double>(
+              valueListenable: pos,
+              builder: (_, v, child) => Positioned(left: w * v, top: 0, bottom: 0, width: w, child: child!),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: pal.dark ? mix(pal.text, 0.14, pal.panel) : pal.panel,
