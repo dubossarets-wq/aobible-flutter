@@ -104,6 +104,43 @@ class RenderBarShift extends RenderProxyBox {
   void applyPaintTransform(RenderBox child, Matrix4 transform) => transform.translateByDouble(0, _dy, 0, 1);
 }
 
+/// Плавно раскрывает и сворачивает содержимое: высота и прозрачность, как у настроек проигрывателя
+/// (мягкий разгон и остановка, 280 мс). Свёрнутое не строится. Содержимое раскладывается один раз —
+/// на кадре меняется только обрезка (Align.heightFactor), поэтому анимация лёгкая
+class Reveal extends StatefulWidget {
+  const Reveal({super.key, required this.open, required this.child});
+  final bool open;
+  final Widget child;
+  @override
+  State<Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 280), value: widget.open ? 1 : 0);
+  late final _a = CurvedAnimation(parent: _c, curve: Curves.fastOutSlowIn);
+
+  @override
+  void didUpdateWidget(Reveal old) {
+    super.didUpdateWidget(old);
+    if (widget.open != old.open) widget.open ? _c.forward() : _c.reverse();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        child: FadeTransition(opacity: _a, child: RepaintBoundary(child: widget.child)),
+        builder: (context, child) => _c.isDismissed
+            ? const SizedBox(width: double.infinity)
+            : ClipRect(child: Align(alignment: Alignment.topCenter, heightFactor: _a.value, child: child)),
+      );
+}
+
 /// Узкий экран (телефон): одиночные кнопки — на всю ширину
 bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
 
@@ -618,8 +655,9 @@ class Segmented<T> extends ConsumerWidget {
   final T value;
   final ValueChanged<T> onChanged;
 
-  // Ширина вариантов — как flex: 1 1 auto в веб-версии: по тексту плюс поровну свободного места;
-  // не помещаются в строку — переносятся (flex-wrap)
+  // Ширина вариантов — как flex: 1 1 auto в веб-версии: по тексту плюс поровну свободного места строки;
+  // не помещаются в строку — переносятся (flex-wrap), и каждая строка тоже растягивается на всю ширину.
+  // Плашка выбранного варианта — одна, она переезжает к новому выбору (в том числе на другую строку)
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
@@ -629,36 +667,86 @@ class Segmented<T> extends ConsumerWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(kRadius * 0.75)),
       child: LayoutBuilder(builder: (context, c) {
-        // ширина по жирному начертанию — выбор варианта не сдвигает соседей
-        final basis = [
-          for (final (_, label) in options) _textWidth(label, style(true), scale) + 16.5,
-        ];
         const gap = 2.0;
-        final total = basis.fold<double>(0, (a, b) => a + b) + gap * (options.length - 1);
-        final fits = total <= c.maxWidth;
-        final extra = fits ? (c.maxWidth - total) / options.length - 0.01 : 0.0; // запас на округление, иначе Wrap перенесёт последний
-        Widget item(int i) {
-          final (v, label) = options[i];
-          final on = v == value;
-          return GestureDetector(
-            onTap: () => onChanged(v),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic, // у тени не может быть «перелёта» пружинной кривой
-              width: fits ? basis[i] + extra : basis[i],
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-              decoration: BoxDecoration(
-                color: on ? pal.panel : Colors.transparent,
-                borderRadius: BorderRadius.circular(kRadius * 0.6),
-                boxShadow: on ? const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))] : null,
-              ),
-              alignment: Alignment.center,
-              child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: style(on)),
-            ),
-          );
+        final maxW = c.maxWidth;
+        // ширина по жирному начертанию — выбор варианта не сдвигает соседей
+        final basis = [for (final (_, label) in options) math.min(_textWidth(label, style(true), scale) + 16.5, maxW)];
+        final tp = TextPainter(text: TextSpan(text: 'Ag', style: style(true)), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout();
+        final h = tp.height + 14; // поля 7 сверху и снизу
+        tp.dispose();
+        // раскладка по строкам: что помещается — в строку, свободное место строки — поровну между её вариантами
+        final rects = List<Rect>.filled(options.length, Rect.zero);
+        var row = <int>[];
+        var y = 0.0;
+        void flush() {
+          if (row.isEmpty) return;
+          final used = row.fold<double>(0, (a, i) => a + basis[i]) + gap * (row.length - 1);
+          final extra = math.max(0.0, (maxW - used) / row.length);
+          var x = 0.0;
+          for (final i in row) {
+            final w = basis[i] + extra;
+            rects[i] = Rect.fromLTWH(x, y, w, h);
+            x += w + gap;
+          }
+          y += h + gap;
+          row = [];
         }
 
-        return Wrap(spacing: gap, runSpacing: gap, children: [for (var i = 0; i < options.length; i++) item(i)]);
+        var lineW = 0.0;
+        for (var i = 0; i < options.length; i++) {
+          final add = (row.isEmpty ? 0 : gap) + basis[i];
+          if (row.isNotEmpty && lineW + add > maxW + 0.01) {
+            flush();
+            lineW = 0;
+          }
+          lineW += row.isEmpty ? basis[i] : add;
+          row.add(i);
+        }
+        flush();
+        final height = math.max(0.0, y - gap);
+        final sel = options.indexWhere((o) => o.$1 == value);
+        const dur = Duration(milliseconds: 300);
+        return SizedBox(
+          width: maxW,
+          height: height,
+          child: Stack(children: [
+            if (sel >= 0)
+              AnimatedPositioned(
+                duration: dur,
+                curve: Curves.easeOutCubic, // у тени не может быть «перелёта» пружинной кривой
+                left: rects[sel].left,
+                top: rects[sel].top,
+                width: rects[sel].width,
+                height: rects[sel].height,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: pal.panel,
+                    borderRadius: BorderRadius.circular(kRadius * 0.6),
+                    boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))],
+                  ),
+                ),
+              ),
+            for (var i = 0; i < options.length; i++)
+              Positioned.fromRect(
+                rect: rects[i],
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(options[i].$1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Center(
+                      child: AnimatedDefaultTextStyle(
+                        duration: dur,
+                        curve: Curves.easeOutCubic,
+                        style: style(i == sel),
+                        child: Text(options[i].$2, maxLines: 1, softWrap: false, overflow: TextOverflow.clip),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        );
       }),
     );
   }

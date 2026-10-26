@@ -321,7 +321,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     final off = _busy != null || needOwn || (par && !period && _parDays == 0);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.panel),
+      // лёгкая подложка цвета акцента — карточка отделяется от окна
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: mix(pal.accent, 0.05, pal.panel)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(
@@ -378,7 +379,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
               ),
           ]);
         }),
-        if (_scope == 'own') ...[const SizedBox(height: 10), _BookPicker(pal: pal, value: _own, onToggle: _toggleBook)],
+        // свои книги раскрываются и сворачиваются плавно
+        Reveal(open: _scope == 'own', child: Padding(padding: const EdgeInsets.only(top: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
         const SizedBox(height: 12),
         ..._daysBlock(pal, days, _daysCtl, _setDays, (v) => setState(() => _days = int.tryParse(v) ?? 90)),
       ];
@@ -431,7 +433,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           ),
           const SizedBox(height: 8),
         ],
-        if (_streams.containsKey('own')) ...[_BookPicker(pal: pal, value: _own, onToggle: _toggleBook), const SizedBox(height: 10)],
+        Reveal(open: _streams.containsKey('own'), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
         if (_parMode == 'period')
           ..._daysBlock(pal, _periodDays, _periodCtl, _setPeriod, (v) => setState(() => _periodDays = int.tryParse(v) ?? 90))
         else

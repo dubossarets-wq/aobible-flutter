@@ -59,8 +59,9 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
   // Раскрытие настроек: высота проигрывателя меняется один раз (в начале раскрытия / в конце скрытия), а плавно
   // едут только фон с рамкой и обрезка содержимого — это перерисовка без раскладки, глава под проигрывателем
   // не пересчитывается на каждом кадре
-  late final _oc = AnimationController(vsync: this, duration: const Duration(milliseconds: 240));
-  late final _ov = CurvedAnimation(parent: _oc, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+  // мягкий разгон и мягкая остановка: первый кадр раскрытия почти не сдвигается, поэтому нет «рывка»
+  late final _oc = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
+  late final _ov = CurvedAnimation(parent: _oc, curve: Curves.fastOutSlowIn);
   final _panelH = _Height(); // высота панели настроек — пишется при раскладке, читается при рисовании
 
   void _toggleOpts() {
@@ -136,9 +137,11 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
                   color: Colors.transparent,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     DownloadNote(pal: pal),
-                    if (_optsShown)
-                      // .audio-opts: колонка с отступом 10, поля 12 12 4, линия снизу; проявляется вместе с фоном
-                      FadeTransition(
+                    // .audio-opts: колонка с отступом 10, поля 12 12 4, линия снизу; проявляется вместе с фоном.
+                    // Собрана и разложена заранее (скрыта, места не занимает) — при нажатии ничего не строится
+                    Offstage(
+                      offstage: !_optsShown,
+                      child: FadeTransition(
                         opacity: _ov,
                         child: _Measure(
                         height: _panelH,
@@ -154,6 +157,7 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
                       ),
                       ),
                       ),
+                    ),
                     if (a.offer)
                       NarratorOffer(pal: pal, error: a.error)
                     else
@@ -186,39 +190,22 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
                                       borderRadius: BorderRadius.circular(999),
                                       onTap: () => e.resumeFollow(jump: true),
                                       child: Container(
-                                        padding: const EdgeInsets.fromLTRB(7, 2, 9, 2),
+                                        padding: const EdgeInsets.fromLTRB(8, 3, 10, 3),
                                         decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
                                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                          Icon(LucideIcons.cornerUpLeft, size: 14, color: pal.accent),
-                                          const SizedBox(width: 4),
+                                          SizedBox(width: 14, child: Icon(LucideIcons.cornerUpLeft, size: 14, color: pal.accent)),
+                                          const SizedBox(width: 5),
                                           Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
                                         ]),
                                       ),
                                     ),
                                   ),
-                                  if (Hub.listenFrom != null)
-                                    Builder(builder: (context) {
-                                      final here = livePositions[a.pane]?.value;
-                                      return InkWell(
-                                        borderRadius: BorderRadius.circular(6),
-                                        onTap: here == null ? null : () => Hub.listenFrom!(context, ref, a.pane, here),
-                                        child: Padding(
-                                          padding: const EdgeInsets.fromLTRB(4, 3, 4, 1),
-                                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                            Icon(LucideIcons.play, size: 11, color: pal.accent),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                here == null ? t('Слушать отсюда') : '${t('Слушать отсюда')} · ${Books.instance.formatRef(here.book, here.chapter, here.verse)}',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: pal.accent),
-                                              ),
-                                            ),
-                                          ]),
-                                        ),
-                                      );
-                                    }),
+                                  if (Hub.listenFrom != null && livePositions[a.pane] != null)
+                                    _ListenHere(
+                                      here: livePositions[a.pane]!,
+                                      pal: pal,
+                                      onTap: (here) => Hub.listenFrom!(context, ref, a.pane, here),
+                                    ),
                                 ]
                                 else
                                   Semantics(
@@ -262,6 +249,55 @@ class _Field extends StatelessWidget {
         const SizedBox(height: 6),
         child,
       ]);
+}
+
+/// «▶ Слушать отсюда» под «↰ место»: значок и текст — по тем же линиям, что у плашки выше. Подпись — самая полная,
+/// какая помещается целиком: «Слушать отсюда · Мф. 2:5» → «Слушать отсюда» → «Отсюда» (без обрезки многоточием)
+class _ListenHere extends StatelessWidget {
+  const _ListenHere({required this.here, required this.pal, required this.onTap});
+  final ValueNotifier<VerseRef> here;
+  final Palette pal;
+  final void Function(VerseRef) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: pal.accent);
+    final scale = MediaQuery.textScalerOf(context);
+    return ValueListenableBuilder<VerseRef>(
+      valueListenable: here,
+      builder: (context, at, _) => LayoutBuilder(builder: (context, c) {
+        final refText = Books.instance.formatRef(at.book, at.chapter, at.verse);
+        final avail = c.maxWidth - 8 - 14 - 5 - 10; // поля и значок — как у плашки «↰ место»
+        double w(String s) {
+          final tp = TextPainter(text: TextSpan(text: s, style: style), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout();
+          final v = tp.width;
+          tp.dispose();
+          return v;
+        }
+
+        final label = [
+          '${t('Слушать отсюда')} · $refText',
+          t('Слушать отсюда'),
+          t('Отсюда'),
+        ].firstWhere((s) => w(s) <= avail, orElse: () => t('Отсюда'));
+        return Tooltip(
+          message: '${t('Слушать отсюда')}: $refText',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => onTap(at),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 10, 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(width: 14, child: Icon(LucideIcons.play, size: 12, color: pal.accent)),
+                const SizedBox(width: 5),
+                Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: style)),
+              ]),
+            ),
+          ),
+        );
+      }),
+    );
+  }
 }
 
 /// Фон проигрывателя: тень, заливка и рамка; верх опускается на ещё скрытую часть панели настроек,
@@ -375,7 +411,7 @@ class _PlayBtn extends StatelessWidget {
             width: size,
             height: size,
             decoration: BoxDecoration(shape: BoxShape.circle, color: pal.accent),
-            child: a.loading ? _Spin(icon: LucideIcons.loader2, size: iconSize, color: pal.onAccent) : Icon(a.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: iconSize * 1.3, color: pal.onAccent), // залитые
+            child: a.loading ? Center(child: _Spin(icon: LucideIcons.loader2, size: iconSize * 0.9, color: pal.onAccent)) : Icon(a.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: iconSize * 1.3, color: pal.onAccent), // залитые
           ),
         ),
       );
@@ -399,8 +435,34 @@ class _SpinState extends State<_Spin> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+  // Дуга рисуется сама, а не значком шрифта: у глифа центр смещён на пиксель-другой, и при вращении он «прыгал».
+  // Вращается готовая картинка в своём слое — кадр не перерисовывает кнопку
   @override
-  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(widget.icon, size: widget.size, color: widget.color));
+  Widget build(BuildContext context) => RepaintBoundary(
+        child: RotationTransition(
+          turns: _c,
+          child: SizedBox.square(dimension: widget.size, child: CustomPaint(painter: _Arc(widget.color, widget.size * 0.11))),
+        ),
+      );
+}
+
+/// Как Loader2: три четверти окружности со скруглёнными концами
+class _Arc extends CustomPainter {
+  _Arc(this.color, this.stroke);
+  final Color color;
+  final double stroke;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = Rect.fromLTWH(stroke / 2, stroke / 2, size.width - stroke, size.height - stroke);
+    canvas.drawArc(r, 0, 4.7, false, Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(_Arc old) => old.color != color || old.stroke != stroke;
 }
 
 /// Кнопка ▶/⏸ для раскрытого проигрывателя (.ap-play: 78 px, значок 34)

@@ -613,7 +613,6 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final nextBook = bi >= 0 && bi < books.length - 1 ? books[bi + 1]['id'] as String : null;
     final mod = ModuleStore.instance.get(book.module);
     final rtl = mod?.language == 'he';
-    final inset = MediaQuery.paddingOf(context).bottom; // проигрыватель и вкладки поверх текста
 
     final list = ScrollablePositionedList.builder(
       key: ValueKey('${book.module}|${book.book}|$_listKey'),
@@ -691,15 +690,14 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           Positioned(left: 0, right: 0, top: 0, child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct)),
           // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио)
           // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
-          Positioned(left: 14, bottom: 16 + inset, child: BarShiftDown(enabled: inset > 0, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1)))),
-          Positioned(right: 14, bottom: 16 + inset, child: BarShiftDown(enabled: inset > 0, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1)))),
+          _AboveBars(left: 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1))),
+          _AboveBars(right: 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1))),
           if (Hub.listenFab != null)
-            Positioned(left: 0, right: 0, bottom: 16 + inset, child: Center(child: BarShiftDown(enabled: inset > 0, child: Hub.listenFab!(context, ref, widget.index))))
+            _AboveBars(left: 0, right: 0, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
           else if (Hub.listenFrom != null)
-            Positioned(
+            _AboveBars(
               left: 0,
               right: 0,
-              bottom: 16 + inset,
               child: Center(
                 child: RoundFab(
                   icon: LucideIcons.headphones,
@@ -808,4 +806,18 @@ class _RefHelper {
   final WidgetRef r;
   void remember(int i, VerseRef at) => r.read(panesProvider.notifier).remember(i, at);
   bool get syncOn => r.read(settingsProvider).get<bool>('syncScroll') && r.read(panesProvider).length > 1;
+}
+
+/// Кнопка внизу панели — над проигрывателем и вкладками (их высота — MediaQuery.padding.bottom).
+/// Отступ читает только эта обёртка: когда проигрыватель меняет высоту, перестраиваются кнопки, а не вся глава.
+/// Пока раскрываются настройки проигрывателя — едет вместе с его фоном (BarShiftDown)
+class _AboveBars extends StatelessWidget {
+  const _AboveBars({this.left, this.right, required this.child});
+  final double? left, right;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.paddingOf(context).bottom;
+    return Positioned(left: left, right: right, bottom: 16 + inset, child: BarShiftDown(enabled: inset > 0, child: child));
+  }
 }
