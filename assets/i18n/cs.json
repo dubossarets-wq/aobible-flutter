@@ -1353,5 +1353,10 @@
  "Скоро": "Brzy",
  "Конец книги": "Konec knihy",
  "Предыдущая глава": "Předchozí kapitola",
- "Следующая глава": "Další kapitola"
+ "Следующая глава": "Další kapitola",
+ "Последовательно": "Postupně",
+ "Глав в день": "Kapitol denně",
+ "За срок": "Na dobu",
+ "Разделы": "Oddíly",
+ "В этом переводе нет книги «{book}»": "Tento překlad nemá knihu „{book}“"
 }

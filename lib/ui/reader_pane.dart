@@ -211,6 +211,19 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   int _itemOf(VerseRef r) => _book!.indexOf(r.chapter, r.verse);
 
   void _open(PaneState p, bool cont, bool showHeadings) {
+    // В переводе нет открытой книги (например, «От Иоанна» в еврейском Ветхом Завете) — открываем начало перевода
+    // и говорим об этом; без проверки пустая книга роняла читалку (RangeError)
+    final books = bookList(p.moduleId);
+    if (books.isNotEmpty && !books.any((b) => b['id'] == p.ref.book)) {
+      final missing = Books.instance.meta(p.ref.book).name;
+      final to = VerseRef(books.first['id'] as String, 1, 1);
+      p = p.copyWith(ref: to);
+      Future.microtask(() {
+        if (!mounted) return;
+        ref.read(panesProvider.notifier).navigate(widget.index, to, flash: false);
+        Hub.toast(t('В этом переводе нет книги «{book}»', {'book': missing}));
+      });
+    }
     final sameBook = _book != null && _book!.book == p.ref.book && _module == p.moduleId;
     if (!sameBook) {
       _book = loadBook(p.moduleId, p.ref.book);

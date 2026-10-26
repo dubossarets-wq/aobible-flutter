@@ -235,7 +235,14 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                 ? Sample(s: s, bar: true, head: true, sn: true, ui: true, short: true, live: true)
                 : _live != null
                     ? Sample(s: s, live: true, bar: _live == 'bar' || _live == 'barText', head: _live == 'heading', sn: _live == 'strong', short: true)
-                    : ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
+                    // образец обрезан по высоте 180 — по той же скруглённой рамке (иначе низ срезан прямо, без углов и линии)
+                    : Container(
+                        foregroundDecoration: BoxDecoration(border: Border.all(color: effectivePalette(s).line), borderRadius: BorderRadius.circular(kRadius)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(kRadius),
+                          child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
+                        ),
+                      ),
       ),
       children: children,
     );

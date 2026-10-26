@@ -30,6 +30,7 @@ bool _open = false;
 void openAudioPlayer(BuildContext context) {
   if (_open) return;
   _open = true;
+  tabBarSuppress.value++; // проигрыватель на весь экран — нижние вкладки не закрывают его кнопки (как в веб-версии)
   Navigator.of(context, rootNavigator: true)
       .push(PageRouteBuilder<void>(
         opaque: true,
@@ -39,7 +40,10 @@ void openAudioPlayer(BuildContext context) {
         transitionsBuilder: (_, anim, _, child) =>
             SlideTransition(position: Tween(begin: const Offset(0, 1), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic)).animate(anim), child: child),
       ))
-      .whenComplete(() => _open = false);
+      .whenComplete(() {
+        _open = false;
+        tabBarSuppress.value--;
+      });
 }
 
 const _backAfter = Duration(milliseconds: 3500); // через сколько после ручной прокрутки текст возвращается к стиху

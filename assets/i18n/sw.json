@@ -1337,5 +1337,10 @@
  "Скоро": "Inakuja hivi karibuni",
  "Конец книги": "Mwisho wa kitabu",
  "Предыдущая глава": "Sura iliyotangulia",
- "Следующая глава": "Sura inayofuata"
+ "Следующая глава": "Sura inayofuata",
+ "Последовательно": "Kwa mfuatano",
+ "Глав в день": "Sura kwa siku",
+ "За срок": "Kwa muda",
+ "Разделы": "Sehemu",
+ "В этом переводе нет книги «{book}»": "Tafsiri hii haina kitabu «{book}»"
 }

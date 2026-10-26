@@ -1337,5 +1337,10 @@
  "Скоро": "Coming soon",
  "Конец книги": "End of book",
  "Предыдущая глава": "Previous chapter",
- "Следующая глава": "Next chapter"
+ "Следующая глава": "Next chapter",
+ "Последовательно": "Sequentially",
+ "Глав в день": "Chapters per day",
+ "За срок": "Over a period",
+ "Разделы": "Sections",
+ "В этом переводе нет книги «{book}»": "This translation has no book “{book}”"
 }

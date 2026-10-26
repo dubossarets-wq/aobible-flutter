@@ -367,8 +367,15 @@ class _Pane extends ConsumerWidget {
   }
 
   // Выбор перевода (ModulePicker.jsx)
+  // Окно раскрывается до низа верхней панели этой панели чтения (плашки перевода и места остаются видны)
   void _pickModule(BuildContext context) {
-    showAobSheet(context, initial: 0.6, builder: (c) => _ModulePicker(pane: index, outer: context));
+    final mq = MediaQuery.of(context);
+    final box = context.findRenderObject() as RenderBox?;
+    final barH = ProviderScope.containerOf(context, listen: false).read(settingsProvider).d('barHeight');
+    final top = (box != null && box.hasSize ? box.localToGlobal(Offset.zero).dy : mq.padding.top) + barH;
+    final avail = mq.size.height - mq.padding.top;
+    final initial = ((mq.size.height - top) / avail).clamp(0.4, 0.95).toDouble();
+    showAobSheet(context, initial: initial, builder: (c) => _ModulePicker(pane: index, outer: context));
   }
 }
 
@@ -404,48 +411,42 @@ class _ModulePicker extends ConsumerWidget {
           title: t('Перевод'),
           subtitle: pane == 1 ? t('Вторая панель') : t('Основная панель'),
           scroll: false,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          // список — сразу под линией шапки, без пробела; строки без плашек, разделены тонкой линией;
+          // подсветка нажатия и наведения — от края до края окна, линии — с отступом 16
+          padding: const EdgeInsets.only(bottom: 16),
           child: ListView(children: [
-            for (final m in list)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  Expanded(
-                    child: Material(
-                      color: m.id == current ? mix(pal.accent, 0.08, pal.bg) : pal.bg,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: m.id == current ? pal.accent : pal.line)),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () {
-                          ref.read(panesProvider.notifier).setModule(pane, m.id);
-                          Navigator.pop(context);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          child: Row(children: [
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(m.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
-                                const SizedBox(height: 2),
-                                Text('${m.title}${m.features['strongs'] == true ? ' · ${t('номера Стронга')}' : ''}', style: TextStyle(fontSize: 12.75, color: pal.muted)),
-                              ]),
-                            ),
-                            if (m.id == current) Icon(LucideIcons.check, size: 18, color: pal.accent),
-                          ]),
-                        ),
+            for (final (k, m) in list.indexed)
+              InkWell(
+                onTap: () {
+                  ref.read(panesProvider.notifier).setModule(pane, m.id);
+                  Navigator.pop(context);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(border: k == list.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
+                    padding: const EdgeInsets.fromLTRB(4, 12, 0, 12),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(m.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: m.id == current ? pal.accent : pal.text)),
+                          const SizedBox(height: 2),
+                          Text('${m.title}${m.features['strongs'] == true ? ' · ${t('номера Стронга')}' : ''}', style: TextStyle(fontSize: 12.75, color: pal.muted)),
+                        ]),
                       ),
-                    ),
+                      if (m.id == current) Padding(padding: const EdgeInsets.only(left: 8), child: Icon(LucideIcons.check, size: 18, color: pal.accent)),
+                      const SizedBox(width: 4),
+                      if (primary != m.id)
+                        IconBtn(icon: LucideIcons.star, subtle: true, tooltip: t('Сделать основным'), onTap: () => ref.read(settingsProvider.notifier).set({'primaryModule': m.id}))
+                      else
+                        Tooltip(message: t('Основной перевод'), child: SizedBox(width: 32, height: 32, child: Center(child: CustomPaint(size: const Size(16, 16), painter: _StarPainter(pal.accent))))),
+                    ]),
                   ),
-                  const SizedBox(width: 4),
-                  if (primary != m.id)
-                    IconBtn(icon: LucideIcons.star, subtle: true, tooltip: t('Сделать основным'), onTap: () => ref.read(settingsProvider.notifier).set({'primaryModule': m.id}))
-                  else
-                    Tooltip(message: t('Основной перевод'), child: SizedBox(width: 32, height: 32, child: Center(child: CustomPaint(size: const Size(16, 16), painter: _StarPainter(pal.accent))))),
-                ]),
+                ),
               ),
             if (Hub.openLibraryTab != null)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: AobButton(label: t('Другие переводы'), icon: LucideIcons.library, wide: true, onTap: () {
                   Navigator.pop(context);
                   Hub.openLibraryTab?.call(outer, 'catalog'); // сразу вкладка «Каталог»
@@ -704,11 +705,13 @@ class TabBarOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
-    return ValueListenableBuilder<bool>(
+    return ValueListenableBuilder<int>(
+      valueListenable: tabBarSuppress,
+      builder: (context, suppressed, _) => ValueListenableBuilder<bool>(
       valueListenable: homeMounted,
       builder: (context, mounted, _) {
-        // с клавиатурой вкладки прячутся (окно поднимается над ней)
-        final show = mounted && mq.size.width < 900 && mq.viewInsets.bottom == 0;
+        // с клавиатурой вкладки прячутся (окно поднимается над ней); поверх — полноэкранная страница (проигрыватель)
+        final show = mounted && suppressed == 0 && mq.size.width < 900 && mq.viewInsets.bottom == 0;
         final inset = show ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
@@ -724,6 +727,7 @@ class TabBarOverlay extends StatelessWidget {
           ),
         ]);
       },
+    ),
     );
   }
 }

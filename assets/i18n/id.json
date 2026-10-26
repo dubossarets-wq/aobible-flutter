@@ -1329,5 +1329,10 @@
  "Скоро": "Segera hadir",
  "Конец книги": "Akhir kitab",
  "Предыдущая глава": "Pasal sebelumnya",
- "Следующая глава": "Pasal berikutnya"
+ "Следующая глава": "Pasal berikutnya",
+ "Последовательно": "Berurutan",
+ "Глав в день": "Pasal per hari",
+ "За срок": "Dalam jangka waktu",
+ "Разделы": "Bagian",
+ "В этом переводе нет книги «{book}»": "Terjemahan ini tidak memiliki kitab «{book}»"
 }

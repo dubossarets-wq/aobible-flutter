@@ -339,7 +339,6 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     }
     final recent = [for (final id in ids) ?books.where((x) => x.id == id).firstOrNull];
     final focused = _focus.hasFocus;
-    final desktop = const {TargetPlatform.windows, TargetPlatform.linux, TargetPlatform.macOS}.contains(defaultTargetPlatform);
     final bottomPad = 20 + MediaQuery.paddingOf(context).bottom;
 
     final top = <Widget>[
@@ -370,7 +369,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
               child: TextField(
                 controller: _input,
                 focusNode: _focus,
-                autofocus: desktop, // на компьютере сразу можно печатать «Ин 3:16» (на телефоне клавиатура не выскакивает сама)
+                autofocus: false, // сначала выбирают книгу по сетке; клавиатура — только если нажали на поле (и на компьютере, как на телефоне)
                 textInputAction: TextInputAction.go,
                 autocorrect: false,
                 enableSuggestions: false,

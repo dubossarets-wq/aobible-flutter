@@ -19,6 +19,7 @@ import 'appearance_sheet.dart';
 import 'colors.dart';
 import 'fonts.dart';
 import 'help_sheet.dart';
+import 'library_sheet.dart' show openLibrary;
 import 'news_sheet.dart';
 import 'prefs_sheet.dart';
 import 'report.dart';
@@ -122,6 +123,8 @@ class MoreSheet extends ConsumerWidget {
         _Entry(icon: rows ? LucideIcons.columns2 : LucideIcons.rows2, label: rows ? t('Панели рядом') : t('Панели друг над другом'), keep: true, order: 530, run: (_, r) => r.read(settingsProvider.notifier).set({'splitLayout': rows ? 'columns' : 'rows'})),
       ],
       // Свои пункты — после остальных, отдельной группой
+      // модули — сразу из «Ещё» (по просьбе владельца), а не только через «Настройки»
+      _Entry(icon: LucideIcons.library, label: t('Библиотека модулей'), keep: true, order: 890, run: (c, r) => openLibrary(c)),
       _Entry(icon: LucideIcons.palette, label: t('Оформление'), keep: true, order: 900, run: (c, r) => openAppearance(c)),
       _Entry(icon: LucideIcons.settings, label: t('Настройки'), keep: true, order: 910, run: (c, r) => openPrefs(c)),
       if (menuFlag(s, 'help')) _Entry(icon: LucideIcons.bookOpenCheck, label: t('Инструкция'), keep: true, order: 920, run: (c, r) => openHelp(c)),

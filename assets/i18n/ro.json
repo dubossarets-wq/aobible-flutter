@@ -1345,5 +1345,10 @@
  "Скоро": "În curând",
  "Конец книги": "Sfârșitul cărții",
  "Предыдущая глава": "Capitolul anterior",
- "Следующая глава": "Capitolul următor"
+ "Следующая глава": "Capitolul următor",
+ "Последовательно": "Secvențial",
+ "Глав в день": "Capitole pe zi",
+ "За срок": "Pe o perioadă",
+ "Разделы": "Secțiuni",
+ "В этом переводе нет книги «{book}»": "Această traducere nu are cartea „{book}”"
 }

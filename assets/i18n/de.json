@@ -1337,5 +1337,10 @@
  "Скоро": "Demnächst",
  "Конец книги": "Ende des Buches",
  "Предыдущая глава": "Vorheriges Kapitel",
- "Следующая глава": "Nächstes Kapitel"
+ "Следующая глава": "Nächstes Kapitel",
+ "Последовательно": "Nacheinander",
+ "Глав в день": "Kapitel pro Tag",
+ "За срок": "Für einen Zeitraum",
+ "Разделы": "Abschnitte",
+ "В этом переводе нет книги «{book}»": "In dieser Übersetzung gibt es das Buch „{book}“ nicht"
 }

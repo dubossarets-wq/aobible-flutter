@@ -37,6 +37,9 @@ Color barOnColor(Palette pal) {
 /// иначе в тёплых темах контраст ниже 4.5 (WCAG)
 Color accentOnTint(Palette pal) => mix(pal.accent, 0.85, pal.text);
 
+/// Сколько полноэкранных страниц (проигрыватель) сейчас поверх — нижние вкладки на это время прячутся
+final tabBarSuppress = ValueNotifier<int>(0);
+
 /// Узкий экран (телефон): одиночные кнопки — на всю ширину
 bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
 
@@ -206,14 +209,14 @@ class AobSheet extends ConsumerWidget {
           const SizedBox(height: 14)
         else
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 6),
+            padding: const EdgeInsets.only(top: 7, bottom: 1), // полоска ближе к заголовку — шапка ниже
             child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
           ),
         Container(
           // стрелка «назад», заголовок и крестик — на одной линии: одинаковые отступы сверху и снизу, у текста —
           // без невидимых полей над первой и под последней строкой (иначе его середина ниже середины значков)
-          padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 4, 10, 6),
-          constraints: const BoxConstraints(minHeight: 48),
+          padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
+          constraints: const BoxConstraints(minHeight: 44),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             if (back != null) IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back),

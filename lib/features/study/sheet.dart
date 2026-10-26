@@ -120,12 +120,12 @@ class SheetScaffold extends ConsumerWidget {
       onVerticalDragCancel: () => frame?.dragEnd(0, context),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 6),
+          padding: const EdgeInsets.only(top: 7, bottom: 1), // как у AobSheet: шапка ниже
           child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
         ),
         Container(
           // как шапка AobSheet: стрелка, заголовок и крестик на одной линии
-          padding: EdgeInsets.fromLTRB(onBack != null ? 6 : 16, 4, 10, 6),
+          padding: EdgeInsets.fromLTRB(onBack != null ? 6 : 16, 2, 10, 6),
           constraints: const BoxConstraints(minHeight: 48),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
