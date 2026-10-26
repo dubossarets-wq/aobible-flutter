@@ -268,7 +268,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         if (isImport) ImportTab(onDone: () => setState(() => _tab = 'installed')),
         if (_tab == 'catalog' && _catErr != null) ...[
           Text(_catErr!, style: TextStyle(color: _danger(pal), height: 1.4)),
-          Align(alignment: Alignment.centerLeft, child: AobButton(icon: LucideIcons.refreshCw, label: t('Повторить'), small: true, onTap: _loadCatalog)),
+          Align(alignment: Alignment.centerLeft, child: AobButton(block: true, icon: LucideIcons.refreshCw, label: t('Повторить'), small: true, onTap: _loadCatalog)),
         ],
         if (_tab == 'catalog' && _catalog == null && _catErr == null) Loading(t('Загружаю каталог…')),
         if (empty)

@@ -37,6 +37,9 @@ Color barOnColor(Palette pal) {
 /// иначе в тёплых темах контраст ниже 4.5 (WCAG)
 Color accentOnTint(Palette pal) => mix(pal.accent, 0.85, pal.text);
 
+/// Узкий экран (телефон): одиночные кнопки — на всю ширину
+bool isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
+
 /// Палитра текущей темы (со своими цветами)
 Palette paletteOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.palette));
 
@@ -284,17 +287,20 @@ enum BtnKind { normal, primary, danger, ghost }
 
 /// .btn: скругление 9, рамка line, фон bg; primary — акцент; small — меньше; wide — во всю ширину
 class AobButton extends ConsumerWidget {
-  const AobButton({super.key, required this.label, this.icon, required this.onTap, this.kind = BtnKind.normal, this.small = false, this.wide = false});
+  const AobButton({super.key, required this.label, this.icon, required this.onTap, this.kind = BtnKind.normal, this.small = false, this.wide = false, this.block = false});
   final String label;
   final IconData? icon;
   final VoidCallback? onTap;
   final BtnKind kind;
   final bool small;
   final bool wide;
+  /// одиночная кнопка отдельной строкой («Сбросить оформление», «Очистить историю»): на телефоне — на всю ширину
+  final bool block;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final wide = this.wide || (block && isPhone(context));
     final (bg, fg, border) = switch (kind) {
       BtnKind.primary => (pal.accent, pal.onAccent, pal.accent),
       BtnKind.danger => (const Color(0xffc93a3a), Colors.white, const Color(0xffc93a3a)),

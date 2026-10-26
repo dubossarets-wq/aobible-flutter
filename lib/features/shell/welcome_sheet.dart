@@ -73,7 +73,7 @@ class _WelcomeSheetState extends ConsumerState<WelcomeSheet> {
             for (var k = 0; k < _steps.length; k++) Container(width: 8, height: 8, margin: const EdgeInsets.symmetric(horizontal: 3), decoration: BoxDecoration(shape: BoxShape.circle, color: k == _i ? pal.accent : pal.muted.withValues(alpha: 0.4))),
           ]),
         ),
-        if (last) Center(child: AobButton(small: true, label: t('Открыть инструкцию'), onTap: () => openHelp(context))),
+        if (last) Center(child: AobButton(block: true, small: true, label: t('Открыть инструкцию'), onTap: () => openHelp(context))),
       ],
     );
   }

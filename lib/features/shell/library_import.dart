@@ -184,6 +184,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
           Align(
             alignment: Alignment.centerLeft,
             child: AobButton(
+              block: true,
               small: true,
               icon: LucideIcons.copy,
               label: t('Скопировать пример'),

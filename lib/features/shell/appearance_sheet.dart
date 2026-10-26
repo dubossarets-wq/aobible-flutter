@@ -295,6 +295,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       ),
       Center(
         child: ConfirmButton(
+          block: true,
           icon: LucideIcons.rotateCcw,
           label: t('Сбросить оформление'),
           confirmText: t('Да, сбросить'),
@@ -629,7 +630,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
             _ColorLine(label: t(k.$2), color: colorFor(s, k.$1), changed: over[k.$1] != null, onPick: (c) => _setColor(k.$1, c), onReset: () => _resetColors([k.$1])),
         ]),
       ]),
-      if (over.isNotEmpty) Align(alignment: Alignment.centerLeft, child: AobButton(icon: LucideIcons.rotateCcw, label: t('Все цвета — как в теме'), onTap: () => set({'colorOverrides': <String, dynamic>{}}))),
+      if (over.isNotEmpty) Align(alignment: Alignment.centerLeft, child: AobButton(block: true, icon: LucideIcons.rotateCcw, label: t('Все цвета — как в теме'), onTap: () => set({'colorOverrides': <String, dynamic>{}}))),
     ];
   }
 

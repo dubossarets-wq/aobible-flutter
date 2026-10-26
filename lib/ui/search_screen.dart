@@ -587,6 +587,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: AobButton(
+              block: true,
               label: t('Очистить историю'),
               small: true,
               onTap: () {

@@ -446,7 +446,8 @@ class Card2 extends ConsumerWidget {
 
 /// Подтверждение на месте (ConfirmButton в ui.jsx): нажали — вместо кнопки «Да» (красная) и «Отмена»
 class ConfirmButton extends StatefulWidget {
-  const ConfirmButton({super.key, required this.label, required this.confirmText, required this.onConfirm, this.icon, this.small = false});
+  const ConfirmButton({super.key, required this.label, required this.confirmText, required this.onConfirm, this.icon, this.small = false, this.block = false});
+  final bool block; // одиночная кнопка: на телефоне — на всю ширину, «Да» и «Отмена» — поровну
   final String label;
   final String confirmText;
   final IconData? icon;
@@ -460,7 +461,25 @@ class _ConfirmButtonState extends State<ConfirmButton> {
   bool _armed = false;
   @override
   Widget build(BuildContext context) {
-    if (!_armed) return AobButton(label: widget.label, icon: widget.icon, small: widget.small, onTap: () => setState(() => _armed = true));
+    if (!_armed) return AobButton(label: widget.label, icon: widget.icon, small: widget.small, block: widget.block, onTap: () => setState(() => _armed = true));
+    if (widget.block && isPhone(context)) {
+      return Row(children: [
+        Expanded(
+          child: AobButton(
+            label: widget.confirmText,
+            kind: BtnKind.danger,
+            small: widget.small,
+            wide: true,
+            onTap: () {
+              setState(() => _armed = false);
+              widget.onConfirm();
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: AobButton(label: t('Отмена'), small: widget.small, wide: true, onTap: () => setState(() => _armed = false))),
+      ]);
+    }
     // Wrap: при крупном шрифте «Отмена» уходит на вторую строку, а не за край окна
     return Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
       AobButton(
