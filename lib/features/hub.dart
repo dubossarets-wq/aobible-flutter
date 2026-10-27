@@ -116,6 +116,9 @@ class Hub {
   /// Введение из комментариев над заголовком: bookLevel — к книге (над названием книги), иначе к главе (над «Глава N»)
   static Widget? Function(BuildContext context, WidgetRef ref, int pane, String moduleId, String book, int chapter, {required bool bookLevel})? chapterIntro;
 
+  /// Панель под верхним меню панели чтения (например, «Вернуться к проповеди»); null — нечего показывать
+  static Widget? Function(BuildContext context, WidgetRef ref, int pane)? underBar;
+
   /// Круглая кнопка «Слушать» внизу панели чтения (даёт функция аудио)
   static Widget Function(BuildContext context, WidgetRef ref, int pane)? listenFab;
 
@@ -161,6 +164,7 @@ class Hub {
   static void reset() {
     onWordTap = null;
     verseDecorators.clear();
+    underBar = null;
     chapterIntro = null;
     selectionBar = null;
     openPlans = openBookmarks = openMore = openSettings = openLibrary = openAudio = null;

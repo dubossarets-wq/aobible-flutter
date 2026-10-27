@@ -390,6 +390,14 @@ class _Pane extends ConsumerWidget {
               builder: (context, m, _) => m[index] != null && Hub.planView != null ? Hub.planView!(context, ref, index) : _readerOf(index),
             ),
           ),
+          // «Вернуться к проповеди» и подобное — под верхним меню (и под панелью подстрочника), поверх текста
+          if (!selecting && Hub.underBar != null)
+            Positioned(
+              top: mod?.features['interlinear'] == true && ilBar ? 40 : 0,
+              left: 0,
+              right: 0,
+              child: Hub.underBar!(context, ref, index) ?? const SizedBox.shrink(),
+            ),
           // панель подстрочника — поверх текста (раскрытие и скрытие текст не двигают); полоска чтения — под ней
           if (mod?.features['interlinear'] == true && !selecting)
             Positioned(

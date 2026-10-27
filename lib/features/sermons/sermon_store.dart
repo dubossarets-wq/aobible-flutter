@@ -6,6 +6,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
@@ -139,6 +141,9 @@ List<Block> removeVerseFrom(List<Block> blocks, String blockId, int verse) {
   }
   return out;
 }
+
+/// «Вернуться к проповеди»: из проповеди перешли по стиху в Библию — панель чтения и проповедь (панель под меню)
+final sermonReturn = ValueNotifier<({int pane, String id})?>(null);
 
 class SermonsNotifier extends Notifier<List<Sermon>> {
   @override

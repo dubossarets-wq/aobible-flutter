@@ -29,6 +29,8 @@ void register() {
     run: (context, ref, pane) => showPage(context, (_) => SermonsSheet(pane: pane), page: true, tab: 'more'),
   ));
   Hub.verseDecorators.add(_decor);
+  // из проповеди перешли по стиху в Библию — под верхним меню «Вернуться к проповеди»
+  Hub.underBar = (context, ref, pane) => _SermonReturn(pane: pane);
   Hub.afterStart.add(_watchSermons);
 }
 
@@ -100,4 +102,80 @@ Future<void> _watchSermons(WidgetRef ref) async {
   if (identical(_watched, c)) return;
   _watched = c;
   c.listen(sermonsProvider, (_, _) => c.read(decorVersionProvider.notifier).bump());
+}
+
+/// «Вернуться к проповеди «…»» — подменю под верхним меню (как панель подстрочника: цвет верхней панели, во всю
+/// ширину); нажатие открывает проповедь, крестик — закрывает подменю
+class _SermonReturn extends ConsumerWidget {
+  const _SermonReturn({required this.pane});
+  final int pane;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = ref.watch(settingsProvider).palette;
+    final fg = pal.barText;
+    return ValueListenableBuilder<({int pane, String id})?>(
+      valueListenable: sermonReturn,
+      builder: (context, v, _) {
+        final s = v == null || v.pane != pane ? null : ref.watch(sermonsProvider).where((x) => x['id'] == v.id).firstOrNull;
+        // въезжает сверху из-под меню и уезжает обратно
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          switchInCurve: Curves.fastOutSlowIn,
+          switchOutCurve: Curves.fastOutSlowIn,
+          transitionBuilder: (c, a) => ClipRect(child: SlideTransition(position: Tween(begin: const Offset(0, -1), end: Offset.zero).animate(a), child: c)),
+          child: s == null
+              ? const SizedBox(key: ValueKey('none'), width: double.infinity)
+              : Container(
+                  key: ValueKey(s['id']),
+                  height: 40,
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+                  decoration: BoxDecoration(
+                    color: pal.bar,
+                    border: Border(top: BorderSide(color: fg.withValues(alpha: 0.08))),
+                    boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2))],
+                  ),
+                  child: Row(children: [
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () {
+                            sermonReturn.value = null;
+                            showPage(context, (_) => SermonsSheet(pane: pane, open: '${s['id']}'), page: true);
+                          },
+                          child: SizedBox(
+                            height: 32,
+                            child: Row(children: [
+                              const SizedBox(width: 8),
+                              Icon(LucideIcons.arrowLeft, size: 16, color: fg),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Transform.translate(
+                                  offset: const Offset(0, -1),
+                                  child: Text.rich(
+                                    TextSpan(children: [
+                                      TextSpan(text: '${t('Вернуться к проповеди')} '),
+                                      TextSpan(text: '«${s['title']}»', style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    ]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 13.6, color: fg),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconBtn(icon: LucideIcons.x, size: 16, color: fg.withValues(alpha: 0.8), tooltip: t('Закрыть'), onTap: () => sermonReturn.value = null),
+                  ]),
+                ),
+        );
+      },
+    );
+  }
 }

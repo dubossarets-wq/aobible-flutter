@@ -377,6 +377,7 @@ class _EditorState extends ConsumerState<_Editor> {
   void _goVerse(Block b, int verse) {
     closeToReader(context); // сразу в Библию
     ref.read(panesProvider.notifier).navigate(widget.pane, VerseRef(b['book'] as String, b['chapter'] as int, verse));
+    sermonReturn.value = (pane: widget.pane, id: _id); // под верхним меню — «Вернуться к проповеди»
   }
 
   // Убрать стих (из диапазона — только его; диапазон делится на части) — с «Отменить»
