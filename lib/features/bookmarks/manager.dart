@@ -4,9 +4,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/bible.dart' show verseAt;
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
+import '../../core/settings.dart' show Palette;
 import '../../ui/kit.dart';
 import 'marks.dart';
 import 'sheets.dart';
@@ -124,29 +126,9 @@ class _BookmarksTab extends ConsumerWidget {
     }
 
     return ListView(padding: padTabs(context, _bodyPad), children: [
-      // .continue-card
-      Material(
-        color: mix(pal.accent, 0.07, pal.bg),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: mix(pal.accent, 0.45, pal.line))),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _open(context, ref, pane, cur),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(children: [
-              Icon(LucideIcons.circlePlay, size: 26, color: pal.accent),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t('Продолжить чтение'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
-                  const SizedBox(height: 2),
-                  Text('${Books.instance.meta(cur.book).name} ${cur.chapter}:${cur.verse}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, color: pal.muted)),
-                ]),
-              ),
-            ]),
-          ),
-        ),
-      ),
+      // .continue-card: мягкий фон цвета акцента без рамки; слева — круг акцента с «play», в середине — подпись, место
+      // крупно и начало стиха, справа — стрелка; при нажатии плашка чуть сжимается
+      _ContinueCard(pal: pal, at: cur, moduleId: panes[pane < panes.length ? pane : 0].moduleId, onTap: () => _open(context, ref, pane, cur)),
       const SizedBox(height: 12),
       if (list.isEmpty)
         EmptyState(icon: LucideIcons.bookmark, title: t('Закладок пока нет'), text: t('Зажмите стих и нажмите «Закладка».'))
@@ -492,6 +474,73 @@ class _HistoryTab extends ConsumerWidget {
             ),
         ));
       },
+    );
+  }
+}
+
+class _ContinueCard extends StatefulWidget {
+  const _ContinueCard({required this.pal, required this.at, required this.moduleId, required this.onTap});
+  final Palette pal;
+  final VerseRef at;
+  final String moduleId;
+  final VoidCallback onTap;
+  @override
+  State<_ContinueCard> createState() => _ContinueCardState();
+}
+
+class _ContinueCardState extends State<_ContinueCard> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    final at = widget.at;
+    String? text;
+    try {
+      text = verseAt(widget.moduleId, at);
+    } catch (_) {}
+    return Listener(
+      onPointerDown: (_) => setState(() => _down = true),
+      onPointerUp: (_) => setState(() => _down = false),
+      onPointerCancel: (_) => setState(() => _down = false),
+      child: AnimatedScale(
+        scale: _down ? 0.98 : 1,
+        duration: const Duration(milliseconds: 120),
+        child: Material(
+          color: mix(pal.accent, 0.1, pal.panel),
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+              child: Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: pal.accent, shape: BoxShape.circle),
+                  // значок «play» визуально смещён влево — сдвигаем на 1,5 вправо к центру круга
+                  child: Transform.translate(offset: const Offset(1.5, 0), child: Icon(Icons.play_arrow_rounded, size: 26, color: pal.onAccent)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t('Продолжить чтение'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, height: 1.25, fontWeight: FontWeight.w600, color: pal.muted)),
+                    const SizedBox(height: 1),
+                    Text('${Books.instance.meta(at.book).name} ${at.chapter}:${at.verse}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16.5, height: 1.25, fontWeight: FontWeight.w700, color: pal.text)),
+                    if (text != null && text.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.4, height: 1.3, color: pal.muted)),
+                    ],
+                  ]),
+                ),
+                const SizedBox(width: 6),
+                Icon(LucideIcons.chevronRight, size: 20, color: pal.muted),
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
