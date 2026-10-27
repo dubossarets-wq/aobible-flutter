@@ -36,6 +36,9 @@ List<Sermon> loadSermons() {
 List<Block> blocksOf(Sermon s) => [for (final b in (s['blocks'] as List? ?? const [])) Block.from(b as Map)];
 bool isVerse(Block b) => b['type'] == 'verse';
 
+/// Переводы у стиха: [{m: id перевода, n: короткое название, t: [текст по стихам]}] — показываются под основным
+List<Map<String, dynamic>> altsOf(Block b) => [for (final a in (b['alt'] as List? ?? const [])) (a as Map).cast<String, dynamic>()];
+
 /// Текст блока по стихам: [текст 16, текст 17, …]; null — у старого блока-диапазона разбивки ещё нет
 List<String>? verseTexts(Block b) {
   if (!isVerse(b)) return null;
@@ -63,6 +66,10 @@ String sermonText(Sermon s) {
       // Диапазон — каждый стих с новой строки, с номером
       final body = tx != null && tx.length > 1 ? [for (final (i, x) in tx.indexed) '${(b['verse'] as int) + i} $x'].join('\n') : '${b['text']}';
       parts.add('${blockRefFull(b)}\n«$body»');
+      for (final a in altsOf(b)) {
+        final at = [for (final x in (a['t'] as List? ?? const [])) '$x'].where((x) => x.isNotEmpty).join(' ');
+        if (at.isNotEmpty) parts.add('${a['n']}: «$at»');
+      }
     } else if ('${b['text']}'.trim().isNotEmpty) {
       parts.add('${b['text']}'.trim());
     }
@@ -116,6 +123,12 @@ List<Block> removeVerseFrom(List<Block> blocks, String blockId, int verse) {
       if (from > end) return [];
       final tx = texts.sublist(from - v0, end - v0 + 1);
       final rest = Block.from(b)..remove('texts');
+      // тексты подключённых переводов делятся так же
+      if (b['alt'] is List) {
+        rest['alt'] = [
+          for (final a in altsOf(b)) {...a, 't': [for (final (k, x) in ((a['t'] as List?) ?? const []).indexed) if (k >= from - v0 && k <= end - v0) x]},
+        ];
+      }
       return [
         {...rest, 'id': keepId ? b['id'] : newId(), 'verse': from, 'to': end > from ? end : null, 'text': tx.join(' '), if (end > from) 'texts': tx},
       ];
@@ -171,11 +184,57 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
     final blocks = versesToBlocks(items, moduleId);
     _touch(id, (s) {
       final all = blocksOf(s);
-      all.insertAll(at == null ? all.length : math.max(0, math.min(all.length, at)), blocks);
+      // переводы, выбранные заранее, подключаются к новым стихам сами (тексты дописывает fillAltTexts)
+      final alt = [
+        for (final a in (s['altDefault'] as List? ?? const []))
+          if ((a as Map)['m'] != moduleId) {'m': a['m'], 'n': a['n'], 't': <dynamic>[]},
+      ];
+      all.insertAll(at == null ? all.length : math.max(0, math.min(all.length, at)), [for (final b in blocks) alt.isEmpty ? b : {...b, 'alt': alt}]);
       return {...s, 'blocks': all};
     });
     return [for (final b in blocks) b['id'] as String];
   }
+
+  /// Переводы у стиха: list — [{m, n}] (основной перевод блока не входит); тексты дописывает fillAltTexts
+  void setBlockAlts(String id, String blockId, List<Map<String, dynamic>> list) => _touch(id, (s) => {
+        ...s,
+        'blocks': [
+          for (final b in blocksOf(s))
+            b['id'] == blockId ? {...b, 'alt': [for (final a in list) altsOf(b).where((x) => x['m'] == a['m']).firstOrNull ?? {...a, 't': <dynamic>[]}]} : b,
+        ],
+      });
+
+  /// Переводы, которые сами подключаются ко всем новым стихам проповеди
+  void setAltDefault(String id, List<Map<String, dynamic>> list) => _touch(id, (s) => {...s, 'altDefault': list});
+
+  /// Тексты подключённых переводов: по стиху из каждого перевода (get — текст стиха; без отметки изменения)
+  void fillAltTexts(String id, String? Function(String moduleId, VerseRef r) get) => _touch(
+        id,
+        (s) => {
+          ...s,
+          'blocks': [
+            for (final b in blocksOf(s))
+              if (!isVerse(b) || b['alt'] is! List)
+                b
+              else
+                {
+                  ...b,
+                  'alt': [
+                    for (final a in altsOf(b))
+                      ((a['t'] as List?)?.length ?? 0) == ((b['to'] ?? b['verse']) as int) - (b['verse'] as int) + 1
+                          ? a
+                          : {
+                              ...a,
+                              't': [
+                                for (var v = b['verse'] as int; v <= ((b['to'] ?? b['verse']) as int); v++) get('${a['m']}', VerseRef(b['book'] as String, b['chapter'] as int, v)) ?? '',
+                              ],
+                            },
+                  ],
+                },
+          ],
+        },
+        stamp: false,
+      );
 
   String addTextBlock(String id, {int? after}) {
     final b = <String, dynamic>{'id': newId(), 'type': 'text', 'text': ''};

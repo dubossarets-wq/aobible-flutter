@@ -481,6 +481,39 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets('проповеди [${v.name}]: переводы у стиха, пустой текст исчезает, таймер «Кафедры»', (tester) async {
+      final id = c0Create();
+      await openSermons(tester, v, open: id);
+      final n = c.read(sermonsProvider.notifier);
+      n.addVerses(id, [VerseItem('John', 3, 16, 'Ибо так возлюбил Бог мир')], 'rst-plus');
+      await spin(tester, 300);
+      // «Переводы» раскрывают выбор: основной отмечен, переключатель «к новым стихам»
+      await tapTip(tester, 'Переводы');
+      expect(find.text('Подключать к новым стихам'), findsOneWidget);
+      // переводы, выбранные заранее, подключаются к новым стихам сами
+      n.setAltDefault(id, [{'m': 'kjv-test', 'n': 'KJV'}]);
+      n.addVerses(id, [VerseItem('John', 3, 17, 'Ибо не послал Бог')], 'rst-plus');
+      await spin(tester, 300);
+      final blocks = blocksOf(c.read(sermonsProvider).single);
+      expect(blocks.length, 2);
+      expect(altsOf(blocks.last).single['m'], 'kjv-test');
+      expect(sermonText(c.read(sermonsProvider).single), contains('3:16'));
+      // пустой свой текст исчезает сам, когда из него ушли
+      await tapText(tester, 'Текст', last: true);
+      expect(blocksOf(c.read(sermonsProvider).single).length, 3);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await spin(tester, 300);
+      expect(blocksOf(c.read(sermonsProvider).single).length, 2);
+      // «Кафедра»: таймер идёт, нажатие — пауза
+      await tapText(tester, 'Кафедра');
+      await spin(tester, 1200);
+      expect(find.textContaining(RegExp(r'^\d+:\d\d$')), findsOneWidget); // секундомер идёт по настоящим часам
+      await tapTip(tester, 'Пауза');
+      expect(find.byTooltip('Продолжить'), findsOneWidget);
+      await tapTip(tester, 'Закрыть кафедру');
+      await finish(tester);
+    });
+
     testWidgets('проповеди [${v.name}]: добавить стих по ссылке и по слову, «Кафедра», размер', (tester) async {
       final id = c0Create();
       await openSermons(tester, v, open: id);

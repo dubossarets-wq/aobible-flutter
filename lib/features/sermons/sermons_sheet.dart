@@ -394,6 +394,10 @@ class _EditorState extends ConsumerState<_Editor> {
     if (_title.text != '${sermon['title']}') _title.text = '${sermon['title']}'; // «Отменить»/«Повторить» меняют название
     if (_subtitle.text != '${sermon['subtitle'] ?? ''}') _subtitle.text = '${sermon['subtitle'] ?? ''}';
     _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим
+    // тексты подключённых переводов дописываются, когда их ещё нет
+    if (blocks.any((b) => isVerse(b) && altsOf(b).any((a) => ((a['t'] as List?)?.length ?? 0) != ((b['to'] ?? b['verse']) as int) - (b['verse'] as int) + 1))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _store.fillAltTexts(_id, (m, r) => verseText(m, r)) : null);
+    }
     return ReorderableListView.builder(
       scrollController: _scroll,
       padding: padTabs(context, const EdgeInsets.fromLTRB(16, 12, 16, 20)),
@@ -477,13 +481,9 @@ class _EditorState extends ConsumerState<_Editor> {
               Expanded(child: AobButton(wide: true, icon: LucideIcons.search, label: t('Стих'), onTap: () => widget.onAddVerse(null))),
             ]),
           ),
-        // .sermon-foot: подпись, под ней — «Удалить» на всю ширину (красная, с подтверждением)
+        // «Удалить проповедь» — неброской красной кнопкой по центру (с подтверждением)
         Padding(
-          padding: const EdgeInsets.only(top: 20),
-          child: Text('${tx('{n} место Писания|{n} места Писания|{n} мест Писания', {'n': verses})} · ${t('сохраняется само')}', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.1, color: pal.muted)),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.only(top: 18),
           child: _WideDelete(onConfirm: () {
             _store.delete(_id);
             widget.onBackToList();
@@ -505,6 +505,7 @@ class _EditorState extends ConsumerState<_Editor> {
                 block: b,
                 fresh: _fresh == id,
                 sermonId: _id,
+                altDefault: [for (final a in (sermon['altDefault'] as List? ?? const [])) (a as Map).cast<String, dynamic>()],
                 onUp: i > 0 ? () => _store.moveBlock(_id, i, i - 1) : null,
                 onDown: i < blocks.length - 1 ? () => _store.moveBlock(_id, i, i + 1) : null,
                 onFreshDone: () => _fresh == id ? setState(() => _fresh = null) : null,
@@ -538,7 +539,7 @@ class _EditorState extends ConsumerState<_Editor> {
 }
 
 /// .sermon-title-input: 1,35rem, жирный, только линия снизу (при вводе — цвета акцента)
-/// «Удалить проповедь» внизу редактора: красная кнопка на всю ширину; первое нажатие просит подтвердить (3 секунды)
+/// «Удалить проповедь» внизу редактора: неброская красная кнопка по центру; первое нажатие просит подтвердить (3 секунды)
 class _WideDelete extends StatefulWidget {
   const _WideDelete({required this.onConfirm});
   final VoidCallback onConfirm;
@@ -557,12 +558,12 @@ class _WideDeleteState extends State<_WideDelete> {
   }
 
   @override
-  Widget build(BuildContext context) => AobButton(
-        wide: true,
-        kind: BtnKind.danger,
-        icon: LucideIcons.trash2,
-        label: _ask ? t('Удалить проповедь?') : t('Удалить проповедь'),
-        onTap: () {
+  Widget build(BuildContext context) => Center(
+        child: TextButton.icon(
+          style: TextButton.styleFrom(foregroundColor: const Color(0xffc93a3a), textStyle: const TextStyle(fontSize: 14.4, fontWeight: FontWeight.w500)),
+          icon: const Icon(LucideIcons.trash2, size: 16),
+          label: Text(_ask ? t('Удалить проповедь?') : t('Удалить проповедь')),
+          onPressed: () {
           if (_ask) {
             _timer?.cancel();
             widget.onConfirm();
@@ -571,6 +572,7 @@ class _WideDeleteState extends State<_WideDelete> {
           setState(() => _ask = true);
           _timer = Timer(const Duration(seconds: 3), () => mounted ? setState(() => _ask = false) : null);
         },
+        ),
       );
 }
 
@@ -667,8 +669,9 @@ class _Reorder extends StatelessWidget {
 }
 
 class _BlockCard extends ConsumerStatefulWidget {
-  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.onUp, this.onDown});
+  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.onUp, this.onDown, this.altDefault = const []});
   final VoidCallback? onUp, onDown; // переставить на одно место выше / ниже (у крайних блоков — null)
+  final List<Map<String, dynamic>> altDefault; // переводы, которые сами подключаются к новым стихам проповеди
   final Palette pal;
   final Block block;
   final String sermonId;
@@ -682,6 +685,7 @@ class _BlockCard extends ConsumerStatefulWidget {
 }
 
 class _BlockCardState extends ConsumerState<_BlockCard> {
+  bool _altOpen = false; // раскрыт выбор переводов
   bool _picking = false; // режим «Часть стиха»: слова полного текста нажимаются
   int? _from, _to;
   String _full = '';
@@ -784,7 +788,14 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
     // Старый диапазон, который не удалось разбить, — одним абзацем, как раньше
     final lines = texts != null ? [for (final (k, x) in texts.indexed) (v: v0 + k, text: x)] : verse ? [(v: v0, text: '${block['text']}')] : <({int v, String text})>[];
     final verseStyle = readerTextStyle(ref.watch(settingsProvider), size: 16.8, weight: 400).copyWith(height: 1.5, color: pal.text); // .sermon-verse-text: --font-text
-    return Container(
+    final alts = altsOf(block);
+    final mainMod = '${block['moduleId'] ?? ''}';
+    String nameOf(String mid) => ModuleStore.instance.get(mid)?.name ?? mid;
+    // стих — с полосой цвета акцента слева: места Писания видно при прокрутке
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kRadius),
+      child: Stack(children: [
+      Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -792,7 +803,14 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onGo(v0),
-            child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(blockRef(block), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent))),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text.rich(TextSpan(children: [
+                TextSpan(text: blockRef(block)),
+                // рядом со ссылкой — перевод
+                if (mainMod.isNotEmpty) TextSpan(text: ' · ${nameOf(mainMod)}', style: TextStyle(fontWeight: FontWeight.w500, color: pal.muted)),
+              ]), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent)),
+            ),
           ),
           // «Часть стиха»: полный текст для выбора слов и обычные строки сменяют друг друга плавно
           Reveal(
@@ -825,7 +843,57 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                   ),
                   if (group) Padding(padding: EdgeInsets.only(top: k > 0 ? 4 : 0), child: ConfirmIcon(icon: LucideIcons.x, size: 15, confirmText: t('Убрать'), tooltip: t('Убрать стих'), onConfirm: () => onDropVerse(l.v))),
                 ]),
+              // подключённые переводы — под основным текстом (стиха в переводе нет — прочерк)
+              for (final a in alts)
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line.withValues(alpha: 0.8)))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${a['n']}', style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.2, color: pal.muted)),
+                    const SizedBox(height: 1),
+                    Builder(builder: (_) {
+                      final at = [for (final x in (a['t'] as List? ?? const [])) '$x'];
+                      final text = at.isEmpty ? '…' : at.every((x) => x.isEmpty) ? '—' : at.join(' ');
+                      return Text(text, style: verseStyle.copyWith(fontSize: 15.7, color: pal.text.withValues(alpha: 0.85)));
+                    }),
+                  ]),
+                ),
             ]),
+          ),
+          // выбор переводов: Библии на устройстве; основной — отмечен и не снимается
+          Reveal(
+            open: _altOpen,
+            child: Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final m in ModuleStore.instance.installed.where((m) => m.type == 'bible' && m.features['helper'] != true))
+                    AobChip(
+                      label: m.name,
+                      on: m.id == mainMod || alts.any((a) => a['m'] == m.id),
+                      onTap: m.id == mainMod
+                          ? null
+                          : () => store.setBlockAlts(
+                                sermonId,
+                                '${block['id']}',
+                                alts.any((a) => a['m'] == m.id)
+                                    ? [for (final a in alts) if (a['m'] != m.id) {'m': a['m'], 'n': a['n']}]
+                                    : [for (final a in alts) {'m': a['m'], 'n': a['n']}, {'m': m.id, 'n': m.name}],
+                              ),
+                    ),
+                ]),
+                const SizedBox(height: 4),
+                // выбранные здесь переводы — и ко всем новым стихам проповеди
+                SwitchRow(
+                  label: t('Подключать к новым стихам'),
+                  value: alts.isNotEmpty && widget.altDefault.map((a) => a['m']).join(',') == alts.map((a) => a['m']).join(','),
+                  onChanged: (on) => store.setAltDefault(sermonId, on ? [for (final a in alts) {'m': a['m'], 'n': a['n']}] : []),
+                ),
+              ]),
+            ),
           ),
         ] else
           _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone),
@@ -837,6 +905,10 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
           child: Row(children: [
             _Reorder(pal: pal, onUp: widget.onUp, onDown: widget.onDown),
             const SizedBox(width: 8),
+            if (verse && !_picking) ...[
+              IconBtn(icon: LucideIcons.languages, size: 16, subtle: !_altOpen && alts.isEmpty, tooltip: t('Переводы'), onTap: () => setState(() => _altOpen = !_altOpen)),
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: canPick
                   ? Wrap(spacing: 6, children: [
@@ -856,6 +928,9 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             ),
           ]),
         ),
+      ]),
+      ),
+      if (verse) Positioned(left: 0, top: 0, bottom: 0, width: 3, child: ColoredBox(color: pal.accent)),
       ]),
     );
   }
@@ -886,6 +961,8 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
       if (!_focus.hasFocus && mounted) {
         setState(() => _edit = false);
         widget.onDone();
+        // пустой свой текст исчезает сам, когда из него ушли
+        if (_ctl.text.trim().isEmpty) ref.read(sermonsProvider.notifier).removeBlock(widget.sermonId, '${widget.block['id']}');
       }
     });
   }
@@ -945,6 +1022,9 @@ class Pulpit extends ConsumerStatefulWidget {
 
 class _PulpitState extends ConsumerState<Pulpit> {
   double _size = 26;
+  // таймер проповеди: идёт с открытия «Кафедры», нажатие — пауза / продолжить
+  final _clock = Stopwatch()..start();
+  Timer? _tick;
   final _pts = <int, Offset>{};
   double _d0 = 0, _s0 = 26;
 
@@ -956,10 +1036,12 @@ class _PulpitState extends ConsumerState<Pulpit> {
       if (raw != null) _size = (jsonDecode(raw) as num).toDouble().clamp(18, 60).toDouble();
     } catch (_) {}
     keepScreenOn(true);
+    _tick = Timer.periodic(const Duration(milliseconds: 500), (_) => mounted ? setState(() {}) : null);
   }
 
   @override
   void dispose() {
+    _tick?.cancel();
     keepScreenOn(false);
     super.dispose();
   }
@@ -1008,6 +1090,34 @@ class _PulpitState extends ConsumerState<Pulpit> {
             IconBtn(icon: LucideIcons.plus, size: 20, tooltip: t('Крупнее'), onTap: () => _setSize(_size + 2)),
             const SizedBox(width: 6),
             Expanded(child: Text('${s['title']}', maxLines: 1, softWrap: false, overflow: TextOverflow.clip, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, color: pal.text))),
+            const SizedBox(width: 6),
+            // таймер проповеди: нажатие — пауза / продолжить
+            Builder(builder: (_) {
+              final sec = _clock.elapsed.inSeconds;
+              final clock = '${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')}';
+              return Tooltip(
+                message: _clock.isRunning ? t('Пауза') : t('Продолжить'),
+                child: Semantics(
+                  label: '${t('Время проповеди')}: $clock',
+                  button: true,
+                  child: Material(
+                    color: pal.text.withValues(alpha: 0.07),
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => setState(() => _clock.isRunning ? _clock.stop() : _clock.start()),
+                      child: Container(
+                        height: 32,
+                        constraints: const BoxConstraints(minWidth: 56),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(clock, style: TextStyle(fontSize: 14.4, fontWeight: FontWeight.w600, color: _clock.isRunning ? pal.text : pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
             const SizedBox(width: 6),
             IconBtn(icon: LucideIcons.x, size: 22, tooltip: t('Закрыть кафедру'), onTap: () => Navigator.of(context).pop()),
           ]),
@@ -1069,6 +1179,16 @@ class _PulpitState extends ConsumerState<Pulpit> {
                 )
             else
               Text(tx.first, style: lh),
+            // подключённые переводы
+            for (final a in altsOf(b))
+              if ((a['t'] as List? ?? const []).any((x) => '$x'.isNotEmpty))
+                Padding(
+                  padding: EdgeInsets.only(top: _size * 0.6),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${a['n']}', style: TextStyle(fontSize: _size * 0.6, fontWeight: FontWeight.w700, color: pal.muted)),
+                    Text((a['t'] as List).join(' '), style: lh.copyWith(fontSize: _size * 0.88, color: pal.text.withValues(alpha: 0.85))),
+                  ]),
+                ),
           ]),
         ),
       ];
