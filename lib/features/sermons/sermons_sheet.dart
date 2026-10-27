@@ -872,7 +872,11 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
               decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Wrap(spacing: 6, runSpacing: 6, children: [
-                  for (final m in ModuleStore.instance.installed.where((m) => m.type == 'bible' && m.features['helper'] != true))
+                  // только переводы, где этот стих есть (уже подключённый — чтобы его можно было снять)
+                  for (final m in ModuleStore.instance.installed.where((m) =>
+                      m.type == 'bible' &&
+                      m.features['helper'] != true &&
+                      (m.id == mainMod || alts.any((a) => a['m'] == m.id) || (verseText(m.id, VerseRef(block['book'] as String, block['chapter'] as int, v0)) ?? '').isNotEmpty)))
                     AobChip(
                       label: m.name,
                       on: m.id == mainMod || alts.any((a) => a['m'] == m.id),
