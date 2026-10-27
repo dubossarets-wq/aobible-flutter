@@ -434,7 +434,7 @@ class _EditorState extends ConsumerState<_Editor> {
             hintStyle: TextStyle(color: pal.muted.withValues(alpha: 0.6)),
             border: InputBorder.none,
             isDense: true,
-            contentPadding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
+            contentPadding: const EdgeInsets.fromLTRB(0, 10, 0, 12), // сверху — отступ от названия
           ),
         ),
         // название и подзаголовок — одна группа: под ней тонкая линия, ниже с отступом — кнопки
@@ -505,8 +505,8 @@ class _EditorState extends ConsumerState<_Editor> {
                 block: b,
                 fresh: _fresh == id,
                 sermonId: _id,
-                gapTop: i > 0,
-                gapBottom: i < blocks.length - 1,
+                onUp: i > 0 ? () => _store.moveBlock(_id, i, i - 1) : null,
+                onDown: i < blocks.length - 1 ? () => _store.moveBlock(_id, i, i + 1) : null,
                 onFreshDone: () => _fresh == id ? setState(() => _fresh = null) : null,
                 onGo: (v) => _goVerse(b, v),
                 onDropVerse: (v) => _dropVerse(b, v),
@@ -529,9 +529,6 @@ class _EditorState extends ConsumerState<_Editor> {
               pal: pal,
               onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: i)),
               onVerse: () => widget.onAddVerse(i + 1),
-              // стрелки: этот блок — ниже, следующий — выше
-              onDown: i < blocks.length - 1 ? () => _store.moveBlock(_id, i, i + 1) : null,
-              onUp: i < blocks.length - 1 ? () => _store.moveBlock(_id, i + 1, i) : null,
             ),
           ]),
         );
@@ -602,11 +599,9 @@ class _TitleField extends StatelessWidget {
 
 /// .sermon-insert: компактная строка между блоками — добавить текст или стих именно сюда; за кнопками — пунктирная линия
 class _Inserter extends StatelessWidget {
-  const _Inserter({required this.pal, required this.onText, required this.onVerse, this.onDown, this.onUp});
+  const _Inserter({required this.pal, required this.onText, required this.onVerse});
   final Palette pal;
   final VoidCallback onText, onVerse;
-  final VoidCallback? onDown; // блок над строкой — ниже (ушко свисает с его нижнего края)
-  final VoidCallback? onUp; // блок под строкой — выше (ушко растёт из его верхнего края)
 
   @override
   Widget build(BuildContext context) {
@@ -631,66 +626,49 @@ class _Inserter extends StatelessWidget {
             ),
           ),
         );
-    final row = Padding(
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Stack(alignment: Alignment.center, children: [
         Positioned(left: 14, right: 14, child: DashedLine(color: pal.line)),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [btn(t('Текст'), t('Добавить текст'), onText), const SizedBox(width: 8), btn(t('Стих'), t('Добавить стих'), onVerse)]),
       ]),
     );
-    if (onDown == null && onUp == null) return row;
-    // ушки стрелок — справа, вплотную к краю карточки (на её краю в этом месте нет линии — см. _BlockCard)
-    return Stack(clipBehavior: Clip.none, children: [
-      row,
-      if (onDown != null) Positioned(top: -1, right: _MoveTab.right, child: _MoveTab(pal: pal, down: true, onTap: onDown!)),
-      if (onUp != null) Positioned(bottom: -1, right: _MoveTab.right, child: _MoveTab(pal: pal, down: false, onTap: onUp!)),
-    ]);
   }
 }
 
-/// Ушко со стрелкой у края карточки: тот же фон и та же рамка, что у неё, — продолжение карточки; со стороны карточки
-/// линии нет. down — свисает с нижнего края (переместить ниже), иначе растёт из верхнего (выше)
-class _MoveTab extends StatelessWidget {
-  const _MoveTab({required this.pal, required this.down, required this.onTap});
+/// Перестановка блока: «ручка» ⠿ (зажать и тянуть) и стрелки ↑ ↓ — одной капсулой; у крайних блоков лишняя стрелка бледная
+class _Reorder extends StatelessWidget {
+  const _Reorder({required this.pal, this.onUp, this.onDown});
   final Palette pal;
-  final bool down;
-  final VoidCallback onTap;
-  static const w = 38.0, h = 19.0, right = 12.0;
+  final VoidCallback? onUp, onDown;
 
   @override
   Widget build(BuildContext context) {
-    const r = Radius.circular(9);
-    return Tooltip(
-      message: down ? t('Переместить ниже') : t('Переместить выше'),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(
-          width: w,
-          height: h,
-          child: Stack(children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: pal.bg,
-                  border: Border.all(color: pal.line),
-                  borderRadius: down ? const BorderRadius.vertical(bottom: r) : const BorderRadius.vertical(top: r),
-                ),
-              ),
-            ),
-            // со стороны карточки — без линии: ушко и карточка одно целое
-            Positioned(left: 1, right: 1, top: down ? 0 : null, bottom: down ? null : 0, height: 1.5, child: ColoredBox(color: pal.bg)),
-            Center(child: Icon(down ? LucideIcons.chevronDown : LucideIcons.chevronUp, size: 15, color: pal.muted)),
-          ]),
-        ),
-      ),
+    Widget arrow(IconData icon, String tip, VoidCallback? f) => Tooltip(
+          message: tip,
+          child: InkWell(
+            onTap: f,
+            customBorder: const CircleBorder(),
+            child: SizedBox(width: 30, height: 30, child: Icon(icon, size: 16, color: f == null ? pal.muted.withValues(alpha: 0.35) : pal.text)),
+          ),
+        );
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.only(left: 6, right: 2),
+      decoration: BoxDecoration(color: pal.text.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(15)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Tooltip(message: t('Зажмите, чтобы перетащить'), child: Icon(LucideIcons.gripVertical, size: 16, color: pal.muted)),
+        Container(width: 1, height: 16, margin: const EdgeInsets.symmetric(horizontal: 4), color: pal.line),
+        arrow(LucideIcons.arrowUp, t('Переместить выше'), onUp),
+        arrow(LucideIcons.arrowDown, t('Переместить ниже'), onDown),
+      ]),
     );
   }
 }
 
 class _BlockCard extends ConsumerStatefulWidget {
-  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.gapTop = false, this.gapBottom = false});
-  final bool gapTop, gapBottom; // в этих местах рамки — ушки стрелок «выше» / «ниже» (линии нет)
+  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.onUp, this.onDown});
+  final VoidCallback? onUp, onDown; // переставить на одно место выше / ниже (у крайних блоков — null)
   final Palette pal;
   final Block block;
   final String sermonId;
@@ -806,17 +784,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
     // Старый диапазон, который не удалось разбить, — одним абзацем, как раньше
     final lines = texts != null ? [for (final (k, x) in texts.indexed) (v: v0 + k, text: x)] : verse ? [(v: v0, text: '${block['text']}')] : <({int v, String text})>[];
     final verseStyle = readerTextStyle(ref.watch(settingsProvider), size: 16.8, weight: 400).copyWith(height: 1.5, color: pal.text); // .sermon-verse-text: --font-text
-    // в местах ушек стрелок рамка прерывается — ушко и карточка одно целое
-    Widget gap(bool top) => Positioned(
-          top: top ? 0 : null,
-          bottom: top ? null : 0,
-          right: _MoveTab.right + 1,
-          width: _MoveTab.w - 2,
-          height: 1.5,
-          child: IgnorePointer(child: ColoredBox(color: pal.bg)),
-        );
-    return Stack(children: [
-      Container(
+    return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -861,14 +829,14 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
           ),
         ] else
           _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone),
-        // .sermon-block-tools: пунктир сверху, «ручка» перетаскивания слева, корзина справа
+        // .sermon-block-tools: пунктир сверху, слева — перестановка (⠿ ↑ ↓), корзина справа
         const SizedBox(height: 8),
         DashedLine(color: pal.line),
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Row(children: [
-            Tooltip(message: t('Зажмите, чтобы перетащить'), child: SizedBox(width: 22, height: 30, child: Align(alignment: Alignment.centerLeft, child: Icon(LucideIcons.gripVertical, size: 17, color: pal.muted)))),
-            const SizedBox(width: 6),
+            _Reorder(pal: pal, onUp: widget.onUp, onDown: widget.onDown),
+            const SizedBox(width: 8),
             Expanded(
               child: canPick
                   ? Wrap(spacing: 6, children: [
@@ -889,10 +857,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
           ]),
         ),
       ]),
-      ),
-      if (widget.gapTop) gap(true),
-      if (widget.gapBottom) gap(false),
-    ]);
+    );
   }
 }
 
