@@ -641,6 +641,16 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
         RangeRow(label: t('Размер текста'), big: true, value: fs, min: 14, max: 32, step: 1, onChanged: (v) => set({'commentaryFontSize': v}), word: (v) => '${v.round()} px'),
       ]),
+      // как показывать: текстом под стихом (свёрнут до двух строк) или прежней меткой после стиха
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        const SizedBox(height: 8),
+        Segmented<String>(
+          options: [('below', t('Под стихом')), ('tag', t('Меткой после стиха'))],
+          value: s.get<String>('commentView') == 'tag' ? 'tag' : 'below',
+          onChanged: (v) => set({'commentView': v}),
+        ),
+      ]),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 4),

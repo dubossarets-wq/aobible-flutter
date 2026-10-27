@@ -96,6 +96,7 @@ class Settings {
     'showIllustrations': true,
     'colorOverrides': <String, dynamic>{}, // свои цвета поверх темы: { accent: '#…', bar: '#…', strong: '#…' }
     'commentaryFontSize': 19.0,
+    'commentView': 'below', // комментарии в тексте: below — текстом под стихом, tag — меткой после стиха
     'menu': <String, dynamic>{'help': true, 'lastBookmark': true, 'sermons': true, 'plans': true, 'listen': true, 'maps': true, 'focus': false, 'book': false, 'split': true},
   };
 

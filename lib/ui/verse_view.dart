@@ -148,6 +148,7 @@ class _Seg {
   final List<_VR> vrs = [];
   TextSpan span = const TextSpan();
   List<Widget> after = const [];
+  List<Widget> before = const [];
   final List<_Plate> plates = [];
   Color? bg; // только для одного стиха: фон и выделение рамкой
   bool selected = false;
@@ -389,12 +390,13 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     final s = v.settings;
     final fs = s.d('fontSize');
     return ListenableBuilder(
-      listenable: Listenable.merge([partSelection, activeWord]),
+      listenable: Listenable.merge([partSelection, activeWord, openComment]),
       builder: (context, _) {
         _segs = _assemble(context, selKey);
         final cont = isContinuous(s);
         final children = <Widget>[];
         for (final seg in _segs) {
+          children.addAll(seg.before);
           children.add(_segWidget(seg, cont, fs));
           children.addAll(seg.after);
         }
@@ -484,9 +486,16 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     for (var k = 0; k < verses.length; k++) {
       final it = verses[k];
       final vref = VerseRef(v.book, it.chapter, it.verse);
+      final decors = [for (final d in Hub.verseDecorators) d(context, ref, v.pane, v.moduleId, it, v.book)].whereType<VerseDecor>().toList();
+      // перед стихом (введение к книге или главе) — отдельный блок: сплошной текст перед ним разрываем
+      final above = decors.map((d) => d.above).whereType<Widget>().toList();
+      if (above.isNotEmpty && seg != null && seg!.vrs.isNotEmpty) {
+        seg!.span = TextSpan(children: ch);
+        seg = null;
+      }
       if (seg == null) open();
       final cur = seg!;
-      final decors = [for (final d in Hub.verseDecorators) d(context, ref, v.pane, v.moduleId, it, v.book)].whereType<VerseDecor>().toList();
+      if (above.isNotEmpty) cur.before = [for (final w in above) Padding(padding: EdgeInsets.only(bottom: fs * s.d('verseSpacing')), child: w)];
       final partOn = ps != null && ps.pane == v.pane && ps.ref == vref;
       final selected = (selKey.isNotEmpty && selKey[k] == '1') || partOn;
       final vr = _VR(it, at);

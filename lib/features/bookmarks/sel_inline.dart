@@ -117,15 +117,10 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
         } else {
           // подложка значка — во всю ширину ячейки с полем 4 сверху и по бокам (от края карточки 4 + 4 = 8 со всех
           // сторон); у «Слушать» она залита акцентом, скругление 9
-          body = Column(children: [
-            Container(
-              width: double.infinity, // столбец центрирует детей — подложку растягиваем явно
-              height: 30,
-              margin: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-              decoration: main ? BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(9)) : null,
-              child: Icon(icon, size: 20, color: main ? pal.onAccent : pal.text),
-            ),
-            const SizedBox(height: 3),
+          // значок над подписью, пара — по центру ячейки; между ними 2
+          body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            SizedBox(height: 24, child: Center(child: Icon(icon, size: 20, color: pal.text))),
+            const SizedBox(height: 2),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(text, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: TextStyle(fontSize: colFs, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: main ? FontWeight.w600 : FontWeight.w500, color: main ? pal.text : muted)),

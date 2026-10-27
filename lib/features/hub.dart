@@ -24,9 +24,10 @@ class WordTap {
 
 /// Что добавить к стиху: фон (цвет выделения) и значки/пометки в конце стиха
 class VerseDecor {
-  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const [], this.below, this.parts = const []});
+  const VerseDecor({this.background, this.trailing = const [], this.leading = const [], this.afterNumber = const [], this.below, this.above, this.parts = const []});
   final Color? background;
   final Widget? below; // под текстом стиха, на всю ширину колонки (строка действий под выделенным стихом)
+  final Widget? above; // перед стихом, на всю ширину колонки (введение к книге или главе — перед первым стихом)
   /// Любимые части стиха: диапазоны слов (индексы слов в стихе, включительно) — читалка подчёркивает их, как .fav-part
   final List<(int, int)> parts;
   final List<InlineSpan> trailing;
@@ -72,6 +73,9 @@ final activeWord = ValueNotifier<({int pane, VerseRef ref, int token})?>(null);
 
 /// Идёт выбор части стиха (null — нет): кнопка «Часть стиха» ставит, читалка ведёт выбор слов
 final partSelection = ValueNotifier<PartSelection?>(null);
+
+/// Раскрытый комментарий под стихом: ключ «панель|книга.глава.стих»; closing — идёт плавное сворачивание
+final openComment = ValueNotifier<({String key, bool closing})?>(null);
 
 class Hub {
   // Чтение

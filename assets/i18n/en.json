@@ -179,6 +179,10 @@
   "one": "day",
   "other": "days"
  },
+ "Как показывать": "Show as",
+ "Под стихом": "Below the verse",
+ "Меткой после стиха": "As a tag after the verse",
+ "Развернуть": "Expand",
  "Каталог модулей": "Module catalog",
  "Загрузка перевода": "Downloading the translation",
  "Установка": "Installing",

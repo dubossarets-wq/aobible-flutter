@@ -180,6 +180,10 @@
   "one": "jour",
   "other": "jours"
  },
+ "Как показывать": "Affichage",
+ "Под стихом": "Sous le verset",
+ "Меткой после стиха": "Étiquette après le verset",
+ "Развернуть": "Développer",
  "Каталог модулей": "Catalogue des modules",
  "Загрузка перевода": "Téléchargement de la traduction",
  "Установка": "Installation",
