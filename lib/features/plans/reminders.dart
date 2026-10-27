@@ -161,6 +161,8 @@ Future<void> _schedule() async {
     final plans = loadPlans();
     if (!r.on || plans.isEmpty) return;
     final title = t('Чтение на сегодня');
+    // точно в назначенное время — если разрешено «Будильники и напоминания», иначе Android может отложить
+    final mode = await exactAllowed() ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
     for (final n in reminderSchedule(plans, r.list, DateTime.now())) {
       await _plugin.zonedSchedule(
         id: n.id,
@@ -169,7 +171,7 @@ Future<void> _schedule() async {
         title: title,
         body: n.body,
         payload: 'plans',
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: mode,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails('plan_reminder', t('Напоминание о чтении'), importance: Importance.defaultImportance, priority: Priority.defaultPriority, icon: 'ic_stat_aob', styleInformation: BigTextStyleInformation(n.body)),
           iOS: const DarwinNotificationDetails(),
@@ -179,6 +181,26 @@ Future<void> _schedule() async {
   } catch (e) {
     debugPrint('Напоминания: $e');
   }
+}
+
+/// «Будильники и напоминания» (Android 12+): без него уведомление приходит с опозданием или не приходит вовсе
+Future<bool> exactAllowed() async {
+  if (!remindersSupported || !Platform.isAndroid) return true;
+  try {
+    await _init();
+    return await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.canScheduleExactNotifications() ?? true;
+  } catch (_) {
+    return true;
+  }
+}
+
+/// Открыть системную страницу «Будильники и напоминания»; разрешили — расписание заново, уже точное
+Future<void> askExact() async {
+  try {
+    await _init();
+    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestExactAlarmsPermission();
+  } catch (_) {}
+  await scheduleReminders();
 }
 
 /// Включить или выключить; при включении спрашиваем разрешение (Android 13+). false — разрешения не дали

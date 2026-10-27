@@ -183,6 +183,9 @@
   "many": "dne",
   "other": "dní"
  },
+ "Разрешить": "Povolit",
+ "Чтобы напоминания приходили вовремя, разрешите приложению «Будильники и напоминания».": "Aby připomínky chodily včas, povolte aplikaci „Budíky a připomínky“.",
+ "Не приходят уведомления? На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Nechodí oznámení? Na Xiaomi, Huawei a dalších telefonech povolte aplikaci automatické spuštění a běh na pozadí bez omezení.",
  "Все словари скрыты — выберите их в «Словари».": "Všechny slovníky jsou skryté — vyberte je v „Slovníky“.",
  "Один раз": "Jednou",
  "Каждые {n} мин": "Každých {n} min",

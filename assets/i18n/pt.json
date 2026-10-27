@@ -180,6 +180,9 @@
   "one": "dia",
   "other": "dias"
  },
+ "Разрешить": "Permitir",
+ "Чтобы напоминания приходили вовремя, разрешите приложению «Будильники и напоминания».": "Para receber os lembretes na hora, permita ao app «Alarmes e lembretes».",
+ "Не приходят уведомления? На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Não chegam notificações? No Xiaomi, Huawei e outros celulares, permita ao app iniciar automaticamente e funcionar em segundo plano sem restrições.",
  "Все словари скрыты — выберите их в «Словари».": "Todos os dicionários estão ocultos — escolha-os em «Dicionários».",
  "Один раз": "Uma vez",
  "Каждые {n} мин": "A cada {n} min",

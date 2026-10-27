@@ -901,8 +901,35 @@ class _ReminderCard extends StatefulWidget {
   State<_ReminderCard> createState() => _ReminderCardState();
 }
 
-class _ReminderCardState extends State<_ReminderCard> {
+class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserver {
   Reminder _r = getReminder();
+  bool _exact = true; // разрешено ли «Будильники и напоминания»
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // проверяем и после возврата из настроек телефона
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final ok = await exactAllowed();
+    if (!mounted) return;
+    if (ok && !_exact) scheduleReminders(); // разрешили — расписание заново, уже точное
+    setState(() => _exact = ok);
+  }
 
   Future<void> _apply({bool? on, List<ReminderItem>? list}) async {
     final ok = await setReminder(on: on, list: list);
@@ -1054,6 +1081,23 @@ class _ReminderCardState extends State<_ReminderCard> {
           child: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // .rem-exact: без «Будильники и напоминания» Android откладывает уведомления
+              if (!_exact)
+                Container(
+                  margin: const EdgeInsets.only(top: 2, bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.panel), borderRadius: BorderRadius.circular(12)),
+                  child: Row(children: [
+                    Expanded(child: Text(t('Чтобы напоминания приходили вовремя, разрешите приложению «Будильники и напоминания».'), style: TextStyle(fontSize: 14.4, height: 1.4, color: pal.text))),
+                    const SizedBox(width: 10),
+                    AobButton(label: t('Разрешить'), small: true, kind: BtnKind.primary, onTap: () => askExact().then((_) => _check())),
+                  ]),
+                ),
+              // .rem-tip
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(t('Не приходят уведомления? На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.'), style: TextStyle(fontSize: 13.1, height: 1.4, color: pal.muted)),
+              ),
               for (final x in _r.list) _item(x),
               const SizedBox(height: 2),
               // .rem-add

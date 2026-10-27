@@ -183,6 +183,9 @@
   "many": "dni",
   "other": "dnia"
  },
+ "Разрешить": "Zezwól",
+ "Чтобы напоминания приходили вовремя, разрешите приложению «Будильники и напоминания».": "Aby przypomnienia przychodziły na czas, zezwól aplikacji na „Alarmy i przypomnienia”.",
+ "Не приходят уведомления? На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Nie przychodzą powiadomienia? Na Xiaomi, Huawei i innych telefonach zezwól aplikacji na autostart i pracę w tle bez ograniczeń.",
  "Все словари скрыты — выберите их в «Словари».": "Wszystkie słowniki są ukryte — wybierz je w „Słowniki”.",
  "Один раз": "Raz",
  "Каждые {n} мин": "Co {n} min",
