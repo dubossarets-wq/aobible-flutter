@@ -179,6 +179,12 @@
   "one": "day",
   "other": "days"
  },
+ "Пункт": "Point",
+ "Название пункта": "Point title",
+ "Пунктов: {n}": "Points: {n}",
+ "≈ {n} мин": "≈ {n} min",
+ "Удалить пункт": "Delete point",
+ "Разбейте проповедь на пункты — кнопка «Пункт». В пункт добавляйте мысли («Текст») и стихи («Стих»): зажмите стих в Библии → «В проповедь» или найдите его здесь.": "Split the sermon into points — the “Point” button. Add thoughts (“Text”) and verses (“Verse”) to each point: press and hold a verse in the Bible → “Add to sermon”, or find it here.",
  "Действия": "Actions",
  "Добавить блок": "Add block",
  "Как показывать": "Show as",

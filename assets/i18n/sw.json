@@ -179,6 +179,12 @@
   "one": "siku",
   "other": "siku"
  },
+ "Пункт": "Hoja",
+ "Название пункта": "Kichwa cha hoja",
+ "Пунктов: {n}": "Hoja: {n}",
+ "≈ {n} мин": "≈ dakika {n}",
+ "Удалить пункт": "Futa hoja",
+ "Разбейте проповедь на пункты — кнопка «Пункт». В пункт добавляйте мысли («Текст») и стихи («Стих»): зажмите стих в Библии → «В проповедь» или найдите его здесь.": "Gawa mahubiri kwa hoja — kitufe «Hoja». Ongeza mawazo («Maandishi») na mistari («Mstari»): bonyeza na ushikilie mstari kwenye Biblia → «Kwenye mahubiri», au uutafute hapa.",
  "Действия": "Vitendo",
  "Добавить блок": "Ongeza kipande",
  "Как показывать": "Jinsi ya kuonyesha",

@@ -180,6 +180,12 @@
   "one": "jour",
   "other": "jours"
  },
+ "Пункт": "Point",
+ "Название пункта": "Titre du point",
+ "Пунктов: {n}": "Points : {n}",
+ "≈ {n} мин": "≈ {n} min",
+ "Удалить пункт": "Supprimer le point",
+ "Разбейте проповедь на пункты — кнопка «Пункт». В пункт добавляйте мысли («Текст») и стихи («Стих»): зажмите стих в Библии → «В проповедь» или найдите его здесь.": "Divisez la prédication en points — bouton « Point ». Ajoutez des idées (« Texte ») et des versets (« Verset ») : appuyez longuement sur un verset dans la Bible → « Au sermon », ou cherchez-le ici.",
  "Действия": "Actions",
  "Добавить блок": "Ajouter un bloc",
  "Как показывать": "Affichage",
