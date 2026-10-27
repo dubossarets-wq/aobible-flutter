@@ -140,7 +140,7 @@ class _Pill extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 13),
                 child: SizedBox(
                   height: 30,
-                  child: Center(widthFactor: 1, child: Text(label, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: outline ? pal.accent : pal.onAccent))),
+                  child: Center(widthFactor: 1, child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 13.5, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: outline ? pal.accent : pal.onAccent)))),
                 ),
               ),
             ),
@@ -252,7 +252,9 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     for (final m in langItems) {
       langCount[m.language] = (langCount[m.language] ?? 0) + 1;
     }
-    final langCodes = langCount.keys.toList()..sort((a, b) => langRank(a).compareTo(langRank(b)) != 0 ? langRank(a).compareTo(langRank(b)) : a.compareTo(b));
+    // чипы — слева направо по числу модулей (больше — левее); при равенстве — прежний порядок
+    final langCodes = langCount.keys.toList()..sort((a, b) => (langCount[b] ?? 0) != (langCount[a] ?? 0) ? (langCount[b] ?? 0).compareTo(langCount[a] ?? 0) : langRank(a).compareTo(langRank(b)) != 0 ? langRank(a).compareTo(langRank(b)) : a.compareTo(b));
+    final sections = [...moduleSections]..sort((a, b) => (counts[b.$1] ?? 0).compareTo(counts[a.$1] ?? 0));
 
     // .filter-chips: одна строка, прокручивается вбок
     // у края, за которым есть ещё плашки, — затухание вместо обрезки
@@ -285,7 +287,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             const SizedBox(height: 10),
             chips([
               AobChip(compact: true, label: t('Все'), on: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
-              for (final e in moduleSections) AobChip(compact: true, label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
+              for (final e in sections) AobChip(compact: true, label: t(e.$2), on: _filter == e.$1, count: counts[e.$1] == 0 ? null : counts[e.$1], onTap: () => setState(() => _filter = e.$1)),
             ]),
             if (langCodes.length >= 2) ...[
               const SizedBox(height: 8),
@@ -401,6 +403,9 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     }
     // полное название — если оно не повторяет короткое; ниже мелко язык и размер для скачивания
     final title = m.title.isNotEmpty && m.title != m.name ? m.title : null;
+    // «Новый» — модуль появился в каталоге за последние 7 дней (поле added каталога)
+    final addedAt = DateTime.tryParse('${m.cat?.json['added'] ?? m.json['added'] ?? ''}');
+    final isNew = addedAt != null && DateTime.now().difference(addedAt).inDays < 7;
     final meta = [if (m.language.isNotEmpty) langName(m.language), if (installed == null && m.size > 0) fmtSize(m.size)].join(' · ');
     void toggle() => setState(() {
           _was = _open;
@@ -420,7 +425,16 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
                 child: Opacity(
                   opacity: m.unavailable ? 0.6 : 1,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(m.name, style: TextStyle(fontSize: 15.5, height: 1.3, fontWeight: FontWeight.w700, color: pal.text)),
+                    Row(children: [
+                      Flexible(child: Text(m.name, style: TextStyle(fontSize: 15.5, height: 1.3, fontWeight: FontWeight.w700, color: pal.text))),
+                      if (isNew)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(999)),
+                          child: Text(t('Новый@@модуль'), style: TextStyle(fontSize: 11, height: 1.2, fontWeight: FontWeight.w700, color: pal.onAccent, leadingDistribution: TextLeadingDistribution.even)),
+                        ),
+                    ]),
                     if (title != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.8, height: 1.35, color: pal.text.withValues(alpha: 0.82)))),
                     if (meta.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(meta, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted))),
                   ]),

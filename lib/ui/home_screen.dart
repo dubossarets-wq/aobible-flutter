@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -295,6 +296,8 @@ class _Pane extends ConsumerWidget {
 
   Widget _build(BuildContext context, WidgetRef ref, double paneW, Palette pal, double barHeight, String module, bool split, (int, int) hist, InstalledModule? mod, VerseRef initial, bool selecting, bool wide) {
     final narrow = paneW <= 470, tiny = paneW <= 360;
+    final ilBar = ref.watch(settingsProvider.select((s) => s.get<bool>('ilBar'))) != false; // панель подстрочника раскрыта
+    final inter = mod?.features['interlinear'] == true;
     final fg = pal.barText;
     final chipBg = mix(fg, 0.14, pal.bar);
     Widget tbIcon(IconData icon, String tip, VoidCallback? onTap, {bool dot = false}) => Opacity(
@@ -323,7 +326,8 @@ class _Pane extends ConsumerWidget {
           pane: index,
           child: Container(
             height: barHeight,
-            decoration: BoxDecoration(color: pal.bar, boxShadow: [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
+            // у подстрочника под шапкой — своя панель: тень переезжает под неё, между ними — еле заметная линия
+            decoration: BoxDecoration(color: pal.bar, boxShadow: mod?.features['interlinear'] == true && ilBar ? null : [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
             padding: const EdgeInsets.only(left: 8, right: 4),
             child: Row(children: [
               // Перевод и место — одна капсула: слева короткое имя перевода (мельче, приглушённо), тонкий разделитель,
@@ -332,7 +336,7 @@ class _Pane extends ConsumerWidget {
               Expanded(
                 child: LayoutBuilder(builder: (context, c) {
                   final modLabel = shortName(mod);
-                  final modSize = narrow ? 13.4 : 14.1, refSize = narrow ? 16.3 : 17.4;
+                  final modSize = narrow ? 12.9 : 13.6, refSize = narrow ? 15.6 : 16.6;
                   final tp = TextPainter(text: TextSpan(text: modLabel, style: TextStyle(fontSize: modSize, fontWeight: FontWeight.w700, letterSpacing: .4)), textDirection: TextDirection.ltr, maxLines: 1, textScaler: MediaQuery.textScalerOf(context))..layout();
                   final modW = math.min(tp.width + 26, c.maxWidth * 0.4);
                   tp.dispose();
@@ -347,7 +351,10 @@ class _Pane extends ConsumerWidget {
                         moduleTip: t('Перевод: {name}. Сменить перевод', {'name': mod?.name ?? module}),
                         moduleSize: modSize,
                         moduleMaxWidth: modW,
-                        place: _refLabel(context, r, c.maxWidth - modW - 1, refSize, tiny),
+                        place: _refLabel(context, r, c.maxWidth - modW - 1 - (inter && !ilBar ? 37 : 0), refSize, tiny),
+                        // подстрочник: третья часть капсулы раскрывает панель «Показывать»; при раскрытии значок «уходит»
+                        // в панель (съезжает вниз и гаснет, часть капсулы плавно сужается), раскрытую сворачивает ⌃ в панели
+                        tools: inter ? (on: !ilBar, tip: t('Подстрочник'), onTap: () => ref.read(settingsProvider.notifier).set({'ilBar': true})) : null,
                         placeTip: t('{ref}. Выбрать место', {'ref': Books.instance.formatRef(r.book, r.chapter, r.verse, full: true)}),
                         placeSize: refSize,
                         chevron: !tiny,
@@ -359,7 +366,8 @@ class _Pane extends ConsumerWidget {
                 }),
               ),
               const SizedBox(width: 4),
-              tbIcon(LucideIcons.arrowLeft, t('Назад по истории'), hist.$1 > 0 ? () => ref.read(panesProvider.notifier).go(index, -1) : null),
+              // «Назад» — только когда есть куда: бледная неактивная стрелка — лишний шум в шапке
+              if (hist.$1 > 0) tbIcon(LucideIcons.arrowLeft, t('Назад по истории'), () => ref.read(panesProvider.notifier).go(index, -1)),
               if (hist.$1 < hist.$2 - 1) tbIcon(LucideIcons.arrowRight, t('Вперёд по истории'), () => ref.read(panesProvider.notifier).go(index, 1)),
               if (wide && index == 0) tbIcon(LucideIcons.search, t('Поиск'), () => openSearch(context, index)),
               if (wide && index == 0)
@@ -372,12 +380,25 @@ class _Pane extends ConsumerWidget {
             ]),
           ),
         ),
+      // Подстрочник — вторая панель под шапкой: какие строки слова показывать (перевод, оригинал, номер Стронга)
       // Режим плана: вместо читалки — лента отрывков дня (PlanView); ставит и снимает функция планов
       Expanded(
-        child: ValueListenableBuilder<Map<int, ({String uid, int day})>>(
-          valueListenable: planMode,
-          builder: (context, m, _) => m[index] != null && Hub.planView != null ? Hub.planView!(context, ref, index) : _readerOf(index),
-        ),
+        child: Stack(children: [
+          Positioned.fill(
+            child: ValueListenableBuilder<Map<int, ({String uid, int day})>>(
+              valueListenable: planMode,
+              builder: (context, m, _) => m[index] != null && Hub.planView != null ? Hub.planView!(context, ref, index) : _readerOf(index),
+            ),
+          ),
+          // панель подстрочника — поверх текста (раскрытие и скрытие текст не двигают); полоска чтения — под ней
+          if (mod?.features['interlinear'] == true && !selecting)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _FocusHide(pane: index, child: _SlideBar(open: ilBar, height: 40, child: _InterBar(pal: pal, onHide: () => ref.read(settingsProvider.notifier).set({'ilBar': false})))),
+            ),
+        ]),
       ),
     ]);
   }
@@ -547,12 +568,183 @@ String _refLabel(BuildContext context, VerseRef r, double maxWidth, double fontS
   return b.formatRef(r.book, r.chapter, r.verse);
 }
 
+/// Панель подстрочника — тонкая полоса цвета верхней панели под ней: «👁» и три флажка (перевод слова, оригинал,
+/// номер Стронга). Включённый — галочка, ярко на лёгкой подложке; выключенный — пустой квадрат, бледно и зачёркнут;
+/// последнюю видимую строку выключить нельзя
+class _InterBar extends ConsumerWidget {
+  const _InterBar({required this.pal, required this.onHide});
+  final Palette pal;
+  final VoidCallback onHide; // ⌃ справа — свернуть панель (раскрывается язычком под шапкой)
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => LayoutBuilder(builder: (context, box) => _build(context, ref, box.maxWidth <= 470));
+
+  Widget _build(BuildContext context, WidgetRef ref, bool narrow) {
+    final s = ref.watch(settingsProvider);
+    final fg = pal.barText;
+    final keys = [('ilGloss', LucideIcons.languages, t('Перевод')), ('ilOrig', LucideIcons.scrollText, t('Оригинал')), ('ilStrong', LucideIcons.hash, t('Стронг'))];
+    final on = {for (final (k, _, _) in keys) k: s.get<bool>(k) != false};
+    // один сегментированный переключатель «Перевод │ Оригинал │ Стронг» (несколько можно включить сразу):
+    // включённая часть — с подложкой, заполненным кружком и яркой надписью; выключенная — пустой кружок, бледно
+    Widget seg(String k, String label, bool first, bool last) {
+      final v = on[k]!;
+      return Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: () {
+            // все строки скрыть нельзя — остаётся хотя бы одна
+            if (v && on.values.where((x) => x).length == 1) return;
+            ref.read(settingsProvider.notifier).set({k: !v});
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.fastOutSlowIn,
+            height: 30,
+            padding: const EdgeInsets.fromLTRB(8, 0, 12, 0),
+            color: v ? fg.withValues(alpha: 0.13) : Colors.transparent,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                // свой кружок: галочка толще, чем у значка шрифта
+                child: CustomPaint(key: ValueKey(v), size: const Size.square(15), painter: _CheckDot(on: v, color: v ? fg : fg.withValues(alpha: 0.45), mark: pal.bar)),
+              ),
+              const SizedBox(width: 6),
+              Transform.translate(
+                offset: const Offset(0, -1), // на 1 px выше — визуально ровно по середине плашки
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(fontSize: 12.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: v ? fg : fg.withValues(alpha: 0.5)),
+                  child: Text(label),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 40,
+      // еле заметная линия сверху — отделяет панель от шапки того же цвета
+      decoration: BoxDecoration(
+        color: pal.bar,
+        border: Border(top: BorderSide(color: fg.withValues(alpha: 0.08))),
+        boxShadow: [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))],
+      ),
+      // слева — как капсула шапки (8); стрелка ⌃ — точно под значком «параллельно» (у узкой панели он уже: 36 вместо 40)
+      padding: EdgeInsets.fromLTRB(8, 0, narrow ? 3 : 5, 0),
+      child: Row(children: [
+        // «Показывать» и переключатель — читается фразой: видно, что строки можно снять; на узком экране подпись
+        // уступает место переключателю
+        if (MediaQuery.sizeOf(context).width >= 430) ...[
+          Text(t('Показывать:'), style: TextStyle(fontSize: 12.5, height: 1.2, color: fg.withValues(alpha: 0.55))),
+          const SizedBox(width: 8),
+        ],
+        // всё место до стрелки ⌃ (Flexible со Spacer делили его пополам — переключатель обрезался)
+        // не помещается — прокручивается вбок, у обрезанного края — плавное затухание (FadeRow)
+        Expanded(
+          child: FadeRow(gap: 0, children: [
+            Container(
+              // без обводки: форму капсулы держит лёгкая подложка, как у капсулы шапки
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(15), color: fg.withValues(alpha: 0.07)),
+              clipBehavior: Clip.antiAlias,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                for (final (i, (k, _, label)) in keys.indexed) ...[
+                  if (i > 0) Container(width: 1, height: 30, color: fg.withValues(alpha: 0.16)),
+                  seg(k, label, i == 0, i == keys.length - 1),
+                ],
+              ]),
+            ),
+          ]),
+        ),
+        IconBtn(icon: LucideIcons.chevronUp, size: 18, color: fg.withValues(alpha: 0.7), tooltip: t('Свернуть'), onTap: onHide),
+      ]),
+    );
+  }
+}
+
+/// Кружок-флажок панели подстрочника: включён — залитый круг с толстой галочкой (линия 2,2), выключен — кольцо
+class _CheckDot extends CustomPainter {
+  _CheckDot({required this.on, required this.color, required this.mark});
+  final bool on;
+  final Color color, mark;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero), r = size.width / 2;
+    if (!on) {
+      canvas.drawCircle(c, r - 0.9, Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6);
+      return;
+    }
+    canvas.drawCircle(c, r, Paint()..color = color);
+    final k = size.width / 15;
+    canvas.drawPath(
+      Path()
+        ..moveTo(4.3 * k, 7.8 * k)
+        ..lineTo(6.6 * k, 10.1 * k)
+        ..lineTo(10.9 * k, 5.4 * k),
+      Paint()
+        ..color = mark
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2 * k
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CheckDot old) => old.on != on || old.color != color || old.mark != mark;
+}
+
+/// Панель под шапкой поверх текста: плавно въезжает и уезжает вверх (сдвиг готовой картинки — без перекладки главы)
+class _SlideBar extends StatefulWidget {
+  const _SlideBar({required this.open, required this.height, required this.child});
+  final bool open;
+  final double height;
+  final Widget child;
+  @override
+  State<_SlideBar> createState() => _SlideBarState();
+}
+
+class _SlideBarState extends State<_SlideBar> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 240), value: widget.open ? 1 : 0);
+  late final Animation<Offset> _slide = Tween(begin: const Offset(0, -1), end: Offset.zero).animate(CurvedAnimation(parent: _c, curve: Curves.fastOutSlowIn));
+  late bool _shown = widget.open;
+
+  @override
+  void didUpdateWidget(_SlideBar old) {
+    super.didUpdateWidget(old);
+    if (widget.open == old.open) return;
+    if (widget.open) {
+      setState(() => _shown = true);
+      _c.forward();
+    } else {
+      _c.reverse().then((_) {
+        if (mounted && !widget.open) setState(() => _shown = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _shown
+      ? SizedBox(height: widget.height, child: ClipRect(child: SlideTransition(position: _slide, child: RepaintBoundary(child: widget.child))))
+      : const SizedBox(width: double.infinity);
+}
+
 /// Читалка панели — один и тот же экземпляр виджета: при изменении размера окна шапка перестраивается,
 /// а глава только перекладывается по новой ширине (новый ReaderPane на каждый шаг пересобирал все видимые стихи)
 final _readers = <int, Widget>{};
 Widget _readerOf(int index) => _readers.putIfAbsent(index, () => ReaderPane(index: index));
 
-/// Шапка панели: перевод и место — одна капсула высотой 40 из двух частей с тонким разделителем.
+/// Шапка панели: перевод и место — одна капсула высотой 36 из двух частей с тонким разделителем.
 /// Перевод — мельче и приглушённо (как подпись), место — крупно и жирно, со стрелкой ˅; подсветка нажатия — у своей части
 class _BarCrumb extends StatelessWidget {
   const _BarCrumb({
@@ -568,7 +760,9 @@ class _BarCrumb extends StatelessWidget {
     required this.chevron,
     required this.onModule,
     required this.onPlace,
+    this.tools,
   });
+  final ({bool on, String tip, VoidCallback onTap})? tools;
   final Color bg, fg;
   final String module, moduleTip, place, placeTip;
   final double moduleSize, moduleMaxWidth, placeSize;
@@ -580,7 +774,8 @@ class _BarCrumb extends StatelessWidget {
     Widget part(String tip, VoidCallback onTap, EdgeInsets pad, Widget child) => Tooltip(
           message: tip,
           // по ширине содержимого (hug): Container с alignment растягивался бы на всё доступное место
-          child: InkWell(onTap: onTap, child: Container(height: 40, padding: pad, child: Align(widthFactor: 1, child: child))),
+          // высота 36 — компактно, но удобно нажимать (вся ширина части — зона нажатия)
+          child: InkWell(onTap: onTap, child: Container(height: 36, padding: pad, child: Align(widthFactor: 1, child: child))),
         );
     return Material(
       color: bg,
@@ -593,21 +788,60 @@ class _BarCrumb extends StatelessWidget {
             moduleTip,
             onModule,
             const EdgeInsets.only(left: 14, right: 11),
-            Text(module, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: moduleSize, fontWeight: FontWeight.w700, letterSpacing: .4, color: fg.withValues(alpha: 0.78))),
+            // надписи — ровно по середине капсулы: запас строки поровну и на 1 px выше (как в кнопках)
+            Transform.translate(offset: const Offset(0, -1), child: Text(module, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: moduleSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .4, color: fg.withValues(alpha: 0.78)))),
           ),
         ),
-        Container(width: 1, height: 20, color: fg.withValues(alpha: 0.2)),
+        Container(width: 1, height: 18, color: fg.withValues(alpha: 0.2)),
         Flexible(
           child: part(
             placeTip,
             onPlace,
             EdgeInsets.only(left: 11, right: chevron ? 10 : 14),
             Row(mainAxisSize: MainAxisSize.min, children: [
-              Flexible(child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg))),
-              if (chevron) ...[const SizedBox(width: 4), Icon(LucideIcons.chevronDown, size: 16, color: fg.withValues(alpha: 0.6))],
+              Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg)))),
+              // стрелка ˅ — на одной линии с поднятой надписью
+              if (chevron) ...[const SizedBox(width: 4), Transform.translate(offset: const Offset(0, -0.5), child: Icon(LucideIcons.chevronDown, size: 16, color: fg.withValues(alpha: 0.6)))],
             ]),
           ),
         ),
+        if (tools != null)
+          // on — значок виден; иначе часть капсулы сужается до нуля, а значок съезжает вниз и гаснет
+          ClipRect(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.fastOutSlowIn,
+              width: tools!.on ? 37 : 0,
+              // высота — по содержимому (36): без этого OverflowBox брал всю высоту шапки и раздувал капсулу
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                minWidth: 37,
+                maxWidth: 37,
+                fit: OverflowBoxFit.deferToChild,
+                child: IgnorePointer(
+                  ignoring: !tools!.on,
+                  child: Row(children: [
+                    Container(width: 1, height: 18, color: fg.withValues(alpha: 0.2)),
+                    part(
+                      tools!.tip,
+                      tools!.onTap,
+                      const EdgeInsets.only(left: 9, right: 11),
+                      AnimatedSlide(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.fastOutSlowIn,
+                        offset: tools!.on ? Offset.zero : const Offset(0, 1.1),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 220),
+                          opacity: tools!.on ? 1 : 0,
+                          child: Icon(LucideIcons.slidersHorizontal, size: 16, color: fg.withValues(alpha: 0.75)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
       ]),
     );
   }

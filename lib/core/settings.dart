@@ -64,6 +64,11 @@ class Settings {
     'verseSpacing': 0.55,
     'showVerseNumbers': true,
     'showStrongs': false,
+    // подстрочник: какие строки слова показывать (вторая панель под шапкой)
+    'ilBar': true, // панель подстрочника раскрыта
+    'ilGloss': true,
+    'ilOrig': true,
+    'ilStrong': true,
     'showHeadings': true,
     'chapterTitleSize': 2.1,
     'verseNumSize': 0.6,
@@ -82,7 +87,7 @@ class Settings {
     'strongPos': 'sup', // sup | inline | sub
     'verseNumPos': 'sup', // sup | inline
     'uiFontSize': 15.0, // px — меню, окна, кнопки
-    'barHeight': 54.0, // px — верхняя панель
+    'barHeight': 46.0, // px — верхняя панель: капсула 36 и по 5 сверху и снизу (как у панели подстрочника)
     'animations': true,
     'focusMode': false,
     'bookMode': false,

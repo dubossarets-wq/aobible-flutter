@@ -179,6 +179,10 @@
   "one": "day",
   "other": "days"
  },
+ "Показывать:": "Show:",
+ "Оригинал": "Original",
+ "Стронг": "Strong",
+ "Новый@@модуль": "New",
  "Озвучка — на языке перевода": "Audio follows the translation language",
  "Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)": "Change the translation while listening and the recording switches to its language (if there is one)",
  "Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».": "Psalms and Proverbs are read in a loop, the other sections once. To finish all sections on the same day, choose “{mode}”.",

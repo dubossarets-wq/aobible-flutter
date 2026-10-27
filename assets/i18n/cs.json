@@ -183,6 +183,10 @@
   "many": "dne",
   "other": "dní"
  },
+ "Показывать:": "Zobrazit:",
+ "Оригинал": "Originál",
+ "Стронг": "Strong",
+ "Новый@@модуль": "Nový",
  "Озвучка — на языке перевода": "Nahrávka — v jazyce překladu",
  "Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)": "Změníte-li překlad při předčítání, nahrávka se přepne do jeho jazyka (pokud taková existuje)",
  "Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».": "Žalmy a Přísloví se čtou dokola, ostatní oddíly jednou. Aby všechny oddíly skončily týž den, zvolte „{mode}“.",

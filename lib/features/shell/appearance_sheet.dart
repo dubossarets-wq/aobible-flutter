@@ -1157,10 +1157,11 @@ class _HlLabelsState extends ConsumerState<_HlLabels> {
                       controller: _c[h.id],
                       onChanged: (v) => ref.read(marksProvider.notifier).update((m) => m.copyWith(hlLabels: {...m.hlLabels, h.id: v})),
                       autocorrect: false,
-                      style: TextStyle(fontSize: 16, color: pal.text),
+                      textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
+                      style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
                       decoration: InputDecoration(
                         hintText: t(h.name),
-                        hintStyle: TextStyle(color: pal.muted),
+                        hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
                         isDense: true,
                         filled: true,
                         fillColor: pal.bg,

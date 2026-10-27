@@ -158,10 +158,11 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                     textInputAction: TextInputAction.done,
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (v) => v.trim().isNotEmpty ? add(null, v.trim()) : null,
-                    style: TextStyle(fontSize: 16, color: pal.text),
+                    textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
+                    style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
                     decoration: InputDecoration(
                       hintText: t('Новая подборка: «К уроку», «Утешение»…'),
-                      hintStyle: TextStyle(color: pal.muted),
+                      hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
                       isDense: true,
                       filled: true,
                       fillColor: pal.bg,

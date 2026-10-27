@@ -506,7 +506,7 @@ class AobButton extends ConsumerWidget {
     };
     final content = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
       if (icon != null) ...[Icon(icon, size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
-      Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg))),
+      Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)))),
     ]);
     return Opacity(
       opacity: onTap == null ? 0.5 : 1,
@@ -557,11 +557,12 @@ class AobChip extends ConsumerWidget {
                 constraints: BoxConstraints(minHeight: compact ? 30 : 0),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
-                  Text(label, style: TextStyle(fontSize: compact ? 13.5 : 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)),
+                  // на 1 px выше: строчные без выносных элементов визуально садятся ниже середины
+                  Transform.translate(offset: const Offset(0, -1), child: Text(label, style: TextStyle(fontSize: compact ? 13.5 : 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg))),
                   if (count != null) ...[
                     SizedBox(width: compact ? 4 : 5),
                     // в компактном ряду число тише: серое у невыбранной плашки
-                    Text('$count', style: TextStyle(fontSize: compact ? 11.5 : 12, color: compact ? Color.lerp(pal.muted, pal.onAccent, v)!.withValues(alpha: 0.85) : fg.withValues(alpha: 0.8))),
+                    Transform.translate(offset: const Offset(0, -1), child: Text('$count', style: TextStyle(fontSize: compact ? 11.5 : 12, color: compact ? Color.lerp(pal.muted, pal.onAccent, v)!.withValues(alpha: 0.85) : fg.withValues(alpha: 0.8)))),
                   ],
                 ]),
               ),
@@ -914,10 +915,11 @@ class AobInput extends ConsumerWidget {
         autofocus: autofocus,
         onSubmitted: onSubmitted,
         onChanged: onChanged,
-        style: TextStyle(fontSize: 16, color: pal.text),
+        textAlignVertical: TextAlignVertical.center,
+        style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(color: pal.muted),
+          hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
           prefixIcon: icon == null ? null : Icon(icon, size: 18, color: pal.muted),
           suffixIcon: trailing ??
               (v.text.isEmpty

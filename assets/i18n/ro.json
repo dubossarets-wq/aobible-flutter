@@ -181,6 +181,10 @@
   "few": "zile",
   "other": "de zile"
  },
+ "Показывать:": "Afișează:",
+ "Оригинал": "Original",
+ "Стронг": "Strong",
+ "Новый@@модуль": "Nou",
  "Озвучка — на языке перевода": "Audio în limba traducerii",
  "Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)": "Dacă schimbați traducerea în timp ce ascultați, înregistrarea trece la limba ei (dacă există)",
  "Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».": "Psalmii și Proverbele se citesc în buclă, celelalte secțiuni — o dată. Ca toate să se termine în aceeași zi, alegeți „{mode}”.",

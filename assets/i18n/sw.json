@@ -179,6 +179,10 @@
   "one": "siku",
   "other": "siku"
  },
+ "Показывать:": "Onyesha:",
+ "Оригинал": "Asili",
+ "Стронг": "Strong",
+ "Новый@@модуль": "Mpya",
  "Озвучка — на языке перевода": "Sauti kwa lugha ya tafsiri",
  "Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)": "Mkibadilisha tafsiri mnaposikiliza, rekodi itabadilika kwenda lugha yake (ikiwepo)",
  "Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».": "Zaburi na Mithali husomwa kwa mzunguko, sehemu nyingine mara moja. Ili sehemu zote ziishe siku moja, chagueni «{mode}».",

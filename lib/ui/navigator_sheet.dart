@@ -379,10 +379,11 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
                 autocorrect: false,
                 enableSuggestions: false,
                 onSubmitted: (_) => _submit(),
-                style: TextStyle(fontSize: 16, color: pal.text),
+                textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
+                style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
                 decoration: InputDecoration(
                   hintText: t('Книга или ссылка: Ин 3:16'),
-                  hintStyle: TextStyle(color: muted, overflow: TextOverflow.fade),
+                  hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: muted, overflow: TextOverflow.fade),
                   hintMaxLines: 1,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),

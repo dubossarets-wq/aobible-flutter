@@ -179,7 +179,7 @@ class _SelectionBar extends ConsumerWidget {
             // .menu-item: значок цвета акцента, подпись 15,7 px — MenuRow из kit
             PopupMenuItem<VoidCallback> item(IconData i, String text, VoidCallback f) => PopupMenuItem(value: f, padding: EdgeInsets.zero, height: 40, child: MenuRow(icon: i, label: text, onTap: null));
             return [
-              if (Hub.openInterlinear != null) item(LucideIcons.wholeWord, t('Подстрочник'), () => Hub.openInterlinear!(c, r, first, moduleId)),
+              if (Hub.openInterlinear != null) item(LucideIcons.letterText, t('Подстрочник'), () => Hub.openInterlinear!(c, r, first, moduleId)),
               if (Hub.openVerseGuide != null) item(LucideIcons.compass, t('Всё о стихе'), () => Hub.openVerseGuide!(c, r, pane, first, moduleId)),
               if (Hub.addToSermon != null) item(LucideIcons.scrollText, t('В проповедь'), () => Hub.addToSermon!(c, r, refs, moduleId)),
               item(LucideIcons.folderPlus, t('В подборку…'), () => showCollectSheet(c, refs, moduleId)),

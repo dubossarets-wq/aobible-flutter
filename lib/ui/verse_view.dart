@@ -622,14 +622,15 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
       child: Padding(
         padding: EdgeInsets.only(right: fs * 0.12, bottom: fs * 0.25),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(tk.text == '·' ? ' ' : tk.text, style: base.copyWith(fontSize: fs, fontStyle: tk.italic ? FontStyle.italic : null)),
-          if (tk.orig != null)
+          // строки слова скрываются переключателями на панели подстрочника (ilGloss, ilOrig, ilStrong)
+          if (s.get<bool>('ilGloss') != false) Text(tk.text == '·' ? ' ' : tk.text, style: base.copyWith(fontSize: fs, fontStyle: tk.italic ? FontStyle.italic : null)),
+          if (tk.orig != null && s.get<bool>('ilOrig') != false)
             Text(
               tk.orig!,
               textDirection: heb ? TextDirection.rtl : TextDirection.ltr,
               style: TextStyle(fontSize: fs * 0.78, height: 1.2, color: mix(pal.text, 0.75, pal.bg), fontFamily: heb ? 'Noto Serif Hebrew' : null),
             ),
-          if (tk.orig != null) Text(num, style: TextStyle(fontSize: fs * 0.5, height: 1.2, color: strongColor(s))),
+          if (tk.orig != null && s.get<bool>('ilStrong') != false) Text(num, style: TextStyle(fontSize: fs * 0.5, height: 1.2, color: strongColor(s))),
         ]),
       ),
     );

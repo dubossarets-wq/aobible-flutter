@@ -780,7 +780,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             Expanded(
               child: canPick
                   ? Wrap(spacing: 6, children: [
-                      AobButton(icon: LucideIcons.textSelect, label: t('Часть стиха'), small: true, onTap: _start),
+                      AobButton(icon: LucideIcons.scanText, label: t('Часть стиха'), small: true, onTap: _start),
                       if (isPart) AobButton(icon: LucideIcons.textQuote, label: t('Весь стих'), small: true, onTap: () => store.setPart(sermonId, '${block['id']}', _fullText()!, false)),
                     ])
                   : const SizedBox.shrink(),

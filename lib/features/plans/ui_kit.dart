@@ -229,10 +229,11 @@ class PlainInput extends ConsumerWidget {
       textInputAction: TextInputAction.done,
       onSubmitted: onSubmitted,
       onChanged: onChanged,
-      style: style ?? TextStyle(fontSize: 16, color: pal.text),
+      textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
+      style: style ?? TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: pal.muted),
+        hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
         isDense: true,
         filled: true,
         fillColor: pal.bg,

@@ -177,6 +177,10 @@
  "день|дня|дней": {
   "other": "hari"
  },
+ "Показывать:": "Tampilkan:",
+ "Оригинал": "Asli",
+ "Стронг": "Strong",
+ "Новый@@модуль": "Baru",
  "Озвучка — на языке перевода": "Audio mengikuti bahasa terjemahan",
  "Сменили перевод во время чтения вслух — запись переключится на его язык (если такая запись есть)": "Ganti terjemahan saat mendengarkan, rekaman beralih ke bahasanya (jika ada)",
  "Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «{mode}».": "Mazmur dan Amsal dibaca berulang, bagian lain sekali saja. Agar semua bagian selesai pada hari yang sama, pilih «{mode}».",

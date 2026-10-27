@@ -324,6 +324,24 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     return VerseMark(ref: r, query: _mkQuery, fade: _hlFade, flash: _mkFlash, stamp: _markStamp);
   }
 
+  // стих у верхнего края и доля его высоты — чтобы после смены вида строк (подстрочник, номера Стронга)
+  // вернуться ровно к нему: строки меняют высоту стихов выше, и без этого текст уезжал бы на другой стих
+  VerseRef? _topAt;
+  double _topFrac = 0;
+
+  void _holdTopVerse() {
+    final at = _topAt, f = _topFrac;
+    if (at == null) return;
+    // два кадра: в первом блоки перестраиваются, во втором известны их новые высоты
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _follow(at, f);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _follow(at, f);
+      });
+    });
+  }
+
   // ---- место чтения ----
   // Верхний видимый элемент → место панели (шапка, запоминание) и сигнал второй панели
   void _onPositions() {
@@ -359,6 +377,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       emitAt = VerseRef(book.book, it.chapter, it.verse);
     }
     _remember(at);
+    _topAt = emitAt;
+    _topFrac = frac;
     if (_following || SyncHub.driver != widget.index) return;
     if (!ref_.syncOn) return;
     SyncHub.emit(widget.index, emitAt, frac);
@@ -595,6 +615,10 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final p = ref.read(panesProvider)[widget.index];
     if (p.nav != _nav || p.moduleId != _module) _open(p, cont, showH);
     _ensureRows(cont, showH);
+    // Скрыли или показали строки подстрочника, номера Стронга — остаёмся на том же стихе
+    ref.listen(settingsProvider.select((s) => (s.get<bool>('ilGloss'), s.get<bool>('ilOrig'), s.get<bool>('ilStrong'), s.get<bool>('showStrongs'), s.get<String>('strongPos'))), (a, b) {
+      if (a != b) _holdTopVerse();
+    });
     // Выбрано что-то или режим чтения выключен — панели на месте
     ref.listen(selectionProvider, (a, b) {
       if (widget.index == 0 && (b[0]?.isNotEmpty ?? false) && focusHidden.value) focusHidden.value = false;
@@ -690,7 +714,15 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
             ),
           ),
           // Полоса прогресса чтения книги — тонкая полоска вверху панели
-          Positioned(left: 0, right: 0, top: 0, child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct)),
+          // у подстрочника с раскрытой панелью — под панелью (40 px), едет вместе с ней
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.fastOutSlowIn,
+            left: 0,
+            right: 0,
+            top: mod?.features['interlinear'] == true && ref.watch(settingsProvider.select((s) => s.get<bool>('ilBar'))) != false ? 40 : 0,
+            child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct),
+          ),
           // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио)
           // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
           _AboveBars(left: 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1))),
