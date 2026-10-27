@@ -36,18 +36,6 @@ List<Sermon> loadSermons() {
 List<Block> blocksOf(Sermon s) => [for (final b in (s['blocks'] as List? ?? const [])) Block.from(b as Map)];
 bool isVerse(Block b) => b['type'] == 'verse';
 
-/// Пункт плана: заголовок; блоки после него (до следующего пункта) — его содержимое
-bool isPoint(Block b) => b['type'] == 'point';
-
-/// Номера пунктов по порядку: id пункта → 1, 2, 3…
-Map<String, int> pointNumbers(List<Block> blocks) {
-  final out = <String, int>{};
-  for (final b in blocks) {
-    if (isPoint(b)) out['${b['id']}'] = out.length + 1;
-  }
-  return out;
-}
-
 /// Текст блока по стихам: [текст 16, текст 17, …]; null — у старого блока-диапазона разбивки ещё нет
 List<String>? verseTexts(Block b) {
   if (!isVerse(b)) return null;
@@ -69,12 +57,8 @@ String sermonText(Sermon s) {
   final parts = <String>['${s['title']}'];
   final date = DateTime.tryParse('${s['date'] ?? ''}');
   if (date != null) parts.add(fmtDay(date, full: true, year: true));
-  final blocks = blocksOf(s);
-  final nums = pointNumbers(blocks);
-  for (final b in blocks) {
-    if (isPoint(b)) {
-      if ('${b['text']}'.trim().isNotEmpty) parts.add('${nums[b['id']]}. ${'${b['text']}'.trim()}');
-    } else if (isVerse(b)) {
+  for (final b in blocksOf(s)) {
+    if (isVerse(b)) {
       final tx = verseTexts(b);
       // Диапазон — каждый стих с новой строки, с номером
       final body = tx != null && tx.length > 1 ? [for (final (i, x) in tx.indexed) '${(b['verse'] as int) + i} $x'].join('\n') : '${b['text']}';
@@ -192,17 +176,6 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
 
   String addTextBlock(String id, {int? after}) {
     final b = <String, dynamic>{'id': newId(), 'type': 'text', 'text': ''};
-    _touch(id, (s) {
-      final blocks = blocksOf(s);
-      blocks.insert(after == null ? blocks.length : math.min(blocks.length, math.max(0, after + 1)), b);
-      return {...s, 'blocks': blocks};
-    });
-    return b['id'] as String;
-  }
-
-  /// Новый пункт плана после блока after (null — в конец)
-  String addPoint(String id, {int? after}) {
-    final b = <String, dynamic>{'id': newId(), 'type': 'point', 'text': ''};
     _touch(id, (s) {
       final blocks = blocksOf(s);
       blocks.insert(after == null ? blocks.length : math.min(blocks.length, math.max(0, after + 1)), b);

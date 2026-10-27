@@ -466,8 +466,8 @@ void main() {
       await tapText(tester, 'Создать');
       expect(c.read(sermonsProvider).single['title'], 'Благодать');
       expect(find.text('Проповедь'), findsOneWidget);
-      expect(find.textContaining('Разбейте проповедь на пункты'), findsOneWidget);
-      // пустая проповедь: закреплённая панель внизу
+      expect(find.textContaining('Как добавить стих'), findsOneWidget);
+      // пустая проповедь: кнопки внизу
       await tapText(tester, 'Текст', last: true);
       final id = '${c.read(sermonsProvider).single['id']}';
       expect(blocksOf(c.read(sermonsProvider).single).length, 1);
@@ -478,38 +478,6 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Новое имя');
       await spin(tester, 100);
       expect(c.read(sermonsProvider.notifier).byId(id)!['title'], 'Новое имя');
-      await finish(tester);
-    });
-
-    testWidgets('проповеди [${v.name}]: план — пункт, текст в пункте, свернуть, «Кафедра» с номером', (tester) async {
-      final id = c0Create();
-      await openSermons(tester, v, open: id);
-      // «Пункт» на панели — новый пункт, курсор в его названии
-      await tapText(tester, 'Пункт', last: true);
-      var blocks = blocksOf(c.read(sermonsProvider).single);
-      expect(blocks.single['type'], 'point');
-      await tester.enterText(find.byType(EditableText).at(1), 'Бог любит первым');
-      await spin(tester, 100);
-      expect(blocksOf(c.read(sermonsProvider).single).single['text'], 'Бог любит первым');
-      // «Текст» — в этот пункт (после него)
-      await tapText(tester, 'Текст', last: true);
-      await tester.enterText(find.byType(EditableText).last, 'Мысль пункта');
-      await spin(tester, 100);
-      blocks = blocksOf(c.read(sermonsProvider).single);
-      expect([for (final b in blocks) b['type']], ['point', 'text']);
-      expect(find.textContaining('Пунктов: 1'), findsOneWidget); // в шапке — одной строкой со временем и местами
-      // свернуть пункт — его текст скрыт, рядом число блоков
-      FocusManager.instance.primaryFocus?.unfocus();
-      await spin(tester, 200);
-      await tapTip(tester, 'Свернуть');
-      expect(find.text('Мысль пункта'), findsNothing);
-      expect(find.text('1'), findsWidgets);
-      await tapTip(tester, 'Развернуть');
-      expect(find.text('Мысль пункта'), findsOneWidget);
-      // «Кафедра»: пункт — заголовком с номером
-      await tapText(tester, 'Кафедра');
-      expect(find.textContaining('Бог любит первым', findRichText: true), findsWidgets);
-      await tapTip(tester, 'Закрыть кафедру');
       await finish(tester);
     });
 
@@ -525,9 +493,8 @@ void main() {
       expect(find.text('Проповедь'), findsOneWidget);
       var blocks = blocksOf(c.read(sermonsProvider).single);
       expect((blocks.single['verse'], blocks.single['to']), (16, 18));
-      // «Стих» на закреплённой панели: поиск по слову (сначала уходит уведомление «Добавлено…» — оно над панелью)
-      await spin(tester, 5000);
-      await tapText(tester, 'Стих', last: true);
+      // между блоками — «+ Стих»: поиск по слову
+      await tapText(tester, 'Стих', first: true);
       await tester.enterText(find.byType(TextField).first, 'возлюбил');
       await spin(tester, 500); // запрос уходит после паузы ввода, поиск идёт в отдельном потоке
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
