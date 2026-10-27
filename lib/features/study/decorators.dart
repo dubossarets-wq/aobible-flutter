@@ -81,7 +81,7 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
             if (items.isEmpty) continue;
             entries.add((
               id: r.module.id,
-              name: r.module.name,
+              name: r.module.title.isNotEmpty ? r.module.title : r.module.name, // название книги: «Толковая Библия Лопухина»
               label: intr ? items.first.title : null,
               text: items.map((e) => e.text).join('\n\n'),
               onOpen: () => openCommentary(context, pane: pane, at: at, moduleId: r.module.id),
