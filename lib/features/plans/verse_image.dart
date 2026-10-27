@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../shell/appearance_sheet.dart' show pickBgImage;
 import 'loc.dart';
 import 'net_cache.dart';
 import 'ui_kit.dart';
@@ -138,6 +140,12 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
   double _s0 = 1, _dx0 = 0, _dy0 = 0;
   Offset _f0 = Offset.zero;
   bool _busy = false;
+  // привязка к центру: текст рядом с серединой «прилипает» к ней, пока его ведут — видны направляющие
+  static const _snap = 0.025;
+  bool _snapX = false, _snapY = false, _dragging = false;
+  // своё фото фоном (только для этой картинки, никуда не сохраняется)
+  Uint8List? _ownBytes;
+  ui.Image? _ownImg;
 
   late final String _label = selectionLabel(widget.refs, full: true);
 
@@ -166,7 +174,32 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
   // фото не загрузилось — тот же текст на спокойном градиенте
   _Gradient get _grad => _gradients.where((g) => g.id == _bgId).firstOrNull ?? _gradients.first;
 
+  Future<void> _pickOwn() async {
+    final bytes = await pickBgImage();
+    if (bytes == null || !mounted) return;
+    ui.Image? im;
+    try {
+      im = await decodeImageFromList(bytes);
+    } catch (_) {}
+    if (!mounted || im == null) return;
+    setState(() {
+      _ownBytes = bytes;
+      _ownImg = im;
+      _bgId = 'own';
+      _img = im;
+      _imgFailed = false;
+    });
+  }
+
   Future<void> _pick(String id, {bool load = true}) async {
+    if (id == 'own') {
+      setState(() {
+        _bgId = id;
+        _img = _ownImg;
+        _imgFailed = false;
+      });
+      return;
+    }
     setState(() {
       _bgId = id;
       _img = null;
@@ -256,10 +289,16 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
     final loading = !_textReady || _bgId == null || (photo != null && _img == null && !_imgFailed);
     // .sheet-body: колонка с промежутком 12 между блоками
     const gap = SizedBox(height: 12);
+    final s = ref.watch(settingsProvider);
     return AobSheet(
       title: t('Картинка со стихом'),
       subtitle: _label,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // на широком экране содержимое не шире текста Библии (настройка «Ширина текста»)
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: s.d('textWidth') * s.d('fontSize')),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // .vimg-preview: ширина min(100%, 340) (история — 250), скругление, тень, margin-bottom 12
         Center(
           child: ConstrainedBox(
@@ -280,27 +319,58 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
                             _dx0 = _dx;
                             _dy0 = _dy;
                             _f0 = d.localFocalPoint;
+                            setState(() => _dragging = true);
                           },
                           onScaleUpdate: (d) => setState(() {
-                            _dx = (_dx0 + (d.localFocalPoint.dx - _f0.dx) / c.maxWidth).clamp(-0.45, 0.45);
-                            _dy = (_dy0 + (d.localFocalPoint.dy - _f0.dy) / c.maxHeight).clamp(-0.45, 0.45);
+                            final dx = (_dx0 + (d.localFocalPoint.dx - _f0.dx) / c.maxWidth).clamp(-0.45, 0.45);
+                            final dy = (_dy0 + (d.localFocalPoint.dy - _f0.dy) / c.maxHeight).clamp(-0.45, 0.45);
+                            final sx = dx.abs() < _snap, sy = dy.abs() < _snap;
+                            if ((sx && !_snapX) || (sy && !_snapY)) HapticFeedback.selectionClick(); // «щелчок» при прилипании
+                            _snapX = sx;
+                            _snapY = sy;
+                            _dx = sx ? 0 : dx;
+                            _dy = sy ? 0 : dy;
                             if (d.pointerCount > 1) _scale = (_s0 * d.scale).clamp(0.4, 2.2);
                           }),
-                          child: CustomPaint(painter: _Painter(_art), size: Size.infinite),
+                          onScaleEnd: (_) => setState(() => _dragging = false),
+                          child: Stack(fit: StackFit.expand, children: [
+                            CustomPaint(painter: _Painter(_art), size: Size.infinite),
+                            // направляющие по центру — пока текст ведут и он прилип к середине
+                            IgnorePointer(
+                              child: Stack(children: [
+                                AnimatedOpacity(
+                                  opacity: _dragging && _snapX ? 1 : 0,
+                                  duration: const Duration(milliseconds: 140),
+                                  child: Center(child: Container(width: 1, color: Colors.white.withValues(alpha: 0.7))),
+                                ),
+                                AnimatedOpacity(
+                                  opacity: _dragging && _snapY ? 1 : 0,
+                                  duration: const Duration(milliseconds: 140),
+                                  child: Center(child: Container(height: 1, color: Colors.white.withValues(alpha: 0.7))),
+                                ),
+                              ]),
+                            ),
+                          ]),
                         ),
                       ),
               ),
             ),
           ),
         ),
-        // .vimg-bgs: полоса фонов 52×64, промежуток 8, отступы 4/2/10
-        SizedBox(
-          height: 78,
-          child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(2, 4, 2, 10), children: [
+        // .vimg-bgs: полоса фонов 52×64, промежуток 8; от края до края, у краёв, за которыми есть ещё, — затухание
+        FadeRow(
+          bleed: true,
+          gap: 8,
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          children: [
+            if (_ownImg != null) _Bg(pal: pal, on: _bgId == 'own', onTap: () => _pick('own'), tip: t('Своё фото'), child: Image.memory(_ownBytes!, fit: BoxFit.cover)),
             for (final p in _photos) _Bg(pal: pal, on: _bgId == p['id'], onTap: () => _pick(p['id'] as String), tip: t('${p['title']}'), child: SiteImage('images/verse-bg/${p['thumb']}')),
             for (final g in _gradients) _Bg(pal: pal, on: _bgId == g.id, onTap: () => _pick(g.id, load: false), tip: t(g.title), gradient: g.stops),
-          ]),
+          ],
         ),
+        const SizedBox(height: 10),
+        // своё фото — сразу под всеми фонами
+        AobButton(wide: true, icon: LucideIcons.imagePlus, label: t('Своё фото'), onTap: _pickOwn),
         gap,
         Segmented<String>(
           value: _format,
@@ -339,12 +409,14 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
             padding: const EdgeInsets.only(top: 22), // margin-top 10 + промежуток 12
             child: Text('${t('Фото: {title}', {'title': t('${photo['title']}')})}${photo['author'] != null ? ' — ${photo['author']}' : ''} (${photo['license']})', style: TextStyle(color: pal.muted, fontSize: 11.8)),
           ),
-      ]),
+          ]),
+        ),
+      ),
     );
   }
 }
 
-/// .vimg-bg: 52×64, скругление 10, рамка 2; выбранный — рамка цвета акцента и тонкая «окантовка» цвета панели внутри
+/// .vimg-bg: 52×64, скругление 10, без обводки; выбранный — рамка цвета акцента поверх края, проявляется плавно
 class _Bg extends StatelessWidget {
   const _Bg({required this.pal, required this.on, required this.onTap, required this.tip, this.child, this.gradient});
   final Palette pal;
@@ -355,28 +427,22 @@ class _Bg extends StatelessWidget {
   final List<Color>? gradient;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tooltip(
-          message: tip,
-          child: GestureDetector(
-            onTap: onTap,
-            // рамка выбранного фона проявляется плавно
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.fastOutSlowIn,
-              width: 52,
-              height: 64,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: on ? pal.accent : pal.accent.withValues(alpha: 0), width: 2),
-                color: pal.line,
-                gradient: gradient == null ? null : LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: gradient!),
-              ),
-              foregroundDecoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: on ? pal.panel : pal.panel.withValues(alpha: 0), width: 2)),
-              child: child,
+  Widget build(BuildContext context) => Tooltip(
+        message: tip,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.fastOutSlowIn,
+            width: 52,
+            height: 64,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              gradient: gradient == null ? null : LinearGradient(begin: const Alignment(-0.34, -1), end: const Alignment(0.34, 1), colors: gradient!),
             ),
+            foregroundDecoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: on ? pal.accent : pal.accent.withValues(alpha: 0), width: 2.5)),
+            child: child,
           ),
         ),
       );
