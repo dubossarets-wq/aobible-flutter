@@ -614,7 +614,7 @@ void main() {
       c.read(sermonsProvider.notifier).addTextBlock(a);
       await tapText(tester, 'Первая');
       expect(find.text('Проповедь'), findsOneWidget);
-      await tapText(tester, 'Поделиться');
+      await tapTip(tester, 'Поделиться'); // значком в шапке
       await tapTip(tester, 'Назад');
       expect(find.text('Проповеди'), findsOneWidget);
       await finish(tester);

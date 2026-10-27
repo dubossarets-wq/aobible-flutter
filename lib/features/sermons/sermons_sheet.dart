@@ -190,6 +190,13 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
       actions: sermon == null
           ? const []
           : [
+              // «Поделиться» — значком слева от «Отменить» / «Повторить»
+              IconBtn(
+                icon: LucideIcons.share2,
+                tooltip: t('Поделиться'),
+                color: blocksOf(sermon).isEmpty ? pal.muted.withValues(alpha: 0.4) : null,
+                onTap: blocksOf(sermon).isEmpty ? null : () => SharePlus.instance.share(ShareParams(text: sermonText(sermon), title: '${sermon['title']}')),
+              ),
               IconBtn(icon: LucideIcons.undo2, tooltip: t('Отменить'), color: _undo.isEmpty ? pal.muted.withValues(alpha: 0.4) : null, onTap: _undo.isEmpty ? null : () => _step(true)),
               IconBtn(icon: LucideIcons.redo2, tooltip: t('Повторить'), color: _redo.isEmpty ? pal.muted.withValues(alpha: 0.4) : null, onTap: _redo.isEmpty ? null : () => _step(false)),
             ],
@@ -380,7 +387,6 @@ class _EditorState extends ConsumerState<_Editor> {
     showUndo(context, t('Убрано: {ref}', {'ref': one ? blockRef(b) : blockRef({...b, 'verse': verse, 'to': null})}), () => _store.restoreBlocks(_id, before));
   }
 
-  Future<void> _share() => SharePlus.instance.share(ShareParams(text: sermonText(widget.sermon), title: '${widget.sermon['title']}'));
 
   void _pulpit() => Navigator.of(context).push(MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => Pulpit(sermon: widget.sermon)));
 
@@ -444,11 +450,7 @@ class _EditorState extends ConsumerState<_Editor> {
         // название и подзаголовок — одна группа: под ней тонкая линия, ниже с отступом — кнопки
         Container(height: 1, color: pal.line),
         const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: AobButton(wide: true, kind: BtnKind.primary, icon: LucideIcons.presentation, label: t('Кафедра'), onTap: blocks.isEmpty ? null : _pulpit)),
-          const SizedBox(width: 8),
-          Expanded(child: AobButton(wide: true, icon: LucideIcons.share2, label: t('Поделиться'), onTap: blocks.isEmpty ? null : _share)),
-        ]),
+        AobButton(wide: true, kind: BtnKind.primary, icon: LucideIcons.presentation, label: t('Кафедра'), onTap: blocks.isEmpty ? null : _pulpit),
         const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
         if (blocks.isEmpty)
           Container(
