@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../hub.dart';
 
 export '../../ui/kit.dart';
 
@@ -43,7 +44,9 @@ void _toast(BuildContext context, String text, {String? actionLabel, VoidCallbac
     behavior: SnackBarBehavior.floating,
     backgroundColor: bg,
     elevation: 6,
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+    // в окне (у него свой Scaffold на весь экран) — над плавающим нижним меню, оно лежит поверх окон;
+    // на главном экране место под меню уже оставлено
+    margin: EdgeInsets.fromLTRB(16, 0, 16, 20 + (identical(m, Hub.messengerKey.currentState) ? 0 : tabBarInset.value)),
     padding: EdgeInsets.fromLTRB(16, actionLabel != null ? 6 : 10, actionLabel != null ? 6 : 16, actionLabel != null ? 6 : 10),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(error ? 14 : 999)),
     duration: Duration(seconds: actionLabel != null ? 6 : 4),

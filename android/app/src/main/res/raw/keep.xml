@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сборка для Play сжимает ресурсы и выбрасывает те, на которые код ссылается только по имени-строке.
+     Значок уведомлений о чтении (reminders.dart: 'ic_stat_aob') — такой: без него плагин уведомлений не запускается
+     и напоминание не включается -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_aob" />
