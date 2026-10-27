@@ -299,8 +299,11 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: s.d('textWidth') * s.d('fontSize')),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // .vimg-preview: ширина min(100%, 340) (история — 250), скругление, тень, margin-bottom 12
-        Center(
+        // .vimg-preview: ширина min(100% − 40, 340) (история — 250), скругление, тень, margin-bottom 12; по бокам — поля
+        // 20 внутри окна, чтобы картинка не упиралась в края
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: _format == 'story' ? 250 : 340),
             child: Container(
@@ -356,6 +359,7 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
               ),
             ),
           ),
+        ),
         ),
         // .vimg-bgs: полоса фонов 52×64, промежуток 8; от края до края, у краёв, за которыми есть ещё, — затухание
         FadeRow(

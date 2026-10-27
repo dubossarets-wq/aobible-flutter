@@ -74,8 +74,9 @@ final activeWord = ValueNotifier<({int pane, VerseRef ref, int token})?>(null);
 /// Идёт выбор части стиха (null — нет): кнопка «Часть стиха» ставит, читалка ведёт выбор слов
 final partSelection = ValueNotifier<PartSelection?>(null);
 
-/// Раскрытый комментарий под стихом: ключ «панель|книга.глава.стих»; closing — идёт плавное сворачивание
-final openComment = ValueNotifier<({String key, bool closing})?>(null);
+/// Раскрытый комментарий под стихом: ключ «панель|книга.глава.стих», sel — какой из комментариев стиха;
+/// closing — идёт плавное сворачивание
+final openComment = ValueNotifier<({String key, int sel, bool closing})?>(null);
 
 class Hub {
   // Чтение

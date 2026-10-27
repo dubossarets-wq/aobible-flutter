@@ -1,5 +1,5 @@
-// Значки у стиха: параллельные места [⇅ n], иллюстрация; комментарии — значком-облачком после стиха (нажатие
-// раскрывает текст под стихом) или прежней меткой («Лопухин») после стиха.
+// Значки у стиха: параллельные места [⇅ n], иллюстрация; комментарии — названиями после стиха («Лопухин»; нажатие
+// раскрывает текст под стихом) или прежней меткой («Лопухин», открывает окно комментариев).
 // Как в ChapterView.jsx: после стиха, в порядке — параллельные места, иллюстрация, комментарии.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,6 +81,7 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
             if (items.isEmpty) continue;
             entries.add((
               id: r.module.id,
+              short: intr ? items.first.title : r.module.name, // после стиха: «Лопухин», у введения — «Введение в книгу»
               name: r.module.title.isNotEmpty ? r.module.title : r.module.name, // название книги: «Толковая Библия Лопухина»
               label: intr ? items.first.title : null,
               text: items.map((e) => e.text).join('\n\n'),
@@ -89,24 +90,21 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
           }
         }
         if (entries.isNotEmpty) {
+          // после стиха — короткие названия источников мелким приглушённым текстом; раскрытый — цветом акцента
           final myKey = '$pane|$book.${item.chapter}.${item.verse}';
           final cur = openComment.value;
-          final isOpen = cur != null && cur.key == myKey;
-          final f = fs * 0.72;
-          spans.add(_btn(
-            onTap: () => openComment.value = isOpen && !cur.closing ? (key: myKey, closing: true) : (key: myKey, closing: false),
-            label: t('Комментарий: {name}', {'name': entries.first.name}),
-            margin: f * 0.3,
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(LucideIcons.messageSquareText, size: f * 1.15, color: isOpen ? pal.accent : pal.muted.withValues(alpha: 0.7)),
-              if (entries.length > 1)
-                Padding(
-                  padding: EdgeInsets.only(left: f * 0.12),
-                  child: Text('${entries.length}', style: TextStyle(fontSize: f * 0.9, height: 1, fontWeight: FontWeight.w600, color: isOpen ? pal.accent : pal.muted.withValues(alpha: 0.8))),
-                ),
-            ]),
-          ));
-          if (isOpen) below = CommentPanel(key: ValueKey(myKey), myKey: myKey, entries: entries);
+          final isOpen = cur != null && cur.key == myKey && !cur.closing;
+          final f = fs * 0.68;
+          for (var i = 0; i < entries.length; i++) {
+            final on = isOpen && cur.sel == i;
+            spans.add(_btn(
+              onTap: () => openComment.value = on ? (key: myKey, sel: i, closing: true) : (key: myKey, sel: i, closing: false),
+              label: t('Комментарий: {name}', {'name': entries[i].name}),
+              margin: f * (i == 0 ? 0.35 : 0.5),
+              child: Text(entries[i].short, style: TextStyle(fontSize: f, height: 1, fontWeight: FontWeight.w600, color: on ? pal.accent : pal.muted.withValues(alpha: 0.8))),
+            ));
+          }
+          if (cur != null && cur.key == myKey) below = CommentPanel(key: ValueKey(myKey), myKey: myKey, entries: entries);
         }
       }
       for (final (id, name) in view == 'tag' ? shown : const <(String, String)>[]) {
@@ -139,11 +137,11 @@ InlineSpan _btn({required VoidCallback onTap, required String label, required Wi
       ),
     );
 
-typedef CommentEntry = ({String id, String name, String? label, String text, VoidCallback onOpen});
+typedef CommentEntry = ({String id, String short, String name, String? label, String text, VoidCallback onOpen});
 
-/// Раскрытый комментарий под стихом (.vc-panel в веб-версии): при нескольких источниках — тонкие вкладки с названиями,
-/// текст с линией акцента слева. Плавно раскрывается при появлении; нажатие на текст или повторно на значок — плавно
-/// сворачивается и закрывается. Долгое нажатие — окно комментариев (там ссылки на стихи)
+/// Раскрытый комментарий под стихом (.vc-panel в веб-версии): заголовок — название книги, текст с линией акцента слева.
+/// Какой из комментариев стиха — openComment.sel (его выбирают названием после стиха). Плавно раскрывается при появлении;
+/// нажатие на текст или повторно на название — плавно сворачивается. Долгое нажатие — окно комментариев (там ссылки)
 class CommentPanel extends ConsumerStatefulWidget {
   const CommentPanel({super.key, required this.myKey, required this.entries});
   final String myKey;
@@ -155,7 +153,7 @@ class CommentPanel extends ConsumerStatefulWidget {
 class _CommentPanelState extends ConsumerState<CommentPanel> with SingleTickerProviderStateMixin {
   late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))..forward();
   late final _a = CurvedAnimation(parent: _c, curve: Curves.fastOutSlowIn);
-  int _sel = 0;
+  late int _sel = openComment.value?.sel ?? 0;
 
   @override
   void initState() {
@@ -170,63 +168,56 @@ class _CommentPanelState extends ConsumerState<CommentPanel> with SingleTickerPr
     super.dispose();
   }
 
-  // сворачивание: доигрываем анимацию, потом снимаем признак — панель уходит из читалки
   void _onOpen() {
     final cur = openComment.value;
-    if (cur == null || cur.key != widget.myKey || !cur.closing || _c.status == AnimationStatus.reverse) return;
+    if (cur == null || cur.key != widget.myKey) return;
+    if (!cur.closing) {
+      // выбрали другое название у того же стиха — сменить текст (а если сворачивался — раскрыть снова)
+      if (cur.sel != _sel) setState(() => _sel = cur.sel);
+      if (_c.status == AnimationStatus.reverse || _c.status == AnimationStatus.dismissed) _c.forward();
+      return;
+    }
+    if (_c.status == AnimationStatus.reverse) return;
+    // сворачивание: доигрываем анимацию, потом снимаем признак — панель уходит из читалки
     _c.reverse().whenComplete(() {
-      if (openComment.value?.key == widget.myKey) openComment.value = null;
+      final now = openComment.value;
+      if (now != null && now.key == widget.myKey && now.closing) openComment.value = null;
     });
   }
 
-  void _close() => openComment.value = (key: widget.myKey, closing: true);
+  void _close() => openComment.value = (key: widget.myKey, sel: _sel, closing: true);
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(settingsProvider);
     final pal = s.palette;
     final fs = s.d('commentaryFontSize');
-    final es = widget.entries;
-    final e = es[_sel.clamp(0, es.length - 1)];
-    String title(CommentEntry x) => x.label == null ? x.name : '${x.label} · ${x.name}';
+    final e = widget.entries[_sel.clamp(0, widget.entries.length - 1)];
     return SizeTransition(
       sizeFactor: _a,
       alignment: Alignment.topCenter,
       child: FadeTransition(
         opacity: _a,
-        child: Container(
-          padding: const EdgeInsets.only(left: 12),
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.accent, width: 3))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // источники: один — просто название; несколько — вкладки (выбранная — цветом акцента)
-            Wrap(spacing: 12, runSpacing: 2, children: [
-              for (var i = 0; i < es.length; i++)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: es.length > 1 ? () => setState(() => _sel = i) : _close,
-                  onLongPress: es[i].onOpen,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 180),
-                      style: TextStyle(fontSize: 12.8, height: 1.3, fontWeight: FontWeight.w700, color: i == _sel ? pal.accent : pal.muted.withValues(alpha: 0.75)),
-                      child: Text(title(es[i])),
-                    ),
-                  ),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _close,
+          onLongPress: e.onOpen,
+          child: Container(
+            padding: const EdgeInsets.only(left: 12),
+            decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.accent, width: 3))),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.fastOutSlowIn,
+              alignment: Alignment.topCenter,
+              child: Column(key: ValueKey(_sel), crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Text(e.label == null ? e.name : '${e.label} · ${e.name}', style: TextStyle(fontSize: 12.8, height: 1.3, fontWeight: FontWeight.w700, color: pal.accent)),
                 ),
-            ]),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _close,
-              onLongPress: e.onOpen,
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.fastOutSlowIn,
-                alignment: Alignment.topCenter,
-                child: Text(e.text, key: ValueKey(_sel), style: TextStyle(fontSize: fs, height: 1.6, color: pal.text.withValues(alpha: 0.86))),
-              ),
+                Text(e.text, style: TextStyle(fontSize: fs, height: 1.6, color: pal.text.withValues(alpha: 0.86))),
+              ]),
             ),
-          ]),
+          ),
         ),
       ),
     );
