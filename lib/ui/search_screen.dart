@@ -116,6 +116,13 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     super.initState();
     if (widget.query != null && ['all', 'OT', 'NT', 'book'].contains(widget.scope)) _scope = widget.scope!;
     _focus.addListener(() => setState(() {}));
+    // текст перевода для поиска готовится сразу — к первому запросу он уже в памяти
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final m in _targets) {
+        warmSearch(m.id);
+      }
+    });
     final restored = _memo != null && _memo!.key == _keyOf(_q.text.trim()) ? _memo : null;
     if (restored != null) {
       _hits = restored.hits;
@@ -197,7 +204,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   // Поиск по мере ввода: короткая пауза после нажатия клавиши, прежний поиск отменяется
   void _schedule() {
     final q = _q.text.trim();
-    final t0 = Future<void>.delayed(Duration(milliseconds: q.length < 4 ? 350 : 220));
+    final t0 = Future<void>.delayed(Duration(milliseconds: q.length < 3 ? 260 : 150));
     _timer = t0;
     t0.then((_) {
       if (mounted && identical(_timer, t0)) _update();
@@ -409,12 +416,10 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           gap,
           Hub.strongSearchCard!(context, ref, widget.pane, num, _strongFilter, _goRef, () => _remember(_q.text.trim())),
         ],
-      if (_progress != null) ...[gap, AobProgress(value: _progress!.p, label: _progress!.label)],
       if (hits == null && _refHit == null && _strongHit == null && _history.isNotEmpty) ...[gap, ..._historyList(pal)],
       if (hits != null) ...[
         gap,
         Row(children: [
-          if (_progress != null) ...[const Spinner(size: 14), const SizedBox(width: 6)],
           Expanded(
             child: Text(
               t('Найдено: {n}', {'n': '${hits.length}'}) +
@@ -496,7 +501,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                   hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
                   border: InputBorder.none,
                   isCollapsed: true,
-                  contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+                  // снизу 2: строчные кириллицы визуально ниже середины строки — поднимаем текст на 1 к центру рамки
+                  contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 2),
                 ),
               ),
             ),

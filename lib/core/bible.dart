@@ -138,25 +138,53 @@ RegExp? queryRegex(String query, {bool wholeWord = false}) {
 
 /// Поиск фразы по переводу, как в веб-версии: проход по тексту всех стихов (индекс FTS5 ищет только начала слов,
 /// а здесь нужна и середина слова) — в отдельном потоке, порядок — как в Библии. books — только эти книги.
-Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false}) async {
-  final path = ModuleStore.instance.get(moduleId)?.path;
-  if (path == null || queryRegex(query) == null) return const [];
-  return Isolate.run(() {
-    final re = queryRegex(query, wholeWord: wholeWord)!;
+// Текст перевода без разметки — для поиска: готовится один раз в отдельном потоке (чтение базы и разбор разметки —
+// самое долгое), дальше каждый запрос идёт по готовым строкам. В памяти — последние 4 перевода (~5 МБ каждый)
+typedef _PlainVerse = (String book, int chapter, int verse, String text);
+final _plain = <String, Future<List<_PlainVerse>>>{};
+
+Future<List<_PlainVerse>> _plainOf(String moduleId, String path) {
+  final key = '$moduleId|$path'; // путь меняется при обновлении модуля — старый текст не используется
+  final hit = _plain.remove(key);
+  if (hit != null) return _plain[key] = hit; // в конец — недавно нужный
+  while (_plain.length >= 4) {
+    _plain.remove(_plain.keys.first);
+  }
+  final f = Isolate.run(() {
     final db = sqlite3.open(path, mode: OpenMode.readOnly);
     try {
-      final out = <SearchHit>[];
-      for (final r in db.select('SELECT book, chapter, verse, text FROM verses ORDER BY id')) {
-        final book = r['book'] as String;
-        if (books != null && !books.contains(book)) continue;
-        final text = plainText(r['text'] as String);
-        if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, r['chapter'] as int, r['verse'] as int), text));
-      }
-      return out;
+      return [
+        for (final r in db.select('SELECT book, chapter, verse, text FROM verses ORDER BY id'))
+          (r['book'] as String, r['chapter'] as int, r['verse'] as int, plainText(r['text'] as String)),
+      ];
     } finally {
       db.close();
     }
   });
+  f.then<void>((_) {}, onError: (Object _) => _plain.remove(key)); // не удалось — в следующий раз попробуем заново
+  return _plain[key] = f;
+}
+
+/// Заранее готовит текст перевода для поиска (окно поиска открыли — первый запрос уже быстрый)
+void warmSearch(String moduleId) {
+  final path = ModuleStore.instance.get(moduleId)?.path;
+  if (path != null) _plainOf(moduleId, path).ignore();
+}
+
+Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false}) async {
+  final path = ModuleStore.instance.get(moduleId)?.path;
+  final re = queryRegex(query, wholeWord: wholeWord);
+  if (path == null || re == null) return const [];
+  final rows = await _plainOf(moduleId, path);
+  final out = <SearchHit>[];
+  for (var i = 0; i < rows.length; i++) {
+    // каждые 4000 стихов отдаём кадр интерфейсу — поиск по многим модулям не подвешивает экран
+    if (i > 0 && i % 4000 == 0) await Future<void>.delayed(Duration.zero);
+    final (book, c, v, text) = rows[i];
+    if (books != null && !books.contains(book)) continue;
+    if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, c, v), text));
+  }
+  return out;
 }
 
 /// Текст стиха без разметки; null — такого стиха нет
