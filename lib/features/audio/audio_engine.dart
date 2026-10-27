@@ -1,5 +1,5 @@
 // Движок аудиокниг (аналог core/audio.js): запись главы с разметкой времени стихов, звучащий стих сообщается
-// читалке — она подсвечивает его и ведёт текст за чтецом. Когда записи нет, главу читает диктор (narrator.dart) — стих за стихом, тем же плеером.
+// читалке — она подсвечивает его и ведёт текст за чтецом. Когда записи нет — сообщение «Для этой главы нет аудиозаписи».
 // Звук — just_audio; фон, уведомление и кнопки экрана блокировки — audio_service (AoAudioHandler).
 import 'dart:async';
 import 'dart:convert';
@@ -20,7 +20,6 @@ import '../hub.dart';
 import 'audio_data.dart';
 import 'audio_logic.dart';
 import 'audio_offline.dart';
-import 'narrator.dart';
 
 /// Таймер сна: через N минут или до конца главы
 class SleepTimer {
@@ -55,7 +54,6 @@ class AudioState {
     this.sleep,
     this.error,
     this.follow = true,
-    this.offer = false,
   });
   final bool active;
   final bool playing;
@@ -69,9 +67,6 @@ class AudioState {
   final SleepTimer? sleep;
   final String? error;
   final bool follow; // текст идёт за чтецом; человек ушёл читать другое — false
-  final bool offer; // записи нет: предлагаем скачать голос диктора
-
-  bool get narrated => source == narratorSource;
 
   /// Можно ли раскрыть полноэкранный проигрыватель
   bool get canExpand => active && ref != null && source != null;
@@ -89,7 +84,6 @@ class AudioState {
     Object? sleep = _keep,
     Object? error = _keep,
     bool? follow,
-    bool? offer,
   }) =>
       AudioState(
         active: active ?? this.active,
@@ -104,7 +98,6 @@ class AudioState {
         sleep: identical(sleep, _keep) ? this.sleep : sleep as SleepTimer?,
         error: identical(error, _keep) ? this.error : error as String?,
         follow: follow ?? this.follow,
-        offer: offer ?? this.offer,
       );
 }
 
@@ -143,10 +136,6 @@ class AudioEngine {
   int _gen = 0; // поколение воспроизведения: устаревшие ожидания игнорируются
   bool _switching = false; // идёт загрузка/перемотка — события позиции не трогают стих
   bool _advancing = false;
-  VerseRef? _narrRef; // стих, звук которого загружен в плеер при чтении диктором
-  final _wavs = <String, Future<String?>>{}; // озвученные стихи: 'перевод|книга.глава.стих' -> WAV
-  int _wavSeq = 0;
-  ({int pane, String moduleId, VerseRef ref})? _offer;
   DateTime _lastAdvance = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _sleepTimer;
   DateTime _userScrollAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -204,7 +193,7 @@ class AudioEngine {
   /// Настройка «Озвучка — на языке перевода» (audioFollowsTranslation)
   Future<void> _onModule(String? moduleId) async {
     final a = s, c = _c, at = a.ref;
-    if (moduleId == null || c == null || at == null || !a.active || a.narrated || a.source == null || moduleId == a.moduleId) return;
+    if (moduleId == null || c == null || at == null || !a.active || a.source == null || moduleId == a.moduleId) return;
     if (c.read(settingsProvider).get<bool>('audioFollowsTranslation') == false) return;
     final src = await audioSourcesFor(moduleId, at);
     if (!s.active || s.pane != a.pane) return;
@@ -270,14 +259,13 @@ class AudioEngine {
     final pref = _load<String?>('audioSource', null);
     final source = src.recorded.any((m) => m.id == pref) ? pref : src.recorded.firstOrNull?.id;
     if (source != null) return start(c, pane: pane, moduleId: moduleId, ref: ref, source: source);
-    if (await narrateFallback(pane: pane, moduleId: moduleId, from: ref)) return;
     _showMessage(pane, moduleId, ref, t('Для этой главы нет аудиозаписи.'));
   }
 
   void _showMessage(int pane, String moduleId, VerseRef ref, String error) {
     _stopEngines();
     _watchLive(pane);
-    _set((x) => x.copyWith(active: true, playing: false, loading: false, pane: pane, moduleId: moduleId, ref: ref, source: null, error: error, follow: true, offer: false));
+    _set((x) => x.copyWith(active: true, playing: false, loading: false, pane: pane, moduleId: moduleId, ref: ref, source: null, error: error, follow: true));
   }
 
   Future<void> start(ProviderContainer c, {required int pane, required String moduleId, required VerseRef ref, required String source}) async {
@@ -285,7 +273,7 @@ class AudioEngine {
     _stopEngines();
     _watchLive(pane);
     _userScrollAt = DateTime.fromMillisecondsSinceEpoch(0);
-    _set((x) => x.copyWith(active: true, pane: pane, moduleId: moduleId, ref: ref, source: source, error: null, playing: true, follow: true, offer: false));
+    _set((x) => x.copyWith(active: true, pane: pane, moduleId: moduleId, ref: ref, source: source, error: null, playing: true, follow: true));
     await _playFrom(ref);
   }
 
@@ -303,14 +291,7 @@ class AudioEngine {
     _set((x) => x.copyWith(playing: true, error: null));
     final p = _player;
     final key = '${a.ref!.book}.${a.ref!.chapter}';
-    if (a.narrated) {
-      // Звук стиха ещё в плеере — продолжаем с того же места, иначе озвучиваем стих заново
-      if (p != null && _narrRef == a.ref && p.processingState != ProcessingState.completed && p.processingState != ProcessingState.idle) {
-        _unawaitedPlay(p);
-      } else {
-        await _playFrom(a.ref!);
-      }
-    } else if (p != null && _timingKey == key && _timingPack == a.source && p.processingState != ProcessingState.completed && p.processingState != ProcessingState.idle) {
+    if (p != null && _timingKey == key && _timingPack == a.source && p.processingState != ProcessingState.completed && p.processingState != ProcessingState.idle) {
       _unawaitedPlay(p);
     } else {
       await _playFrom(a.ref!);
@@ -323,10 +304,9 @@ class AudioEngine {
     _unwatchLive();
     _timing = null;
     _timingKey = null;
-    _releaseNarration();
     _releasePlayer();
     time.value = const TimeSnap(0, 0);
-    _set((x) => x.copyWith(active: false, playing: false, loading: false, sleep: null, ref: null, error: null, offer: false));
+    _set((x) => x.copyWith(active: false, playing: false, loading: false, sleep: null, ref: null, error: null));
     _handler?.playbackState.add(PlaybackState(processingState: AudioProcessingState.idle, playing: false));
   }
 
@@ -348,8 +328,8 @@ class AudioEngine {
     final r = s.ref;
     if (r == null || s.source == null) return;
     VerseRef? next;
-    // У записи «назад» после первых секунд — в начало главы; у диктора — если звучит не первый стих
-    if (dir < 0 && (s.narrated ? _chapterStart(r)?.verse != r.verse : time.value.pos > 4)) {
+    // «Назад» после первых секунд — в начало главы
+    if (dir < 0 && time.value.pos > 4) {
       next = _chapterStart(r);
     } else {
       next = _neighbourChapter(r, dir);
@@ -454,13 +434,7 @@ class AudioEngine {
   }
 
   void _unawaitedPlay(AudioPlayer p) {
-    p.play().catchError((Object e) {
-      if (s.narrated) {
-        _failNarrated(e);
-      } else {
-        _fail(e);
-      }
-    });
+    p.play().catchError((Object e) => _fail(e));
   }
 
   Future<AudioPlayer> _ensurePlayer() async {
@@ -476,7 +450,7 @@ class AudioEngine {
     }));
     // Звонок или другое приложение остановили звук — кнопка показывает паузу
     _subs.add(p.playingStream.listen((playing) {
-      if (!playing && s.active && s.playing && !_switching && p.processingState != ProcessingState.completed && (_timing != null || s.narrated)) {
+      if (!playing && s.active && s.playing && !_switching && p.processingState != ProcessingState.completed && _timing != null) {
         _set((x) => x.copyWith(playing: false));
       }
     }));
@@ -509,7 +483,6 @@ class AudioEngine {
     }
     _set((x) => x.copyWith(ref: ref));
     if (a.source == null) return _set((x) => x.copyWith(playing: false));
-    if (a.narrated) return _playNarrated(ref);
     await _playRecorded(ref);
   }
 
@@ -607,7 +580,6 @@ class AudioEngine {
 
   // Конец файла. Если глава вырезана из общего файла, к следующей мы уже перешли по позиции — не повторяем
   Future<void> _onCompleted() async {
-    if (s.narrated) return _narratedEnded();
     if (!s.playing || s.ref == null || _switching) return;
     if (DateTime.now().difference(_lastAdvance) < const Duration(seconds: 2)) return;
     await _chapterEnded();
@@ -648,152 +620,6 @@ class AudioEngine {
     } finally {
       _advancing = false;
     }
-  }
-
-  // --- Диктор (нейросетевой голос, когда записи нет) -----------------------------------------
-
-  /// Записи нет, голос ещё не скачан: показываем в мини-проигрывателе предложение
-  void offerNarrator(int pane, String moduleId, VerseRef ref) {
-    _stopEngines();
-    _watchLive(pane);
-    _offer = (pane: pane, moduleId: moduleId, ref: ref);
-    _set((x) => x.copyWith(active: true, playing: false, loading: false, pane: pane, moduleId: moduleId, ref: ref, source: null, error: null, follow: true, offer: true));
-  }
-
-  /// «Скачать голос»: после загрузки сразу читаем
-  Future<void> acceptNarrator() async {
-    final o = _offer;
-    if (o == null) return;
-    _set((x) => x.copyWith(error: null));
-    try {
-      await NarratorVoice.I.install();
-    } catch (e) {
-      debugPrint('голос не скачался: $e');
-      if (_offer == o) _set((x) => x.copyWith(error: t('Голос не скачался. Проверьте интернет.')));
-      return;
-    }
-    if (_offer != o || !s.active) return; // пока качалось, аудио закрыли
-    _offer = null;
-    await startNarrated(o.pane, o.moduleId, o.ref);
-  }
-
-  /// «Не нужно»
-  Future<void> declineNarrator() => stop();
-
-  Future<void> startNarrated(int pane, String moduleId, VerseRef ref) {
-    final c = _c;
-    if (c == null) return Future.value();
-    _offer = null;
-    return start(c, pane: pane, moduleId: moduleId, ref: ref, source: narratorSource);
-  }
-
-  /// Озвученный стих; следующий просим заранее, пока звучит текущий
-  Future<String?> _verseWav(VerseRef r) {
-    final key = '${s.moduleId}|${r.book}.${r.chapter}.${r.verse}';
-    final f = _wavs[key] ??= _synthVerse(s.moduleId ?? '', r);
-    unawaited(f.then<void>((_) {}, onError: (Object _) => _wavs.remove(key)));
-    // Старые стихи забываем вместе с файлами (на телефоне держим не больше восьми)
-    while (_wavs.length > 8) {
-      final old = _wavs.remove(_wavs.keys.first);
-      old?.then((path) {
-        if (path != null) File(path).delete().catchError((Object _) => File(path));
-      }, onError: (Object _) {});
-    }
-    return f;
-  }
-
-  Future<String?> _synthVerse(String moduleId, VerseRef r) async {
-    final text = narrationText(verseAt(moduleId, r) ?? '');
-    if (text.isEmpty) return null;
-    final dir = await NarratorVoice.tempDir();
-    dir.createSync(recursive: true);
-    final out = '${dir.path}${Platform.pathSeparator}v${_wavSeq++}.wav';
-    if (!await NarratorVoice.I.synth(text, out)) throw Exception('голос не озвучил стих');
-    return out;
-  }
-
-  Future<void> _playNarrated(VerseRef ref) async {
-    final my = ++_gen;
-    try {
-      _set((x) => x.copyWith(loading: true, error: null));
-      final p = await _ensurePlayer();
-      final path = await _verseWav(ref);
-      if (my != _gen) return;
-      if (path == null) {
-        // В стихе нечего читать — идём дальше
-        final next = _neighbourVerse(ref, 1);
-        if (next == null) {
-          await pause();
-          return;
-        }
-        _set((x) => x.copyWith(ref: next));
-        await _playFrom(next);
-        return;
-      }
-      _switching = true;
-      _narrRef = null;
-      await p.setFilePath(path);
-      await p.setSpeed(s.rate);
-      if (my != _gen) return;
-      _switching = false;
-      _narrRef = ref;
-      _unawaitedPlay(p);
-      _set((x) => x.copyWith(loading: false, error: null));
-      _publishNarrated();
-      final next = _neighbourVerse(ref, 1);
-      if (next != null) unawaited(_verseWav(next).then<void>((_) {}, onError: (Object _) {}));
-    } catch (e) {
-      if (my == _gen) await _failNarrated(e);
-    }
-  }
-
-  Future<void> _failNarrated(Object e) async {
-    debugPrint('диктор: $e');
-    _switching = false;
-    _narrRef = null;
-    _set((x) => x.copyWith(loading: false, playing: false, error: t('Диктор не смог прочитать главу.')));
-  }
-
-  // Стих дочитан — следующий (он уже озвучен); конец главы — следующая глава, как у записей
-  Future<void> _narratedEnded() async {
-    if (_advancing || !s.playing || s.ref == null || _switching) return;
-    _advancing = true;
-    try {
-      final next = _neighbourVerse(s.ref!, 1);
-      if (next == null) {
-        await pause();
-        return;
-      }
-      _set((x) => x.copyWith(ref: next));
-      await _playFrom(next);
-    } finally {
-      _advancing = false;
-    }
-  }
-
-  void _publishNarrated() {
-    final h = _handler, r = s.ref;
-    if (h == null || r == null) return;
-    h.mediaItem.add(MediaItem(
-      id: '$narratorSource|${r.book}.${r.chapter}',
-      title: '${Books.instance.meta(r.book).name} ${r.chapter}',
-      album: t('Диктор'),
-      artist: ModuleStore.instance.get(s.moduleId ?? '')?.name,
-    ));
-  }
-
-  /// Чтение закончено: файлы озвучки и модель не нужны
-  void _releaseNarration() {
-    _narrRef = null;
-    _offer = null;
-    final old = _wavs.values.toList();
-    _wavs.clear();
-    for (final f in old) {
-      f.then((path) {
-        if (path != null) File(path).delete().catchError((Object _) => File(path));
-      }, onError: (Object _) {});
-    }
-    unawaited(NarratorVoice.I.closeBackend());
   }
 
   // --- Соседние стихи и главы ----------------------------------------------------------------

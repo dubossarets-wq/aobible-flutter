@@ -10,7 +10,6 @@ import '../../ui/kit.dart';
 import '../hub.dart';
 import 'audio_download.dart';
 import 'audio_offline.dart';
-import 'narrator_ui.dart';
 
 /// Окно «Аудио» — нижний лист, как страницы настроек в веб-версии
 Future<void> openAudioSettings(BuildContext context) => showAobSheet<void>(context, builder: (_) => const AudioSettingsPage());
@@ -24,7 +23,6 @@ class AudioSettingsPage extends ConsumerWidget {
       title: t('Аудио'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const AudioFollowSwitch(),
-        NarratorSettings(pal: pal),
         GroupTitle(t('Книги без интернета')),
         AudioOfflineList(pal: pal),
       ]),

@@ -110,7 +110,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
     _namesKey = key;
     final bible = ModuleStore.instance.get(a.moduleId ?? '')?.name ?? '';
     final rec = ModuleStore.instance.get(a.source ?? '');
-    _names = [bible, a.narrated ? t('Диктор') : rec?.title ?? rec?.name ?? ''].where((x) => x.isNotEmpty).join(' · ');
+    _names = [bible, rec?.title ?? rec?.name ?? ''].where((x) => x.isNotEmpty).join(' · ');
   }
 
   void _toActive(int index, {bool smooth = true}) {
@@ -351,7 +351,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                   if (a.sleep != null) Text(sleepLabel),
                 ]),
               ),
-              if (a.source != null && !a.narrated) DownloadButton(audioId: a.source!, book: r.book, size: 20, pal: pal),
+              if (a.source != null) DownloadButton(audioId: a.source!, book: r.book, size: 20, pal: pal),
               InkResponse(
                 onTap: _e.stop,
                 radius: 24,

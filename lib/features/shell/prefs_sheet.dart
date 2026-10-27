@@ -179,7 +179,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
           (last) => PrefRow(icon: LucideIcons.bookOpenCheck, title: t('Инструкция'), sub: t('Пошаговые подсказки'), onTap: () => openHelp(context), last: last),
           (last) => PrefRow(icon: LucideIcons.palette, title: t('Оформление'), sub: t('Тема, шрифт, размер букв'), onTap: () => openAppearance(context), last: last),
           (last) => PrefRow(icon: LucideIcons.ellipsisVertical, title: wide ? t('Меню ⋮') : t('Меню «Ещё»'), sub: wide ? t('Выбрать пункты меню') : t('Что показывать в разделе «Ещё»'), onTap: () => setState(() => _page = 'menu'), last: last),
-          (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('Диктор, книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
+          (last) => PrefRow(icon: LucideIcons.headphones, title: t('Аудио'), sub: t('Книги без интернета'), onTap: () => setState(() => _page = 'audio'), last: last),
           (last) => PrefRow(icon: LucideIcons.library, title: t('Библиотека модулей'), sub: t('Переводы, словари, аудиокниги'), onTap: () => openLibrary(context), last: last),
           if (myData != null) (last) => PrefRow(icon: LucideIcons.hardDrive, title: t('Мои данные'), sub: t('Сохранить и перенести на новый телефон'), onTap: () => myData.run(widget.opener, ref, 0), last: last),
           (last) => PrefRow(icon: LucideIcons.sparkles, title: t('Что нового'), sub: t('Последнее обновление'), onTap: () => openNews(context), last: last),

@@ -53,8 +53,6 @@ dependencies:
   webview_flutter: ^4.14.1
   lucide_icons_flutter: ^4.0.1
   flutter_svg: ^2.3.0
-  sherpa_onnx: 1.13.8
-  archive: ^4.5.2
   just_audio_media_kit: 2.1.0
   media_kit_libs_windows_audio: ^1.0.9
   pdf: ^3.13.1

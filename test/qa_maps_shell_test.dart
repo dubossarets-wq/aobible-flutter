@@ -177,7 +177,7 @@ void main() {
         }
         expect((c.read(settingsProvider).j['menu'] as Map)['maps'], isNotNull);
         await back(tester);
-        // «Аудио»: строки диктора и книг без интернета даёт функция аудио; здесь — что страница открывается и закрывается
+        // «Аудио»: список книг без интернета даёт функция аудио; здесь — что страница открывается и закрывается
         await tapText(tester, 'Аудио');
         expect(find.byTooltip('Назад'), findsOneWidget);
         await back(tester);
