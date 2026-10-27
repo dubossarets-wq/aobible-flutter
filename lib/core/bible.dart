@@ -142,12 +142,14 @@ RegExp? queryRegex(String query, {bool wholeWord = false}) {
 // самое долгое), дальше каждый запрос идёт по готовым строкам. В памяти — последние 4 перевода (~5 МБ каждый)
 typedef _PlainVerse = (String book, int chapter, int verse, String text);
 final _plain = <String, Future<List<_PlainVerse>>>{};
+final _ready = <String, List<_PlainVerse>>{};
 
 Future<List<_PlainVerse>> _plainOf(String moduleId, String path) {
   final key = '$moduleId|$path'; // путь меняется при обновлении модуля — старый текст не используется
   final hit = _plain.remove(key);
   if (hit != null) return _plain[key] = hit; // в конец — недавно нужный
   while (_plain.length >= 4) {
+    _ready.remove(_plain.keys.first);
     _plain.remove(_plain.keys.first);
   }
   final f = Isolate.run(() {
@@ -161,7 +163,11 @@ Future<List<_PlainVerse>> _plainOf(String moduleId, String path) {
       db.close();
     }
   });
-  f.then<void>((_) {}, onError: (Object _) => _plain.remove(key)); // не удалось — в следующий раз попробуем заново
+  f.then<void>((rows) {
+    if (_plain.containsKey(key)) _ready[key] = rows;
+  }, onError: (Object _) {
+    _plain.remove(key); // не удалось — в следующий раз попробуем заново
+  });
   return _plain[key] = f;
 }
 
@@ -175,12 +181,31 @@ Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? 
   final path = ModuleStore.instance.get(moduleId)?.path;
   final re = queryRegex(query, wholeWord: wholeWord);
   if (path == null || re == null) return const [];
-  final rows = await _plainOf(moduleId, path);
+  final rows = _ready['$moduleId|$path'];
+  if (rows == null) {
+    // текст ещё готовится — этот запрос ищет сам в отдельном потоке (возвращает только найденное), а текст для
+    // следующих запросов готовится рядом
+    _plainOf(moduleId, path).ignore();
+    return Isolate.run(() {
+      final re = queryRegex(query, wholeWord: wholeWord)!;
+      final db = sqlite3.open(path, mode: OpenMode.readOnly);
+      try {
+        final out = <SearchHit>[];
+        for (final r in db.select('SELECT book, chapter, verse, text FROM verses ORDER BY id')) {
+          final book = r['book'] as String;
+          if (books != null && !books.contains(book)) continue;
+          final text = plainText(r['text'] as String);
+          if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, r['chapter'] as int, r['verse'] as int), text));
+        }
+        return out;
+      } finally {
+        db.close();
+      }
+    });
+  }
+  // готовый текст: проход по строкам — десятки миллисекунд
   final out = <SearchHit>[];
-  for (var i = 0; i < rows.length; i++) {
-    // каждые 4000 стихов отдаём кадр интерфейсу — поиск по многим модулям не подвешивает экран
-    if (i > 0 && i % 4000 == 0) await Future<void>.delayed(Duration.zero);
-    final (book, c, v, text) = rows[i];
+  for (final (book, c, v, text) in rows) {
     if (books != null && !books.contains(book)) continue;
     if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, c, v), text));
   }

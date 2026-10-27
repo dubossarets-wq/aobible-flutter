@@ -481,7 +481,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           ),
           child: Row(children: [
             Expanded(
-              child: TextField(
+              child: BareField(
                 controller: _q,
                 focusNode: _focus,
                 textInputAction: TextInputAction.search,
@@ -490,20 +490,11 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                   _schedule();
                 },
                 onSubmitted: (_) => _submit(),
+                hint: t('Слово, Ин 3:16 или G26'),
+                style: TextStyle(fontSize: 16, height: 1.25, color: pal.text),
+                hintColor: pal.muted,
                 cursorColor: pal.accent,
-                style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
-                // поле — ровно одна строка, по центру рамки (Row центрирует по высоте): отступы сверху и снизу
-                // на разных шрифтах уводили текст вверх
-                textAlignVertical: TextAlignVertical.center,
-                decoration: InputDecoration(
-                  hintText: t('Слово, Ин 3:16 или G26'),
-                  // подсказка — того же размера и с той же строкой, что и текст, иначе встаёт ниже середины
-                  hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
-                  border: InputBorder.none,
-                  isCollapsed: true,
-                  // снизу 2: строчные кириллицы визуально ниже середины строки — поднимаем текст на 1 к центру рамки
-                  contentPadding: const EdgeInsets.fromLTRB(12, 0, 4, 2),
-                ),
+                padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
               ),
             ),
             if (_q.text.isNotEmpty)

@@ -1163,23 +1163,14 @@ class _HlLabelsState extends ConsumerState<_HlLabels> {
                   Container(width: 20, height: 20, decoration: BoxDecoration(color: h.color, shape: BoxShape.circle)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: TextField(
-                      controller: _c[h.id],
-                      onChanged: (v) => ref.read(marksProvider.notifier).update((m) => m.copyWith(hlLabels: {...m.hlLabels, h.id: v})),
+                    child: AobInput(
+                      controller: _c[h.id]!,
+                      icon: null,
+                      clearable: false,
                       autocorrect: false,
-                      textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
-                      style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
-                      decoration: InputDecoration(
-                        hintText: t(h.name),
-                        hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
-                        isDense: true,
-                        filled: true,
-                        fillColor: pal.bg,
-                        constraints: const BoxConstraints(minHeight: 44),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.line)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: pal.accent)),
-                      ),
+                      hint: t(h.name),
+                      height: 44,
+                      onChanged: (v) => ref.read(marksProvider.notifier).update((m) => m.copyWith(hlLabels: {...m.hlLabels, h.id: v})),
                     ),
                   ),
                 ]),

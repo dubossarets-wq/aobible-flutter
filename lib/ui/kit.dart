@@ -893,54 +893,197 @@ class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
   }
 }
 
-/// Поле ввода (.input-wrap): серый фон, скругление, значок слева, кнопка справа
-class AobInput extends ConsumerWidget {
-  const AobInput({super.key, required this.controller, this.hint, this.icon = LucideIcons.search, this.onSubmitted, this.onChanged, this.autofocus = false, this.trailing});
+/// Строка ввода без рамки: текст и подсказка — строго по центру по высоте. Высота строки задана жёстко (strut),
+/// подсказку рисуем сами тем же стилем и в той же точке, что и текст: подсказка InputDecoration на разных шрифтах и
+/// платформах съезжает (вниз, а то и под рамку). Строчные буквы визуально ниже середины строки — поднимаем на 1.
+class BareField extends StatelessWidget {
+  const BareField({
+    super.key,
+    required this.controller,
+    required this.style,
+    required this.hintColor,
+    this.focusNode,
+    this.hint,
+    this.padding = EdgeInsets.zero,
+    this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
+    this.keyboardType,
+    this.textAlign = TextAlign.start,
+    this.autofocus = false,
+    this.autocorrect = true,
+    this.cursorColor,
+  });
+  final TextEditingController controller;
+  final TextStyle style;
+  final Color hintColor;
+  final FocusNode? focusNode;
+  final String? hint;
+  final EdgeInsetsGeometry padding;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
+  final TextAlign textAlign;
+  final bool autofocus, autocorrect;
+  final Color? cursorColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = style.copyWith(leadingDistribution: TextLeadingDistribution.even);
+    final strut = StrutStyle(fontSize: st.fontSize, height: st.height ?? 1.25, leadingDistribution: TextLeadingDistribution.even, forceStrutHeight: true);
+    return Padding(
+      padding: padding,
+      child: Transform.translate(
+        offset: const Offset(0, -1),
+        child: Stack(alignment: textAlign == TextAlign.center ? Alignment.center : AlignmentDirectional.centerStart, children: [
+          if (hint != null)
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, v, _) => v.text.isEmpty
+                  ? IgnorePointer(
+                      child: Text(hint!, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, textAlign: textAlign, strutStyle: strut, style: st.copyWith(color: hintColor)),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          TextField(
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: autofocus,
+            autocorrect: autocorrect,
+            enableSuggestions: autocorrect,
+            keyboardType: keyboardType,
+            textAlign: textAlign,
+            textInputAction: textInputAction,
+            onChanged: onChanged,
+            onSubmitted: onSubmitted,
+            cursorColor: cursorColor,
+            maxLines: 1,
+            style: st,
+            strutStyle: strut,
+            decoration: const InputDecoration.collapsed(hintText: null),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Поле ввода (.input-wrap): фон, скругление, рамка (в фокусе — цвет акцента и кольцо), значок слева, справа — крестик
+/// «Очистить» (когда что-то вписано) или своя кнопка. Текст и подсказка — строго по центру (BareField)
+class AobInput extends ConsumerStatefulWidget {
+  const AobInput({
+    super.key,
+    required this.controller,
+    this.hint,
+    this.icon = LucideIcons.search,
+    this.onSubmitted,
+    this.onChanged,
+    this.autofocus = false,
+    this.trailing,
+    this.clearable = true,
+    this.autocorrect = true,
+    this.textInputAction,
+    this.keyboardType,
+    this.textAlign = TextAlign.start,
+    this.style,
+    this.height = 46,
+  });
   final TextEditingController controller;
   final String? hint;
   final IconData? icon;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
-  final bool autofocus;
+  final bool autofocus, clearable, autocorrect;
   final Widget? trailing;
+  final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
+  final TextAlign textAlign;
+  final TextStyle? style;
+  final double height;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AobInput> createState() => _AobInputState();
+}
+
+class _AobInputState extends ConsumerState<AobInput> {
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final pal = paletteOf(ref);
-    // Когда в поле что-то вписано — крестик «Очистить» (если своей кнопки справа нет), как .search-clear в веб-версии
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
-      builder: (context, v, _) => TextField(
-        controller: controller,
-        autofocus: autofocus,
-        onSubmitted: onSubmitted,
-        onChanged: onChanged,
-        textAlignVertical: TextAlignVertical.center,
-        style: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
-          prefixIcon: icon == null ? null : Icon(icon, size: 18, color: pal.muted),
-          suffixIcon: trailing ??
-              (v.text.isEmpty
-                  ? null
-                  : IconBtn(
-                      icon: LucideIcons.x,
-                      subtle: true,
-                      size: 18,
-                      tooltip: t('Очистить'),
-                      onTap: () {
-                        controller.clear();
-                        onChanged?.call('');
-                      },
-                    )),
-          isDense: true,
-          filled: true,
-          fillColor: pal.bg,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.line)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius), borderSide: BorderSide(color: pal.accent)),
+    final w = widget;
+    final focused = _focus.hasFocus;
+    final style = w.style ?? TextStyle(fontSize: 16, height: 1.25, color: pal.text);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _focus.requestFocus, // нажатие на поля рамки — тоже в поле
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: w.height,
+        decoration: BoxDecoration(
+          color: pal.bg,
+          borderRadius: BorderRadius.circular(kRadius * 0.75),
+          border: Border.all(color: focused ? pal.accent : pal.line),
+          boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
         ),
+        child: Row(children: [
+          if (w.icon != null) ...[const SizedBox(width: 12), Icon(w.icon, size: 18, color: pal.muted)],
+          Expanded(
+            child: BareField(
+              controller: w.controller,
+              focusNode: _focus,
+              hint: w.hint,
+              style: style,
+              hintColor: pal.muted,
+              cursorColor: pal.accent,
+              padding: EdgeInsets.only(left: w.icon != null ? 8 : 12, right: 4),
+              autofocus: w.autofocus,
+              autocorrect: w.autocorrect,
+              textAlign: w.textAlign,
+              textInputAction: w.textInputAction,
+              keyboardType: w.keyboardType,
+              onChanged: w.onChanged,
+              onSubmitted: w.onSubmitted,
+            ),
+          ),
+          // Когда в поле что-то вписано — крестик «Очистить» (если своей кнопки справа нет), как .search-clear в веб-версии
+          if (w.trailing != null)
+            w.trailing!
+          else if (w.clearable)
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: w.controller,
+              builder: (context, v, _) => v.text.isEmpty
+                  ? const SizedBox(width: 8)
+                  : Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: IconBtn(
+                        icon: LucideIcons.x,
+                        subtle: true,
+                        size: 18,
+                        tooltip: t('Очистить'),
+                        onTap: () {
+                          w.controller.clear();
+                          w.onChanged?.call('');
+                        },
+                      ),
+                    ),
+            )
+          else
+            const SizedBox(width: 8),
+        ]),
       ),
     );
   }

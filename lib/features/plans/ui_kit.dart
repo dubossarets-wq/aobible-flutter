@@ -218,32 +218,20 @@ class PlainInput extends ConsumerWidget {
   final double? height;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pal = paletteOf(ref);
-    OutlineInputBorder b(Color c) => OutlineInputBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), borderSide: BorderSide(color: c));
-    final field = TextField(
-      controller: controller,
-      autofocus: autofocus,
-      textAlign: textAlign,
-      keyboardType: keyboardType,
-      textInputAction: TextInputAction.done,
-      onSubmitted: onSubmitted,
-      onChanged: onChanged,
-      textAlignVertical: TextAlignVertical.center, // текст и подсказка — строго по центру поля
-      style: style ?? TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.text),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(fontSize: 16, height: 1.25, leadingDistribution: TextLeadingDistribution.even, color: pal.muted),
-        isDense: true,
-        filled: true,
-        fillColor: pal.bg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        enabledBorder: b(pal.line),
-        focusedBorder: b(pal.accent),
-      ),
-    );
-    return height == null ? field : SizedBox(height: height, child: field);
-  }
+  Widget build(BuildContext context, WidgetRef ref) => AobInput(
+        controller: controller,
+        hint: hint,
+        icon: null,
+        clearable: false,
+        autofocus: autofocus,
+        textAlign: textAlign,
+        keyboardType: keyboardType,
+        textInputAction: TextInputAction.done,
+        onSubmitted: onSubmitted,
+        onChanged: onChanged,
+        style: style,
+        height: height ?? 44,
+      );
 }
 
 /// «!» в кружке рядом с названием (.hint-btn): по нажатию — пояснение

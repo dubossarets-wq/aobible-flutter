@@ -239,6 +239,8 @@ void main() {
         expect(find.textContaining('Толкование', findRichText: true), findsWidgets);
         expect(find.textContaining('Второе', findRichText: true), findsWidgets);
         // выключили «Второе» (нажатие на строку; последнее «Второе» — строка списка, первое может быть в образце)
+        await tester.ensureVisible(find.textContaining('Второе').last);
+        await tester.pumpAndSettle();
         await tester.tap(find.textContaining('Второе').last);
         await tester.pumpAndSettle();
         expect(s().j['inlineCommentaries'], ['c1']);
@@ -367,11 +369,22 @@ void main() {
         // у перевода переключателя нет, только звезда; строки выше (полное название в две строки), при крупном
         // шрифте нижние за краем ещё не построены — считаем по фильтру вида
         expect(find.byType(RowSwitch).evaluate().length, lessThanOrEqualTo(store.allInstalled.where((m) => m.type != 'bible').length));
-        await tester.tap(find.widgetWithText(AobChip, 'Переводы'));
-        await tester.pumpAndSettle();
+        // чипы языков и видов — в прокручиваемом ряду: при крупном шрифте «Переводы» может быть за краем —
+        // сдвигаем только сам ряд (вертикальный список остаётся на месте)
+        Future<void> tapChip(String label) async {
+          final chip = find.widgetWithText(AobChip, label);
+          final row = find.ancestor(of: chip, matching: find.byType(Scrollable)).first;
+          final r = tester.getRect(chip), box = tester.getRect(row);
+          if (r.right > box.right) await tester.drag(row, Offset(box.right - r.right - 24, 0));
+          if (r.left < box.left) await tester.drag(row, Offset(box.left - r.left + 24, 0));
+          await tester.pumpAndSettle();
+          await tester.tap(chip);
+          await tester.pumpAndSettle();
+        }
+
+        await tapChip('Переводы');
         expect(find.byType(RowSwitch), findsNothing);
-        await tester.tap(find.widgetWithText(AobChip, 'Все'));
-        await tester.pumpAndSettle();
+        await tapChip('Все');
 
         // нажатие
         final sw = find.byType(RowSwitch).first;
