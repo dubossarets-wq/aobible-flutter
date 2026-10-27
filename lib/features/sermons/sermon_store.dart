@@ -1,7 +1,8 @@
 // Проповеди (src/core/sermons.js): заголовок, дата и блоки по порядку — стихи (с текстом на момент добавления) и свой текст.
 // Хранятся в prefs «sermons» тем же форматом, что в веб-версии:
-// { id, title, date, blocks: [{ id, type: 'verse', book, chapter, verse, to, text, texts?, moduleId, part? } | { id, type: 'text', text }],
-//   createdAt, updatedAt }. Несколько стихов подряд — один блок (verse…to): text — весь текст одной строкой (его читают и старые
+// { id, title, subtitle?, series?, date, blocks: [{ id, type: 'verse', book, chapter, verse, to, text, texts?, moduleId, part? }
+//   | { id, type: 'text', text } | { id, type: 'note', text } — заметка для себя: в «Поделиться» не уходит], createdAt, updatedAt }.
+// В своём тексте **жирный** и *курсив* (fmtParts); в «Поделиться» отметки убираются. Несколько стихов подряд — один блок (verse…to): text — весь текст одной строкой (его читают и старые
 // версии приложения), texts — тот же текст по стихам, чтобы показать каждый стих с нового абзаца и убрать любой из середины.
 import 'dart:convert';
 import 'dart:math' as math;
@@ -58,6 +59,23 @@ String _part(Block b) => b['part'] == true ? ' ${t('(часть)')}' : '';
 String blockRef(Block b) => '${_short(b['book'] as String)} ${b['chapter']}:${b['verse']}${b['to'] != null ? '–${b['to']}' : ''}${_part(b)}';
 String blockRefFull(Block b) => '${Books.instance.meta(b['book'] as String).name} ${b['chapter']}:${b['verse']}${b['to'] != null ? '–${b['to']}' : ''}${_part(b)}';
 
+final _fmtRe = RegExp(r'\*\*([^*\n]+)\*\*|\*([^*\n]+)\*');
+
+/// Свой текст: **жирный**, *курсив* → части
+List<({String t, bool b, bool i})> fmtParts(String text) {
+  final out = <({String t, bool b, bool i})>[];
+  var at = 0;
+  for (final m in _fmtRe.allMatches(text)) {
+    if (m.start > at) out.add((t: text.substring(at, m.start), b: false, i: false));
+    out.add(m.group(1) != null ? (t: m.group(1)!, b: true, i: false) : (t: m.group(2)!, b: false, i: true));
+    at = m.end;
+  }
+  if (at < text.length) out.add((t: text.substring(at), b: false, i: false));
+  return out;
+}
+
+String plainFmt(String text) => fmtParts(text).map((p) => p.t).join();
+
 /// Проповедь обычным текстом — чтобы отправить или распечатать
 String sermonText(Sermon s) {
   final parts = <String>['${s['title']}', if ('${s['subtitle'] ?? ''}'.trim().isNotEmpty) '${s['subtitle']}'.trim()];
@@ -73,8 +91,8 @@ String sermonText(Sermon s) {
         final at = [for (final x in (a['t'] as List? ?? const [])) a['il'] == true ? plainText('$x') : '$x'].where((x) => x.isNotEmpty).join(' ');
         if (at.isNotEmpty) parts.add('${a['n']}: «$at»');
       }
-    } else if ('${b['text']}'.trim().isNotEmpty) {
-      parts.add('${b['text']}'.trim());
+    } else if (b['type'] != 'note' && '${b['text']}'.trim().isNotEmpty) {
+      parts.add(plainFmt('${b['text']}'.trim())); // заметки для себя — не уходят
     }
   }
   return parts.join('\n\n');
@@ -168,6 +186,26 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
 
   void delete(String id) => _set([for (final s in state) if (s['id'] != id) s]);
 
+  /// Копия проповеди: название «… — копия», новые номера блоков; встаёт первой в списке
+  String? duplicate(String id) {
+    final src = byId(id);
+    if (src == null) return null;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final s = <String, dynamic>{
+      ...(jsonDecode(jsonEncode(src)) as Map<String, dynamic>),
+      'id': newId(),
+      'title': t('{title} — копия', {'title': '${src['title']}'}),
+      'createdAt': now,
+      'updatedAt': now,
+    };
+    s['blocks'] = [for (final b in blocksOf(s)) {...b, 'id': newId()}];
+    _set([s, ...state]);
+    return s['id'] as String;
+  }
+
+  /// Серия — несколько проповедей вместе (в списке — под общим заголовком)
+  void setSeries(String id, String series) => _touch(id, (s) => {...s, 'series': series});
+
   /// «Отменить» после удаления: проповедь возвращается на прежнее место
   void restore(Sermon s, int index) {
     if (state.any((x) => x['id'] == s['id'])) return;
@@ -244,8 +282,8 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
         stamp: false,
       );
 
-  String addTextBlock(String id, {int? after}) {
-    final b = <String, dynamic>{'id': newId(), 'type': 'text', 'text': ''};
+  String addTextBlock(String id, {int? after, String type = 'text'}) {
+    final b = <String, dynamic>{'id': newId(), 'type': type, 'text': ''};
     _touch(id, (s) {
       final blocks = blocksOf(s);
       blocks.insert(after == null ? blocks.length : math.min(blocks.length, math.max(0, after + 1)), b);

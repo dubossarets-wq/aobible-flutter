@@ -8,6 +8,7 @@ import 'package:aobible/core/i18n.dart';
 import 'package:aobible/core/modules.dart';
 import 'package:aobible/core/settings.dart';
 import 'package:aobible/features/plans/ui_kit.dart' show showPage;
+import 'package:aobible/features/sermons/sermon_pdf.dart';
 import 'package:aobible/features/sermons/sermon_store.dart';
 import 'package:aobible/features/sermons/sermons_sheet.dart';
 import 'package:flutter/material.dart';
@@ -103,7 +104,7 @@ Future<void> tapWord(WidgetTester tester, String word) async {
   await spin(tester, 200);
 }
 
-Future<void> boot(WidgetTester tester, V v, String id) async {
+Future<void> boot(WidgetTester tester, V v, String? id) async {
   tester.view.physicalSize = const Size(400, 830);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -217,6 +218,106 @@ void main() {
     await tapTip(tester, 'Повторить');
     expect(blk()['text'], 'Бог мир');
     expect(blk()['part'], true);
+    await tester.pumpWidget(const SizedBox());
+    await spin(tester, 200);
+  });
+
+  test('свой текст: **жирный**, *курсив*; заметка для себя не уходит в «Поделиться»; копия', () {
+    expect([for (final p in fmtParts('а **б** *в* г')) (p.t, p.b, p.i)], [('а ', false, false), ('б', true, false), (' ', false, false), ('в', false, true), (' г', false, false)]);
+    expect(plainFmt('**Бог** есть *любовь*'), 'Бог есть любовь');
+    final tmp = ProviderContainer();
+    addTearDown(tmp.dispose);
+    final store = tmp.read(sermonsProvider.notifier);
+    final id = store.create('Любовь');
+    store.addVerses(id, [const VerseItem('John', 3, 16, full)], 'rst-plus');
+    store.updateBlock(id, store.addTextBlock(id), {'text': 'Это **главное**'});
+    store.updateBlock(id, store.addTextBlock(id, type: 'note'), {'text': 'Пауза, спросить зал'});
+    final text = sermonText(store.byId(id)!);
+    expect(text, contains('Это главное'));
+    expect(text, isNot(contains('Пауза')));
+    final copy = store.duplicate(id)!;
+    expect(store.byId(copy)!['title'], 'Любовь — копия');
+    expect(tmp.read(sermonsProvider).first['id'], copy);
+    final a = blocksOf(store.byId(id)!), b = blocksOf(store.byId(copy)!);
+    expect([for (final x in b) x['text']], [for (final x in a) x['text']]);
+    expect(b.map((x) => x['id']).toSet().intersection(a.map((x) => x['id']).toSet()), isEmpty, reason: 'у копии свои номера блоков');
+  });
+
+  testWidgets('список: серии под заголовками, поиск, сортировка', (tester) async {
+    final tmp = ProviderContainer();
+    final store = tmp.read(sermonsProvider.notifier);
+    store.setSeries(store.create('Свет миру'), 'Послания Иоанна');
+    store.create('Пасха');
+    store.setSeries(store.create('Любовь Божья'), 'Послания Иоанна');
+    tmp.dispose();
+    await boot(tester, variants.first, null);
+    expect(find.text('ПОСЛАНИЯ ИОАННА'), findsOneWidget);
+    expect(find.text('БЕЗ СЕРИИ'), findsOneWidget);
+    // недавние — сверху; «По алфавиту» — по названию
+    double y(String t) => tester.getTopLeft(find.text(t)).dy;
+    expect(y('Любовь Божья') < y('Свет миру'), true);
+    await tapText(tester, 'По алфавиту');
+    expect(y('Любовь Божья') < y('Свет миру'), true);
+    expect(prefs.getString('sermonSort'), '"alpha"');
+    await tester.enterText(find.byType(TextField).at(1), 'пасх');
+    await spin(tester, 200);
+    expect(find.text('Пасха'), findsOneWidget);
+    expect(find.text('Свет миру'), findsNothing);
+    expect(find.text('ПОСЛАНИЯ ИОАННА'), findsNothing);
+    await tester.enterText(find.byType(TextField).at(1), 'нет такого');
+    await spin(tester, 200);
+    expect(find.text('Ничего не найдено'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await spin(tester, 200);
+  });
+
+  testWidgets('редактор: заметка для себя, «Жирный», серия, «Кафедра», копия и PDF', (tester) async {
+    final tmp = ProviderContainer();
+    final id = tmp.read(sermonsProvider.notifier).create('Любовь');
+    tmp.read(sermonsProvider.notifier).addVerses(id, [const VerseItem('John', 3, 16, full)], 'rst-plus');
+    tmp.read(sermonsProvider.notifier).setSeries(id, 'Послания Иоанна');
+    tmp.dispose();
+    await boot(tester, variants.first, id);
+    final store = c.read(sermonsProvider.notifier);
+    expect(find.text('Послания Иоанна'), findsOneWidget, reason: 'серия — в поле под подзаголовком');
+    expect(find.byTooltip('Печать и PDF'), findsOneWidget);
+
+    // «+ Заметка» под стихом — сразу поле ввода с кнопками «Жирный» / «Курсив»
+    await tapText(tester, 'Заметка');
+    Block note() => blocksOf(store.byId(id)!).firstWhere((b) => b['type'] == 'note');
+    expect(blocksOf(store.byId(id)!).first['type'], 'note', reason: 'верхняя строка вставки — перед стихом');
+    expect(find.text('Заметка для себя'), findsOneWidget);
+    final field = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'Подсказка себе: пауза, вопрос залу…');
+    expect(field, findsOneWidget);
+    await tester.enterText(field, 'Пауза');
+    tester.widget<TextField>(field).controller!.selection = const TextSelection(baseOffset: 0, extentOffset: 5);
+    await tapTip(tester, 'Жирный');
+    expect(note()['text'], '**Пауза**');
+    expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<TextField>()?.decoration?.hintText, 'Подсказка себе: пауза, вопрос залу…', reason: 'поле не теряет фокус');
+
+    // «Кафедра»: заметка — мелко и приглушённо (без звёздочек)
+    FocusManager.instance.primaryFocus?.unfocus();
+    await spin(tester, 300);
+    await tapText(tester, 'Кафедра');
+    await spin(tester, 600);
+    expect(find.byWidgetPredicate((w) => w is RichText && w.text.toPlainText() == 'Пауза'), findsWidgets);
+    await tapTip(tester, 'Закрыть кафедру');
+    await spin(tester, 600);
+
+    // PDF собирается (шрифты из приложения)
+    final bytes = await tester.runAsync(() => sermonPdf(store.byId(id)!));
+    expect(String.fromCharCodes(bytes!.take(5)), '%PDF-');
+    expect(bytes.length, greaterThan(10000));
+
+    // «Сделать копию» — открывается копия
+    await tapText(tester, 'Сделать копию');
+    await spin(tester, 400);
+    final list = c.read(sermonsProvider);
+    expect(list.length, 2);
+    expect(list.first['title'], 'Любовь — копия');
+    expect(find.text('Любовь — копия'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await spin(tester, 200);
   });

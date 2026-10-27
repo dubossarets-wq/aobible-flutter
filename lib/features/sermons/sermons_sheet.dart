@@ -23,7 +23,14 @@ import '../plans/loc.dart';
 import '../plans/ui_kit.dart';
 import '../plans/verse_text.dart';
 import 'screen_on.dart';
+import 'sermon_pdf.dart';
 import 'sermon_store.dart';
+
+/// Свой текст с **жирным** и *курсивом*
+List<InlineSpan> fmtSpans(String text) => [
+      for (final p in fmtParts(text))
+        TextSpan(text: p.t, style: p.b ? const TextStyle(fontWeight: FontWeight.w700) : p.i ? const TextStyle(fontStyle: FontStyle.italic) : null),
+    ];
 
 /// «1 место», «2 места», «5 мест»
 String places(int n) => tx('{n} место|{n} места|{n} мест', {'n': n});
@@ -47,6 +54,8 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
   int? _insertAt; // куда вставлять найденные стихи (null — в конец)
   String? _scrollTo; // только что добавленный блок
   final _title = TextEditingController();
+  final _q = TextEditingController(); // поиск по проповедям
+  String _sort = 'recent'; // недавние / по алфавиту
 
   // История правок открытой проповеди (на время открытого окна, до 50 шагов): снимки проповеди целиком
   final _undo = <String>[];
@@ -78,7 +87,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
         if (jsonEncode(x[i]) == jsonEncode(y[i])) continue;
         final p = x[i] as Map, q = y[i] as Map;
         final diff = {...p.keys, ...q.keys}.where((k) => jsonEncode(p[k]) != jsonEncode(q[k])).toList();
-        if (hit != null || diff.length != 1 || diff.first != 'text' || q['type'] != 'text') return null;
+        if (hit != null || diff.length != 1 || diff.first != 'text' || q['type'] == 'verse') return null;
         hit = 'b:${q['id']}';
       }
       return hit;
@@ -123,13 +132,68 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
     super.initState();
     _openId = widget.open;
     ensureDict();
+    if (prefs.getString('sermonSort') == '"alpha"') _sort = 'alpha';
   }
 
   @override
   void dispose() {
     _title.dispose();
+    _q.dispose();
     super.dispose();
   }
+
+  // Список: поиск (название, подзаголовок, серия, текст), сортировка; серии — под общими заголовками, без серии — в конце
+  List<Widget> _list(Palette pal, List<Sermon> sermons) {
+    final needle = _q.text.trim().toLowerCase();
+    bool hit(Sermon s) =>
+        needle.isEmpty ||
+        ['${s['title']}', '${s['subtitle'] ?? ''}', '${s['series'] ?? ''}', for (final b in blocksOf(s)) isVerse(b) ? '${blockRefFull(b)} ${b['text']}' : '${b['text']}']
+            .any((x) => x.toLowerCase().contains(needle));
+    final list = sermons.where(hit).toList()
+      ..sort((a, b) => _sort == 'alpha' ? '${a['title']}'.toLowerCase().compareTo('${b['title']}'.toLowerCase()) : ((b['updatedAt'] ?? 0) as num).compareTo((a['updatedAt'] ?? 0) as num));
+    if (list.isEmpty) return [Padding(padding: const EdgeInsets.symmetric(vertical: 18), child: Text(t('Ничего не найдено'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)))];
+    String ser(Sermon s) => '${s['series'] ?? ''}'.trim();
+    final names = {for (final s in list) ser(s)}.where((x) => x.isNotEmpty).toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final groups = names.isEmpty
+        ? [(null, list)]
+        : [for (final n in names) (n, [for (final s in list) if (ser(s) == n) s]), (t('Без серии'), [for (final s in list) if (ser(s).isEmpty) s])];
+    return [
+      for (final (name, items) in groups)
+        if (items.isNotEmpty) ...[
+          if (name != null)
+            // .sermon-group: заголовок серии
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+              child: Row(children: [
+                Icon(LucideIcons.layers, size: 14, color: pal.muted),
+                const SizedBox(width: 6),
+                Expanded(child: Text(name.toUpperCase(), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: pal.muted))),
+              ]),
+            ),
+          for (final s in items) _row(pal, s),
+        ],
+    ];
+  }
+
+  Widget _row(Palette pal, Sermon s) => bleed(Dismissible(
+        key: ValueKey('${s['id']}'),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => _remove(s),
+        // .swipe-act: красная полоса с «корзиной» и подписью
+        background: Container(
+          color: const Color(0xFFD1342B),
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: 88,
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(LucideIcons.trash2, size: 18, color: Colors.white),
+              const SizedBox(height: 3),
+              Text(t('Удалить'), style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+        child: SermonRow(pal: pal, sermon: s, onTap: () => setState(() => _openId = '${s['id']}')),
+      ));
 
   String? get _moduleId {
     final panes = ref.read(panesProvider);
@@ -190,6 +254,13 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
       actions: sermon == null
           ? const []
           : [
+              // «Печать и PDF»: файл PDF проповеди — в окно «Поделиться» (печать, сохранить, отправить)
+              IconBtn(
+                icon: LucideIcons.printer,
+                tooltip: t('Печать и PDF'),
+                color: blocksOf(sermon).isEmpty ? pal.muted.withValues(alpha: 0.4) : null,
+                onTap: blocksOf(sermon).isEmpty ? null : () => shareSermonPdf(sermon),
+              ),
               // «Поделиться» — значком слева от «Отменить» / «Повторить»
               IconBtn(
                 icon: LucideIcons.share2,
@@ -211,6 +282,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
               moduleId: moduleId,
               scrollTo: _scrollTo,
               onBackToList: () => setState(() => _openId = null),
+              onOpen: (id) => setState(() => _openId = id),
               onAddVerse: (at) => setState(() {
                 _insertAt = at;
                 _scrollTo = null;
@@ -243,28 +315,22 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                     ),
                   ]),
                 )
-              else
+              else ...[
+                // поиск по проповедям и сортировка
+                AobInput(controller: _q, hint: t('Поиск по проповедям'), height: 44, onChanged: (_) => setState(() {})),
+                const SizedBox(height: 8),
+                Segmented<String>(
+                  value: _sort,
+                  options: [('recent', t('Недавние')), ('alpha', t('По алфавиту'))],
+                  onChanged: (v) {
+                    setState(() => _sort = v);
+                    prefs.setString('sermonSort', jsonEncode(v));
+                  },
+                ),
+                const SizedBox(height: 4),
                 // строки — от края до края окна (и красная полоса удаления тоже), как списки в настройках
-                for (final s in sermons)
-                  bleed(Dismissible(
-                    key: ValueKey('${s['id']}'),
-                    direction: DismissDirection.endToStart,
-                    onDismissed: (_) => _remove(s),
-                    // .swipe-act: красная полоса с «корзиной» и подписью
-                    background: Container(
-                      color: const Color(0xFFD1342B),
-                      alignment: Alignment.centerRight,
-                      child: SizedBox(
-                        width: 88,
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(LucideIcons.trash2, size: 18, color: Colors.white),
-                          const SizedBox(height: 3),
-                          Text(t('Удалить'), style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                        ]),
-                      ),
-                    ),
-                    child: SermonRow(pal: pal, sermon: s, onTap: () => setState(() => _openId = '${s['id']}')),
-                  )),
+                ..._list(pal, sermons),
+              ],
             ])),
     );
   }
@@ -314,13 +380,14 @@ class SermonRow extends StatelessWidget {
 // --- Редактор ------------------------------------------------------------------------------------------
 
 class _Editor extends ConsumerStatefulWidget {
-  const _Editor({super.key, required this.pal, required this.sermon, required this.pane, required this.moduleId, required this.onBackToList, required this.onAddVerse, this.scrollTo});
+  const _Editor({super.key, required this.pal, required this.sermon, required this.pane, required this.moduleId, required this.onBackToList, required this.onOpen, required this.onAddVerse, this.scrollTo});
   final Palette pal;
   final Sermon sermon;
   final int pane;
   final String? moduleId;
   final String? scrollTo;
   final VoidCallback onBackToList;
+  final ValueChanged<String> onOpen; // открыть другую проповедь (копию)
   final void Function(int? at) onAddVerse;
 
   @override
@@ -450,9 +517,15 @@ class _EditorState extends ConsumerState<_Editor> {
             contentPadding: const EdgeInsets.fromLTRB(0, 10, 0, 12), // сверху — отступ от названия
           ),
         ),
-        // название и подзаголовок — одна группа: под ней тонкая линия, ниже с отступом — кнопки
+        // название и подзаголовок — одна группа: под ней тонкая линия, ниже — серия и кнопка «Кафедра»
         Container(height: 1, color: pal.line),
-        const SizedBox(height: 14),
+        _SeriesField(
+          pal: pal,
+          value: '${sermon['series'] ?? ''}',
+          all: {for (final x in ref.watch(sermonsProvider)) '${x['series'] ?? ''}'.trim()}.where((x) => x.isNotEmpty).toList()..sort(),
+          onChanged: (v) => _store.setSeries(_id, v),
+        ),
+        const SizedBox(height: 8),
         AobButton(wide: true, kind: BtnKind.primary, icon: LucideIcons.presentation, label: t('Кафедра'), onTap: blocks.isEmpty ? null : _pulpit),
         const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
         if (blocks.isEmpty)
@@ -473,7 +546,15 @@ class _EditorState extends ConsumerState<_Editor> {
             ]),
           )
         else
-          Padding(padding: const EdgeInsets.only(bottom: 12), child: _Inserter(pal: pal, onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: -1)), onVerse: () => widget.onAddVerse(0))),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _Inserter(
+              pal: pal,
+              onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: -1)),
+              onVerse: () => widget.onAddVerse(0),
+              onNote: () => setState(() => _fresh = _store.addTextBlock(_id, after: -1, type: 'note')),
+            ),
+          ),
       ]),
       footer: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (blocks.isEmpty)
@@ -486,13 +567,24 @@ class _EditorState extends ConsumerState<_Editor> {
               Expanded(child: AobButton(wide: true, icon: LucideIcons.search, label: t('Стих'), onTap: () => widget.onAddVerse(null))),
             ]),
           ),
-        // «Удалить проповедь» — неброской красной кнопкой по центру (с подтверждением)
+        // «Сделать копию» и «Удалить проповедь» (с подтверждением) — неброскими кнопками по центру
         Padding(
           padding: const EdgeInsets.only(top: 18),
-          child: _WideDelete(onConfirm: () {
-            _store.delete(_id);
-            widget.onBackToList();
-          }),
+          child: Wrap(alignment: WrapAlignment.center, spacing: 6, children: [
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: pal.muted, textStyle: const TextStyle(fontSize: 14.4, fontWeight: FontWeight.w500)),
+              icon: const Icon(LucideIcons.copyPlus, size: 16),
+              label: Text(t('Сделать копию')),
+              onPressed: () {
+                final id = _store.duplicate(_id);
+                if (id != null) widget.onOpen(id);
+              },
+            ),
+            _WideDelete(onConfirm: () {
+              _store.delete(_id);
+              widget.onBackToList();
+            }),
+          ]),
         ),
       ]),
       itemCount: blocks.length,
@@ -535,6 +627,7 @@ class _EditorState extends ConsumerState<_Editor> {
               pal: pal,
               onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: i)),
               onVerse: () => widget.onAddVerse(i + 1),
+              onNote: () => setState(() => _fresh = _store.addTextBlock(_id, after: i, type: 'note')),
             ),
           ]),
         );
@@ -581,6 +674,83 @@ class _WideDeleteState extends State<_WideDelete> {
       );
 }
 
+/// Серия (необязательно): значок и поле без рамки; при вводе — уже заданные серии чипами
+class _SeriesField extends StatefulWidget {
+  const _SeriesField({required this.pal, required this.value, required this.all, required this.onChanged});
+  final Palette pal;
+  final String value;
+  final List<String> all;
+  final ValueChanged<String> onChanged;
+  @override
+  State<_SeriesField> createState() => _SeriesFieldState();
+}
+
+class _SeriesFieldState extends State<_SeriesField> {
+  late final _ctl = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _set(String v) {
+    _ctl.value = TextEditingValue(text: v, selection: TextSelection.collapsed(offset: v.length));
+    widget.onChanged(v);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    if (_ctl.text != widget.value && !_focus.hasFocus) _ctl.text = widget.value; // «Отменить»/«Повторить»
+    final cur = _ctl.text.trim().toLowerCase();
+    final opts = [for (final x in widget.all) if (x.toLowerCase() != cur && x.toLowerCase().contains(cur)) x];
+    return TextFieldTapRegion(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(LucideIcons.layers, size: 15, color: pal.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _ctl,
+              focusNode: _focus,
+              onChanged: (v) {
+                widget.onChanged(v);
+                setState(() {});
+              },
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(fontSize: 14.4, color: pal.text),
+              decoration: InputDecoration(
+                hintText: t('Серия (необязательно)'),
+                hintStyle: TextStyle(color: pal.muted.withValues(alpha: 0.7)),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ]),
+        Reveal(
+          open: _focus.hasFocus && opts.isNotEmpty,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 23, bottom: 6),
+            child: Wrap(spacing: 6, runSpacing: 6, children: [for (final x in opts) AobChip(label: x, icon: LucideIcons.layers, compact: true, onTap: () => _set(x))]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _TitleField extends StatelessWidget {
   const _TitleField({required this.pal, required this.controller, required this.onChanged});
   final Palette pal;
@@ -606,9 +776,9 @@ class _TitleField extends StatelessWidget {
 
 /// .sermon-insert: компактная строка между блоками — добавить текст или стих именно сюда; за кнопками — пунктирная линия
 class _Inserter extends StatelessWidget {
-  const _Inserter({required this.pal, required this.onText, required this.onVerse});
+  const _Inserter({required this.pal, required this.onText, required this.onVerse, required this.onNote});
   final Palette pal;
-  final VoidCallback onText, onVerse;
+  final VoidCallback onText, onVerse, onNote;
 
   @override
   Widget build(BuildContext context) {
@@ -637,7 +807,13 @@ class _Inserter extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Stack(alignment: Alignment.center, children: [
         Positioned(left: 14, right: 14, child: DashedLine(color: pal.line)),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [btn(t('Текст'), t('Добавить текст'), onText), const SizedBox(width: 8), btn(t('Стих'), t('Добавить стих'), onVerse)]),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          btn(t('Текст'), t('Добавить текст'), onText),
+          const SizedBox(width: 8),
+          btn(t('Стих'), t('Добавить стих'), onVerse),
+          const SizedBox(width: 8),
+          btn(t('Заметка'), t('Заметка для себя'), onNote),
+        ]),
       ]),
     );
   }
@@ -822,6 +998,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
     final sermonId = widget.sermonId, fresh = widget.fresh, onFreshDone = widget.onFreshDone, onGo = widget.onGo, onDropVerse = widget.onDropVerse;
     final store = ref.read(sermonsProvider.notifier);
     final verse = isVerse(block);
+    final note = block['type'] == 'note';
     final isPart = block['part'] == true;
     final canPick = verse && block['to'] == null && !_picking && _fullText() != null;
     final texts = verse ? verseTexts(block) : null;
@@ -840,7 +1017,8 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
       child: Stack(children: [
       Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+      // заметка для себя — приглушённый фон
+      decoration: BoxDecoration(color: note ? mix(pal.muted, 0.07, pal.bg) : pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verse) ...[
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -955,7 +1133,20 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
           ),
         ] else
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone)),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (note)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(children: [
+                      Icon(LucideIcons.stickyNote, size: 13, color: pal.muted),
+                      const SizedBox(width: 4),
+                      Text(t('Заметка для себя'), style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w600, color: pal.muted)),
+                    ]),
+                  ),
+                _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone, note: note),
+              ]),
+            ),
             Transform.translate(offset: const Offset(6, -6), child: trash),
           ]),
         // .sermon-block-tools: пунктир сверху, слева — перестановка (⠿ ↑ ↓), корзина справа
@@ -1027,11 +1218,11 @@ class IlWords extends StatelessWidget {
 /// Свой текст: готовый абзац — просто текст (его можно зажать и перетащить, как стих), нажатие — правка.
 /// Пустой (только что добавленный) — сразу поле ввода.
 class _TextBlock extends ConsumerStatefulWidget {
-  const _TextBlock({required this.pal, required this.sermonId, required this.block, required this.fresh, required this.onDone});
+  const _TextBlock({required this.pal, required this.sermonId, required this.block, required this.fresh, required this.onDone, this.note = false});
   final Palette pal;
   final String sermonId;
   final Block block;
-  final bool fresh;
+  final bool fresh, note; // note — заметка для себя
   final VoidCallback onDone;
   @override
   ConsumerState<_TextBlock> createState() => _TextBlockState();
@@ -1062,15 +1253,48 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
     super.dispose();
   }
 
+  // «Жирный» / «Курсив»: обернуть выделенное (или поставить пару отметок под курсор); поле остаётся в фокусе
+  void _wrap(String mark) {
+    final v = _ctl.value;
+    final sel = v.selection.isValid ? v.selection : TextSelection.collapsed(offset: v.text.length);
+    final text = v.text.replaceRange(sel.start, sel.end, '$mark${v.text.substring(sel.start, sel.end)}$mark');
+    _ctl.value = TextEditingValue(text: text, selection: TextSelection(baseOffset: sel.start + mark.length, extentOffset: sel.end + mark.length));
+    ref.read(sermonsProvider.notifier).updateBlock(widget.sermonId, '${widget.block['id']}', {'text': text});
+    _focus.requestFocus();
+  }
+
+  Widget _fmtBtn(IconData icon, String tip, String mark) => Tooltip(
+        message: tip,
+        child: GestureDetector(
+          onTap: () => _wrap(mark),
+          child: Container(
+            width: 30,
+            height: 26,
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(color: widget.pal.text.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 15, color: widget.pal.text),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final pal = widget.pal;
     final text = '${widget.block['text']}';
     if (_ctl.text != text) _ctl.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length)); // «Отменить»/«Повторить»
     final editing = _edit || widget.fresh || text.trim().isEmpty;
-    final style = TextStyle(fontSize: 16, height: 1.5, color: pal.text);
+    final style = widget.note
+        ? TextStyle(fontSize: 14.7, height: 1.45, fontStyle: FontStyle.italic, color: pal.text.withValues(alpha: 0.75))
+        : TextStyle(fontSize: 16, height: 1.5, color: pal.text);
     if (editing) {
-      return TextField(
+      // кнопки оформления — в одной «области» с полем: нажатие по ним не снимает фокус
+      return TextFieldTapRegion(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(children: [_fmtBtn(LucideIcons.bold, t('Жирный'), '**'), _fmtBtn(LucideIcons.italic, t('Курсив'), '*')]),
+          ),
+          TextField(
         controller: _ctl,
         focusNode: _focus,
         autofocus: widget.fresh || _edit,
@@ -1080,7 +1304,15 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
         textCapitalization: TextCapitalization.sentences,
         onChanged: (v) => ref.read(sermonsProvider.notifier).updateBlock(widget.sermonId, '${widget.block['id']}', {'text': v}),
         style: style,
-        decoration: InputDecoration(hintText: t('Мысль, пояснение, пример…'), hintStyle: TextStyle(color: pal.muted), border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.only(top: 2)),
+        decoration: InputDecoration(
+          hintText: widget.note ? t('Подсказка себе: пауза, вопрос залу…') : t('Мысль, пояснение, пример…'),
+          hintStyle: TextStyle(color: pal.muted),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.only(top: 2),
+        ),
+      ),
+        ]),
       );
     }
     return Semantics(
@@ -1092,7 +1324,7 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
           _ctl.selection = TextSelection.collapsed(offset: _ctl.text.length);
           setState(() => _edit = true);
         },
-        child: Padding(padding: const EdgeInsets.only(top: 2), child: Text(text, style: style)),
+        child: Padding(padding: const EdgeInsets.only(top: 2), child: Text.rich(TextSpan(children: fmtSpans(text)), style: style)),
       ),
     );
   }
@@ -1285,7 +1517,19 @@ class _PulpitState extends ConsumerState<Pulpit> {
       ];
     }
     final text = '${b['text']}'.trim();
-    return text.isEmpty ? [] : [Padding(padding: EdgeInsets.symmetric(vertical: _size), child: Text(text, style: lh))];
+    if (text.isEmpty) return [];
+    // .pulpit-note: заметка для себя — мелко, курсивом, с пунктиром слева
+    if (b['type'] == 'note') {
+      return [
+        Container(
+          margin: EdgeInsets.symmetric(vertical: _size * 0.6),
+          padding: EdgeInsets.only(left: _size * 0.5),
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.muted.withValues(alpha: 0.6), width: 2))),
+          child: Text.rich(TextSpan(children: fmtSpans(text)), style: TextStyle(fontSize: _size * 0.7, height: 1.45, fontStyle: FontStyle.italic, color: pal.muted)),
+        ),
+      ];
+    }
+    return [Padding(padding: EdgeInsets.symmetric(vertical: _size), child: Text.rich(TextSpan(children: fmtSpans(text)), style: lh))];
   }
 }
 
