@@ -54,7 +54,7 @@ String blockRefFull(Block b) => '${Books.instance.meta(b['book'] as String).name
 
 /// Проповедь обычным текстом — чтобы отправить или распечатать
 String sermonText(Sermon s) {
-  final parts = <String>['${s['title']}'];
+  final parts = <String>['${s['title']}', if ('${s['subtitle'] ?? ''}'.trim().isNotEmpty) '${s['subtitle']}'.trim()];
   final date = DateTime.tryParse('${s['date'] ?? ''}');
   if (date != null) parts.add(fmtDay(date, full: true, year: true));
   for (final b in blocksOf(s)) {
@@ -161,6 +161,9 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
   void replace(Sermon next) => _touch('${next['id']}', (_) => next);
 
   void rename(String id, String title) => _touch(id, (s) => {...s, 'title': title});
+
+  /// Подзаголовок (описание) под названием — необязательный
+  void setSubtitle(String id, String subtitle) => _touch(id, (s) => {...s, 'subtitle': subtitle});
   void setDate(String id, String date) => _touch(id, (s) => {...s, 'date': date});
 
   /// Добавить стихи; at — куда вставить (номер блока), без него — в конец. Возвращает номера новых блоков.
