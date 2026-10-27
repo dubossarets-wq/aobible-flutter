@@ -154,8 +154,7 @@ void main() {
       final store = c.read(sermonsProvider.notifier);
       Block blk() => blocksOf(store.byId(id)!).first;
 
-      // инструменты блока — за «⋯»; на полном стихе есть «Часть стиха», «Весь стих» — нет
-      await tapTip(tester, 'Действия');
+      // на полном стихе есть «Часть стиха», «Весь стих» — нет
       expect(find.text('Часть стиха'), findsOneWidget);
       expect(find.text('Весь стих'), findsNothing);
       await tapText(tester, 'Часть стиха');
@@ -206,7 +205,6 @@ void main() {
     final store = c.read(sermonsProvider.notifier);
     Block blk() => blocksOf(store.byId(id)!).first;
     expect(find.byTooltip('Отменить'), findsOneWidget);
-    await tapTip(tester, 'Действия');
     await tapText(tester, 'Часть стиха');
     await tapWord(tester, 'Бог');
     await tapWord(tester, 'мир');
