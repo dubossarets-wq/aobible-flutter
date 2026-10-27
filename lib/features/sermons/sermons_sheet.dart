@@ -402,7 +402,9 @@ class _EditorState extends ConsumerState<_Editor> {
     _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим
     // тексты подключённых переводов дописываются, когда их ещё нет
     if (blocks.any((b) => isVerse(b) && altsOf(b).any((a) => ((a['t'] as List?)?.length ?? 0) != ((b['to'] ?? b['verse']) as int) - (b['verse'] as int) + 1))) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? _store.fillAltTexts(_id, (m, r) => verseText(m, r)) : null);
+      WidgetsBinding.instance.addPostFrameCallback((_) => mounted
+          ? _store.fillAltTexts(_id, (m, r, il) => il ? verseRaw(m, r) : verseText(m, r), (m) => ModuleStore.instance.get(m)?.features['interlinear'] == true)
+          : null);
     }
     return ReorderableListView.builder(
       scrollController: _scroll,
@@ -856,6 +858,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                     const SizedBox(height: 1),
                     Builder(builder: (_) {
                       final at = [for (final x in (a['t'] as List? ?? const [])) '$x'];
+                      if (a['il'] == true && at.any((x) => x.isNotEmpty)) return IlWords(pal: pal, texts: at, size: 15.7);
                       final text = at.isEmpty ? '…' : at.every((x) => x.isEmpty) ? '—' : at.join(' ');
                       return Text(text, style: verseStyle.copyWith(fontSize: 15.7, color: pal.text.withValues(alpha: 0.85)));
                     }),
@@ -937,6 +940,34 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
       ]),
       ),
       if (verse) Positioned(left: 0, top: 0, bottom: 0, width: 3, child: ColoredBox(color: pal.accent)),
+      ]),
+    );
+  }
+}
+
+/// Подстрочник у стиха: слова столбиками — сверху оригинал, под ним перевод; иврит — справа налево
+class IlWords extends StatelessWidget {
+  const IlWords({super.key, required this.pal, required this.texts, required this.size});
+  final Palette pal;
+  final List<String> texts;
+  final double size;
+  static final _word = RegExp(r'\{([^|}]*)\|([^|}]*)(?:\|([^|}]*))?(?:\|([^}]*))?\}');
+
+  @override
+  Widget build(BuildContext context) {
+    final words = [
+      for (final x in texts)
+        for (final m in _word.allMatches(x)) (g: m.group(1) == '·' ? '' : m.group(1) ?? '', o: m.group(4) ?? ''),
+    ];
+    final rtl = words.any((w) => RegExp(r'[\u0590-\u05FF]').hasMatch(w.o));
+    return Directionality(
+      textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+      child: Wrap(spacing: 12, runSpacing: 4, children: [
+        for (final w in words)
+          Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(w.o.isEmpty ? ' ' : w.o, style: TextStyle(fontSize: size * (rtl ? 1.12 : 1.02), height: 1.3, color: pal.text, fontFamily: rtl ? 'Noto Serif Hebrew' : null)),
+            Text(w.g.isEmpty ? ' ' : w.g, textDirection: TextDirection.ltr, style: TextStyle(fontSize: size * 0.76, height: 1.3, color: pal.muted)),
+          ]),
       ]),
     );
   }
@@ -1192,7 +1223,10 @@ class _PulpitState extends ConsumerState<Pulpit> {
                   padding: EdgeInsets.only(top: _size * 0.6),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${a['n']}', style: TextStyle(fontSize: _size * 0.6, fontWeight: FontWeight.w700, color: pal.muted)),
-                    Text((a['t'] as List).join(' '), style: lh.copyWith(fontSize: _size * 0.88, color: pal.text.withValues(alpha: 0.85))),
+                    if (a['il'] == true)
+                      IlWords(pal: pal, texts: [for (final x in a['t'] as List) '$x'], size: _size * 0.88)
+                    else
+                      Text((a['t'] as List).join(' '), style: lh.copyWith(fontSize: _size * 0.88, color: pal.text.withValues(alpha: 0.85))),
                   ]),
                 ),
           ]),

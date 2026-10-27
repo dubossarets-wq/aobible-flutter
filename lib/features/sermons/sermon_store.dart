@@ -36,7 +36,8 @@ List<Sermon> loadSermons() {
 List<Block> blocksOf(Sermon s) => [for (final b in (s['blocks'] as List? ?? const [])) Block.from(b as Map)];
 bool isVerse(Block b) => b['type'] == 'verse';
 
-/// Переводы у стиха: [{m: id перевода, n: короткое название, t: [текст по стихам]}] — показываются под основным
+/// Переводы у стиха: [{m: id перевода, n: короткое название, t: [текст по стихам], il?}] — показываются под основным;
+/// у подстрочника (il) t — с разметкой слов {перевод|Стронг|морфология|оригинал}: показывается столбиками
 List<Map<String, dynamic>> altsOf(Block b) => [for (final a in (b['alt'] as List? ?? const [])) (a as Map).cast<String, dynamic>()];
 
 /// Текст блока по стихам: [текст 16, текст 17, …]; null — у старого блока-диапазона разбивки ещё нет
@@ -67,7 +68,7 @@ String sermonText(Sermon s) {
       final body = tx != null && tx.length > 1 ? [for (final (i, x) in tx.indexed) '${(b['verse'] as int) + i} $x'].join('\n') : '${b['text']}';
       parts.add('${blockRefFull(b)}\n«$body»');
       for (final a in altsOf(b)) {
-        final at = [for (final x in (a['t'] as List? ?? const [])) '$x'].where((x) => x.isNotEmpty).join(' ');
+        final at = [for (final x in (a['t'] as List? ?? const [])) a['il'] == true ? plainText('$x') : '$x'].where((x) => x.isNotEmpty).join(' ');
         if (at.isNotEmpty) parts.add('${a['n']}: «$at»');
       }
     } else if ('${b['text']}'.trim().isNotEmpty) {
@@ -207,8 +208,9 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
   /// Переводы, которые сами подключаются ко всем новым стихам проповеди
   void setAltDefault(String id, List<Map<String, dynamic>> list) => _touch(id, (s) => {...s, 'altDefault': list});
 
-  /// Тексты подключённых переводов: по стиху из каждого перевода (get — текст стиха; без отметки изменения)
-  void fillAltTexts(String id, String? Function(String moduleId, VerseRef r) get) => _touch(
+  /// Тексты подключённых переводов: по стиху из каждого перевода (get — текст стиха, il — подстрочник ли перевод:
+  /// у него текст с разметкой слов); без отметки изменения
+  void fillAltTexts(String id, String? Function(String moduleId, VerseRef r, bool il) get, bool Function(String moduleId) il) => _touch(
         id,
         (s) => {
           ...s,
@@ -221,12 +223,13 @@ class SermonsNotifier extends Notifier<List<Sermon>> {
                   ...b,
                   'alt': [
                     for (final a in altsOf(b))
-                      ((a['t'] as List?)?.length ?? 0) == ((b['to'] ?? b['verse']) as int) - (b['verse'] as int) + 1
+                      ((a['t'] as List?)?.length ?? 0) == ((b['to'] ?? b['verse']) as int) - (b['verse'] as int) + 1 && (a['il'] == true) == il('${a['m']}')
                           ? a
                           : {
-                              ...a,
+                              ...(Map<String, dynamic>.from(a)..remove('il')),
+                              if (il('${a['m']}')) 'il': true,
                               't': [
-                                for (var v = b['verse'] as int; v <= ((b['to'] ?? b['verse']) as int); v++) get('${a['m']}', VerseRef(b['book'] as String, b['chapter'] as int, v)) ?? '',
+                                for (var v = b['verse'] as int; v <= ((b['to'] ?? b['verse']) as int); v++) get('${a['m']}', VerseRef(b['book'] as String, b['chapter'] as int, v), il('${a['m']}')) ?? '',
                               ],
                             },
                   ],

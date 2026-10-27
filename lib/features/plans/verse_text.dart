@@ -15,6 +15,17 @@ String? verseText(String moduleId, VerseRef r) {
   }
 }
 
+/// Текст стиха с разметкой слов (у подстрочника — {перевод|Стронг|морфология|оригинал}); null — такого стиха нет
+String? verseRaw(String moduleId, VerseRef r) {
+  try {
+    if (ModuleStore.instance.get(moduleId) == null) return null;
+    final rows = ModuleStore.instance.db(moduleId).select('SELECT text FROM verses WHERE book = ? AND chapter = ? AND verse = ?', [r.book, r.chapter, r.verse]);
+    return rows.isEmpty ? null : rows.first['text'] as String;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// «Ин. 3:16», «Ин. 3:16–18», «Ин. 3:16, 18»; full — с полным названием книги
 String selectionLabel(List<VerseRef> refs, {bool full = false}) {
   if (refs.isEmpty) return '';
