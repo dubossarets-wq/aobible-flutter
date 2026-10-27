@@ -113,6 +113,9 @@ class Hub {
   /// открыть/закрыть — mapPaneProvider
   static Widget Function(BuildContext context, WidgetRef ref, Object place)? mapPaneBuilder;
 
+  /// Введение из комментариев над заголовком: bookLevel — к книге (над названием книги), иначе к главе (над «Глава N»)
+  static Widget? Function(BuildContext context, WidgetRef ref, int pane, String moduleId, String book, int chapter, {required bool bookLevel})? chapterIntro;
+
   /// Круглая кнопка «Слушать» внизу панели чтения (даёт функция аудио)
   static Widget Function(BuildContext context, WidgetRef ref, int pane)? listenFab;
 
@@ -158,6 +161,7 @@ class Hub {
   static void reset() {
     onWordTap = null;
     verseDecorators.clear();
+    chapterIntro = null;
     selectionBar = null;
     openPlans = openBookmarks = openMore = openSettings = openLibrary = openAudio = null;
     openLibraryTab = null;

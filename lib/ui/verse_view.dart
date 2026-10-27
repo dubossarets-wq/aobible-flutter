@@ -102,12 +102,19 @@ class VerseView extends ConsumerWidget {
                 style: readerTextStyle(settings, size: cs, weight: 800).copyWith(color: pal.text, height: 1.1, letterSpacing: -cs * 0.01)),
           ),
         );
-        if (item.chapter != 1) return title;
+        // введения из комментариев: к книге — над названием книги, к главе — над «Глава N»
+        final intro = Hub.chapterIntro;
+        final bookIntro = item.chapter == 1 && intro != null ? intro(context, ref, pane, moduleId, book, 1, bookLevel: true) : null;
+        final chapIntro = intro?.call(context, ref, pane, moduleId, book, item.chapter, bookLevel: false);
+        if (item.chapter != 1 && chapIntro == null) return title;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: EdgeInsets.only(top: fs * 0.9 * 1.4),
-            child: Text(Books.instance.meta(book).name, style: readerTextStyle(settings, size: fs * 0.9, weight: 600).copyWith(color: pal.muted)),
-          ),
+          if (bookIntro != null) Padding(padding: EdgeInsets.only(top: fs * 0.9 * 1.4), child: bookIntro), // отступ — как у названия книги
+          if (item.chapter == 1)
+            Padding(
+              padding: EdgeInsets.only(top: bookIntro != null ? fs * 0.5 : fs * 0.9 * 1.4),
+              child: Text(Books.instance.meta(book).name, style: readerTextStyle(settings, size: fs * 0.9, weight: 600).copyWith(color: pal.muted)),
+            ),
+          if (chapIntro != null) Padding(padding: EdgeInsets.only(top: fs * 0.6), child: chapIntro),
           title,
         ]);
       case ItemKind.heading:

@@ -41,6 +41,7 @@ void register() {
   Hub.verseDecorators
     ..remove(studyDecorator)
     ..add(studyDecorator);
+  Hub.chapterIntro = chapterIntro;
   // Модули, установленные до этой версии, получают таблицы в фоне при запуске
   Hub.afterStart
     ..remove(_prepare)

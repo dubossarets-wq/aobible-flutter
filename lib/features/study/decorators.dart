@@ -76,18 +76,17 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
         final entries = <CommentEntry>[];
         for (final r in StudyData.commentaryFor(at)) {
           if (!ids.contains(r.module.id)) continue;
-          for (final intr in [true, false]) {
-            final items = [for (final e in r.items) if (_isIntro(e.title) == intr) e];
-            if (items.isEmpty) continue;
-            entries.add((
-              id: r.module.id,
-              short: intr ? items.first.title : r.module.name, // после стиха: «Лопухин», у введения — «Введение в книгу»
-              name: r.module.title.isNotEmpty ? r.module.title : r.module.name, // название книги: «Толковая Библия Лопухина»
-              label: intr ? items.first.title : null,
-              text: items.map((e) => e.text).join('\n\n'),
-              onOpen: () => openCommentary(context, pane: pane, at: at, moduleId: r.module.id),
-            ));
-          }
+          // введения к книге и главе — не у стиха, а над заголовками (chapterIntro)
+          final items = [for (final e in r.items) if (!_isIntro(e.title)) e];
+          if (items.isEmpty) continue;
+          entries.add((
+            id: r.module.id,
+            short: r.module.name, // после стиха: «Лопухин»
+            name: r.module.title.isNotEmpty ? r.module.title : r.module.name, // название книги: «Толковая Библия Лопухина»
+            label: null,
+            text: items.map((e) => e.text).join('\n\n'),
+            onOpen: () => openCommentary(context, pane: pane, at: at, moduleId: r.module.id),
+          ));
         }
         if (entries.isNotEmpty) {
           // после стиха — короткие названия источников мелким приглушённым текстом; раскрытый — цветом акцента
@@ -127,6 +126,109 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
 
 // «Введение в книгу», «Введение к главе», «Introduction» — статьи, которые при сборке модуля поставлены к первому стиху
 bool _isIntro(String title) => title.startsWith('Введение') || title == 'Introduction';
+
+// Введение к книге: «Введение в книгу» (у английских «Introduction» в 1-й главе — тоже к книге)
+bool _isBookIntro(String title, int chapter) => title.startsWith('Введение в книгу') || (chapter == 1 && title == 'Introduction');
+
+/// Введение над заголовком (Hub.chapterIntro): bookLevel — над названием книги, иначе над «Глава N». Те же комментарии,
+/// что видны у стихов (язык перевода, выбор в настройках); в «Как книга» и в режиме меток — нет
+Widget? chapterIntro(BuildContext context, WidgetRef ref, int pane, String moduleId, String book, int chapter, {required bool bookLevel}) {
+  final cfg = ref.watch(settingsProvider.select((s) => (s.j['bookMode'] == true, s.j['inlineCommentaries'], s.get<String>('commentView'))));
+  final (bookMode, inline, view) = cfg;
+  if (bookMode || view == 'tag') return null;
+  final list = StudyData.commentaryIndex(book)[chapter * 1000 + 1];
+  if (list == null) return null;
+  final lang = ModuleStore.instance.get(moduleId)?.language;
+  final ids = {
+    for (final (id, _) in list)
+      if (!(inline is List && !inline.contains(id)) && !(lang != null && (ModuleStore.instance.get(id)?.language ?? lang) != lang)) id,
+  };
+  final at = VerseRef(book, chapter, 1);
+  final entries = <CommentEntry>[];
+  for (final r in StudyData.commentaryFor(at)) {
+    if (!ids.contains(r.module.id)) continue;
+    final items = [for (final e in r.items) if (_isIntro(e.title) && _isBookIntro(e.title, chapter) == bookLevel) e];
+    if (items.isEmpty) continue;
+    entries.add((
+      id: r.module.id,
+      short: '${items.first.title} · ${r.module.name}',
+      name: r.module.title.isNotEmpty ? r.module.title : r.module.name,
+      label: items.first.title,
+      text: items.map((e) => e.text).join('\n\n'),
+      onOpen: () => openCommentary(context, pane: pane, at: at, moduleId: r.module.id),
+    ));
+  }
+  return entries.isEmpty ? null : IntroComments(entries: entries);
+}
+
+/// Введения над заголовком: строка коротких названий мелким приглушённым текстом («Введение в книгу · Лопухин»);
+/// нажатие плавно раскрывает текст под ней (линия акцента слева), повторное или нажатие на текст — сворачивает
+class IntroComments extends ConsumerStatefulWidget {
+  const IntroComments({super.key, required this.entries});
+  final List<CommentEntry> entries;
+  @override
+  ConsumerState<IntroComments> createState() => _IntroCommentsState();
+}
+
+class _IntroCommentsState extends ConsumerState<IntroComments> {
+  int? _open;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(settingsProvider);
+    final pal = s.palette;
+    final fs = s.d('commentaryFontSize');
+    final es = widget.entries;
+    final e = _open == null ? null : es[_open!.clamp(0, es.length - 1)];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 14, runSpacing: 4, children: [
+        for (var i = 0; i < es.length; i++)
+          Semantics(
+            button: true,
+            expanded: _open == i,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _open = _open == i ? null : i),
+              onLongPress: es[i].onOpen,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(fontSize: 12.8, height: 1.2, fontWeight: FontWeight.w600, color: _open == i ? pal.accent : pal.muted.withValues(alpha: 0.8)),
+                  child: Text(es[i].short),
+                ),
+              ),
+            ),
+          ),
+      ]),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.fastOutSlowIn,
+        alignment: Alignment.topCenter,
+        child: e == null
+            ? const SizedBox(width: double.infinity)
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _open = null),
+                onLongPress: e.onOpen,
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 6, bottom: 4),
+                  padding: const EdgeInsets.only(left: 12),
+                  decoration: BoxDecoration(border: Border(left: BorderSide(color: pal.accent, width: 3))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Text('${e.label} · ${e.name}', style: TextStyle(fontSize: 12.8, height: 1.3, fontWeight: FontWeight.w700, color: pal.accent)),
+                    ),
+                    Text(e.text, style: TextStyle(fontSize: fs, height: 1.6, color: pal.text.withValues(alpha: 0.86))),
+                  ]),
+                ),
+              ),
+      ),
+    ]);
+  }
+}
 
 InlineSpan _btn({required VoidCallback onTap, required String label, required Widget child, required double margin}) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
