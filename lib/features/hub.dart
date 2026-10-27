@@ -112,6 +112,9 @@ class Hub {
   /// Карта места во второй половине экрана (вместо второй панели чтения): что рисовать (даёт функция карт);
   /// открыть/закрыть — mapPaneProvider
   static Widget Function(BuildContext context, WidgetRef ref, Object place)? mapPaneBuilder;
+  // Стронг — параллельным окном на половину экрана: что открыто (null — окна нет) и само окно (изучение)
+  static final strongPane = ValueNotifier<Object?>(null);
+  static Widget Function(BuildContext context, WidgetRef ref)? strongPaneBuilder;
 
   /// Введение из комментариев над заголовком: bookLevel — к книге (над названием книги), иначе к главе (над «Глава N»)
   static Widget? Function(BuildContext context, WidgetRef ref, int pane, String moduleId, String book, int chapter, {required bool bookLevel})? chapterIntro;
@@ -178,6 +181,8 @@ class Hub {
     listenFrom = null;
     moreItems.clear();
     mapPaneBuilder = null;
+    strongPane.value = null;
+    strongPaneBuilder = null;
     listenFab = null;
     onVerseDoubleTap = null;
     openStrong = null;

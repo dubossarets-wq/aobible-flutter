@@ -18,6 +18,7 @@ import 'package:aobible/features/bookmarks/sel_inline.dart';
 import 'package:aobible/features/bookmarks/selection_bar.dart';
 import 'package:aobible/features/bookmarks/sheets.dart';
 import 'package:aobible/features/hub.dart';
+import 'package:aobible/features/study/strong_pane.dart';
 import 'package:aobible/features/study/commentary_sheet.dart';
 import 'package:aobible/features/study/compare_sheet.dart';
 import 'package:aobible/features/study/concordance_sheet.dart';
@@ -771,12 +772,14 @@ void main() {
       await tester.tap(_ft('слово'));
       await _settle(tester);
       expect(anchor, isNotNull);
-      // выбор строки открывает статью
+      // номер Стронга — одним пунктом; выбор открывает окно Стронга рядом с текстом
       final row = _ftc('H1254');
-      expect(row, findsWidgets, reason: _texts(tester));
+      expect(row, findsOneWidget, reason: _texts(tester));
       await tester.tap(row.first);
       await _settle(tester);
-      expect(find.byType(DictionarySheet), findsOneWidget);
+      expect(find.byType(DictionarySheet), findsNothing);
+      expect((Hub.strongPane.value as StrongReq).num, 'H1254');
+      Hub.strongPane.value = null;
     });
 
     testWidgets('выборка над словом без разметки и на краю: $v', (tester) async {

@@ -1,5 +1,6 @@
 // «Изучение»: выборка над словом и словарные статьи Стронга, подстрочник, параллельные места, комментарии,
 // иллюстрации к стихам, сравнение переводов. Подключение к читалке — только через Hub (hub.dart).
+import 'strong_pane.dart';
 import '../../core/panes.dart';
 import '../hub.dart';
 import 'compare_sheet.dart';
@@ -21,7 +22,9 @@ void register() {
   Hub.openInterlinear = openInterlinearSheet;
   Hub.compareTranslations = openCompare;
   // Нажатие на номер Стронга в тексте — статья словаря сразу на всю высоту (ChapterView.jsx, act sn)
-  Hub.openStrong = (context, ref, pane, at, strongNum) => openDictionary(context, DictRequest(text: strongNum, strongs: [strongNum], morph: const [], ref: at, pane: pane, autoOpen: true), full: true);
+  // номер Стронга в тексте — окно Стронга рядом с текстом
+  Hub.openStrong = (context, ref, pane, at, strongNum) => openStrongPane(StrongReq(pane: pane, num: strongNum, ref: at));
+  Hub.strongPaneBuilder = (context, ref) => const StrongPane();
   // Окна панели выделения: у них номер панели и стих; перевод для параллельных мест берём у панели
   Hub.openCommentary = (context, ref, pane, at) => openCommentary(context, pane: pane, at: at);
   Hub.openXrefs = (context, ref, pane, at) => openXrefs(context, pane: pane, moduleId: _moduleOf(ref, pane), at: at);

@@ -21,6 +21,7 @@ import 'package:aobible/features/bookmarks/sheets.dart';
 import 'package:aobible/features/bookmarks/userdata.dart';
 import 'package:aobible/features/hub.dart';
 import 'package:aobible/features/shell/shell.dart' show appVersion;
+import 'package:aobible/features/study/strong_pane.dart';
 import 'package:aobible/features/study/compare_sheet.dart';
 import 'package:aobible/features/study/dictionary_sheet.dart';
 import 'package:aobible/features/study/study.dart' as study;
@@ -292,12 +293,17 @@ void main() {
       expect(verseDecor(ctx, wref, 0, 'rst-plus', item, 'John')!.parts, [(0, 0)]);
     });
 
-    testWidgets('номер Стронга: статья на всю высоту: $v', (tester) async {
+    testWidgets('номер Стронга: окно Стронга рядом с текстом: $v', (tester) async {
       await _opened(tester, (context, ref) => Hub.openStrong!(context, ref, 0, _john, 'G25'), theme: theme, scale: scale);
-      expect(find.byType(DictionarySheet), findsOneWidget);
+      expect(find.byType(DictionarySheet), findsNothing, reason: 'не отдельным окном поверх текста');
+      expect((Hub.strongPane.value as StrongReq).num, 'G25');
+      // само окно Стронга: номер в строке окна, статьи словарей подряд, «Закрыть» убирает окно
+      await _pump(tester, (context, ref) => const StrongPane(), theme: theme, scale: scale);
+      expect(_ft('G25'), findsWidgets);
       expect(_ftc('любить'), findsWidgets, reason: _texts(tester));
-      // на всю высоту: окно занимает почти весь экран
-      expect(tester.getTopLeft(find.byType(DictionarySheet)).dy, lessThan(40));
+      await tester.tap(find.byTooltip('Закрыть').first);
+      await _settle(tester);
+      expect(Hub.strongPane.value, isNull);
     });
 
     testWidgets('выборка над словом: подсветка и закрытие касанием: $v', (tester) async {
@@ -328,14 +334,14 @@ void main() {
       // выбор строки: слово остаётся подсвеченным, пока открыта статья
       await tester.tap(_ft('слово'));
       await _settle(tester);
+      // номер Стронга — одним пунктом; выбор открывает окно Стронга рядом с текстом
+      expect(_ftc('H1254'), findsOneWidget);
       await tester.tap(_ftc('H1254').first);
       await _settle(tester);
-      expect(find.byType(DictionarySheet), findsOneWidget);
-      expect(activeWord.value, isNotNull);
-      await tester.tap(find.byTooltip('Закрыть').first);
-      await _settle(tester);
       expect(find.byType(DictionarySheet), findsNothing);
+      expect((Hub.strongPane.value as StrongReq).num, 'H1254');
       expect(activeWord.value, isNull);
+      Hub.strongPane.value = null;
     });
 
     testWidgets('«История» переходов: $v', (tester) async {
