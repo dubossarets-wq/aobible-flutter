@@ -519,8 +519,8 @@ class _ContinueCardState extends State<_ContinueCard> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(color: pal.accent, shape: BoxShape.circle),
-                  // значок «play» визуально смещён влево — сдвигаем на 1,5 вправо к центру круга
-                  child: Transform.translate(offset: const Offset(1.5, 0), child: Icon(Icons.play_arrow_rounded, size: 26, color: pal.onAccent)),
+                  // «play» по центру тяжести треугольника (как в веб-версии): у значка Material он и так чуть правее середины
+                  child: Transform.translate(offset: const Offset(1, 0), child: Icon(Icons.play_arrow_rounded, size: 26, color: pal.onAccent)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

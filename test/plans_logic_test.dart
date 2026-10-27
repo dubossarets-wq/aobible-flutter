@@ -138,18 +138,25 @@ void main() {
     await Books.load();
     final p = plan(start: '2026-10-24');
     final now = DateTime(2026, 10, 24, 7, 0);
-    final s = reminderSchedule([p], '08:00', now);
+    List<ReminderItem> at(String time) => [ReminderItem(id: 'r1', time: time)];
+    final s = reminderSchedule([p], at('08:00'), now);
     expect(s.length, 5); // в плане 5 дней
     expect(s.first.at, DateTime(2026, 10, 24, 8));
     expect(s.first.body, contains('Тест: Быт 1'));
     expect(s[1].body, contains('Пс 119–120, Ин 3'));
     // время уже прошло — сегодняшний день пропускается
-    expect(reminderSchedule([p], '06:00', now).length, 4);
+    expect(reminderSchedule([p], at('06:00'), now).length, 4);
     // день отмечен — напоминания о нём нет
     final done = markUnitsIn([p], 'p1', 0, ['Gen.1']).plans.single;
-    expect(reminderSchedule([done], '08:00', now).length, 4);
+    expect(reminderSchedule([done], at('08:00'), now).length, 4);
     // план ещё не начался
-    expect(reminderSchedule([plan(start: '2026-11-30')], '08:00', now), isEmpty);
+    expect(reminderSchedule([plan(start: '2026-11-30')], at('08:00'), now), isEmpty);
+    // несколько напоминаний и промежуток: 08:00 и с 12:00 до 16:00 каждые 2 ч (одно время совпадает — без повтора)
+    final many = reminderSchedule([p], [ReminderItem(id: 'a', time: '08:00'), const ReminderItem(id: 'b', time: '12:00', every: 120, until: '16:00'), ReminderItem(id: 'c', time: '14:00')], now);
+    expect([for (final n in many.where((n) => n.at.day == 24)) n.at.hour], [8, 12, 14, 16]);
+    expect(many.map((n) => n.id).toSet().length, many.length, reason: 'у каждого уведомления свой номер');
+    // дни недели: 24.10.2026 — суббота (6); только по субботам — один день из пяти
+    expect(reminderSchedule([p], [const ReminderItem(id: 'a', time: '08:00', days: [6])], now).length, 1);
     expect(readingLabel('Ps.9.1-21'), 'Пс 9:1–21');
   });
 

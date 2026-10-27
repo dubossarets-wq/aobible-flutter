@@ -281,6 +281,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
             return GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero, // без него сетка берёт снизу поле под нижнее меню — лишний пустой отступ
               clipBehavior: Clip.none,
               crossAxisCount: cols,
               mainAxisSpacing: 12,
@@ -309,7 +310,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
               key: _detailKey,
               margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: pal.bg),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg), // скругление — как у «Своего плана»
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(t(m.name), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text)),
                 const SizedBox(height: 6),
@@ -319,7 +320,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
                 _busy == m.id ? BusyButton(label: t('Начать')) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Начать'), onTap: _busy != null ? null : () => _start(m)),
               ]),
             ),
-        const SizedBox(height: 18), // gap 12 + margin-top 6 у .custom-plan
+        gap, // между блоками везде 12
         _customPlan(pal, days),
       ])),
     );
@@ -709,11 +710,11 @@ class _PlanTile extends StatelessWidget {
         // тень — у рамки, а градиент — слоем под фото внутри одной обрезки: иначе по скруглённому краю видна кайма
         DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 16, offset: Offset(0, 6))],
           ),
           child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           child: Stack(fit: StackFit.expand, children: [
             DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]))),
             SiteImage(_coverPath(m.id)),
@@ -741,7 +742,7 @@ class _PlanTile extends StatelessWidget {
           ),
         ),
         // outline: 3px solid accent; outline-offset: 2px
-        if (on) Positioned(left: -5, top: -5, right: -5, bottom: -5, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(21), border: Border.all(color: pal.accent, width: 3))))),
+        if (on) Positioned(left: -5, top: -5, right: -5, bottom: -5, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(23), border: Border.all(color: pal.accent, width: 3))))),
       ]),
     );
   }
@@ -799,7 +800,7 @@ class _ActivePlanState extends State<_ActivePlan> {
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: pal.bg),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg),
         child: Row(children: [
           Expanded(child: Text(t('${p['name']}'), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text))),
           ConfirmIcon(icon: LucideIcons.trash2, size: 15, confirmText: t('Удалить'), tooltip: t('Удалить план'), onConfirm: widget.onRemove),
@@ -821,7 +822,7 @@ class _ActivePlanState extends State<_ActivePlan> {
     // .plan-card: колонка с промежутком 8, отступы 12/14; баннер вылезает за отступы (margin -12 -14 4)
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: pal.bg),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(height: 84, child: SiteImage(_coverPath('${p['planId']}'), fallback: Container(color: cv.withValues(alpha: 0.3)))),
@@ -891,7 +892,8 @@ class _ActivePlanState extends State<_ActivePlan> {
   }
 }
 
-/// Напоминание о чтении: каждый день в выбранное время — что читать сегодня (.reminder-card)
+/// Напоминания о чтении (.reminder-card): сколько угодно — каждое в своё время или промежутком (с … до … каждые N мин/ч),
+/// в выбранные дни недели; уведомление — что читать сегодня
 class _ReminderCard extends StatefulWidget {
   const _ReminderCard({required this.pal});
   final Palette pal;
@@ -902,22 +904,122 @@ class _ReminderCard extends StatefulWidget {
 class _ReminderCardState extends State<_ReminderCard> {
   Reminder _r = getReminder();
 
-  Future<void> _apply({bool? on, String? time}) async {
-    final ok = await setReminder(on: on, time: time);
+  Future<void> _apply({bool? on, List<ReminderItem>? list}) async {
+    final ok = await setReminder(on: on, list: list);
     if (!mounted) return;
     if (!ok) return toast(context, t('Уведомления запрещены — разрешите их в настройках телефона'));
     setState(() => _r = getReminder());
-    if (on == true) toast(context, t('Напомню в {time}', {'time': _r.time}));
+    if (on == true) toast(context, _r.list.length == 1 && _r.list.first.every == 0 ? t('Напомню в {time}', {'time': _r.time}) : t('Напоминания включены'));
   }
 
-  Future<void> _pickTime() async {
-    final p = _r.time.split(':').map(int.parse).toList();
+  void _set(ReminderItem x) => _apply(list: [for (final y in _r.list) y.id == x.id ? x : y]);
+
+  // новое — через час после последнего
+  void _add() {
+    final last = _r.list.isEmpty ? null : _r.list.last;
+    final p = (last == null ? '07:00' : last.every > 0 ? last.until : last.time).split(':').map((s) => int.tryParse(s) ?? 0).toList();
+    final h = (p[0] + (last == null ? 0 : 1)).clamp(0, 23);
+    _apply(list: [..._r.list, ReminderItem.fresh('${'$h'.padLeft(2, '0')}:${'${p.length > 1 ? p[1] : 0}'.padLeft(2, '0')}')]);
+  }
+
+  Future<void> _pickTime(String cur, ValueChanged<String> done) async {
+    final p = cur.split(':').map((s) => int.tryParse(s) ?? 0).toList();
     final got = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: p[0], minute: p[1]),
+      initialTime: TimeOfDay(hour: p[0], minute: p.length > 1 ? p[1] : 0),
       builder: (c, w) => MediaQuery(data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true), child: w!),
     );
-    if (got != null) _apply(time: '${got.hour.toString().padLeft(2, '0')}:${got.minute.toString().padLeft(2, '0')}');
+    if (got != null) done('${got.hour.toString().padLeft(2, '0')}:${got.minute.toString().padLeft(2, '0')}');
+  }
+
+  // .rem-line input[type=time]
+  Widget _timeBtn(String value, String tip, ValueChanged<String> done) {
+    final pal = widget.pal;
+    return Tooltip(
+      message: tip,
+      child: Material(
+        color: pal.panel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: pal.line)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _pickTime(value, done),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            alignment: Alignment.center,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(value, style: TextStyle(fontSize: 15, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()])),
+              const SizedBox(width: 8),
+              Icon(LucideIcons.clock, size: 15, color: pal.muted),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _item(ReminderItem x) {
+    final pal = widget.pal;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          _timeBtn(x.time, x.every > 0 ? t('С') : t('Время'), (v) => _set(x.copyWith(time: v))),
+          // промежуток: «с 8:00 до 20:00 каждые 2 ч»
+          if (x.every > 0) ...[
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('–', style: TextStyle(color: pal.muted))),
+            _timeBtn(x.until, t('До'), (v) => _set(x.copyWith(until: v))),
+          ],
+          const Spacer(),
+          if (_r.list.length > 1) IconBtn(icon: LucideIcons.x, size: 17, tooltip: t('Удалить напоминание'), onTap: () => _apply(list: [for (final y in _r.list) if (y.id != x.id) y])),
+        ]),
+        const SizedBox(height: 8),
+        // повтор — по ширине подписи
+        PopupMenuButton<int>(
+          tooltip: t('Повтор'),
+          initialValue: x.every,
+          onSelected: (n) => _set(x.copyWith(every: n)),
+          itemBuilder: (_) => [for (final n in reminderRepeats) PopupMenuItem(value: n, child: Text(repeatLabel(n)))],
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 34),
+            padding: const EdgeInsets.only(left: 10, right: 8),
+            decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(10), border: Border.all(color: pal.line)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(repeatLabel(x.every), style: TextStyle(fontSize: 14.4, color: pal.text)),
+              const SizedBox(width: 6),
+              Icon(LucideIcons.chevronDown, size: 16, color: pal.muted),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // дни недели ровным рядом: ничего не выбрано — каждый день
+        Semantics(
+          label: t('Дни недели'),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            for (var d = 1; d <= 7; d++)
+              Builder(builder: (_) {
+                final on = x.days.isEmpty || x.days.contains(d);
+                return GestureDetector(
+                  onTap: () {
+                    final cur = x.days.isEmpty ? [1, 2, 3, 4, 5, 6, 7] : x.days;
+                    final days = on ? [for (final y in cur) if (y != d) y] : ([...cur, d]..sort());
+                    if (days.isNotEmpty) _set(x.copyWith(days: days.length == 7 ? const [] : days));
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: on ? pal.accent : Colors.transparent, border: Border.all(color: on ? pal.accent : pal.line)),
+                    child: Text(weekdayLetter(d).toUpperCase(), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: on ? pal.onAccent : pal.muted)),
+                  ),
+                );
+              }),
+          ]),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -925,7 +1027,7 @@ class _ReminderCardState extends State<_ReminderCard> {
     final pal = widget.pal;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line), color: cardFill(pal)),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
       child: Column(children: [
         // .switch-field: подпись с «!» (пояснение по нажатию) и переключатель, отступ 2
         GestureDetector(
@@ -938,7 +1040,7 @@ class _ReminderCardState extends State<_ReminderCard> {
                 child: Text.rich(TextSpan(children: [
                   TextSpan(text: t('Напоминать о чтении')),
                   const WidgetSpan(child: SizedBox(width: 2)),
-                  WidgetSpan(alignment: PlaceholderAlignment.middle, child: HintBtn(t('Каждый день в это время — уведомление с отрывками на сегодня'))),
+                  WidgetSpan(alignment: PlaceholderAlignment.middle, child: HintBtn(t('Уведомление с отрывками на сегодня — сколько угодно напоминаний, в любое время или промежутком'))),
                 ]), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text)),
               ),
               const SizedBox(width: 12),
@@ -946,22 +1048,30 @@ class _ReminderCardState extends State<_ReminderCard> {
             ]),
           ),
         ),
-        // время — под включённым переключателем, раскрывается плавно
+        // список — под включённым переключателем, раскрывается плавно
         Reveal(
           open: _r.on,
           child: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 10),
-            child: Row(children: [
-              Text(t('Время'), style: TextStyle(fontSize: 15, color: pal.muted)),
-              const Spacer(),
-              // .reminder-time input
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (final x in _r.list) _item(x),
+              const SizedBox(height: 2),
+              // .rem-add
               Material(
-                color: pal.panel,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: pal.line)),
+                color: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: pal.line)),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: _pickTime,
-                  child: Container(constraints: const BoxConstraints(minHeight: 40), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), alignment: Alignment.center, child: Text(_r.time, style: TextStyle(fontSize: 15, color: pal.text))),
+                  onTap: _add,
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 40),
+                    alignment: Alignment.center,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(LucideIcons.plus, size: 16, color: pal.accent),
+                      const SizedBox(width: 6),
+                      Text(t('Добавить напоминание'), style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: pal.accent)),
+                    ]),
+                  ),
                 ),
               ),
             ]),

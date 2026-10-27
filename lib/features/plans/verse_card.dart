@@ -94,7 +94,7 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: ClipRRect(
-      borderRadius: BorderRadius.circular(kRadius + 10),
+      borderRadius: BorderRadius.circular(18),
       child: Stack(children: [
         Positioned.fill(
           child: DecoratedBox(

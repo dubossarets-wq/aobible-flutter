@@ -177,6 +177,18 @@
  "день|дня|дней": {
   "other": "hari"
  },
+ "Один раз": "Sekali",
+ "Каждые {n} мин": "Setiap {n} mnt",
+ "Каждый час": "Setiap jam",
+ "Каждые {n} ч": "Setiap {n} jam",
+ "Напоминания включены": "Pengingat aktif",
+ "Уведомление с отрывками на сегодня — сколько угодно напоминаний, в любое время или промежутком": "Notifikasi bacaan hari ini — pengingat sebanyak yang Anda mau, kapan saja atau berkala",
+ "С": "Dari",
+ "До": "Sampai",
+ "Удалить напоминание": "Hapus pengingat",
+ "Повтор": "Ulangi",
+ "Дни недели": "Hari dalam seminggu",
+ "Добавить напоминание": "Tambah pengingat",
  "Заметка для себя": "Catatan pribadi",
  "Подсказка себе: пауза, вопрос залу…": "Pengingat: jeda, tanya jemaat…",
  "Жирный": "Tebal",
