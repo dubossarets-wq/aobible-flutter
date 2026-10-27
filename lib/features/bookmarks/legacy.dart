@@ -143,10 +143,18 @@ Future<void> migrateFromOldApp(WidgetRef ref) async {
     }
     await prefs.setBool(legacyDoneKey, true);
     if (data.isNotEmpty) {
-      ref.invalidate(settingsProvider);
-      ref.invalidate(panesProvider);
-      ref.read(marksProvider.notifier).reload();
       await setLang(prefs.getString('lang') ?? 'ru');
+      // Всё, что уже прочиталось пустым до переноса (проповеди, планы, выделения, история…), — заново из перенесённого:
+      // приложение пересоздаёт своё состояние целиком (иначе пустой список мог бы сохраниться поверх перенесённого).
+      // После этого задания запуска идут снова: напоминания строятся уже по перенесённым планам
+      final restart = Hub.restartApp;
+      if (restart != null) {
+        restart();
+      } else {
+        ref.invalidate(settingsProvider);
+        ref.invalidate(panesProvider);
+        ref.read(marksProvider.notifier).reload();
+      }
     }
   } catch (e) {
     debugPrint('Перенос данных не удался: $e');

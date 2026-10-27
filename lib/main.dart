@@ -39,7 +39,28 @@ Future<void> main() async {
     registerFeatures();
   };
   debugPrint('AOB start ${DateTime.now().difference(started).inMilliseconds} ms');
-  runApp(const ProviderScope(child: AoBibleApp()));
+  runApp(const _Root());
+}
+
+/// Корень: состояние приложения (ProviderScope) можно пересоздать целиком — Hub.restartApp. Нужно после переноса
+/// данных из старого приложения: всё, что уже успело прочитаться пустым (проповеди, планы, выделения…), читается заново
+class _Root extends StatefulWidget {
+  const _Root();
+  @override
+  State<_Root> createState() => _RootState();
+}
+
+class _RootState extends State<_Root> {
+  Key _key = UniqueKey();
+
+  @override
+  void initState() {
+    super.initState();
+    Hub.restartApp = () => mounted ? setState(() => _key = UniqueKey()) : null;
+  }
+
+  @override
+  Widget build(BuildContext context) => ProviderScope(key: _key, child: const AoBibleApp());
 }
 
 class AoBibleApp extends ConsumerStatefulWidget {
