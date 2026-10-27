@@ -129,10 +129,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Широкий экран: вкладок нет, отступа нет', (tester) async {
+  testWidgets('Широкий экран: вкладки — та же капсула по центру, не шире 544', (tester) async {
     await start(tester, size: const Size(1200, 800));
-    expect(find.byKey(const ValueKey('tab-pill')), findsNothing);
-    expect(tabBarInset.value, 0);
+    expect(find.byKey(const ValueKey('tab-pill')), findsOneWidget);
+    expect(find.text('Библия'), findsWidgets);
+    expect(tabBarInset.value, greaterThan(0));
+    final bar = tester.getRect(find.byType(ClipRRect).last);
+    expect(bar.width, lessThanOrEqualTo(544));
+    expect((bar.center.dx - 600).abs(), lessThan(1));
     expect(tester.takeException(), isNull);
   });
 }

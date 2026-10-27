@@ -94,7 +94,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final mapPlace = ref.watch(mapPaneProvider);
     final pal = paletteOf(ref);
     final size = MediaQuery.sizeOf(context);
-    final wide = size.width >= 900;
     final layout = ref.watch(settingsProvider.select((s) => s.get<String>('splitLayout')));
     // Расположение (useOrientation): рядом — на широком экране, друг над другом — на узком и вертикальном
     final columns = layout == 'columns' || (layout == 'auto' && size.width >= 720 && size.width > size.height * 0.9);
@@ -118,7 +117,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
             if (Hub.audioBar != null) Hub.audioBar!(context, ref),
             // сами вкладки лежат поверх навигатора (TabBarOverlay); здесь — место под них, чтобы не закрывать чтение
-            if (!wide) _FocusHide(down: true, child: SizedBox(height: tabBarHeight(context))),
+            // (на любой ширине: на широком экране меню — та же капсула по центру)
+            _FocusHide(down: true, child: SizedBox(height: tabBarHeight(context))),
           ]),
         ),
       ),
@@ -1012,7 +1012,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
 }
 
 /// Нижние вкладки поверх навигатора (.tabbar поверх .sheet): остаются видимыми и нажимаемыми над открытыми окнами,
-/// затемнение окон их не перекрывает. Только на узком экране, когда главный экран на месте.
+/// затемнение окон их не перекрывает. На любой ширине (на широком — по центру), когда главный экран на месте.
 /// Затухание под вкладками: от верха капсулы (прозрачно) до её середины — цвет того, что под ней
 /// (открытое окно — panel, иначе фон страницы), ниже — сплошной цвет
 class _TabFade extends ConsumerWidget {
@@ -1054,18 +1054,25 @@ class TabBarOverlay extends StatelessWidget {
       valueListenable: homeMounted,
       builder: (context, mounted, _) {
         // с клавиатурой вкладки прячутся (окно поднимается над ней); поверх — полноэкранная страница (проигрыватель)
-        final show = mounted && suppressed == 0 && mq.size.width < 900 && mq.viewInsets.bottom == 0;
+        final show = mounted && suppressed == 0 && mq.viewInsets.bottom == 0;
         final inset = show ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
           child,
           if (show)
-            const Positioned(
+            Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               // под вкладками всё (глава, окно, список) плавно гаснет с их середины, чтобы не торчало снизу
-              child: _FocusHide(down: true, child: Stack(children: [Positioned.fill(child: _TabFade()), _TabBar()])),
+              // на широком экране капсула не растягивается: по центру, не шире 544 (как на большом телефоне)
+              child: _FocusHide(
+                down: true,
+                child: Stack(children: [
+                  const Positioned.fill(child: _TabFade()),
+                  Center(heightFactor: 1, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 544), child: const _TabBar())),
+                ]),
+              ),
             ),
           // верхний слой (инструкция) — над вкладками; своё Overlay — для подсказок и полей внутри него
           ValueListenableBuilder<Widget?>(
