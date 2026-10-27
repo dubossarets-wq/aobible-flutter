@@ -642,6 +642,43 @@ class _Inserter extends StatelessWidget {
   }
 }
 
+/// Мягкая капсула нижней строки карточки (в одном стиле с «⠿ ↑ ↓»): значок и подпись; без подписи — круглая
+class _ToolPill extends StatelessWidget {
+  const _ToolPill({required this.pal, required this.icon, required this.onTap, this.label, this.tooltip, this.on = false});
+  final Palette pal;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? label, tooltip;
+  final bool on;
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = Material(
+      color: on ? pal.accent.withValues(alpha: 0.16) : pal.text.withValues(alpha: 0.06),
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 30,
+          width: label == null ? 30 : null,
+          child: Padding(
+            padding: label == null ? EdgeInsets.zero : const EdgeInsets.only(left: 9, right: 11),
+            child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 15, color: on ? pal.accent : pal.muted),
+              if (label != null) ...[
+                const SizedBox(width: 5),
+                Transform.translate(offset: const Offset(0, -0.5), child: Text(label!, style: TextStyle(fontSize: 13.1, fontWeight: FontWeight.w500, color: pal.text))),
+              ],
+            ]),
+          ),
+        ),
+      ),
+    );
+    return tooltip == null ? pill : Tooltip(message: tooltip!, child: pill);
+  }
+}
+
 /// Перестановка блока: «ручка» ⠿ (зажать и тянуть) и стрелки ↑ ↓ — одной капсулой; у крайних блоков лишняя стрелка бледная
 class _Reorder extends StatelessWidget {
   const _Reorder({required this.pal, this.onUp, this.onDown});
@@ -794,6 +831,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
     final verseStyle = readerTextStyle(ref.watch(settingsProvider), size: 16.8, weight: 400).copyWith(height: 1.5, color: pal.text); // .sermon-verse-text: --font-text
     final alts = altsOf(block);
     final mainMod = '${block['moduleId'] ?? ''}';
+    final trash = ConfirmIcon(icon: LucideIcons.trash2, size: 16, confirmText: t('Удалить'), tooltip: verse ? t('Удалить стих из проповеди') : t('Удалить текст'), onConfirm: () => store.removeBlock(sermonId, '${block['id']}'));
     String nameOf(String mid) => ModuleStore.instance.get(mid)?.name ?? mid;
     // стих — с полосой цвета акцента слева: места Писания видно при прокрутке
     return ClipRRect(
@@ -804,18 +842,24 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
       decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verse) ...[
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onGo(v0),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text.rich(TextSpan(children: [
-                TextSpan(text: blockRef(block)),
-                // рядом со ссылкой — перевод
-                if (mainMod.isNotEmpty) TextSpan(text: ' · ${nameOf(mainMod)}', style: TextStyle(fontWeight: FontWeight.w500, color: pal.muted)),
-              ]), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent)),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onGo(v0),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text.rich(TextSpan(children: [
+                    TextSpan(text: blockRef(block)),
+                    // рядом со ссылкой — перевод
+                    if (mainMod.isNotEmpty) TextSpan(text: ' · ${nameOf(mainMod)}', style: TextStyle(fontWeight: FontWeight.w500, color: pal.muted)),
+                  ]), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent)),
+                ),
+              ),
             ),
-          ),
+            // корзина — в правом верхнем углу карточки
+            Transform.translate(offset: const Offset(6, -6), child: trash),
+          ]),
           // «Часть стиха»: полный текст для выбора слов и обычные строки сменяют друг друга плавно
           Reveal(
             open: _picking,
@@ -898,7 +942,8 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                     ),
                 ]),
                 const SizedBox(height: 4),
-                // выбранные здесь переводы — и ко всем новым стихам проповеди
+                // выбранные здесь переводы — и ко всем новым стихам проповеди (когда подключён хоть один)
+                if (alts.isNotEmpty)
                 SwitchRow(
                   label: t('Подключать к новым стихам'),
                   value: alts.isNotEmpty && widget.altDefault.map((a) => a['m']).join(',') == alts.map((a) => a['m']).join(','),
@@ -908,7 +953,10 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             ),
           ),
         ] else
-          _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone)),
+            Transform.translate(offset: const Offset(6, -6), child: trash),
+          ]),
         // .sermon-block-tools: пунктир сверху, слева — перестановка (⠿ ↑ ↓), корзина справа
         const SizedBox(height: 8),
         DashedLine(color: pal.line),
@@ -918,26 +966,25 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             _Reorder(pal: pal, onUp: widget.onUp, onDown: widget.onDown),
             const SizedBox(width: 8),
             if (verse && !_picking) ...[
-              IconBtn(icon: LucideIcons.languages, size: 16, subtle: !_altOpen && alts.isEmpty, tooltip: t('Переводы'), onTap: () => setState(() => _altOpen = !_altOpen)),
-              const SizedBox(width: 4),
+              _ToolPill(pal: pal, icon: LucideIcons.languages, tooltip: t('Переводы'), on: _altOpen || alts.isNotEmpty, onTap: () => setState(() => _altOpen = !_altOpen)),
+              const SizedBox(width: 6),
             ],
             Expanded(
+              // одна кнопка по ситуации: у полного стиха — «Часть стиха», у части — «Весь стих»
               child: canPick
-                  ? Wrap(spacing: 6, children: [
-                      AobButton(icon: LucideIcons.scanText, label: t('Часть стиха'), small: true, onTap: _start),
-                      if (isPart) AobButton(icon: LucideIcons.textQuote, label: t('Весь стих'), small: true, onTap: () => store.setPart(sermonId, '${block['id']}', _fullText()!, false)),
-                    ])
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: isPart
+                          ? _ToolPill(pal: pal, icon: LucideIcons.textQuote, label: t('Весь стих'), onTap: () => store.setPart(sermonId, '${block['id']}', _fullText()!, false))
+                          : _ToolPill(pal: pal, icon: LucideIcons.scanText, label: t('Часть стиха'), onTap: _start),
+                    )
                   : const SizedBox.shrink(),
             ),
             if (_picking) ...[
               AobButton(label: t('Отмена'), small: true, onTap: () => setState(() => _picking = false)),
               const SizedBox(width: 8),
               AobButton(label: t('Готово'), small: true, kind: BtnKind.primary, onTap: _range == null ? null : _done),
-            ] else
-            Transform.translate(
-              offset: const Offset(6, 0), // margin-right: -6px
-              child: ConfirmIcon(icon: LucideIcons.trash2, size: 16, confirmText: t('Удалить'), tooltip: verse ? t('Удалить стих из проповеди') : t('Удалить текст'), onConfirm: () => store.removeBlock(sermonId, '${block['id']}')),
-            ),
+            ],
           ]),
         ),
       ]),

@@ -179,17 +179,18 @@ void main() {
       expect(find.text('Весь стих'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
-      // «Отмена» ничего не меняет
-      await tapText(tester, 'Часть стиха');
-      await tapWord(tester, 'Ибо');
-      await tapText(tester, 'Отмена');
-      expect(blk()['text'], 'Бог мир, что отдал Сына');
-
-      // «Весь стих» возвращает полный текст и убирает пометку
+      // у части — одна кнопка «Весь стих»: возвращает полный текст и убирает пометку
+      expect(find.text('Часть стиха'), findsNothing);
       await tapText(tester, 'Весь стих');
       expect(blk()['text'], full);
       expect(blk().containsKey('part'), false);
       expect(find.text('Весь стих'), findsNothing);
+
+      // «Отмена» ничего не меняет
+      await tapText(tester, 'Часть стиха');
+      await tapWord(tester, 'Ибо');
+      await tapText(tester, 'Отмена');
+      expect(blk()['text'], full);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await spin(tester, 200);

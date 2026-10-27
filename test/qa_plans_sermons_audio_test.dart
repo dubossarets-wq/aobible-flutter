@@ -487,9 +487,9 @@ void main() {
       final n = c.read(sermonsProvider.notifier);
       n.addVerses(id, [VerseItem('John', 3, 16, 'Ибо так возлюбил Бог мир')], 'rst-plus');
       await spin(tester, 300);
-      // «Переводы» раскрывают выбор: основной отмечен, переключатель «к новым стихам»
+      // «Переводы» раскрывают выбор; «к новым стихам» — только когда подключён второй перевод
       await tapTip(tester, 'Переводы');
-      expect(find.text('Подключать к новым стихам'), findsOneWidget);
+      expect(find.text('Подключать к новым стихам'), findsNothing);
       // переводы, выбранные заранее, подключаются к новым стихам сами
       n.setAltDefault(id, [{'m': 'kjv-test', 'n': 'KJV'}]);
       n.addVerses(id, [VerseItem('John', 3, 17, 'Ибо не послал Бог')], 'rst-plus');
