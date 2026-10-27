@@ -875,11 +875,14 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
               decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Wrap(spacing: 6, runSpacing: 6, children: [
-                  // только переводы, где этот стих есть (уже подключённый — чтобы его можно было снять)
-                  for (final m in ModuleStore.instance.installed.where((m) =>
-                      m.type == 'bible' &&
-                      m.features['helper'] != true &&
-                      (m.id == mainMod || alts.any((a) => a['m'] == m.id) || (verseText(m.id, VerseRef(block['book'] as String, block['chapter'] as int, v0)) ?? '').isNotEmpty)))
+                  // только переводы, где этот стих есть (уже подключённый — чтобы его можно было снять);
+                  // первым — основной перевод стиха, за ним подключённые, потом остальные
+                  for (final m in [
+                    ...ModuleStore.instance.installed.where((m) =>
+                        m.type == 'bible' &&
+                        m.features['helper'] != true &&
+                        (m.id == mainMod || alts.any((a) => a['m'] == m.id) || (verseText(m.id, VerseRef(block['book'] as String, block['chapter'] as int, v0)) ?? '').isNotEmpty)),
+                  ]..sort((x, y) => (x.id == mainMod ? 0 : alts.any((a) => a['m'] == x.id) ? 1 : 2).compareTo(y.id == mainMod ? 0 : alts.any((a) => a['m'] == y.id) ? 1 : 2)))
                     AobChip(
                       label: m.name,
                       on: m.id == mainMod || alts.any((a) => a['m'] == m.id),
