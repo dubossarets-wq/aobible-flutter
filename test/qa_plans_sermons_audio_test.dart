@@ -553,7 +553,8 @@ void main() {
       await spin(tester, 1000);
       await tapText(tester, 'Отменить');
       expect(blocksOf(c.read(sermonsProvider).single).last['verse'], 16); // вернули 16–18
-      // удалить текстовый блок
+      // удалить текстовый блок: инструменты — за «⋯» (текст теперь первым блоком)
+      await tapTip(tester, 'Действия', first: true);
       await tapTip(tester, 'Удалить текст', first: true);
       await tapText(tester, 'Удалить', first: true);
       expect(blocksOf(c.read(sermonsProvider).single).length, 1);

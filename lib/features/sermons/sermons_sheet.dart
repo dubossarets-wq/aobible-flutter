@@ -408,22 +408,23 @@ class _EditorState extends ConsumerState<_Editor> {
                 child: SizedBox(
                   width: double.infinity,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadius), boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 34, offset: Offset(0, 14))]),
+                    decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 34, offset: Offset(0, 14))]),
                     child: _BlockCard(pal: pal, block: blocks[i], sermonId: _id, fresh: false, onFreshDone: () {}, onGo: (_) {}, onDropVerse: (_) {}),
                   ),
                 ),
               ),
             ),
       header: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // .sermon-head: название (линия снизу) и две кнопки; промежуток 8
+        // шапка как у документа: название крупно, под ним — сколько мест Писания; действия — компактные капсулы
         _TitleField(pal: pal, controller: _title, onChanged: (v) => _store.rename(_id, v)),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: AobButton(wide: true, kind: BtnKind.primary, icon: LucideIcons.presentation, label: t('Кафедра'), onTap: blocks.isEmpty ? null : _pulpit)),
-          const SizedBox(width: 8),
-          Expanded(child: AobButton(wide: true, icon: LucideIcons.share2, label: t('Поделиться'), onTap: blocks.isEmpty ? null : _share)),
+        const SizedBox(height: 4),
+        Text('${tx('{n} место Писания|{n} места Писания|{n} мест Писания', {'n': verses})} · ${t('сохраняется само')}', style: TextStyle(fontSize: 13.1, color: pal.muted)),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _Pill(pal: pal, primary: true, icon: LucideIcons.presentation, label: t('Кафедра'), onTap: blocks.isEmpty ? null : _pulpit),
+          _Pill(pal: pal, icon: LucideIcons.share2, label: t('Поделиться'), onTap: blocks.isEmpty ? null : _share),
         ]),
-        const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
+        const SizedBox(height: 14),
         if (blocks.isEmpty)
           Container(
             margin: const EdgeInsets.only(bottom: 20),
@@ -442,7 +443,7 @@ class _EditorState extends ConsumerState<_Editor> {
             ]),
           )
         else
-          Padding(padding: const EdgeInsets.only(bottom: 12), child: _Inserter(pal: pal, onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: -1)), onVerse: () => widget.onAddVerse(0))),
+          _Inserter(pal: pal, onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: -1)), onVerse: () => widget.onAddVerse(0)),
       ]),
       footer: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (blocks.isEmpty)
@@ -455,13 +456,9 @@ class _EditorState extends ConsumerState<_Editor> {
               Expanded(child: AobButton(wide: true, icon: LucideIcons.search, label: t('Стих'), onTap: () => widget.onAddVerse(null))),
             ]),
           ),
-        // .sermon-foot: подпись, под ней — «Удалить» на всю ширину (красная, с подтверждением)
+        // «Удалить проповедь» — неброской кнопкой по центру (с подтверждением)
         Padding(
-          padding: const EdgeInsets.only(top: 20),
-          child: Text('${tx('{n} место Писания|{n} места Писания|{n} мест Писания', {'n': verses})} · ${t('сохраняется само')}', textAlign: TextAlign.center, style: TextStyle(fontSize: 13.1, color: pal.muted)),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.only(top: 22),
           child: _WideDelete(onConfirm: () {
             _store.delete(_id);
             widget.onBackToList();
@@ -501,7 +498,7 @@ class _EditorState extends ConsumerState<_Editor> {
                 ),
               ),
             ]),
-            _Inserter(pal: pal, onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: i)), onVerse: () => widget.onAddVerse(i + 1)),
+            _Inserter(pal: pal, end: i == blocks.length - 1, onText: () => setState(() => _fresh = _store.addTextBlock(_id, after: i)), onVerse: () => widget.onAddVerse(i + 1)),
           ]),
         );
       },
@@ -510,7 +507,7 @@ class _EditorState extends ConsumerState<_Editor> {
 }
 
 /// .sermon-title-input: 1,35rem, жирный, только линия снизу (при вводе — цвета акцента)
-/// «Удалить проповедь» внизу редактора: красная кнопка на всю ширину; первое нажатие просит подтвердить (3 секунды)
+/// «Удалить проповедь» внизу редактора: неброская красная кнопка по центру; первое нажатие просит подтвердить (3 секунды)
 class _WideDelete extends StatefulWidget {
   const _WideDelete({required this.onConfirm});
   final VoidCallback onConfirm;
@@ -529,12 +526,12 @@ class _WideDeleteState extends State<_WideDelete> {
   }
 
   @override
-  Widget build(BuildContext context) => AobButton(
-        wide: true,
-        kind: BtnKind.danger,
-        icon: LucideIcons.trash2,
-        label: _ask ? t('Удалить проповедь?') : t('Удалить проповедь'),
-        onTap: () {
+  Widget build(BuildContext context) => Center(
+        child: TextButton.icon(
+          style: TextButton.styleFrom(foregroundColor: Color.lerp(const Color(0xffc93a3a), Theme.of(context).colorScheme.onSurface, 0.15), textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          icon: const Icon(LucideIcons.trash2, size: 16),
+          label: Text(_ask ? t('Удалить проповедь?') : t('Удалить проповедь')),
+          onPressed: () {
           if (_ask) {
             _timer?.cancel();
             widget.onConfirm();
@@ -543,6 +540,7 @@ class _WideDeleteState extends State<_WideDelete> {
           setState(() => _ask = true);
           _timer = Timer(const Duration(seconds: 3), () => mounted ? setState(() => _ask = false) : null);
         },
+        ),
       );
 }
 
@@ -556,26 +554,73 @@ class _TitleField extends StatelessWidget {
   Widget build(BuildContext context) => TextField(
         controller: controller,
         onChanged: onChanged,
-        style: TextStyle(fontSize: 21.6, fontWeight: FontWeight.w700, color: pal.text),
+        style: TextStyle(fontSize: 25, height: 1.2, fontWeight: FontWeight.w800, letterSpacing: -0.25, color: pal.text),
         decoration: InputDecoration(
           hintText: t('Название проповеди'),
           hintStyle: TextStyle(color: pal.muted),
           isDense: true,
-          contentPadding: const EdgeInsets.fromLTRB(0, 4, 0, 6),
-          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: pal.line)),
+          contentPadding: const EdgeInsets.fromLTRB(0, 2, 0, 4),
+          enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.transparent)),
           focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: pal.accent)),
         ),
       );
 }
 
-/// .sermon-insert: компактная строка между блоками — добавить текст или стих именно сюда; за кнопками — пунктирная линия
-class _Inserter extends StatelessWidget {
-  const _Inserter({required this.pal, required this.onText, required this.onVerse});
+/// Компактная капсула действия в шапке редактора (Кафедра — цвета акцента, Поделиться — мягкий фон)
+class _Pill extends StatelessWidget {
+  const _Pill({required this.pal, required this.icon, required this.label, required this.onTap, this.primary = false});
   final Palette pal;
-  final VoidCallback onText, onVerse;
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool primary;
 
   @override
   Widget build(BuildContext context) {
+    final fg = primary ? pal.onAccent : pal.text;
+    return Opacity(
+      opacity: onTap == null ? 0.45 : 1,
+      child: Material(
+        color: primary ? pal.accent : pal.text.withValues(alpha: 0.06),
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 40,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 17, color: fg),
+                const SizedBox(width: 7),
+                Transform.translate(offset: const Offset(0, -1), child: Text(label, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: fg))),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Между блоками — маленький «+» на еле заметной линии: нажатие плавно раскрывает «Текст» и «Стих» рядом с ним.
+/// end — в конце проповеди: обе кнопки видны всегда (добавляют чаще всего туда)
+class _Inserter extends StatefulWidget {
+  const _Inserter({required this.pal, required this.onText, required this.onVerse, this.end = false});
+  final Palette pal;
+  final VoidCallback onText, onVerse;
+  final bool end;
+  @override
+  State<_Inserter> createState() => _InserterState();
+}
+
+class _InserterState extends State<_Inserter> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    final shown = widget.end || _open;
     Widget btn(String label, String tip, VoidCallback f) => Tooltip(
           message: tip,
           child: Material(
@@ -583,7 +628,10 @@ class _Inserter extends StatelessWidget {
             shape: StadiumBorder(side: BorderSide(color: pal.line)),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: f,
+              onTap: () {
+                setState(() => _open = false);
+                f();
+              },
               child: Container(
                 constraints: const BoxConstraints(minHeight: 32),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -597,12 +645,50 @@ class _Inserter extends StatelessWidget {
             ),
           ),
         );
+    final opts = Row(mainAxisSize: MainAxisSize.min, children: [btn(t('Текст'), t('Добавить текст'), widget.onText), const SizedBox(width: 6), btn(t('Стих'), t('Добавить стих'), widget.onVerse)]);
+    if (widget.end) return Padding(padding: const EdgeInsets.only(top: 14), child: Align(alignment: Alignment.centerLeft, child: opts));
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Stack(alignment: Alignment.center, children: [
-        Positioned(left: 14, right: 14, child: DashedLine(color: pal.line)),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [btn(t('Текст'), t('Добавить текст'), onText), const SizedBox(width: 8), btn(t('Стих'), t('Добавить стих'), onVerse)]),
-      ]),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SizedBox(
+        height: 34,
+        child: Stack(alignment: Alignment.center, children: [
+          // линия — только у раскрытого
+          Positioned(
+            left: 0,
+            right: 0,
+            child: AnimatedOpacity(opacity: _open ? 1 : 0, duration: const Duration(milliseconds: 200), child: Container(height: 1, color: pal.line.withValues(alpha: 0.55))),
+          ),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Tooltip(
+              message: t('Добавить блок'),
+              child: Material(
+                color: pal.panel,
+                shape: CircleBorder(side: BorderSide(color: pal.line)),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => setState(() => _open = !_open),
+                  child: SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: AnimatedRotation(
+                      turns: _open ? 0.125 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.fastOutSlowIn,
+                      child: Icon(LucideIcons.plus, size: 15, color: _open ? pal.text : pal.muted),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // «Текст» и «Стих» выезжают справа от «+»
+            AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.fastOutSlowIn,
+              child: shown ? Padding(padding: const EdgeInsets.only(left: 8), child: opts) : const SizedBox(height: 26),
+            ),
+          ]),
+        ]),
+      ),
     );
   }
 }
@@ -622,6 +708,7 @@ class _BlockCard extends ConsumerStatefulWidget {
 }
 
 class _BlockCardState extends ConsumerState<_BlockCard> {
+  bool _tools = false; // инструменты блока раскрыты («⋯»)
   bool _picking = false; // режим «Часть стиха»: слова полного текста нажимаются
   int? _from, _to;
   String _full = '';
@@ -724,16 +811,41 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
     // Старый диапазон, который не удалось разбить, — одним абзацем, как раньше
     final lines = texts != null ? [for (final (k, x) in texts.indexed) (v: v0 + k, text: x)] : verse ? [(v: v0, text: '${block['text']}')] : <({int v, String text})>[];
     final verseStyle = readerTextStyle(ref.watch(settingsProvider), size: 16.8, weight: 400).copyWith(height: 1.5, color: pal.text); // .sermon-verse-text: --font-text
+    // «⋯» — раскрывает и прячет инструменты блока
+    final more = Tooltip(
+      message: t('Действия'),
+      child: Material(
+        color: _tools ? pal.text.withValues(alpha: 0.07) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() => _tools = !_tools),
+          child: SizedBox(width: 30, height: 26, child: Icon(LucideIcons.ellipsis, size: 18, color: _tools ? pal.text : pal.muted.withValues(alpha: 0.75))),
+        ),
+      ),
+    );
+    // стих — цитата: линия акцента слева, мягкий фон; свой текст — обычный абзац без рамки
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      decoration: BoxDecoration(color: pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+      padding: verse ? const EdgeInsets.fromLTRB(14, 10, 6, 10) : const EdgeInsets.symmetric(vertical: 4),
+      decoration: verse
+          ? BoxDecoration(
+              color: mix(pal.accent, 0.06, pal.panel),
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+              border: Border(left: BorderSide(color: pal.accent, width: 3)),
+            )
+          : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verse) ...[
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onGo(v0),
-            child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(blockRef(block), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.2, color: pal.accent))),
-          ),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onGo(v0),
+                child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(blockRef(block), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.8, letterSpacing: 0.1, color: pal.accent))),
+              ),
+            ),
+            more,
+          ]),
           // «Часть стиха»: полный текст для выбора слов и обычные строки сменяют друг друга плавно
           Reveal(
             open: _picking,
@@ -768,14 +880,19 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
             ]),
           ),
         ] else
-          _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone),
-        // .sermon-block-tools: пунктир сверху, «ручка» перетаскивания слева, корзина справа
-        const SizedBox(height: 8),
-        DashedLine(color: pal.line),
-        Padding(
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _TextBlock(pal: pal, sermonId: sermonId, block: block, fresh: fresh, onDone: onFreshDone)),
+            more,
+          ]),
+        // инструменты блока — за «⋯» (и пока выбирают часть стиха): подсказка про перетаскивание, часть стиха, корзина
+        Reveal(
+          open: _tools || _picking,
+          child: Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Row(children: [
-            Tooltip(message: t('Зажмите, чтобы перетащить'), child: SizedBox(width: 22, height: 30, child: Align(alignment: Alignment.centerLeft, child: Icon(LucideIcons.gripVertical, size: 17, color: pal.muted)))),
+            Icon(LucideIcons.gripVertical, size: 16, color: pal.muted),
+            const SizedBox(width: 4),
+            if (!canPick && !_picking) Flexible(child: Text(t('Зажмите, чтобы перетащить'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: pal.muted))),
             const SizedBox(width: 6),
             Expanded(
               child: canPick
@@ -795,6 +912,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
               child: ConfirmIcon(icon: LucideIcons.trash2, size: 16, confirmText: t('Удалить'), tooltip: verse ? t('Удалить стих из проповеди') : t('Удалить текст'), onConfirm: () => store.removeBlock(sermonId, '${block['id']}')),
             ),
           ]),
+          ),
         ),
       ]),
     );
