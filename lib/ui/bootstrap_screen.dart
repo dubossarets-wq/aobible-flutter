@@ -19,6 +19,7 @@ class BootstrapScreen extends ConsumerStatefulWidget {
 class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTickerProviderStateMixin {
   double _p = 0;
   String? _error;
+  String? _detail; // техническая причина ошибки
   bool _started = false; // каталог получен, пошла загрузка перевода
   // значок чуть «дышит» — плавно поднимается и опускается на 3
   late final _float = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
@@ -38,6 +39,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
   Future<void> _run() async {
     setState(() {
       _error = null;
+      _detail = null;
       _p = 0;
       _started = false;
     });
@@ -57,7 +59,10 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
     } catch (err) {
       debugPrint('bootstrap: $err');
       if (!mounted) return;
-      setState(() => _error = t('Не удалось подключиться к серверу. Проверьте интернет.'));
+      setState(() {
+        _error = t('Не удалось подключиться к серверу. Проверьте интернет.');
+        _detail = '$err'; // причина мелко — по снимку экрана видно, что случилось
+      });
     }
   }
 
@@ -119,6 +124,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
                       Expanded(child: Text(_error!, style: const TextStyle(fontSize: 15, height: 1.4, color: _danger))),
                     ]),
                   ),
+                  if (_detail != null) Padding(padding: const EdgeInsets.only(top: 8), child: SelectableText(_detail!, style: TextStyle(fontSize: 12, height: 1.35, color: pal.muted))),
                   const SizedBox(height: 16),
                   Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
                     AobButton(label: t('Повторить'), icon: LucideIcons.rotateCw, kind: BtnKind.primary, onTap: _run),

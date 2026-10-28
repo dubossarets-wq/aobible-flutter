@@ -44,7 +44,8 @@ Future<Uint8List> download(String path, {void Function(double)? onProgress}) asy
     final total = res.contentLength;
     final builder = BytesBuilder(copy: false);
     var got = 0;
-    await for (final chunk in res) {
+    // загрузка «встала» посередине (плохая связь, сеть душит адрес) — ошибка, а не вечное ожидание
+    await for (final chunk in res.timeout(const Duration(seconds: 30))) {
       builder.add(chunk);
       got += chunk.length;
       if (total > 0) onProgress?.call(got / total);
@@ -55,11 +56,15 @@ Future<Uint8List> download(String path, {void Function(double)? onProgress}) asy
   if (_useMirror) return get(mirror);
   try {
     return await get(remote);
-  } on NetError {
-    rethrow;
-  } catch (_) {
-    final bytes = await get(mirror);
-    _useMirror = true;
-    return bytes;
+  } catch (first) {
+    // aobible.app недоступен, ответил ошибкой или оборвал загрузку — тот же файл с зеркала на GitHub Pages;
+    // не вышло и там — наружу обе причины (их видно на экране первой загрузки)
+    try {
+      final bytes = await get(mirror);
+      _useMirror = true;
+      return bytes;
+    } catch (second) {
+      throw NetError('aobible.app: $first; github.io: $second');
+    }
   }
 }
