@@ -43,7 +43,7 @@ const _dcIds = {'PrMan', '1Esd', 'Tob', 'Jdt', 'Wis', 'Sir', 'EpJer', 'Bar', '1M
   return _otherCat;
 }
 
-const _testaments = <(String, String)>[('OT', 'Ветхий Завет'), ('NT', 'Новый Завет'), ('AP', 'Неканонические книги')];
+const _testaments = <(String, String)>[('OT', 'Ветхий Завет'), ('NT', 'Новый Завет'), ('AP', 'Неканон')];
 
 // Сравнение без регистра, точек, пробелов и дефисов; «ё» = «е»: «1 кор» ≈ «1Кор.»
 String _norm(String s) => s.toLowerCase().replaceAll('ё', 'е').replaceAll(RegExp(r'[\s.\-–]'), '');

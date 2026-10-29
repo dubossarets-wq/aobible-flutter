@@ -452,7 +452,7 @@ final _kinds = <(String, String, bool Function(InstalledModule))>[
   ('full', 'Вся Библия', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc) && _hasBooks(m, (b) => b.testament == 'NT')),
   ('ot', 'Ветхий Завет', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc)),
   ('nt', 'Новый Завет', (m) => _hasBooks(m, (b) => b.testament == 'NT')),
-  ('dc', 'Неканонические', (m) => _hasBooks(m, (b) => b.dc || b.testament == 'AP')),
+  ('dc', 'Неканон', (m) => _hasBooks(m, (b) => b.dc || b.testament == 'AP')),
   ('strongs', 'С номерами Стронга', (m) => m.features['strongs'] == true),
   ('il', 'Подстрочник', (m) => m.features['interlinear'] == true),
 ];
