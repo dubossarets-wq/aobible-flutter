@@ -205,14 +205,26 @@ class _SplitState extends ConsumerState<_Split> {
         onStep: (d) => _save(ratio + d),
       );
       // верхняя панель (разделение по строкам) не доходит до проигрывателя — нижний запас ей не нужен
-      final top = cols ? widget.first : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first);
+      // текст верхней панели к ручке растворяется, а не режется (разделитель цвета страницы)
+      final top = cols
+          ? widget.first
+          : Stack(children: [
+              Positioned.fill(child: MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first)),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 22,
+                child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [pal.bg.withValues(alpha: 0), pal.bg])))),
+              ),
+            ]);
       final kids = [slot(top, first), divider, slot(widget.second, total - first)];
       return cols ? Row(children: kids) : Column(children: kids);
     });
   }
 }
 
-/// Разделитель (.divider): цвета верхней панели, «ручка» посередине; тянется пальцем и мышью, стрелки двигают на 5 %
+/// Разделитель (.divider): фон страницы, тёмная «ручка» посередине; тянется пальцем и мышью, стрелки двигают на 5 %
 class _Divider extends StatefulWidget {
   const _Divider({required this.columns, required this.thick, required this.pal, required this.ratio, required this.onDrag, required this.onEnd, required this.onStep});
   final bool columns;
@@ -245,7 +257,7 @@ class _DividerState extends State<_Divider> {
       curve: Curves.easeOut,
       width: cols ? 5 : (on ? 56 : 36),
       height: cols ? (on ? 56 : 36) : 5,
-      decoration: BoxDecoration(color: on ? pal.accent : pal.barText.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(3)),
+      decoration: BoxDecoration(color: on ? pal.accent : pal.text.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(3)),
     );
     return Semantics(
       label: t('Изменить размер панелей'),
@@ -278,14 +290,8 @@ class _DividerState extends State<_Divider> {
             onVerticalDragUpdate: cols ? null : (d) => widget.onDrag(d.delta.dy),
             onVerticalDragEnd: cols ? null : (_) => _end(),
             onVerticalDragCancel: cols ? null : _end,
-            // тонкая линия по краю — граница с верхней (левой) панелью, когда панель того же цвета, что и текст
-            child: Container(
-              width: cols ? widget.thick : null,
-              height: cols ? null : widget.thick,
-              decoration: BoxDecoration(color: pal.bar, border: cols ? Border(left: BorderSide(color: pal.line)) : Border(top: BorderSide(color: pal.line))),
-              alignment: Alignment.center,
-              child: grip,
-            ),
+            // без полосы цвета панели: фон страницы, видна только тёмная ручка
+            child: Container(width: cols ? widget.thick : null, height: cols ? null : widget.thick, color: pal.bg, alignment: Alignment.center, child: grip),
           ),
         ),
       ),
