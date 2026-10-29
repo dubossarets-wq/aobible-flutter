@@ -17,6 +17,9 @@ const originals = ['oshb', 'byz-rp2018'];
 
 /// Для изучения — у каждого сразу: карты, толкования Лопухина, подстрочники (большой «Подстрочник» — последним)
 const study = ['bible-maps', 'lopukhin', 'vin-interlinear', 'rst-interlinear'];
+/// Толковые словари к Стронгу (Дворецкий, modules.js LEXICONS): ставятся сами и молча, показываются внутри статьи
+/// Стронга; пока модуля нет в каталоге — доустановка пробует снова при следующем запуске
+const lexicons = ['dvoretsky-gr'];
 
 // Словарь на языке интерфейса: русский — для русского, украинского и белорусского; на других языках в каталоге
 // только английские словари
@@ -41,11 +44,11 @@ List<String> _langExtras() => [
 
 List<String> starter() => {
       homeBible(), 'rst-plus', 'xrefs-rst', 'rst-symphony', 'strongs-ru-hebrew', 'strongs-ru-greek', 'bible-places', 'bible-illustrations',
-      ...originals, langDictionary(), ..._langExtras(), ...study,
+      ...originals, langDictionary(), ..._langExtras(), ...study, ...lexicons,
     }.toList();
 
 /// Модули, которые один раз доустанавливаются тем, кто начал пользоваться приложением до их появления
-List<String> lateStarter() => {'bible-places', 'bible-illustrations', 'strongs-ru-hebrew', 'strongs-ru-greek', ...originals, langDictionary(), ...study}.toList();
+List<String> lateStarter() => {'bible-places', 'bible-illustrations', 'strongs-ru-hebrew', 'strongs-ru-greek', ...originals, langDictionary(), ...study, ...lexicons}.toList();
 
 List<String> _done() {
   final raw = prefs.getString('lateStarter');
@@ -107,7 +110,7 @@ Future<void> installStarterModules(WidgetRef ref) async {
         continue;
       }
       if (first) continue; // новому человеку — только общее уведомление
-      if (e.id == 'strongs-ru-greek' || originals.contains(e.id)) continue; // о русском Стронге — одно уведомление; оригиналы молча
+      if (e.id == 'strongs-ru-greek' || originals.contains(e.id) || lexicons.contains(e.id)) continue; // о русском Стронге — одно уведомление; оригиналы молча
       toast(
         null,
         e.type == 'illustrations'

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/modules.dart' show InstalledModule, ModuleStore;
 import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
@@ -385,7 +386,10 @@ class StrongEntry extends ConsumerWidget {
           ])),
         ),
     ];
-    final renderings = (entry['renderings'] as List?)?.cast<List>();
+    // как переведено в синодальном тексте — из Симфонии RST+, если у самого словаря этого нет
+    final sym = module.id == symphonyId || entry['renderings'] != null ? null : StudyData.dictGet(symphonyId, num);
+    final renderings = ((entry['renderings'] ?? sym?['renderings']) as List?)?.cast<List>();
+    final count = entry['count'] ?? sym?['count'];
     final refs = (entry['refs'] as List?)?.cast<String>();
     final bodyStyle = const TextStyle(height: 1.55);
     Widget section(String title, Widget child) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [H4(title), child]);
@@ -399,10 +403,15 @@ class StrongEntry extends ConsumerWidget {
       _Facts(facts),
       if (entry['definition'] != null) ...[const SizedBox(height: 12), section(t('Значение'), _strongLinks('${entry['definition']}', bodyStyle))],
       if (entry['derivation'] != null) ...[const SizedBox(height: 12), section(t('Происхождение'), _strongLinks('${entry['derivation']}', bodyStyle))],
+      // толковый словарь (Дворецкий) — разделом в статье Стронга; в симфонии не повторяем
+      for (final (m, e) in module.id == 'rst-symphony' ? const <(InstalledModule, Map<String, dynamic>)>[] : lexiconEntries(num)) ...[
+        const SizedBox(height: 12),
+        section(m.name, Text('${e['text']}', style: bodyStyle)),
+      ],
       if (renderings != null && renderings.isNotEmpty) ...[
         const SizedBox(height: 12),
         section(
-          t('Как переведено в синодальном тексте · {n} употр.', {'n': '${entry['count']}'}),
+          t('Как переведено в синодальном тексте · {n} употр.', {'n': '$count'}),
           Column(children: [
             for (final r in renderings)
               Padding(
@@ -442,7 +451,12 @@ class StrongEntry extends ConsumerWidget {
       const SizedBox(height: 12),
       WordStatsBlock(num: num, onOpenRef: onOpenRef, onOpenAll: onOpenAll),
       const SizedBox(height: 12),
-      SourceNote('${module.name} · ${module.meta['license'] ?? ''}'),
+      SourceNote([
+        '${module.name} · ${module.meta['license'] ?? ''}',
+        if (sym != null && renderings != null) '${ModuleStore.instance.get(symphonyId)?.name ?? 'Симфония RST+'} · ${ModuleStore.instance.get(symphonyId)?.meta['license'] ?? ''}',
+        if (module.id != 'rst-symphony')
+          for (final (m, _) in lexiconEntries(num)) '${m.name}: ${m.meta['author'] ?? ''}${(m.meta['license'] ?? '') != '' ? ' · ${m.meta['license']}' : ''}',
+      ].join('\n')),
     ]);
   }
 }

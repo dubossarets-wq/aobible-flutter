@@ -172,13 +172,14 @@ class StudyData {
   // --- Словари -------------------------------------------------------------------------------
 
   static Map<String, dynamic>? dictGet(String id, String key) {
+    if (_store.get(id) == null) return null; // словаря нет на устройстве — статьи нет (а не ошибка)
     final r = _store.db(id).select('SELECT json FROM dict WHERE key = ?', [key]);
     return r.isEmpty ? null : (jsonDecode(r.first['json'] as String) as Map).cast<String, dynamic>();
   }
 
   /// Те ключи из списка, что есть в словаре (в порядке списка)
   static List<(String, Map<String, dynamic>)> dictGetMany(String id, List<String> keys) {
-    if (keys.isEmpty) return const [];
+    if (keys.isEmpty || _store.get(id) == null) return const [];
     final r = _store.db(id).select('SELECT key, json FROM dict WHERE key IN (${List.filled(keys.length, '?').join(',')})', keys);
     final found = {for (final row in r) row['key'] as String: row['json'] as String};
     return [

@@ -192,12 +192,40 @@ LookupResult _lookupNow(String text, List<String> tokenStrongs, List<String> mor
     }
     if (found.isNotEmpty) results.add(ModResult(m, found));
   }
-  return LookupResult(text, mapping, results, modules.length);
+  return LookupResult(text, mapping, mergeSymphony(results), modules.length);
+}
+
+/// Симфония RST+ — не отдельной вкладкой: её «Как переведено» показывается в статье Стронга. Отдельно она остаётся
+/// только для номеров, которых нет в словаре Стронга
+const symphonyId = 'rst-symphony';
+List<ModResult> mergeSymphony(List<ModResult> results) {
+  final strongKeys = {
+    for (final r in results)
+      if (StudyData.dictKind(r.module) == 'strongs' && r.module.id != symphonyId)
+        for (final f in r.found) f.key,
+  };
+  return [
+    for (final r in results)
+      if (r.module.id != symphonyId)
+        r
+      else if ([for (final f in r.found) if (!strongKeys.contains(f.key)) f] case final rest when rest.isNotEmpty)
+        ModResult(r.module, rest),
+  ];
 }
 
 /// Статья по номеру Стронга (переход по ссылке «от H24» внутри статьи)
 /// Статьи Стронга — только русские словари (английские Стронг, Abbott-Smith, BDB в статьях не показываем)
-bool _ruStrongs(InstalledModule m) => StudyData.dictKind(m) != 'strongs' || m.language == 'ru';
+bool _ruStrongs(InstalledModule m) => (StudyData.dictKind(m) != 'strongs' || m.language == 'ru') && !lexiconIds.contains(m.id);
+
+/// Толковые словари к Стронгу (Дворецкий) — не отдельной вкладкой, а разделом внутри статьи Стронга (starter.dart lexicons)
+const lexiconIds = ['dvoretsky-gr'];
+
+/// Статьи толковых словарей к номеру: [(модуль, статья)]
+List<(InstalledModule, Map<String, dynamic>)> lexiconEntries(String num) => [
+      for (final id in lexiconIds)
+        if (ModuleStore.instance.get(id) case final m? when ModuleStore.instance.isEnabled(id))
+          if (StudyData.dictGet(id, num) case final e? when '${e['text'] ?? ''}'.isNotEmpty) (m, e),
+    ];
 
 List<ModResult> lookupStrong(String num) {
   final out = <ModResult>[];
@@ -205,5 +233,5 @@ List<ModResult> lookupStrong(String num) {
     final e = StudyData.dictGet(m.id, num);
     if (e != null) out.add(ModResult(m, [Found(num, e, 'exact')]));
   }
-  return out;
+  return mergeSymphony(out);
 }
