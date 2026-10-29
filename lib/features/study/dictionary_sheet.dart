@@ -399,7 +399,6 @@ class StrongEntry extends ConsumerWidget {
       _Facts(facts),
       if (entry['definition'] != null) ...[const SizedBox(height: 12), section(t('Значение'), _strongLinks('${entry['definition']}', bodyStyle))],
       if (entry['derivation'] != null) ...[const SizedBox(height: 12), section(t('Происхождение'), _strongLinks('${entry['derivation']}', bodyStyle))],
-      if (entry['kjv'] != null) ...[const SizedBox(height: 12), section(t('Переводы в KJV'), Text('${entry['kjv']}', style: bodyStyle))],
       if (renderings != null && renderings.isNotEmpty) ...[
         const SizedBox(height: 12),
         section(
@@ -443,7 +442,7 @@ class StrongEntry extends ConsumerWidget {
       const SizedBox(height: 12),
       WordStatsBlock(num: num, onOpenRef: onOpenRef, onOpenAll: onOpenAll),
       const SizedBox(height: 12),
-      SourceNote('${module.name}${module.language == 'en' ? ' · ${t('на английском')}' : ''} · ${module.meta['license'] ?? ''}'),
+      SourceNote('${module.name} · ${module.meta['license'] ?? ''}'),
     ]);
   }
 }

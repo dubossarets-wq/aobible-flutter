@@ -113,21 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // текст уходит под проигрыватель и вкладки, а не обрезается над ними; их высота приходит панелям
           // как MediaQuery.padding.bottom (стрелки глав и запас в конце главы встают над проигрывателем)
           extendBody: true,
-          body: SafeArea(
-            bottom: false,
-            // Стронг — параллельным окном, всегда пополам с текстом: на телефоне снизу, на широком экране справа
-            child: ValueListenableBuilder<Object?>(
-              valueListenable: Hub.strongPane,
-              child: slots.length == 1 ? slots.first : _Split(columns: columns, first: slots[0], second: slots[1]),
-              builder: (context, strong, reader) {
-                if (strong == null || Hub.strongPaneBuilder == null) return reader!;
-                final line = columns ? Container(width: 1, color: pal.line) : Container(height: 1, color: pal.line);
-                final top = columns ? reader! : MediaQuery.removePadding(context: context, removeBottom: true, child: reader!);
-                final kids = [Expanded(child: top), line, Expanded(child: Hub.strongPaneBuilder!(context, ref))];
-                return columns ? Row(children: kids) : Column(children: kids);
-              },
-            ),
-          ),
+          body: SafeArea(bottom: false, child: slots.length == 1 ? slots.first : _Split(columns: columns, first: slots[0], second: slots[1])),
           bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
             if (Hub.audioBar != null) Hub.audioBar!(context, ref),
             // сами вкладки лежат поверх навигатора (TabBarOverlay); здесь — место под них, чтобы не закрывать чтение

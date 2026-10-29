@@ -15,7 +15,6 @@ import '../shell/tour_targets.dart' show tourKey;
 import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'lexicon.dart';
-import 'strong_pane.dart';
 import 'study_data.dart';
 
 const _gap = 10.0; // GAP из WordPopover.jsx
@@ -69,12 +68,6 @@ Future<void> _showPopover(BuildContext context, WidgetRef ref, WordTap tap, Look
       after: [for (final x in hubItems) if (x.order >= 100) x],
       onChoose: (m, key) {
         Navigator.pop(dctx);
-        // номер Стронга — окно Стронга рядом с текстом со статьями всех словарей
-        if (StudyData.dictKind(m) == 'strongs') {
-          final nums = <String>{for (final r in res.results) if (StudyData.dictKind(r.module) == 'strongs') for (final f in r.found) f.key}.toList();
-          openStrongPane(StrongReq(pane: tap.pane, num: key, nums: nums, ref: tap.ref, wordIndex: _wordIndex(tap), morph: res.mapping.mode == 'exact' ? res.mapping.morph : const []));
-          return;
-        }
         final req = DictRequest(
           text: tap.token.text,
           strongs: tap.token.strongs,
@@ -226,14 +219,8 @@ class _PopoverState extends ConsumerState<_Popover> {
       for (final r in res.results)
         for (final f in r.found) (module: r.module, key: f.key, label: f.label),
     ];
-    // словари Стронга — одним пунктом на номер («G2703 καταφεύγω · Стронг»): все их статьи — в окне Стронга
-    final strongs = [for (final x in all) if (StudyData.dictKind(x.module) == 'strongs') x];
-    final seen = <String>{};
-    final items = [
-      for (final x in strongs)
-        if (seen.add(x.key)) (module: x.module, key: x.key, label: strongs.where((y) => y.key == x.key && y.label.isNotEmpty).firstOrNull?.label ?? ''),
-      ...all.where((x) => StudyData.dictKind(x.module) != 'strongs'),
-    ];
+    final strong = RegExp(r'^[GH]\d');
+    final items = [...all.where((x) => strong.hasMatch(x.key)), ...all.where((x) => !strong.hasMatch(x.key))];
     final rows = <Widget>[];
     const base = TextStyle(fontSize: 16); // font-size: 1rem
     final go = Icon(LucideIcons.chevronRight, size: 16, color: pal.muted);
@@ -267,9 +254,8 @@ class _PopoverState extends ConsumerState<_Popover> {
           )
         else
           Text(it.label.isEmpty ? it.key : it.label, style: tabular.copyWith(fontWeight: FontWeight.w600)),
-        if (isNum && it.label.isNotEmpty) ...[const SizedBox(width: 8), Text(it.label, style: base.copyWith(fontSize: 15.2, color: pal.muted))],
         const SizedBox(width: 10),
-        Expanded(child: Text(isNum ? t('Стронг') : it.module.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: base.copyWith(color: pal.text))),
+        Expanded(child: Text(it.module.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: base.copyWith(color: pal.text))),
         const SizedBox(width: 10),
         go,
       ], () => widget.onChoose(it.module, it.key), key: i == 0 ? tourKey('word-pop-item') : null)); // цель инструкции

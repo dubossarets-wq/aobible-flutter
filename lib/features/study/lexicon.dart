@@ -154,7 +154,7 @@ LookupResult lookupWord({required String text, required List<String> strongs, re
 }
 
 LookupResult _lookupNow(String text, List<String> tokenStrongs, List<String> morph, String book) {
-  final modules = StudyData.dictionaries();
+  final modules = StudyData.dictionaries().where(_ruStrongs).toList();
   final prefix = isNt(book) ? 'G' : 'H';
   final lower = text.toLowerCase();
   final norm = normalizeWord(text);
@@ -196,9 +196,12 @@ LookupResult _lookupNow(String text, List<String> tokenStrongs, List<String> mor
 }
 
 /// Статья по номеру Стронга (переход по ссылке «от H24» внутри статьи)
+/// Статьи Стронга — только русские словари (английские Стронг, Abbott-Smith, BDB в статьях не показываем)
+bool _ruStrongs(InstalledModule m) => StudyData.dictKind(m) != 'strongs' || m.language == 'ru';
+
 List<ModResult> lookupStrong(String num) {
   final out = <ModResult>[];
-  for (final m in StudyData.dictionaries(strongsOnly: true)) {
+  for (final m in StudyData.dictionaries(strongsOnly: true).where(_ruStrongs)) {
     final e = StudyData.dictGet(m.id, num);
     if (e != null) out.add(ModResult(m, [Found(num, e, 'exact')]));
   }
