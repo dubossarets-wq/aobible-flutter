@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/bible.dart' show bookList;
 import '../core/books.dart';
 import '../core/i18n.dart';
 import '../core/modules.dart';
@@ -445,8 +446,20 @@ class _ModulePicker extends ConsumerStatefulWidget {
   ConsumerState<_ModulePicker> createState() => _ModulePickerState();
 }
 
+/// Что в переводе (ModulePicker.jsx, KINDS): по его книгам и возможностям
+bool _hasBooks(InstalledModule m, bool Function(BookInfo b) test) => bookList(m.id).any((x) => test(Books.instance.meta('${x['id']}')));
+final _kinds = <(String, String, bool Function(InstalledModule))>[
+  ('full', 'Вся Библия', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc) && _hasBooks(m, (b) => b.testament == 'NT')),
+  ('ot', 'Ветхий Завет', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc)),
+  ('nt', 'Новый Завет', (m) => _hasBooks(m, (b) => b.testament == 'NT')),
+  ('dc', 'Неканонические', (m) => _hasBooks(m, (b) => b.dc || b.testament == 'AP')),
+  ('strongs', 'С номерами Стронга', (m) => m.features['strongs'] == true),
+  ('il', 'Подстрочник', (m) => m.features['interlinear'] == true),
+];
+
 class _ModulePickerState extends ConsumerState<_ModulePicker> {
   String? _lang; // выбранный язык в выборке сверху; null — все
+  String? _kind; // что в переводе; null — всё
 
   @override
   Widget build(BuildContext context) {
@@ -466,7 +479,14 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
         // выборка по языкам — если переводы на разных языках; язык приложения — первым
         final langs = <String>{for (final m in ordered) m.language}.toList()..sort((a, b) => a == currentLang ? -1 : b == currentLang ? 1 : 0);
         final lang = langs.contains(_lang) ? _lang : null;
-        final list = lang == null ? ordered : [for (final m in ordered) if (m.language == lang) m];
+        final byLang = lang == null ? ordered : [for (final m in ordered) if (m.language == lang) m];
+        // что в переводе: показываем только выборки, которые отбирают часть списка
+        final kinds = [
+          for (final k in _kinds)
+            if (byLang.where(k.$3).length case final n when n > 0 && n < byLang.length) k,
+        ];
+        final kind = kinds.where((k) => k.$1 == _kind).firstOrNull;
+        final list = kind == null ? byLang : byLang.where(kind.$3).toList();
         String langName(String code) {
           final n = langDisplayNames[currentLang]?[code] ?? code;
           return n.isEmpty ? code : '${n[0].toUpperCase()}${n.substring(1)}';
@@ -490,7 +510,18 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
                   ]),
                 ),
               ),
-            if (langs.length > 1) Container(height: 1, color: pal.line),
+            if (kinds.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(0, langs.length > 1 ? 0 : 12, 0, 10),
+                child: SizedBox(
+                  height: 34,
+                  child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
+                    AobChip(label: t('Все'), on: kind == null, onTap: () => setState(() => _kind = null)),
+                    for (final k in kinds) AobChip(label: t(k.$2), on: kind?.$1 == k.$1, onTap: () => setState(() => _kind = k.$1)),
+                  ]),
+                ),
+              ),
+            if (langs.length > 1 || kinds.isNotEmpty) Container(height: 1, color: pal.line),
             for (final (k, m) in list.indexed)
               InkWell(
                 onTap: () {

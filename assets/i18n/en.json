@@ -179,6 +179,9 @@
   "one": "day",
   "other": "days"
  },
+ "Неканонические": "Deuterocanonical",
+ "С номерами Стронга": "With Strong’s numbers",
+ "Что в переводе": "What the translation contains",
  "Разрешить": "Allow",
  "Чтобы напоминания приходили вовремя, разрешите приложению «Будильники и напоминания».": "To get reminders on time, allow the app “Alarms & reminders”.",
  "Не приходят уведомления? На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Not getting notifications? On Xiaomi, Huawei and other phones, allow the app to autostart and run in the background without restrictions.",

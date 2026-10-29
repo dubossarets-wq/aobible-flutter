@@ -58,15 +58,15 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
     } else if (refs.isEmpty) {
       body = SheetList(children: [if (_source.isNotEmpty) QuoteBox(_source), Empty(icon: LucideIcons.link2, title: t('Параллельных мест нет'))]);
     } else {
-      body = Builder(builder: (bc) => ListView.builder(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
+      // стих, к которому ищем места, — над списком: при прокрутке остаётся вверху (длинный — не выше трети экрана)
+      final list = Builder(builder: (bc) => ListView.builder(
+        padding: EdgeInsets.fromLTRB(16, _source.isNotEmpty ? 4 : 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
         itemCount: refs.length + 1,
         itemBuilder: (context, i) {
           if (i == 0) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (_source.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 12), child: QuoteBox(_source)),
                 Row(children: [
                   Flexible(child: H4('${t('Места')} · ${refs.length}')),
                   Hint(widget.pane == 0 ? t('Место откроется во второй панели.') : t('Место откроется здесь; вернуться — кнопкой «назад».')),
@@ -105,6 +105,18 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
           ));
         },
       ));
+      body = _source.isEmpty
+          ? list
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.34),
+                  child: SingleChildScrollView(child: QuoteBox(_source)),
+                ),
+              ),
+              Expanded(child: list),
+            ]);
     }
     return SheetScaffold(
       title: t('Параллельные места · {ref}', {'ref': fmtRef(widget.at)}),

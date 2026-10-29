@@ -255,7 +255,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           ),
           gap,
         ],
-        if (remindersSupported && plans.isNotEmpty) ...[_ReminderCard(pal: pal), gap],
+        // настройка видна везде (и на компьютере — её можно задать заранее); уведомления приходят только на телефоне
+        if (plans.isNotEmpty) ...[_ReminderCard(pal: pal), gap],
         _ReadHero(pal: pal, open: (key) {
           final c = key.split('.');
           _go(VerseRef(c[0], int.tryParse(c[1]) ?? 1, 1));
