@@ -499,25 +499,25 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
           // подсветка нажатия и наведения и линии — от края до края окна
           padding: const EdgeInsets.only(bottom: 16),
           child: ListView(children: [
-            if (langs.length > 1)
+            if (kinds.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 12, 0, 10),
                 child: SizedBox(
                   height: 34,
                   child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-                    AobChip(label: t('Все'), on: lang == null, onTap: () => setState(() => _lang = null)),
-                    for (final l in langs) AobChip(label: langName(l), on: lang == l, onTap: () => setState(() => _lang = l)),
+                    AobChip(label: t('Все'), on: kind == null, onTap: () => setState(() => _kind = null)),
+                    for (final k in kinds) AobChip(label: t(k.$2), on: kind?.$1 == k.$1, onTap: () => setState(() => _kind = k.$1)),
                   ]),
                 ),
               ),
-            if (kinds.isNotEmpty)
+            if (langs.length > 1)
               Padding(
-                padding: EdgeInsets.fromLTRB(0, langs.length > 1 ? 0 : 12, 0, 10),
+                padding: EdgeInsets.fromLTRB(0, kinds.isNotEmpty ? 0 : 12, 0, 10),
                 child: SizedBox(
                   height: 34,
                   child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-                    AobChip(label: t('Все'), on: kind == null, onTap: () => setState(() => _kind = null)),
-                    for (final k in kinds) AobChip(label: t(k.$2), on: kind?.$1 == k.$1, onTap: () => setState(() => _kind = k.$1)),
+                    AobChip(label: t('Все'), on: lang == null, onTap: () => setState(() => _lang = null)),
+                    for (final l in langs) AobChip(label: langName(l), on: lang == l, onTap: () => setState(() => _lang = l)),
                   ]),
                 ),
               ),

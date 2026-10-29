@@ -58,6 +58,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   String? _pick;
   late final _daysCtl = TextEditingController(text: '$_days');
   final _detailKey = GlobalKey();
+  final _newKey = GlobalKey(); // метка перед карточкой только что начатого плана
+  String? _newUid;
   // Свой план: режим, свои книги и разделы запоминаются (ключи веб-версии, JSON как в localStorage)
   String _mode = 'seq';
   List<String> _own = [];
@@ -149,9 +151,16 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
 
   void _add(Plan plan) {
     final cal = plan['calendar'] == true;
+    final uid = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    // новый план — первым в списке: прокручиваем окно, чтобы его карточка встала вверху
+    setState(() => _newUid = uid);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _newKey.currentContext;
+      if (mounted && c != null && c.mounted) Scrollable.ensureVisible(c, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+    });
     ref.read(plansProvider.notifier).add({
       ...plan,
-      'uid': DateTime.now().millisecondsSinceEpoch.toRadixString(36),
+      'uid': uid,
       'start': localDate(),
       'done': <String, dynamic>{},
       if (cal) 'year': DateTime.now().year,
@@ -239,6 +248,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
         VerseOfDayCard(pane: widget.pane, onRead: _go),
         gap,
         for (final p in plans) ...[
+          if (p['uid'] == _newUid) SizedBox(key: _newKey, height: 0),
           _ActivePlan(
             key: ValueKey(p['uid']),
             pal: pal,
