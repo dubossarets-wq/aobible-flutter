@@ -1131,6 +1131,8 @@ class Hint extends ConsumerWidget {
       showDuration: const Duration(seconds: 8),
       preferBelow: true,
       margin: const EdgeInsets.symmetric(horizontal: 16),
+      // не шире 280, как .hint-pop: на широком окне длинное пояснение не растягивается в одну строку
+      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: pal.bar,
@@ -1213,7 +1215,8 @@ SnackBar aobSnackBar(Palette pal, String text, {String? actionLabel, VoidCallbac
           padding: hasAction ? const EdgeInsets.fromLTRB(16, 6, 6, 6) : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: mix(pal.bar, 0.92, Colors.transparent),
-            borderRadius: BorderRadius.circular(999),
+            // в одну строку — «таблетка», в несколько — скруглённый прямоугольник, а не овал
+            borderRadius: BorderRadius.circular(22),
             boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 8))],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

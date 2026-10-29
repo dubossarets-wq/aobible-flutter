@@ -48,7 +48,8 @@ void _toast(BuildContext context, String text, {String? actionLabel, VoidCallbac
     // на главном экране место под меню уже оставлено
     margin: EdgeInsets.fromLTRB(16, 0, 16, 20 + (identical(m, Hub.messengerKey.currentState) ? 0 : tabBarInset.value)),
     padding: EdgeInsets.fromLTRB(16, actionLabel != null ? 6 : 10, actionLabel != null ? 6 : 16, actionLabel != null ? 6 : 10),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(error ? 14 : 999)),
+    // 22 — в одну строку это «таблетка», а в несколько строк — скруглённый прямоугольник, а не овал
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(error ? 14 : 22)),
     duration: Duration(seconds: actionLabel != null ? 6 : 4),
     content: Row(children: [
       Expanded(child: Text(text, textAlign: actionLabel != null ? TextAlign.left : TextAlign.center, style: TextStyle(fontSize: 14.4, color: fg))),
@@ -237,16 +238,13 @@ class PlainInput extends ConsumerWidget {
       );
 }
 
-/// «!» в кружке рядом с названием (.hint-btn): по нажатию — пояснение
-class HintBtn extends ConsumerWidget {
+/// «!» в кружке рядом с названием (.hint-btn): по нажатию — пояснение облачком у значка (Hint), а не
+/// сообщением внизу — длинный текст в «таблетке» сообщения становился овалом и обрезался
+class HintBtn extends StatelessWidget {
   const HintBtn(this.text, {super.key});
   final String text;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => toast(context, text),
-        child: SizedBox(width: 24, height: 24, child: Icon(LucideIcons.circleAlert, size: 15, color: paletteOf(ref).muted, semanticLabel: t('Пояснение'))),
-      );
+  Widget build(BuildContext context) => Hint(text);
 }
 
 /// --danger веб-версии: тёмная и светлая темы разные
