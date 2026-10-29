@@ -37,6 +37,10 @@ class CatalogEntry {
   /// Адреса целиком (каталог по своему адресу): иначе — относительно modules/ на сайте
   bool get absolute => json['_abs'] == true;
   int get size => (json['sizeGz'] ?? json['size'] ?? 0) as int;
+  Map<String, dynamic> get features => (json['features'] as Map?)?.cast<String, dynamic>() ?? const {};
+  /// Что в переводе ('ot', 'nt', 'dc') — считает сборка сайта по книгам файла: окно выбора перевода
+  /// отбирает по нему и ещё не скачанные переводы
+  Set<String> get scope => {for (final s in (json['scope'] as List?) ?? const []) '$s'};
 }
 
 class InstalledModule {

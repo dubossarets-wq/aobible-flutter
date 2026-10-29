@@ -279,6 +279,31 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('«×» закрывает свою панель: у первой — остаётся вторая (её перевод и место), у второй — первая', (tester) async {
+    final two = jsonEncode([
+      {'moduleId': 'rst-plus', 'ref': {'book': 'Gen', 'chapter': 3, 'verse': 1}},
+      {'moduleId': 'kjv', 'ref': {'book': 'John', 'chapter': 3, 'verse': 16}},
+    ]);
+    final c = await start(tester, panes: two);
+    expect(find.byTooltip('Закрыть эту панель'), findsOneWidget);
+    expect(find.byTooltip('Закрыть вторую панель'), findsOneWidget);
+    await tester.tap(find.byTooltip('Закрыть эту панель'));
+    await tester.pumpAndSettle();
+    final ps = c.read(panesProvider);
+    expect(ps.length, 1);
+    expect(ps.first.moduleId, 'kjv');
+    expect(paneBook(c), 'John');
+    expect(ps.first.ref.chapter, 3);
+    expect(find.byTooltip('Читать параллельно'), findsOneWidget);
+    // «×» второй панели — по-прежнему закрывает вторую
+    c.read(panesProvider.notifier).toggleSplit();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Закрыть вторую панель'));
+    await tester.pumpAndSettle();
+    expect(c.read(panesProvider).single.moduleId, 'kjv');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Широкий экран: две панели, поиск; снятие дерева не оставляет слушателей', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;

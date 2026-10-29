@@ -17,6 +17,8 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/intl_data.dart' show langDisplayNames;
+import '../features/shell/library_sheet.dart' show ModBusy, ModPill, fmtSize;
+import '../features/shell/sheet.dart' show loadCatalog;
 import 'kit.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
@@ -412,7 +414,10 @@ class _Pane extends ConsumerWidget {
                   builder: (_, upd, _) => tbIcon(LucideIcons.ellipsisVertical, upd ? t('Ещё. Доступно обновление') : t('Ещё'), Hub.openMore == null ? null : () => Hub.openMore!(context, ref, index), dot: upd),
                 ),
               if (index == 0 || split)
-                tbIcon(split && index == 1 ? LucideIcons.x : LucideIcons.columns2, split && index == 1 ? t('Закрыть вторую панель') : t('Читать параллельно'), () => ref.read(panesProvider.notifier).toggleSplit()),
+                // «×» закрывает свою панель: у первой — первую (вторая остаётся одна), у второй — вторую
+                split
+                    ? tbIcon(LucideIcons.x, index == 0 ? t('Закрыть эту панель') : t('Закрыть вторую панель'), () => ref.read(panesProvider.notifier).closePane(index))
+                    : tbIcon(LucideIcons.columns2, t('Читать параллельно'), () => ref.read(panesProvider.notifier).toggleSplit()),
             ]),
           ),
         ),
@@ -481,20 +486,51 @@ class _ModulePicker extends ConsumerStatefulWidget {
   ConsumerState<_ModulePicker> createState() => _ModulePickerState();
 }
 
-/// Что в переводе (ModulePicker.jsx, KINDS): по его книгам и возможностям
-bool _hasBooks(InstalledModule m, bool Function(BookInfo b) test) => bookList(m.id).any((x) => test(Books.instance.meta('${x['id']}')));
-final _kinds = <(String, String, bool Function(InstalledModule))>[
-  ('full', 'Вся Библия', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc) && _hasBooks(m, (b) => b.testament == 'NT')),
-  ('ot', 'Ветхий Завет', (m) => _hasBooks(m, (b) => b.testament == 'OT' && !b.dc)),
-  ('nt', 'Новый Завет', (m) => _hasBooks(m, (b) => b.testament == 'NT')),
-  ('dc', 'Неканон', (m) => _hasBooks(m, (b) => b.dc || b.testament == 'AP')),
-  ('strongs', 'С номерами Стронга', (m) => m.features['strongs'] == true),
-  ('il', 'Подстрочник', (m) => m.features['interlinear'] == true),
+/// Что в переводе (ModulePicker.jsx, KINDS): 'ot', 'nt', 'dc' — у установленного по его книгам, у не скачанного —
+/// по полю scope каталога; и возможности перевода
+String _bookKind(BookInfo b) => b.dc || b.testament == 'AP' ? 'dc' : b.testament == 'NT' ? 'nt' : 'ot';
+Set<String> _scopeOf(InstalledModule m) => {for (final x in bookList(m.id)) _bookKind(Books.instance.meta('${x['id']}'))};
+typedef _Kind = (String, String, bool Function(Set<String> scope, Map<String, dynamic> features));
+final _kinds = <_Kind>[
+  ('full', 'Вся Библия', (s, _) => s.contains('ot') && s.contains('nt')),
+  ('ot', 'Ветхий Завет', (s, _) => s.contains('ot')),
+  ('nt', 'Новый Завет', (s, _) => s.contains('nt')),
+  ('dc', 'Неканон', (s, _) => s.contains('dc')),
+  ('strongs', 'С номерами Стронга', (_, f) => f['strongs'] == true),
+  ('il', 'Подстрочник', (_, f) => f['interlinear'] == true),
 ];
 
 class _ModulePickerState extends ConsumerState<_ModulePicker> {
   String? _lang; // выбранный язык в выборке сверху; null — все
   String? _kind; // что в переводе; null — всё
+  // каталог — для переводов, которых нет на устройстве; без сети этого раздела просто нет
+  List<CatalogEntry>? _catalog;
+  bool _catErr = false;
+  final Map<String, double> _busy = {};
+
+  @override
+  void initState() {
+    super.initState();
+    loadCatalog().then((c) {
+      if (mounted) setState(() => _catalog = c);
+    }, onError: (_) {
+      if (mounted) setState(() => _catErr = true);
+    });
+  }
+
+  Future<void> _install(CatalogEntry c) async {
+    setState(() => _busy[c.id] = 0);
+    try {
+      await ModuleStore.instance.install(c, onProgress: (p, _) {
+        if (mounted) setState(() => _busy[c.id] = p);
+      });
+      Hub.toast(t('{name} установлен', {'name': c.name}));
+    } catch (e) {
+      Hub.toast('${c.name}: $e');
+    } finally {
+      if (mounted) setState(() => _busy.remove(c.id));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -511,17 +547,35 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
         final top = all.indexWhere((m) => m.id == primary);
         if (top > 0) all.insert(0, all.removeAt(top));
         final ordered = [...all.where((m) => m.features['interlinear'] != true), ...all.where((m) => m.features['interlinear'] == true)];
-        // выборка по языкам — если переводы на разных языках; язык приложения — первым
-        final langs = <String>{for (final m in ordered) m.language}.toList()..sort((a, b) => a == currentLang ? -1 : b == currentLang ? 1 : 0);
+        // переводы каталога, которых нет на устройстве (и выключенных среди установленных тоже нет)
+        final more = [
+          for (final c in _catalog ?? const <CatalogEntry>[])
+            if (c.type == 'bible' && !c.unavailable && c.features['helper'] != true && ModuleStore.instance.get(c.id) == null) c,
+        ];
+        // выборка по языкам — если переводы на разных языках: язык приложения, затем языки установленных,
+        // затем остальные — по числу переводов в каталоге
+        final cnt = <String, int>{};
+        for (final c in more) {
+          cnt[c.language] = (cnt[c.language] ?? 0) + 1;
+        }
+        final mine = <String>{for (final m in ordered) m.language}.toList();
+        final rest = [for (final l in cnt.keys) if (!mine.contains(l)) l]..sort((a, b) => cnt[b]!.compareTo(cnt[a]!) != 0 ? cnt[b]!.compareTo(cnt[a]!) : a.compareTo(b));
+        final langs = [...mine, ...rest]..sort((a, b) => a == currentLang ? -1 : b == currentLang ? 1 : 0);
         final lang = langs.contains(_lang) ? _lang : null;
         final byLang = lang == null ? ordered : [for (final m in ordered) if (m.language == lang) m];
-        // что в переводе: показываем только выборки, которые отбирают часть списка
+        final moreByLang = lang == null ? more : [for (final c in more) if (c.language == lang) c];
+        // что в переводе: показываем только выборки, которые отбирают часть списка (вместе со скачиваемыми)
+        final scopes = {for (final m in byLang) m.id: _scopeOf(m)};
+        bool fitsM(_Kind k, InstalledModule m) => k.$3(scopes[m.id]!, m.features);
+        bool fitsC(_Kind k, CatalogEntry c) => k.$3(c.scope, c.features);
+        final pool = byLang.length + moreByLang.length;
         final kinds = [
           for (final k in _kinds)
-            if (byLang.where(k.$3).length case final n when n > 0 && n < byLang.length) k,
+            if (byLang.where((m) => fitsM(k, m)).length + moreByLang.where((c) => fitsC(k, c)).length case final n when n > 0 && n < pool) k,
         ];
         final kind = kinds.where((k) => k.$1 == _kind).firstOrNull;
-        final list = kind == null ? byLang : byLang.where(kind.$3).toList();
+        final list = kind == null ? byLang : byLang.where((m) => fitsM(kind, m)).toList();
+        final moreList = kind == null ? moreByLang : moreByLang.where((c) => fitsC(kind, c)).toList();
         String langName(String code) {
           final n = langDisplayNames[currentLang]?[code] ?? code;
           return n.isEmpty ? code : '${n[0].toUpperCase()}${n.substring(1)}';
@@ -587,6 +641,53 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
                         Tooltip(message: t('Основной перевод'), child: SizedBox(width: 32, height: 32, child: Center(child: CustomPaint(size: const Size(16, 16), painter: _StarPainter(pal.accent))))),
                     ]),
                   ),
+              ),
+            // не скачанные переводы (.pick-more) — с теми же выборками; «Скачать» прямо в строке, скачанный перевод
+            // встаёт в список выше
+            if (_catalog == null && !_catErr)
+              Container(
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                child: Text(t('Загружаю каталог…'), style: TextStyle(fontSize: 13.6, color: pal.muted)),
+              ),
+            if (moreList.isNotEmpty)
+              Container(
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: t('Можно скачать').toUpperCase()),
+                    TextSpan(text: '  ${moreList.length}', style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0)),
+                  ]),
+                  style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: pal.muted),
+                ),
+              ),
+            for (final (k, c) in moreList.indexed)
+              Container(
+                decoration: BoxDecoration(border: k == moreList.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
+                padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(c.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (c.title != c.name) c.title,
+                          if (c.features['strongs'] == true) t('номера Стронга'),
+                          if (lang == null && langs.length > 1) langName(c.language),
+                          if (c.size > 0) fmtSize(c.size),
+                        ].join(' · '),
+                        style: TextStyle(fontSize: 12.75, color: pal.muted),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_busy[c.id] case final p?)
+                    ModBusy(pal: pal, value: p)
+                  else
+                    ModPill(pal: pal, label: t('Скачать'), tip: c.size > 0 ? '${t('Скачать')} · ${fmtSize(c.size)}' : null, onTap: () => _install(c)),
+                ]),
               ),
             if (Hub.openLibraryTab != null)
               Padding(

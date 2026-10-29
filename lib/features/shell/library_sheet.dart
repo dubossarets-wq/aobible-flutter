@@ -113,9 +113,32 @@ class _Act extends StatelessWidget {
   }
 }
 
+/// Идёт загрузка (.mod-busy): на месте кнопки — кольцо прогресса и проценты цветом акцента
+class ModBusy extends StatelessWidget {
+  const ModBusy({super.key, required this.pal, required this.value});
+  final Palette pal;
+  final double value;
+  @override
+  Widget build(BuildContext context) {
+    final pct = (value * 100).round();
+    return Semantics(
+      label: t('Загрузка {pct}%', {'pct': '$pct'}),
+      child: SizedBox(
+        height: 44,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(width: 18, height: 18, child: CircularProgressIndicator(value: value.clamp(0.0, 1.0), strokeWidth: 2.4, color: pal.accent, backgroundColor: pal.line)),
+          const SizedBox(width: 6),
+          Text('$pct%', style: TextStyle(color: pal.accent, fontSize: 13, fontFeatures: const [FontFeature.tabularFigures()])),
+          const SizedBox(width: 2),
+        ]),
+      ),
+    );
+  }
+}
+
 /// Кнопка-капсула в строке модуля: «Скачать» — заливка акцентом, «Обновить» — рамкой; высота 30, поле нажатия 44
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.pal, this.tip, this.onTap, this.outline = false});
+class ModPill extends StatelessWidget {
+  const ModPill({super.key, required this.label, required this.pal, this.tip, this.onTap, this.outline = false});
   final String label;
   final Palette pal;
   final String? tip;
@@ -349,23 +372,11 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     Widget action;
     if (busy != null) {
       // идёт загрузка: на месте кнопки — кольцо прогресса и проценты цветом акцента
-      final pct = (busy.$1 * 100).round();
-      action = Semantics(
-        label: t('Загрузка {pct}%', {'pct': '$pct'}),
-        child: SizedBox(
-          height: 44,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(value: busy.$1.clamp(0.0, 1.0), strokeWidth: 2.4, color: pal.accent, backgroundColor: pal.line)),
-            const SizedBox(width: 6),
-            Text('$pct%', style: TextStyle(color: pal.accent, fontSize: 13, fontFeatures: const [FontFeature.tabularFigures()])),
-            const SizedBox(width: 2),
-          ]),
-        ),
-      );
+      action = ModBusy(pal: pal, value: busy.$1);
     } else if (_tab == 'catalog' && m.unavailable) {
       action = _Act(tip: t('Нет свободной электронной версии'), child: Icon(LucideIcons.ban, size: 18, color: pal.muted));
     } else if (updatable) {
-      action = _Pill(pal: pal, outline: true, label: t('Обновить'), tip: t('Есть новая версия'), onTap: () => _install(m.cat!));
+      action = ModPill(pal: pal, outline: true, label: t('Обновить'), tip: t('Есть новая версия'), onTap: () => _install(m.cat!));
     } else if (_tab == 'installed' && installed?.type == 'bible' && installed?.features['helper'] != true) {
       action = _Act(
         tip: isPrimary ? t('Основной перевод') : t('Сделать основным'),
@@ -394,7 +405,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         ]),
       );
     } else {
-      action = _Pill(
+      action = ModPill(
         pal: pal,
         label: t('Скачать'),
         tip: m.size > 0 ? '${t('Скачать')} · ${fmtSize(m.size)}' : null,

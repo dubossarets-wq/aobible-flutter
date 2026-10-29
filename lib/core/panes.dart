@@ -2,6 +2,7 @@
 // Место каждой панели запоминается (последнее место — при следующем запуске), переход — через nav++.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -118,6 +119,20 @@ class PanesNotifier extends Notifier<List<PaneState>> {
       final at = livePositions[0]?.value ?? state.first.ref;
       state = [state.first.copyWith(ref: at), PaneState(moduleId: moduleId ?? state.first.moduleId, ref: at)];
     }
+    _save();
+  }
+
+  /// Закрыть панель, на которой нажали «×» (closeSplit в App.jsx): закрыли первую — вторая остаётся одна,
+  /// со своим переводом, историей и на том месте, где её читали
+  void closePane(int i) {
+    if (state.length < 2) return;
+    if (i != 0) return toggleSplit();
+    final p = state[1];
+    final at = livePositions[1]?.value ?? p.ref;
+    // nav — больше, чем у обеих панелей: панель на экране перейдёт на место второй
+    state = [p.copyWith(ref: at, nav: math.max(state[0].nav, p.nav) + 1)];
+    livePositions[0]?.value = at;
+    livePositions.remove(1);
     _save();
   }
 
