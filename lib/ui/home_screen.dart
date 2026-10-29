@@ -501,7 +501,8 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
           child: ListView(children: [
             if (kinds.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(0, 12, 0, 10),
+                // под рядом книг — 4 до ряда языков (если он есть)
+                padding: EdgeInsets.fromLTRB(0, 12, 0, langs.length > 1 ? 4 : 10),
                 child: SizedBox(
                   height: 34,
                   child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
