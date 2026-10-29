@@ -187,7 +187,7 @@ class _SplitState extends ConsumerState<_Split> {
     final saved = ref.watch(settingsProvider.select((s) => s.d('splitRatio')));
     final ratio = _clamp(_drag ?? saved);
     final cols = widget.columns;
-    final thick = cols ? 12.0 : 16.0;
+    final thick = cols ? 5.0 : 0.0;
     return LayoutBuilder(builder: (context, c) {
       final total = (cols ? c.maxWidth : c.maxHeight) - thick;
       final first = total * ratio;
@@ -205,21 +205,20 @@ class _SplitState extends ConsumerState<_Split> {
         onStep: (d) => _save(ratio + d),
       );
       // верхняя панель (разделение по строкам) не доходит до проигрывателя — нижний запас ей не нужен
-      // текст верхней панели к ручке растворяется, а не режется (разделитель цвета страницы)
-      final top = cols
-          ? widget.first
-          : Stack(children: [
-              Positioned.fill(child: MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first)),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 22,
-                child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [pal.bg.withValues(alpha: 0), pal.bg])))),
-              ),
-            ]);
-      final kids = [slot(top, first), divider, slot(widget.second, total - first)];
-      return cols ? Row(children: kids) : Column(children: kids);
+      final top = cols ? widget.first : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first);
+      // друг над другом: подложки нет совсем — ползунок висит над текстом в 5 px от шапки нижней панели;
+      // зона захвата 120 × 34 только вокруг ползунка, текст рядом нажимается как обычно
+      if (!cols) {
+        return Stack(fit: StackFit.expand, children: [
+          Column(children: [slot(top, first), slot(widget.second, total - first)]),
+          Positioned(top: first - 28, height: 34, left: (c.maxWidth - 120) / 2, width: 120, child: divider),
+        ]);
+      }
+      // колонки: подложка всего 5 px, а тянуть удобно и рядом — зона захвата по 8 px в обе стороны поверх панелей
+      return Stack(fit: StackFit.expand, children: [
+        Row(children: [slot(top, first), SizedBox(width: thick), slot(widget.second, total - first)]),
+        Positioned(left: first - 8, top: 0, bottom: 0, width: thick + 16, child: divider),
+      ]);
     });
   }
 }
@@ -241,6 +240,13 @@ class _DividerState extends State<_Divider> {
   bool _on = false; // наведён или в фокусе — ручка цвета акцента
   bool _drag = false; // тянется
 
+  // Пока тянется разделитель, высота панелей меняется и место в них пересчитывается: синхронная прокрутка
+  // молчит (ведущей панели нет), иначе вторая панель прыгала бы вслед за первой. Ведущей снова станет та, которой коснутся
+  void _start() {
+    SyncHub.driver = -1;
+    setState(() => _drag = true);
+  }
+
   void _end() {
     if (mounted) setState(() => _drag = false);
     widget.onEnd();
@@ -255,7 +261,7 @@ class _DividerState extends State<_Divider> {
     final grip = AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
-      width: cols ? 5 : (on ? 56 : 36),
+      width: cols ? 3 : (on ? 56 : 36),
       height: cols ? (on ? 56 : 36) : 5,
       decoration: BoxDecoration(color: on ? pal.accent : pal.text.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(3)),
     );
@@ -273,6 +279,7 @@ class _DividerState extends State<_Divider> {
                   ? 0.05
                   : null;
           if (d == null) return KeyEventResult.ignored;
+          SyncHub.driver = -1;
           widget.onStep(d);
           return KeyEventResult.handled;
         },
@@ -282,16 +289,19 @@ class _DividerState extends State<_Divider> {
           onExit: (_) => setState(() => _on = false),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: cols ? (_) => setState(() => _drag = true) : null,
+            onHorizontalDragStart: cols ? (_) => _start() : null,
             onHorizontalDragUpdate: cols ? (d) => widget.onDrag(d.delta.dx) : null,
             onHorizontalDragEnd: cols ? (_) => _end() : null,
             onHorizontalDragCancel: cols ? _end : null,
-            onVerticalDragStart: cols ? null : (_) => setState(() => _drag = true),
+            onVerticalDragStart: cols ? null : (_) => _start(),
             onVerticalDragUpdate: cols ? null : (d) => widget.onDrag(d.delta.dy),
             onVerticalDragEnd: cols ? null : (_) => _end(),
             onVerticalDragCancel: cols ? null : _end,
-            // без полосы цвета панели: фон страницы, видна только тёмная ручка
-            child: Container(width: cols ? widget.thick : null, height: cols ? null : widget.thick, color: pal.bg, alignment: Alignment.center, child: grip),
+            // строки: без подложки — только ползунок;
+            // колонки: вдоль линии раздела сероватая подложка чуть шире ползунка (вокруг — прозрачная зона захвата)
+            child: cols
+                ? Center(child: Container(width: widget.thick, color: Color.lerp(pal.bg, pal.text, 0.09), alignment: Alignment.center, child: grip))
+                : Align(alignment: Alignment.bottomCenter, child: Padding(padding: const EdgeInsets.only(bottom: 11), child: grip)),
           ),
         ),
       ),
@@ -362,7 +372,7 @@ class _Pane extends ConsumerWidget {
               Expanded(
                 child: LayoutBuilder(builder: (context, c) {
                   final modLabel = shortName(mod);
-                  final modSize = narrow ? 12.9 : 13.6, refSize = narrow ? 15.6 : 16.6;
+                  final modSize = narrow ? 12.2 : 12.6, refSize = narrow ? 15.0 : 15.6;
                   final tp = TextPainter(text: TextSpan(text: modLabel, style: TextStyle(fontSize: modSize, fontWeight: FontWeight.w700, letterSpacing: .4)), textDirection: TextDirection.ltr, maxLines: 1, textScaler: MediaQuery.textScalerOf(context))..layout();
                   final modW = math.min(tp.width + 26, c.maxWidth * 0.4);
                   tp.dispose();
@@ -809,7 +819,7 @@ class _SlideBarState extends State<_SlideBar> with SingleTickerProviderStateMixi
 final _readers = <int, Widget>{};
 Widget _readerOf(int index) => _readers.putIfAbsent(index, () => ReaderPane(index: index));
 
-/// Шапка панели: перевод и место — одна капсула высотой 36 из двух частей с тонким разделителем.
+/// Шапка панели: перевод и место — одна капсула высотой 30 из двух частей с тонким разделителем.
 /// Перевод — мельче и приглушённо (как подпись), место — крупно и жирно, со стрелкой ˅; подсветка нажатия — у своей части
 class _BarCrumb extends StatelessWidget {
   const _BarCrumb({
@@ -839,8 +849,8 @@ class _BarCrumb extends StatelessWidget {
     Widget part(String tip, VoidCallback onTap, EdgeInsets pad, Widget child) => Tooltip(
           message: tip,
           // по ширине содержимого (hug): Container с alignment растягивался бы на всё доступное место
-          // высота 36 — компактно, но удобно нажимать (вся ширина части — зона нажатия)
-          child: InkWell(onTap: onTap, child: Container(height: 36, padding: pad, child: Align(widthFactor: 1, child: child))),
+          // капсула 30 px — компактно; зона нажатия — вся часть капсулы по ширине
+          child: InkWell(onTap: onTap, child: Container(height: 30, padding: pad, child: Align(widthFactor: 1, child: child))),
         );
     return Material(
       color: bg,
@@ -852,17 +862,17 @@ class _BarCrumb extends StatelessWidget {
           child: part(
             moduleTip,
             onModule,
-            const EdgeInsets.only(left: 14, right: 11),
+            const EdgeInsets.only(left: 13, right: 10),
             // надписи — ровно по середине капсулы: запас строки поровну и на 1 px выше (как в кнопках)
-            Transform.translate(offset: const Offset(0, -1), child: Text(module, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: moduleSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .4, color: fg.withValues(alpha: 0.78)))),
+            Transform.translate(offset: const Offset(0, -1), child: Text(module, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: moduleSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .6, color: fg.withValues(alpha: 0.78)))),
           ),
         ),
-        Container(width: 1, height: 18, color: fg.withValues(alpha: 0.2)),
+        Container(width: 1, height: 14, color: fg.withValues(alpha: 0.2)),
         Flexible(
           child: part(
             placeTip,
             onPlace,
-            EdgeInsets.only(left: 11, right: chevron ? 10 : 14),
+            EdgeInsets.only(left: 10, right: chevron ? 9 : 13),
             Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg)))),
               // стрелка ˅ — на одной линии с поднятой надписью
@@ -877,7 +887,7 @@ class _BarCrumb extends StatelessWidget {
               duration: const Duration(milliseconds: 280),
               curve: Curves.fastOutSlowIn,
               width: tools!.on ? 37 : 0,
-              // высота — по содержимому (36): без этого OverflowBox брал всю высоту шапки и раздувал капсулу
+              // высота — по содержимому (30): без этого OverflowBox брал всю высоту шапки и раздувал капсулу
               child: OverflowBox(
                 alignment: Alignment.centerLeft,
                 minWidth: 37,
@@ -886,7 +896,7 @@ class _BarCrumb extends StatelessWidget {
                 child: IgnorePointer(
                   ignoring: !tools!.on,
                   child: Row(children: [
-                    Container(width: 1, height: 18, color: fg.withValues(alpha: 0.2)),
+                    Container(width: 1, height: 14, color: fg.withValues(alpha: 0.2)),
                     part(
                       tools!.tip,
                       tools!.onTap,
@@ -1004,9 +1014,9 @@ class _TabBarState extends ConsumerState<_TabBar> {
                     child: Container(
                       height: 64,
                       decoration: BoxDecoration(
-                        color: pal.panel, // сплошной белый (на светлых темах), без просвечивания
+                        color: pal.tabbar, // сплошной, без просвечивания; цвет — свой у каждой темы
                         borderRadius: BorderRadius.circular(32),
-                        border: Border.all(color: pal.text.withValues(alpha: 0.09)),
+                        border: Border.all(color: pal.tabbarText.withValues(alpha: 0.1)),
                         boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 24, offset: Offset(0, 6))],
                       ),
                       child: Stack(children: [
@@ -1017,7 +1027,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
                           top: 5,
                           bottom: 5,
                           width: cellW,
-                          child: DecoratedBox(key: const ValueKey('tab-pill'), decoration: BoxDecoration(color: pal.text.withValues(alpha: 0.09), borderRadius: BorderRadius.circular(26))),
+                          child: DecoratedBox(key: const ValueKey('tab-pill'), decoration: BoxDecoration(color: pal.tabbarText.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(26))),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 5),
@@ -1042,8 +1052,8 @@ class _TabBarState extends ConsumerState<_TabBar> {
                                             height: 26,
                                             width: 54,
                                             child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
-                                              Icon(icons[id], size: 22, color: id == activeId ? pal.text : pal.muted),
-                                              if (id == 'more' && upd) Positioned(top: 2, right: 12, child: _UpdateDot(ring: pal.panel)),
+                                              Icon(icons[id], size: 22, color: id == activeId ? pal.tabbarText : Color.lerp(pal.tabbar, pal.tabbarText, 0.64)),
+                                              if (id == 'more' && upd) Positioned(top: 2, right: 12, child: _UpdateDot(ring: pal.tabbar)),
                                             ]),
                                           ),
                                           const SizedBox(height: 2), // зазор между значком и подписью
@@ -1052,7 +1062,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
                                             padding: const EdgeInsets.symmetric(horizontal: 2),
                                             child: FittedBox(
                                               fit: BoxFit.scaleDown,
-                                              child: Text(labels[id]!, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10.5, height: 1.15, leadingDistribution: TextLeadingDistribution.even, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.text : pal.muted)),
+                                              child: Text(labels[id]!, maxLines: 1, softWrap: false, style: TextStyle(fontSize: 10.5, height: 1.15, leadingDistribution: TextLeadingDistribution.even, fontWeight: id == activeId ? FontWeight.w800 : FontWeight.w600, color: id == activeId ? pal.tabbarText : Color.lerp(pal.tabbar, pal.tabbarText, 0.64))),
                                             ),
                                           ),
                                         ]),

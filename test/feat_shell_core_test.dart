@@ -457,12 +457,12 @@ void main() {
     expect(tester.getTopLeft(panes.at(1)).dx, greaterThan(tester.getTopRight(panes.at(0)).dx - 1));
     expect(tester.getTopLeft(panes.at(1)).dy, tester.getTopLeft(panes.at(0)).dy);
     final w0 = tester.getSize(panes.at(0)).width;
-    expect(w0, closeTo((1200 - 12) * 0.5, 2));
+    expect(w0, closeTo((1200 - 5) * 0.5, 2));
     final divider = find.bySemanticsLabel('Изменить размер панелей');
     expect(divider, findsOneWidget);
     await tester.drag(divider, const Offset(240, 0));
     await tester.pumpAndSettle();
-    expect(tester.getSize(panes.at(0)).width, closeTo((1200 - 12) * 0.7, 8));
+    expect(tester.getSize(panes.at(0)).width, closeTo((1200 - 5) * 0.7, 8));
     expect(c.read(settingsProvider).d('splitRatio'), closeTo(0.7, 0.01));
     // дальше предела 80 % не уехать
     await tester.drag(divider, const Offset(900, 0));

@@ -36,6 +36,12 @@ class Palette {
 
   @override
   int get hashCode => Object.hash(label, dark, bg, text, muted, accent, panel, onAccent, bar, barText, line, hl, verseNum);
+
+  // Нижнее меню — отдельным цветом, чтобы не сливалось ни с текстом, ни с открытым окном (--tabbar веб-версии).
+  // Тёплая, мята, лаванда, закат, контраст — как верхняя панель темы (и её свой цвет, если задан)
+  static const _tabbar = {'Светлая': 0xf2f2f4, 'Сепия': 0xffffff, 'Тёмная': 0x2c2c2f, 'Океан': 0x1f3150, 'Чёрная': 0x1c1c1e};
+  Color get tabbar => _tabbar[label] != null ? _c(_tabbar[label]!) : bar;
+  Color get tabbarText => _tabbar.containsKey(label) ? text : barText;
 }
 
 Color _c(int v) => Color(0xFF000000 | v);
