@@ -27,7 +27,7 @@ class ImportPreview {
 
 /// Скачать файл по полному адресу (свой каталог, модули из него); onProgress(0..1)
 Future<Uint8List> downloadUrl(String url, {void Function(double)? onProgress}) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+  final client = await newHttpClient();
   try {
     final req = await client.getUrl(Uri.parse(url));
     req.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');

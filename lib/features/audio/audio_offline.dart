@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/i18n.dart';
+import '../../core/net.dart' show newHttpClient;
 import '../../core/settings.dart';
 import 'audio_data.dart';
 import 'audio_logic.dart';
@@ -67,7 +68,7 @@ class OfflineAudio {
     final urls = pack.urlsOf(book);
     if (urls.isEmpty) throw Exception(t('К этой книге нет аудиозаписей.'));
     final d = await dir();
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+    final client = await newHttpClient();
     var bytes = 0;
     try {
       for (var i = 0; i < urls.length; i++) {

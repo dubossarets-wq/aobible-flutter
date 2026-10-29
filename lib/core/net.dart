@@ -12,9 +12,14 @@ const mirror = 'https://dubossarets-wq.github.io/ao-bible/';
 
 HttpClient? _client;
 bool _useMirror = false;
+SecurityContext? _context;
 
-Future<HttpClient> _http() async {
-  if (_client != null) return _client!;
+/// Подпись запросов как у браузера на Android: «Dart/3.x (dart:io)» защита сайта (Cloudflare) с некоторых мобильных сетей
+/// принимает за робота и отвечает проверкой вместо файла
+const appUserAgent = 'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 AOBible/2';
+
+Future<SecurityContext> _ctx() async {
+  if (_context != null) return _context!;
   final ctx = SecurityContext(withTrustedRoots: true);
   for (final f in ['assets/certs/isrg_root_x1.pem', 'assets/certs/isrg_root_x2.pem']) {
     try {
@@ -23,8 +28,16 @@ Future<HttpClient> _http() async {
       // такой корень уже есть в системе — не страшно
     }
   }
-  return _client = HttpClient(context: ctx)..connectionTimeout = const Duration(seconds: 20);
+  return _context = ctx;
 }
+
+/// Новый клиент для своих загрузок (аудио без интернета, модули по ссылке): те же корни Let's Encrypt и подпись,
+/// что у основного — иначе на Android 7.0 и в «строгих» сетях они не скачиваются
+Future<HttpClient> newHttpClient() async => HttpClient(context: await _ctx())
+  ..connectionTimeout = const Duration(seconds: 20)
+  ..userAgent = appUserAgent;
+
+Future<HttpClient> _http() async => _client ??= await newHttpClient();
 
 class NetError implements Exception {
   NetError(this.message);

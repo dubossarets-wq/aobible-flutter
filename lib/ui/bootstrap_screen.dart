@@ -1,7 +1,6 @@
 // Первый запуск: ставим основной перевод (дальше — остальные стартовые модули, по мере переноса функций).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/i18n.dart';
 import '../core/modules.dart';
@@ -88,22 +87,21 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
                 AnimatedBuilder(
                   animation: _float,
                   builder: (context, child) => Transform.translate(offset: Offset(0, -3 * Curves.easeInOut.transform(_float.value)), child: child),
+                  // логотип AO Bible («AΩ Bible») — как значок приложения в Google Play; название уже на нём
                   child: Container(
-                    width: 76,
-                    height: 76,
+                    width: 132,
+                    height: 132,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(17),
+                      borderRadius: BorderRadius.circular(29),
                       boxShadow: [
                         BoxShadow(color: Colors.black.withValues(alpha: 0.16), blurRadius: 28, offset: const Offset(0, 10)),
                         BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2)),
                       ],
                     ),
-                    child: SvgPicture.string(_logo),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(29), child: Image.asset('assets/brand/logo.jpg', fit: BoxFit.cover, semanticLabel: 'AO Bible')),
                   ),
                 ),
-                const SizedBox(height: 18),
-                Text('AO Bible', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: pal.text)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 22),
                 if (_error == null) ...[
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 300),
@@ -143,14 +141,6 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
 const _danger = Color(0xffb4412f);
 
 // Значок приложения — тот же, что public/icons/icon.svg в веб-версии
-const _logo = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="112" fill="#38363a"/>
-<path d="M256 150c-38-26-92-34-150-26v236c58-8 112 0 150 26z" fill="#f6f5f2"/>
-<path d="M256 150c38-26 92-34 150-26v236c-58-8-112 0-150 26z" fill="#e9e4d8"/>
-<path d="M300 128v120l26-18 26 18V122c-18 0-36 2-52 6z" fill="#c9893f"/>
-<path d="M146 200h76M146 236h76M146 272h76M290 284h76M290 320h60" stroke="#b9b2a3" stroke-width="10" stroke-linecap="round"/>
-</svg>''';
-
 /// Этапы установки по доле прогресса: каталог (ещё не начали) → загрузка (до 60 %) → распаковка и запись
 class _Steps extends StatelessWidget {
   const _Steps({required this.pal, required this.p, required this.started});
