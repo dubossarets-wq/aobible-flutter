@@ -76,8 +76,9 @@ class PlanScope {
 }
 
 final planScopes = <PlanScope>[
-  PlanScope('all', 'Вся Библия', () => [for (final b in Books.instance.all) if (b.testament != 'AP') b.id]),
-  PlanScope('ot', 'Ветхий Завет', () => [for (final b in Books.instance.all) if (b.testament == 'OT') b.id]),
+  // без неканонических книг (как в веб-версии)
+  PlanScope('all', 'Вся Библия', () => [for (final b in Books.instance.all) if (b.testament != 'AP' && !b.dc) b.id]),
+  PlanScope('ot', 'Ветхий Завет', () => [for (final b in Books.instance.all) if (b.testament == 'OT' && !b.dc) b.id]),
   PlanScope('nt', 'Новый Завет', () => [for (final b in Books.instance.all) if (b.testament == 'NT') b.id]),
   PlanScope('gospels', 'Евангелия', () => ['Matt', 'Mark', 'Luke', 'John']),
   PlanScope('ps', 'Псалтирь', () => ['Ps']),

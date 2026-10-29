@@ -43,7 +43,7 @@ const _dcIds = {'PrMan', '1Esd', 'Tob', 'Jdt', 'Wis', 'Sir', 'EpJer', 'Bar', '1M
   return _otherCat;
 }
 
-const _testaments = <(String, String)>[('OT', 'Ветхий Завет'), ('NT', 'Новый Завет'), ('AP', 'Апокрифы')];
+const _testaments = <(String, String)>[('OT', 'Ветхий Завет'), ('NT', 'Новый Завет'), ('AP', 'Неканонические книги')];
 
 // Сравнение без регистра, точек, пробелов и дефисов; «ё» = «е»: «1 кор» ≈ «1Кор.»
 String _norm(String s) => s.toLowerCase().replaceAll('ё', 'е').replaceAll(RegExp(r'[\s.\-–]'), '');
@@ -124,12 +124,18 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
 
   List<_Book> _books() {
     final b = Books.instance;
+    final list = bookList(_moduleId);
+    // модуль без канонических книг («Неканонические») — все его книги одной вкладкой, в порядке модуля
+    final onlyDc = list.every((x) {
+      final m = b.meta(x['id'] as String);
+      return m.dc || m.testament == 'AP';
+    });
     return [
-      for (final x in bookList(_moduleId))
+      for (final x in list)
         () {
           final id = x['id'] as String;
           final m = b.meta(id, name: x['name'] as String?, short: x['short'] as String?);
-          return _Book(id, m.name, m.short, (x['chapters'] as num?)?.toInt() ?? 0, m.testament);
+          return _Book(id, m.name, m.short, (x['chapters'] as num?)?.toInt() ?? 0, onlyDc ? 'AP' : m.testament);
         }(),
     ];
   }

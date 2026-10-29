@@ -5,12 +5,13 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 class BookInfo {
-  const BookInfo(this.id, this.name, this.short, this.testament, this.order);
+  const BookInfo(this.id, this.name, this.short, this.testament, this.order, {this.dc = false});
   final String id;
   final String name;
   final String short;
   final String testament; // OT, NT, AP
   final int order;
+  final bool dc; // неканоническая книга (в планах «Вся Библия» и «Ветхий Завет» её нет)
 }
 
 const _en = <String, List<String>>{
@@ -36,6 +37,24 @@ const _en = <String, List<String>>{
   '1Thess': ['1 Thessalonians', '1 Thess'], '2Thess': ['2 Thessalonians', '2 Thess'], '1Tim': ['1 Timothy', '1 Tim'],
   '2Tim': ['2 Timothy', '2 Tim'], 'Titus': ['Titus', 'Titus'], 'Phlm': ['Philemon', 'Phlm'], 'Heb': ['Hebrews', 'Heb'],
   'Rev': ['Revelation', 'Rev'],
+  'Ps151': ['Psalm 151', 'Ps 151'],
+  'PrAzar': ['Prayer of Azariah', 'Pr Azar'],
+  'Sus': ['Susanna', 'Sus'],
+  'Bel': ['Bel and the Dragon', 'Bel'],
+  '1En': ['1 Enoch', '1 En'],
+  'Jub': ['Jubilees', 'Jub'],
+  'TReu': ['Testament of Reuben', 'T. Reu.'],
+  'TSim': ['Testament of Simeon', 'T. Sim.'],
+  'TLevi': ['Testament of Levi', 'T. Levi'],
+  'TJud': ['Testament of Judah', 'T. Jud.'],
+  'TIss': ['Testament of Issachar', 'T. Iss.'],
+  'TZeb': ['Testament of Zebulun', 'T. Zeb.'],
+  'TDan': ['Testament of Dan', 'T. Dan'],
+  'TNaph': ['Testament of Naphtali', 'T. Naph.'],
+  'TGad': ['Testament of Gad', 'T. Gad'],
+  'TAsh': ['Testament of Asher', 'T. Ash.'],
+  'TJos': ['Testament of Joseph', 'T. Jos.'],
+  'TBenj': ['Testament of Benjamin', 'T. Benj.'],
 };
 
 // Сокращения для ввода ссылок (как в веб-версии: src/core/books.js)
@@ -74,7 +93,7 @@ class Books {
     final map = <String, BookInfo>{};
     for (var i = 0; i < list.length; i++) {
       final b = list[i] as Map<String, dynamic>;
-      map[b['id'] as String] = BookInfo(b['id'] as String, b['name'] as String, b['short'] as String, b['t'] as String, i);
+      map[b['id'] as String] = BookInfo(b['id'] as String, b['name'] as String, b['short'] as String, b['t'] as String, i, dc: b['dc'] == true);
     }
     final books = Books._(map);
     void add(String key, String id) => books._aliases[_norm(key)] = id;
@@ -91,16 +110,15 @@ class Books {
     return instance = books;
   }
 
-  /// Неканонические книги — после канонических: короткое сокращение достаётся канонической книге
-  static const _apocrypha = {'PrMan', '1Esd', 'Tob', 'Jdt', 'Wis', 'Sir', 'EpJer', 'Bar', '1Macc', '2Macc', '3Macc', '2Esd'};
-
+  
   /// Сокращения, которых нет в списках: начала названия от двух букв («фе», «фес», «фесс»), сокращения по согласным
   /// («фс», «флп», «тм», «кр»), номер книги в любом виде («1фс», «1-е фес»); без номера — первая книга («фс» → 1 Фес).
   /// Готовые сокращения и названия не перезаписываются; при совпадении побеждает книга, что раньше в Библии.
   void _generated() {
+    // неканонические книги — после канонических: короткое сокращение достаётся канонической книге
     final books = [
-      ..._ru.values.where((b) => !_apocrypha.contains(b.id)),
-      ..._ru.values.where((b) => _apocrypha.contains(b.id)),
+      ..._ru.values.where((b) => !b.dc),
+      ..._ru.values.where((b) => b.dc),
     ];
     void put(String key, String id) {
       if (key.length >= 2) _aliases.putIfAbsent(key, () => id);
@@ -150,7 +168,7 @@ class Books {
     final b = _ru[id];
     if (b == null) return BookInfo(id, name ?? id, short ?? id, 'AP', 1000);
     final en = latinNames ? _en[id] : null;
-    return en == null ? b : BookInfo(id, en[0], en[1], b.testament, b.order);
+    return en == null ? b : BookInfo(id, en[0], en[1], b.testament, b.order, dc: b.dc);
   }
 
   int order(String id) => _ru[id]?.order ?? 1000;

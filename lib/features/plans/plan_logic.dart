@@ -293,7 +293,7 @@ class PlanStream {
   final bool wide;
 
   List<String> books(List<String> own) => switch (key) {
-        'ot' => [for (final b in Books.instance.all) if (b.testament == 'OT') b.id],
+        'ot' => [for (final b in Books.instance.all) if (b.testament == 'OT' && !b.dc) b.id],
         'nt' => [for (final b in Books.instance.all) if (b.testament == 'NT') b.id],
         'ps' => ['Ps'],
         'prov' => ['Prov'],

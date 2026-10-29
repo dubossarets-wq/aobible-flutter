@@ -35,10 +35,14 @@ void main() {
   });
 
   test('у каждой книги работают начала названия от двух-трёх букв', () {
+    final seen = <String>{};
     for (final b in Books.instance.all) {
       final name = b.name.toLowerCase().replaceAll(RegExp(r'^[1-4](-?[а-я]{1,2})?\s*'), '').replaceAll(RegExp(r'[\s.-]'), '');
       final num = RegExp(r'^([1-4])').firstMatch(b.name)?.group(1) ?? '';
       final q = '$num ${name.substring(0, name.length < 5 ? name.length : 5)} 1';
+      // общее начало названия («Песнь трёх отроков» — как «Песнь песней», «Завет Рувима» — как «Завет Симеона»)
+      // достаётся книге, что раньше; такие неканонические книги находятся по своим сокращениям
+      if (!seen.add(q) && b.dc) continue;
       expect(id(q), b.id, reason: '$q → ${b.name}');
     }
   });
