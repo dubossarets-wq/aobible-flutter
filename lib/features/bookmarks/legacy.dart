@@ -149,6 +149,9 @@ Future<void> migrateFromOldApp(WidgetRef ref) async {
       // После этого задания запуска идут снова: напоминания строятся уже по перенесённым планам
       final restart = Hub.restartApp;
       if (restart != null) {
+        // Первый запуск поверх старого приложения: перевод ещё качается (экран первой загрузки) — пересоздать состояние
+        // сейчас значит оборвать загрузку («Не удалось подключиться к серверу»). Ждём, пока перевод встанет
+        await _firstBible();
         restart();
       } else {
         ref.invalidate(settingsProvider);
@@ -158,6 +161,23 @@ Future<void> migrateFromOldApp(WidgetRef ref) async {
     }
   } catch (e) {
     debugPrint('Перенос данных не удался: $e');
+  }
+}
+
+/// Дождаться, пока установлен хотя бы один перевод (первая загрузка закончилась)
+Future<void> _firstBible() async {
+  final store = ModuleStore.instance;
+  if (store.bibles.isNotEmpty) return;
+  final done = Completer<void>();
+  void check() {
+    if (store.bibles.isNotEmpty && !done.isCompleted) done.complete();
+  }
+
+  store.changes.addListener(check);
+  try {
+    await done.future;
+  } finally {
+    store.changes.removeListener(check);
   }
 }
 

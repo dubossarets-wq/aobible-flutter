@@ -42,7 +42,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
       _p = 0;
       _started = false;
     });
-    try {
+    Future<void> once() async {
       final cat = await ModuleStore.instance.catalog();
       if (!mounted) return;
       final id = ref.read(settingsProvider).get<String>('primaryModule');
@@ -54,10 +54,24 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
           _started = true;
         });
       });
+    }
+
+    try {
+      try {
+        await once();
+      } catch (_) {
+        // случайный сбой связи — ещё одна попытка, прежде чем показывать ошибку
+        if (!mounted || ModuleStore.instance.bibles.isNotEmpty) rethrow;
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+        if (!mounted) return;
+        await once();
+      }
       if (mounted) widget.onReady();
     } catch (err) {
       debugPrint('bootstrap: $err');
       if (!mounted) return;
+      // перевод всё же встал (например, его поставил параллельный запуск) — это не ошибка, открываем Библию
+      if (ModuleStore.instance.bibles.isNotEmpty) return widget.onReady();
       setState(() {
         _error = t('Не удалось подключиться к серверу. Проверьте интернет.');
         _detail = '$err'; // причина мелко — по снимку экрана видно, что случилось
