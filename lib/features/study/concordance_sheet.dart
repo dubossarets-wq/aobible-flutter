@@ -79,6 +79,8 @@ class StrongPlaces extends ConsumerStatefulWidget {
 
 class _StrongPlacesState extends ConsumerState<StrongPlaces> {
   String? _word;
+  String? _book; // выбранная книга (её главы — только после выбора книги)
+  int? _chapter;
   late int _shown = widget.inline ? _inlinePage : _page;
 
   @override
@@ -88,9 +90,21 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
     if (st == null || st.total == 0) return SheetList(children: [Text(t('В переводе со Стронгом этого слова нет.'), style: TextStyle(color: pal.muted))]);
     final all = [for (final r in st.refs) if (widget.filter == null || widget.filter!(r.$1)) r];
     if (all.isEmpty) return SheetList(children: [Text(t('В этой части Библии мест нет.'), style: TextStyle(color: pal.muted))]);
-    final list = [for (final r in all) if (_word == null || r.$2.contains(_word)) r];
-    final counts = <String, int>{};
+    // книги, где слово встречается (по порядку Библии), и главы выбранной книги — со счётом стихов
+    final books = <String, int>{};
     for (final r in all) {
+      books[r.$1.book] = (books[r.$1.book] ?? 0) + 1;
+    }
+    final chapters = <int, int>{};
+    if (_book != null) {
+      for (final r in all) {
+        if (r.$1.book == _book) chapters[r.$1.chapter] = (chapters[r.$1.chapter] ?? 0) + 1;
+      }
+    }
+    final inPlace = [for (final r in all) if ((_book == null || r.$1.book == _book) && (_chapter == null || r.$1.chapter == _chapter)) r];
+    final list = [for (final r in inPlace) if (_word == null || r.$2.contains(_word)) r];
+    final counts = <String, int>{};
+    for (final r in inPlace) {
       for (final w in r.$2.toSet()) {
         counts[w] = (counts[w] ?? 0) + 1;
       }
@@ -99,15 +113,43 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
     final renderings = counts.entries.toList()..sort((a, b) => b.value != a.value ? b.value.compareTo(a.value) : order[a.key]!.compareTo(order[b.key]!));
     final shown = list.take(_shown).toList();
     final more = list.length > _shown;
+    final page = widget.inline ? _inlinePage : _page;
+    void pick({String? book, int? chapter, String? word, bool keepBook = true}) => setState(() {
+          if (!keepBook) {
+            _book = book;
+            _chapter = null;
+          } else {
+            _chapter = chapter;
+          }
+          _word = word;
+          _shown = page;
+        });
+    final filters = <Widget>[
+      if (books.length > 1)
+        FilterChips([
+          Chip2(t('Все книги'), on: _book == null, count: all.length, onTap: () => pick(keepBook: false)),
+          for (final e in books.entries) Chip2(Books.instance.meta(e.key).short.replaceAll(RegExp(r'\.$'), ''), on: _book == e.key, count: e.value, onTap: () => pick(book: _book == e.key ? null : e.key, keepBook: false)),
+        ]),
+      if (_book != null && chapters.length > 1)
+        FilterChips([
+          Chip2(t('Все главы'), on: _chapter == null, count: books[_book], onTap: () => pick()),
+          for (final e in (chapters.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))) Chip2(t('Гл. {n}', {'n': '${e.key}'}), on: _chapter == e.key, count: e.value, onTap: () => pick(chapter: _chapter == e.key ? null : e.key)),
+        ]),
+      FilterChips([
+        Chip2(t('Все'), on: _word == null, count: inPlace.length, onTap: () => pick(chapter: _chapter)),
+        for (final e in renderings.take(14)) Chip2(e.key, on: _word == e.key, count: e.value, onTap: () => pick(chapter: _chapter, word: e.key)),
+      ]),
+    ];
+    // ряды выбора — через 8, под последним — 12 до мест
+    final filterBlock = Padding(
+      padding: EdgeInsets.only(bottom: widget.inline ? 4 : 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final (i, f) in filters.indexed) ...[if (i > 0) const SizedBox(height: 8), f],
+      ]),
+    );
     if (widget.inline) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: FilterChips([
-            Chip2(t('Все'), on: _word == null, count: all.length, onTap: () => setState(() => _word = null)),
-            for (final e in renderings.take(14)) Chip2(e.key, on: _word == e.key, count: e.value, onTap: () => setState(() => _word = e.key)),
-          ]),
-        ),
+        filterBlock,
         for (final r in shown) _Row(r: r.$1, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen),
         if (more) Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _inlinePage))),
       ]);
@@ -116,22 +158,7 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
       padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
       itemCount: 1 + shown.length + (more ? 1 : 0),
       itemBuilder: (context, i) {
-        if (i == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: FilterChips([
-              Chip2(t('Все'), on: _word == null, count: all.length, onTap: () => setState(() {
-                    _word = null;
-                    _shown = _page;
-                  })),
-              for (final e in renderings.take(14))
-                Chip2(e.key, on: _word == e.key, count: e.value, onTap: () => setState(() {
-                      _word = e.key;
-                      _shown = _page;
-                    })),
-            ]),
-          );
-        }
+        if (i == 0) return filterBlock;
         if (i == shown.length + 1) {
           return Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _page)));
         }

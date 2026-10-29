@@ -1453,5 +1453,21 @@
   "many": "ksiąg",
   "other": "księgi"
  },
- "Ещё {n}": "Jeszcze {n}"
+ "Ещё {n}": "Jeszcze {n}",
+ "Не приходят уведомления?": "Nie przychodzą powiadomienia?",
+ "На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Na Xiaomi, Huawei i innych telefonach zezwól aplikacji na autostart i pracę w tle bez ograniczeń.",
+ "Часы": "Godziny",
+ "Минуты": "Minuty",
+ "Книги": "Księgi",
+ "Главы": "Rozdziały",
+ "Все книги": "Wszystkie księgi",
+ "Все главы": "Wszystkie rozdziały",
+ "Гл. {n}": "Rozdz. {n}",
+ "Будильник": "Budzik",
+ "Напоминание": "Przypomnienie",
+ "Добавить будильник": "Dodaj budzik",
+ "Будильник для чтения": "Budzik do czytania",
+ "Выключить": "Wyłącz",
+ "Будильник: звонит, пока не выключите": "Budzik: dzwoni, dopóki go nie wyłączysz",
+ "Напоминание: тихое уведомление": "Przypomnienie: ciche powiadomienie"
 }

@@ -105,6 +105,14 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
     // Из подстрочника по оригиналу слово оригинала известно сразу; из чтения — по порядку слова в стихе
     if (req.origWord != null) {
       _orig = req.origWord;
+    } else if (req.strongs.isNotEmpty && RegExp(r'[Ͱ-Ͽἀ-῿֐-׿]').hasMatch(req.text)) {
+      // Нажали слово греческого или еврейского текста (LXX, Textus Receptus…): оно само и есть слово стиха —
+      // в статье видно, что εἶπεν — форма словарного ἔπω
+      _orig = OrigInfo(
+        orig: req.text.replaceFirst(RegExp(r'[.,;:·!?»«“”()\[\]]+$'), ''),
+        morph: req.morph.isEmpty ? null : req.morph.first,
+        num: req.strongs.first.replaceFirstMapped(RegExp(r'^([HGhg])0*'), (m) => m.group(1)!.toUpperCase()),
+      );
     } else if (req.wordIndex != null) {
       final ws = ruInterlinear(req.ref);
       final w = ws != null && req.wordIndex! < ws.length ? ws[req.wordIndex!] : null;

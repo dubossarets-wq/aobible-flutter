@@ -324,13 +324,13 @@ void main() {
       expect(c.read(plansProvider).first['readings'], isNotEmpty);
       await toTop(tester);
       expect(find.textContaining('День 1'), findsOneWidget);
-      expect(find.text('0 из 9 дн.'), findsOneWidget);
+      expect(find.textContaining('0 из 9 дн.'), findsOneWidget);
       // отметить день, снять отметку
       await tapText(tester, 'Отметить');
-      expect(find.text('1 из 9 дн.'), findsOneWidget);
+      expect(find.textContaining('1 из 9 дн.'), findsOneWidget);
       expect(find.text('прочитано'), findsOneWidget);
       await tapText(tester, 'Прочитано');
-      expect(find.text('0 из 9 дн.'), findsOneWidget);
+      expect(find.textContaining('0 из 9 дн.'), findsOneWidget);
       // листаем дни
       await tapTip(tester, 'Следующий день');
       expect(find.textContaining('День 2'), findsOneWidget);

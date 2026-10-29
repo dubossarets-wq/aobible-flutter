@@ -1429,5 +1429,21 @@
   "one": "Buch",
   "other": "Bücher"
  },
- "Ещё {n}": "{n} weitere"
+ "Ещё {n}": "{n} weitere",
+ "Не приходят уведомления?": "Keine Benachrichtigungen?",
+ "На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Erlauben Sie der App auf Xiaomi, Huawei und anderen Telefonen Autostart und Hintergrundbetrieb ohne Einschränkungen.",
+ "Часы": "Stunden",
+ "Минуты": "Minuten",
+ "Книги": "Bücher",
+ "Главы": "Kapitel",
+ "Все книги": "Alle Bücher",
+ "Все главы": "Alle Kapitel",
+ "Гл. {n}": "Kap. {n}",
+ "Будильник": "Wecker",
+ "Напоминание": "Erinnerung",
+ "Добавить будильник": "Wecker hinzufügen",
+ "Будильник для чтения": "Lese-Wecker",
+ "Выключить": "Ausschalten",
+ "Будильник: звонит, пока не выключите": "Wecker: klingelt, bis Sie ihn ausschalten",
+ "Напоминание: тихое уведомление": "Erinnerung: stille Benachrichtigung"
 }

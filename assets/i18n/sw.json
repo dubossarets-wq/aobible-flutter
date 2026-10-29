@@ -1429,5 +1429,21 @@
   "one": "kitabu",
   "other": "vitabu"
  },
- "Ещё {n}": "{n} zaidi"
+ "Ещё {n}": "{n} zaidi",
+ "Не приходят уведомления?": "Arifa hazifiki?",
+ "На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Kwenye Xiaomi, Huawei na simu nyingine, ruhusu programu ijianzishe yenyewe na ifanye kazi chinichini bila vikwazo.",
+ "Часы": "Saa",
+ "Минуты": "Dakika",
+ "Книги": "Vitabu",
+ "Главы": "Sura",
+ "Все книги": "Vitabu vyote",
+ "Все главы": "Sura zote",
+ "Гл. {n}": "Sura {n}",
+ "Будильник": "Kengele",
+ "Напоминание": "Kikumbusho",
+ "Добавить будильник": "Ongeza kengele",
+ "Будильник для чтения": "Kengele ya kusoma",
+ "Выключить": "Zima",
+ "Будильник: звонит, пока не выключите": "Kengele: inalia hadi uizime",
+ "Напоминание: тихое уведомление": "Kikumbusho: arifa ya kimya"
 }

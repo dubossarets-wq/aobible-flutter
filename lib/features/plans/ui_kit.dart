@@ -251,6 +251,8 @@ class HintBtn extends ConsumerWidget {
 
 /// --danger веб-версии: тёмная и светлая темы разные
 Color dangerOf(Palette pal) => pal.dark ? const Color(0xFFEF8A78) : const Color(0xFFB4412F);
+/// --ok веб-версии: «прочитано», «установлено» (в тёмных темах светлее)
+Color okOf(Palette pal) => pal.dark ? const Color(0xFF7CC68A) : const Color(0xFF2F6339);
 
 /// Пунктирная линия (border-top: 1px dashed)
 class DashedLine extends StatelessWidget {

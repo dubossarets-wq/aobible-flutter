@@ -1420,5 +1420,21 @@
   "one": "kitab",
   "other": "kitab"
  },
- "Ещё {n}": "{n} lagi"
+ "Ещё {n}": "{n} lagi",
+ "Не приходят уведомления?": "Notifikasi tidak muncul?",
+ "На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Di Xiaomi, Huawei, dan ponsel lain, izinkan aplikasi mulai otomatis dan berjalan di latar belakang tanpa batasan.",
+ "Часы": "Jam",
+ "Минуты": "Menit",
+ "Книги": "Kitab",
+ "Главы": "Pasal",
+ "Все книги": "Semua kitab",
+ "Все главы": "Semua pasal",
+ "Гл. {n}": "Psl. {n}",
+ "Будильник": "Alarm",
+ "Напоминание": "Pengingat",
+ "Добавить будильник": "Tambah alarm",
+ "Будильник для чтения": "Alarm membaca",
+ "Выключить": "Matikan",
+ "Будильник: звонит, пока не выключите": "Alarm: berbunyi sampai Anda matikan",
+ "Напоминание: тихое уведомление": "Pengingat: notifikasi senyap"
 }

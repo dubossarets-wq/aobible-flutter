@@ -95,3 +95,31 @@ String fmtDay(DateTime d, {bool full = false, bool year = false}) {
 
 /// Первая буква дня недели (1 — понедельник … 7 — воскресенье)
 String weekdayLetter(int weekday) => (currentLang == 'ru' ? _weekRu : currentLang == 'uk' ? _weekUk : _weekEn)[weekday - 1];
+
+/// Короткое название дня недели (1 — понедельник … 7 — воскресенье) для кнопок напоминаний, как в будильнике iPhone:
+/// «Пн Вт Ср…». Та же таблица, что в веб-версии (core/weekdays.js)
+String weekdayShort(int weekday) => (_weekShort[currentLang] ?? _weekShort['en']!)[weekday - 1];
+const _weekShort = <String, List<String>>{
+  'ru': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  'uk': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'],
+  'be': ['Пн', 'Аў', 'Ср', 'Чц', 'Пт', 'Сб', 'Нд'],
+  'bg': ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'],
+  'cs': ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'],
+  'de': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+  'en': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  'es': ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+  'fr': ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+  'hi': ['सोम', 'मंगल', 'बुध', 'गुरु', 'शुक्र', 'शनि', 'रवि'],
+  'hy': ['Երկ', 'Երք', 'Չրք', 'Հնգ', 'Ուր', 'Շբթ', 'Կիր'],
+  'id': ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+  'it': ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'],
+  'ja': ['月', '火', '水', '木', '金', '土', '日'],
+  'ka': ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
+  'ko': ['월', '화', '수', '목', '금', '토', '일'],
+  'pl': ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'],
+  'pt': ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+  'ro': ['Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm', 'Dum'],
+  'sr': ['Пон', 'Уто', 'Сре', 'Чет', 'Пет', 'Суб', 'Нед'],
+  'sw': ['Jtt', 'Jnn', 'Jtn', 'Alh', 'Iju', 'Jms', 'Jpi'],
+  'zh': ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+};

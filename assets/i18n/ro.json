@@ -1441,5 +1441,21 @@
   "few": "cărți",
   "other": "de cărți"
  },
- "Ещё {n}": "Încă {n}"
+ "Ещё {n}": "Încă {n}",
+ "Не приходят уведомления?": "Nu vin notificările?",
+ "На Xiaomi, Huawei и других телефонах разрешите приложению автозапуск и работу в фоне без ограничений.": "Pe Xiaomi, Huawei și alte telefoane, permiteți aplicației pornirea automată și rularea în fundal fără restricții.",
+ "Часы": "Ore",
+ "Минуты": "Minute",
+ "Книги": "Cărți",
+ "Главы": "Capitole",
+ "Все книги": "Toate cărțile",
+ "Все главы": "Toate capitolele",
+ "Гл. {n}": "Cap. {n}",
+ "Будильник": "Alarmă",
+ "Напоминание": "Memento",
+ "Добавить будильник": "Adaugă alarmă",
+ "Будильник для чтения": "Alarmă de citire",
+ "Выключить": "Oprește",
+ "Будильник: звонит, пока не выключите": "Alarmă: sună până o opriți",
+ "Напоминание: тихое уведомление": "Memento: notificare discretă"
 }

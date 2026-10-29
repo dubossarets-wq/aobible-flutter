@@ -2,8 +2,9 @@
 // каждое — в своё время или промежутком («с 8:00 до 20:00 каждые 2 ч»), в выбранные дни недели. На 14 дней вперёд
 // (не больше _max уведомлений) — с отрывками дня («Вся Библия за 70 дн.: Суд 7–21»); при каждом запуске и изменении
 // планов расписание пересобирается. Нажатие на уведомление открывает планы.
-// Хранится тем же форматом, что в веб-версии: { on, time, list: [{ id, time, every, until, days }] }; every — минуты
-// (0 — один раз), days — дни недели 1…7 (пн…вс; пусто — каждый день); time — время первого (для прежних версий).
+// Хранится тем же форматом, что в веб-версии: { on, time, list: [{ id, time, every, until, days, alarm }] }; every — минуты
+// (0 — один раз), days — дни недели 1…7 (пн…вс; пусто — каждый день); time — время первого (для прежних версий);
+// alarm — будильник: звонит громко (звук будильника, по громкости будильника) и повторяет звук, пока не выключат.
 import 'dart:convert';
 import 'dart:io';
 
@@ -37,22 +38,24 @@ String repeatLabel(int n) => n == 0
 
 /// Одно напоминание: время (или промежуток time…until с шагом every минут) и дни недели (пусто — каждый день)
 class ReminderItem {
-  const ReminderItem({required this.id, this.time = '08:00', this.every = 0, this.until = '20:00', this.days = const []});
+  const ReminderItem({required this.id, this.time = '08:00', this.every = 0, this.until = '20:00', this.days = const [], this.alarm = false});
   final String id, time, until;
   final int every;
   final List<int> days;
+  final bool alarm; // будильник, а не тихое уведомление
 
-  factory ReminderItem.fresh(String time) => ReminderItem(id: DateTime.now().microsecondsSinceEpoch.toRadixString(36), time: time);
+  factory ReminderItem.fresh(String time, {bool alarm = false}) => ReminderItem(id: DateTime.now().microsecondsSinceEpoch.toRadixString(36), time: time, alarm: alarm);
   factory ReminderItem.fromJson(Map j) => ReminderItem(
         id: '${j['id'] ?? 'r1'}',
         time: (j['time'] as String?) ?? '08:00',
         every: (j['every'] as num?)?.toInt() ?? 0,
         until: (j['until'] as String?) ?? '20:00',
         days: [for (final d in (j['days'] as List? ?? const [])) (d as num).toInt()],
+        alarm: j['alarm'] == true,
       );
-  Map<String, dynamic> toJson() => {'id': id, 'time': time, 'every': every, 'until': until, 'days': days};
-  ReminderItem copyWith({String? time, int? every, String? until, List<int>? days}) =>
-      ReminderItem(id: id, time: time ?? this.time, every: every ?? this.every, until: until ?? this.until, days: days ?? this.days);
+  Map<String, dynamic> toJson() => {'id': id, 'time': time, 'every': every, 'until': until, 'days': days, if (alarm) 'alarm': true};
+  ReminderItem copyWith({String? time, int? every, String? until, List<int>? days, bool? alarm}) =>
+      ReminderItem(id: id, time: time ?? this.time, every: every ?? this.every, until: until ?? this.until, days: days ?? this.days, alarm: alarm ?? this.alarm);
 
   static int _mins(String hm) {
     final p = hm.split(':');
@@ -105,12 +108,20 @@ int? planDayOn(Plan p, DateTime date) {
   return i >= 0 && i < total ? i : null;
 }
 
-/// Что и когда показать: [(номер, время, текст)] на ближайшие 14 дней — все моменты всех напоминаний по порядку
-List<({int id, DateTime at, String body})> reminderSchedule(List<Plan> plans, List<ReminderItem> items, DateTime now) {
-  final out = <({int id, DateTime at, String body})>[];
+/// Что и когда показать: [(номер, время, текст, будильник ли)] на ближайшие 14 дней — все моменты всех напоминаний
+/// по порядку; совпали по времени напоминание и будильник — звенит будильник
+List<({int id, DateTime at, String body, bool alarm})> reminderSchedule(List<Plan> plans, List<ReminderItem> items, DateTime now) {
+  final out = <({int id, DateTime at, String body, bool alarm})>[];
   for (var k = 0; k < _days && out.length < _max; k++) {
     final day = DateTime(now.year, now.month, now.day + k);
-    final times = {for (final x in items) if (x.days.isEmpty || x.days.contains(day.weekday)) ...x.times}.toList()..sort();
+    final alarmAt = <int, bool>{};
+    for (final x in items) {
+      if (x.days.isNotEmpty && !x.days.contains(day.weekday)) continue;
+      for (final m in x.times) {
+        alarmAt[m] = (alarmAt[m] ?? false) || x.alarm;
+      }
+    }
+    final times = alarmAt.keys.toList()..sort();
     final ats = [for (final m in times) DateTime(day.year, day.month, day.day, m ~/ 60, m % 60)].where((at) => at.millisecondsSinceEpoch >= now.millisecondsSinceEpoch + 60000).toList();
     if (ats.isEmpty) continue;
     final lines = <String>[];
@@ -123,7 +134,7 @@ List<({int id, DateTime at, String body})> reminderSchedule(List<Plan> plans, Li
     if (lines.isEmpty) continue;
     for (final at in ats) {
       if (out.length >= _max) break;
-      out.add((id: _baseId + out.length, at: at, body: lines.join('\n')));
+      out.add((id: _baseId + out.length, at: at, body: lines.join('\n'), alarm: alarmAt[at.hour * 60 + at.minute] ?? false));
     }
   }
   return out;
@@ -172,7 +183,7 @@ Future<void> _schedule() async {
         body: n.body,
         payload: 'plans',
         androidScheduleMode: mode,
-        notificationDetails: NotificationDetails(
+        notificationDetails: n.alarm ? _alarmDetails(n.body) : NotificationDetails(
           android: AndroidNotificationDetails('plan_reminder', t('Напоминание о чтении'), importance: Importance.defaultImportance, priority: Priority.defaultPriority, icon: 'ic_stat_aob', styleInformation: BigTextStyleInformation(n.body)),
           iOS: const DarwinNotificationDetails(),
         ),
@@ -182,6 +193,26 @@ Future<void> _schedule() async {
     debugPrint('Напоминания: $e');
   }
 }
+
+/// Будильник: свой канал — звук будильника телефона, по громкости будильника, повторяется, пока не выключат
+/// (FLAG_INSISTENT) или не откроют уведомление; кнопка «Выключить» — прямо в уведомлении.
+/// На iPhone звук один раз (повторять его iOS не даёт), но уведомление — срочное: приходит и в режиме «Фокус»
+NotificationDetails _alarmDetails(String body) => NotificationDetails(
+      android: AndroidNotificationDetails(
+        'plan_alarm',
+        t('Будильник для чтения'),
+        importance: Importance.max,
+        priority: Priority.max,
+        icon: 'ic_stat_aob',
+        category: AndroidNotificationCategory.alarm,
+        sound: const UriAndroidNotificationSound('content://settings/system/alarm_alert'),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT: звук по кругу
+        styleInformation: BigTextStyleInformation(body),
+        actions: [AndroidNotificationAction('stop', t('Выключить'), cancelNotification: true)],
+      ),
+      iOS: const DarwinNotificationDetails(interruptionLevel: InterruptionLevel.timeSensitive, presentSound: true),
+    );
 
 /// «Будильники и напоминания» (Android 12+): без него уведомление приходит с опозданием или не приходит вовсе
 Future<bool> exactAllowed() async {

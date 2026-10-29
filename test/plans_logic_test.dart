@@ -157,6 +157,14 @@ void main() {
     expect(many.map((n) => n.id).toSet().length, many.length, reason: 'у каждого уведомления свой номер');
     // дни недели: 24.10.2026 — суббота (6); только по субботам — один день из пяти
     expect(reminderSchedule([p], [const ReminderItem(id: 'a', time: '08:00', days: [6])], now).length, 1);
+    // будильник: свой вид уведомления; совпал по времени с напоминанием — звенит будильник
+    final al = reminderSchedule([p], [ReminderItem(id: 'a', time: '08:00'), const ReminderItem(id: 'b', time: '09:00', alarm: true), const ReminderItem(id: 'c', time: '08:00', alarm: true, days: [7])], now);
+    final sat = al.where((n) => n.at.day == 24).toList(), sun = al.where((n) => n.at.day == 25).toList();
+    expect([for (final n in sat) (n.at.hour, n.alarm)], [(8, false), (9, true)]);
+    expect([for (final n in sun) (n.at.hour, n.alarm)], [(8, true), (9, true)]);
+    // будильник сохраняется и читается обратно; у прежних записей его нет
+    expect(ReminderItem.fromJson(const ReminderItem(id: 'b', alarm: true).toJson()).alarm, true);
+    expect(ReminderItem.fromJson(const {'id': 'x', 'time': '07:00'}).alarm, false);
     expect(readingLabel('Ps.9.1-21'), 'Пс 9:1–21');
   });
 
