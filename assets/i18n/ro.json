@@ -1424,5 +1424,22 @@
  "За срок": "Pe o perioadă",
  "Разделы": "Secțiuni",
  "В этом переводе нет книги «{book}»": "Această traducere nu are cartea „{book}”",
- "Отсюда": "De aici"
+ "Отсюда": "De aici",
+ "В Синодальном переводе": "În traducerea sinodală",
+ "употребление|употребления|употреблений": {
+  "one": "apariție",
+  "few": "apariții",
+  "other": "de apariții"
+ },
+ "стих|стиха|стихов": {
+  "one": "verset",
+  "few": "versete",
+  "other": "de versete"
+ },
+ "книга|книги|книг": {
+  "one": "carte",
+  "few": "cărți",
+  "other": "de cărți"
+ },
+ "Ещё {n}": "Încă {n}"
 }

@@ -1415,5 +1415,19 @@
  "За срок": "Kwa muda",
  "Разделы": "Sehemu",
  "В этом переводе нет книги «{book}»": "Tafsiri hii haina kitabu «{book}»",
- "Отсюда": "Kuanzia hapa"
+ "Отсюда": "Kuanzia hapa",
+ "В Синодальном переводе": "Katika tafsiri ya Sinodi",
+ "употребление|употребления|употреблений": {
+  "one": "tukio",
+  "other": "matukio"
+ },
+ "стих|стиха|стихов": {
+  "one": "aya",
+  "other": "aya"
+ },
+ "книга|книги|книг": {
+  "one": "kitabu",
+  "other": "vitabu"
+ },
+ "Ещё {n}": "{n} zaidi"
 }

@@ -1421,5 +1421,19 @@
  "За срок": "Por prazo",
  "Разделы": "Seções",
  "В этом переводе нет книги «{book}»": "Esta tradução não tem o livro «{book}»",
- "Отсюда": "Daqui"
+ "Отсюда": "Daqui",
+ "В Синодальном переводе": "Na tradução sinodal",
+ "употребление|употребления|употреблений": {
+  "one": "ocorrência",
+  "other": "ocorrências"
+ },
+ "стих|стиха|стихов": {
+  "one": "versículo",
+  "other": "versículos"
+ },
+ "книга|книги|книг": {
+  "one": "livro",
+  "other": "livros"
+ },
+ "Ещё {n}": "Mais {n}"
 }

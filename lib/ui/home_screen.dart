@@ -187,7 +187,7 @@ class _SplitState extends ConsumerState<_Split> {
     final saved = ref.watch(settingsProvider.select((s) => s.d('splitRatio')));
     final ratio = _clamp(_drag ?? saved);
     final cols = widget.columns;
-    final thick = cols ? 18.0 : 22.0;
+    final thick = cols ? 12.0 : 16.0;
     return LayoutBuilder(builder: (context, c) {
       final total = (cols ? c.maxWidth : c.maxHeight) - thick;
       final first = total * ratio;
@@ -227,15 +227,25 @@ class _Divider extends StatefulWidget {
 
 class _DividerState extends State<_Divider> {
   bool _on = false; // наведён или в фокусе — ручка цвета акцента
+  bool _drag = false; // тянется
+
+  void _end() {
+    if (mounted) setState(() => _drag = false);
+    widget.onEnd();
+  }
 
   @override
   Widget build(BuildContext context) {
     final pal = widget.pal;
     final cols = widget.columns;
-    final grip = Container(
-      width: cols ? 12 : 72,
-      height: cols ? 72 : 12,
-      decoration: BoxDecoration(color: _on ? pal.accent : pal.barText.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(6)),
+    // короткая ручка, как у системных шторок; наведён, в фокусе или тянется — вытягивается и цвета акцента
+    final on = _on || _drag;
+    final grip = AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      width: cols ? 5 : (on ? 56 : 36),
+      height: cols ? (on ? 56 : 36) : 5,
+      decoration: BoxDecoration(color: on ? pal.accent : pal.barText.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(3)),
     );
     return Semantics(
       label: t('Изменить размер панелей'),
@@ -260,13 +270,22 @@ class _DividerState extends State<_Divider> {
           onExit: (_) => setState(() => _on = false),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: cols ? (_) => setState(() => _drag = true) : null,
             onHorizontalDragUpdate: cols ? (d) => widget.onDrag(d.delta.dx) : null,
-            onHorizontalDragEnd: cols ? (_) => widget.onEnd() : null,
-            onHorizontalDragCancel: cols ? widget.onEnd : null,
+            onHorizontalDragEnd: cols ? (_) => _end() : null,
+            onHorizontalDragCancel: cols ? _end : null,
+            onVerticalDragStart: cols ? null : (_) => setState(() => _drag = true),
             onVerticalDragUpdate: cols ? null : (d) => widget.onDrag(d.delta.dy),
-            onVerticalDragEnd: cols ? null : (_) => widget.onEnd(),
-            onVerticalDragCancel: cols ? null : widget.onEnd,
-            child: Container(width: cols ? widget.thick : null, height: cols ? null : widget.thick, color: pal.bar, alignment: Alignment.center, child: grip),
+            onVerticalDragEnd: cols ? null : (_) => _end(),
+            onVerticalDragCancel: cols ? null : _end,
+            // тонкая линия по краю — граница с верхней (левой) панелью, когда панель того же цвета, что и текст
+            child: Container(
+              width: cols ? widget.thick : null,
+              height: cols ? null : widget.thick,
+              decoration: BoxDecoration(color: pal.bar, border: cols ? Border(left: BorderSide(color: pal.line)) : Border(top: BorderSide(color: pal.line))),
+              alignment: Alignment.center,
+              child: grip,
+            ),
           ),
         ),
       ),

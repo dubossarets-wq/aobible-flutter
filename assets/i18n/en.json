@@ -1415,5 +1415,19 @@
  "За срок": "Over a period",
  "Разделы": "Sections",
  "В этом переводе нет книги «{book}»": "This translation has no book “{book}”",
- "Отсюда": "From here"
+ "Отсюда": "From here",
+ "В Синодальном переводе": "In the Synodal translation",
+ "употребление|употребления|употреблений": {
+  "one": "occurrence",
+  "other": "occurrences"
+ },
+ "стих|стиха|стихов": {
+  "one": "verse",
+  "other": "verses"
+ },
+ "книга|книги|книг": {
+  "one": "book",
+  "other": "books"
+ },
+ "Ещё {n}": "{n} more"
 }

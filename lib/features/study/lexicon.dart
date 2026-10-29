@@ -128,7 +128,8 @@ List<Found> _findWord(String moduleId, String text) {
   }
   // Ближайшие слова с той же основой: сначала с той же основой целиком, потом по близости длины
   final st = stem(key);
-  final near = StudyData.dictPrefix(moduleId, st, 50);
+  // словосочетания («Дни очищения», «Дни рождения») — только когда искали словосочетание, а не одно слово «дни»
+  final near = StudyData.dictPrefix(moduleId, st, 50).where((k) => key.contains(' ') || !k.contains(' ')).toList();
   final order = {for (final (i, k) in near.indexed) k: i};
   near.sort((a, b) {
     final c = (stem(a) == st ? 0 : 1) - (stem(b) == st ? 0 : 1);

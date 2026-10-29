@@ -1421,5 +1421,19 @@
  "За срок": "Sur une durée",
  "Разделы": "Sections",
  "В этом переводе нет книги «{book}»": "Cette traduction n’a pas le livre « {book} »",
- "Отсюда": "D’ici"
+ "Отсюда": "D’ici",
+ "В Синодальном переводе": "Dans la traduction synodale",
+ "употребление|употребления|употреблений": {
+  "one": "occurrence",
+  "other": "occurrences"
+ },
+ "стих|стиха|стихов": {
+  "one": "verset",
+  "other": "versets"
+ },
+ "книга|книги|книг": {
+  "one": "livre",
+  "other": "livres"
+ },
+ "Ещё {n}": "{n} de plus"
 }

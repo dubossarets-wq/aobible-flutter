@@ -1415,5 +1415,19 @@
  "За срок": "Für einen Zeitraum",
  "Разделы": "Abschnitte",
  "В этом переводе нет книги «{book}»": "In dieser Übersetzung gibt es das Buch „{book}“ nicht",
- "Отсюда": "Ab hier"
+ "Отсюда": "Ab hier",
+ "В Синодальном переводе": "In der Synodalübersetzung",
+ "употребление|употребления|употреблений": {
+  "one": "Vorkommen",
+  "other": "Vorkommen"
+ },
+ "стих|стиха|стихов": {
+  "one": "Vers",
+  "other": "Verse"
+ },
+ "книга|книги|книг": {
+  "one": "Buch",
+  "other": "Bücher"
+ },
+ "Ещё {n}": "{n} weitere"
 }

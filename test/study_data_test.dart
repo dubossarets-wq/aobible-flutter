@@ -34,7 +34,8 @@ void main() {
     expect(r.mapping.mode, 'exact');
     final ru = r.results.firstWhere((x) => x.module.id == 'strongs-ru-hebrew');
     expect(ru.found.first.key, 'H1254');
-    expect(r.results.any((x) => x.module.id == 'rst-symphony'), true);
+    // симфония — внутри статьи Стронга, отдельным словарём не показывается
+    expect(r.results.any((x) => x.module.id == 'rst-symphony'), false);
     expect(describeMorph('TH8804'), isNotNull);
     // ignore: avoid_print
     print('морфология TH8804: ${describeMorph('TH8804')}; V-PAI-1S: ${describeMorph('V-PAI-1S')}; HVqp3ms: ${describeMorph('HVqp3ms')}');

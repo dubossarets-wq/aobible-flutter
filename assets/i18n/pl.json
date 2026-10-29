@@ -1433,5 +1433,25 @@
  "За срок": "Na okres",
  "Разделы": "Działy",
  "В этом переводе нет книги «{book}»": "W tym przekładzie nie ma księgi „{book}”",
- "Отсюда": "Stąd"
+ "Отсюда": "Stąd",
+ "В Синодальном переводе": "W przekładzie synodalnym",
+ "употребление|употребления|употреблений": {
+  "one": "wystąpienie",
+  "few": "wystąpienia",
+  "many": "wystąpień",
+  "other": "wystąpienia"
+ },
+ "стих|стиха|стихов": {
+  "one": "werset",
+  "few": "wersety",
+  "many": "wersetów",
+  "other": "wersetu"
+ },
+ "книга|книги|книг": {
+  "one": "księga",
+  "few": "księgi",
+  "many": "ksiąg",
+  "other": "księgi"
+ },
+ "Ещё {n}": "Jeszcze {n}"
 }

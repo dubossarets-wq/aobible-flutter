@@ -146,19 +146,14 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
 
     final children = <Widget>[];
     if (top == null) {
-      if (mapping.mode == 'exact') {
-        children.add(Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          _OkBadge(t('Точная привязка')),
-          for (final s in mapping.strongs) StrongChip(s),
-        ]));
-      } else if (mapping.mode == 'approx') {
+      if (mapping.mode == 'approx') {
         children.add(WarnBox(
           child: Text.rich(TextSpan(children: [
             TextSpan(text: '${t('В переводе нет номеров Стронга. Примерные варианты по симфонии RST+:')} '),
             for (final s in mapping.strongs) WidgetSpan(child: StrongChip('$s · ${(mapping.weights[s]! * 100).round()}%')),
           ])),
         ));
-      } else if (_res.results.isEmpty) {
+      } else if (mapping.mode != 'exact' && _res.results.isEmpty) {
         children.add(WarnBox(child: Text(t('Не нашли это слово в оригинале.'))));
       }
     }
@@ -258,21 +253,6 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
   }
 }
 
-/// .badge.ok: цвет --ok (в тёмных темах светлее), фон — 15% этого цвета
-class _OkBadge extends ConsumerWidget {
-  const _OkBadge(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ok = paletteOf(ref).dark ? const Color(0xFF7CC68A) : const Color(0xFF2F6339);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(color: ok.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: ok)),
-    );
-  }
-}
-
 /// Номер Стронга плашкой
 class StrongChip extends ConsumerWidget {
   const StrongChip(this.text, {super.key});
@@ -364,81 +344,77 @@ class StrongEntry extends ConsumerWidget {
     final morph = exact != null ? const <String>[] : (mapping?.mode == 'exact' ? mapping!.morph : const <String>[]);
     final dir = isHeb ? TextDirection.rtl : TextDirection.ltr;
     final lemma = entry['lemma'] as String?;
-    final facts = <(String, Widget)>[
-      (t('Номер Стронга'), Text(num, style: const TextStyle(fontWeight: FontWeight.w500, fontFamily: 'monospace', fontSize: 13.5))),
-      if (entry['xlit'] != null) (t('Транслитерация'), Text('${entry['xlit']}', style: const TextStyle(fontWeight: FontWeight.w500))),
-      if (entry['pron'] != null) (t('Произношение'), Text('${entry['pron']}', style: const TextStyle(fontWeight: FontWeight.w500))),
-      (t('Язык'), Text(isHeb ? t('иврит / арамейский (ВЗ)') : t('греческий (НЗ)'), style: const TextStyle(fontWeight: FontWeight.w500))),
-      if (exact != null)
-        (
-          t('В этом стихе'),
-          Text.rich(TextSpan(children: [
-            WidgetSpan(child: Directionality(textDirection: dir, child: Text(exact.orig, style: const TextStyle(fontWeight: FontWeight.w500)))),
-            if (exact.morph != null && describeMorph(exact.morph!) != null) TextSpan(text: ' — ${describeMorph(exact.morph!)}'),
-          ])),
-        ),
-      for (final m in morph)
-        (
-          t('Грамматическая форма'),
-          Text.rich(TextSpan(children: [
-            TextSpan(text: '${describeMorph(m) ?? t('без расшифровки')} ', style: const TextStyle(fontWeight: FontWeight.w500)),
-            TextSpan(text: '($m)', style: TextStyle(color: pal.muted, fontFamily: 'monospace', fontSize: 13.5)),
-          ])),
-        ),
-    ];
     // как переведено в синодальном тексте — из Симфонии RST+, если у самого словаря этого нет
     final sym = module.id == symphonyId || entry['renderings'] != null ? null : StudyData.dictGet(symphonyId, num);
     final renderings = ((entry['renderings'] ?? sym?['renderings']) as List?)?.cast<List>();
-    final count = entry['count'] ?? sym?['count'];
     final refs = (entry['refs'] as List?)?.cast<String>();
-    final bodyStyle = const TextStyle(height: 1.55);
-    Widget section(String title, Widget child) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [H4(title), child]);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (lemma != null && lemma.isNotEmpty)
-        Align(
-          alignment: isHeb ? Alignment.centerRight : Alignment.centerLeft,
-          child: Directionality(textDirection: dir, child: Text(lemma, style: TextStyle(fontFamily: isHeb ? 'Noto Serif Hebrew' : null, fontSize: 36.8, height: 1.25, color: pal.text))),
-        ),
-      const SizedBox(height: 12),
-      _Facts(facts),
-      if (entry['definition'] != null) ...[const SizedBox(height: 12), section(t('Значение'), _strongLinks('${entry['definition']}', bodyStyle))],
-      if (entry['derivation'] != null) ...[const SizedBox(height: 12), section(t('Происхождение'), _strongLinks('${entry['derivation']}', bodyStyle))],
-      // толковый словарь (Дворецкий) — разделом в статье Стронга; в симфонии не повторяем
-      for (final (m, e) in module.id == 'rst-symphony' ? const <(InstalledModule, Map<String, dynamic>)>[] : lexiconEntries(num)) ...[
-        const SizedBox(height: 12),
-        section(m.name, Text('${e['text']}', style: bodyStyle)),
-      ],
-      if (renderings != null && renderings.isNotEmpty) ...[
-        const SizedBox(height: 12),
-        section(
-          t('Как переведено в синодальном тексте · {n} употр.', {'n': '$count'}),
-          Column(children: [
-            for (final r in renderings)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(children: [
-                  Expanded(flex: 4, child: Text('${r[0]}', maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 14.7))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 6,
-                    child: LayoutBuilder(builder: (context, box) {
-                      final w = ((r[1] as int) / (renderings.first[1] as int) * 100).clamp(4, 100) / 100;
-                      return Stack(children: [
-                        Container(height: 6, decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(3))),
-                        Container(height: 6, width: box.maxWidth * w, decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(3))),
-                      ]);
-                    }),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(width: 36, child: Text('${r[1]}', textAlign: TextAlign.right, style: TextStyle(color: pal.muted, fontSize: 13.6))),
-                ]),
-              ),
+    final lex = module.id == symphonyId ? const <(InstalledModule, Map<String, dynamic>)>[] : lexiconEntries(num);
+    const bodyStyle = TextStyle(height: 1.55);
+    const gap = SizedBox(height: 22);
+    Widget section(String title, Widget child) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [SecTitle(title), child]);
+    // строка шапки «В этом стихе …» / «Грамматическая форма …»
+    Widget here(String label, InlineSpan value, {bool first = false}) => Container(
+          margin: EdgeInsets.only(top: first ? 6 : 0),
+          padding: EdgeInsets.only(top: first ? 10 : 6),
+          decoration: first ? BoxDecoration(border: Border(top: BorderSide(color: pal.accent.withValues(alpha: 0.16)))) : null,
+          // подпись — своей строкой, значение — под ней (как у разделов статьи)
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: TextStyle(color: pal.muted, fontSize: 13.1)),
+            const SizedBox(height: 1),
+            Text.rich(TextSpan(style: const TextStyle(fontSize: 15.2, height: 1.45), children: [value])),
           ]),
-        ),
-      ],
-      if (entry['text'] != null) ...[const SizedBox(height: 12), Text('${entry['text']}', style: bodyStyle)],
+        );
+    final dot = TextSpan(text: '  ·  ', style: TextStyle(color: pal.muted.withValues(alpha: 0.6)));
+    final meta = <InlineSpan>[
+      if (entry['xlit'] != null) TextSpan(text: '${entry['xlit']}', style: TextStyle(fontStyle: FontStyle.italic, color: pal.text)),
+      if (entry['pron'] != null && entry['pron'] != entry['xlit']) TextSpan(text: '${entry['pron']}'),
+      TextSpan(text: num, style: TextStyle(color: pal.accent, fontFamily: 'monospace', fontSize: 13.6)),
+      TextSpan(text: isHeb ? t('иврит / арамейский (ВЗ)') : t('греческий (НЗ)')),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Шапка: слово оригинала крупно, под ним одной строкой — транслитерация, номер, язык; ниже — форма в этом стихе
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+        decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.07), borderRadius: BorderRadius.circular(18)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (lemma != null && lemma.isNotEmpty) ...[
+            Align(
+              alignment: isHeb ? Alignment.centerRight : Alignment.centerLeft,
+              child: Directionality(textDirection: dir, child: Text(lemma, style: TextStyle(fontFamily: isHeb ? 'Noto Serif Hebrew' : null, fontSize: 40, height: 1.1, color: pal.text))),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Text.rich(TextSpan(style: TextStyle(color: pal.muted, fontSize: 14.4, height: 1.4), children: [
+            for (final (i, s) in meta.indexed) ...[if (i > 0) dot, s],
+          ])),
+          if (exact != null)
+            here(
+              t('В этом стихе'),
+              TextSpan(children: [
+                WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: Directionality(textDirection: dir, child: Text(exact.orig, style: const TextStyle(fontSize: 15.2)))),
+                if (exact.morph != null && describeMorph(exact.morph!) != null) TextSpan(text: ' — ${describeMorph(exact.morph!)}'),
+              ]),
+              first: true,
+            ),
+          for (final (i, m) in morph.indexed)
+            here(
+              t('Грамматическая форма'),
+              TextSpan(children: [
+                TextSpan(text: '${describeMorph(m) ?? t('без расшифровки')} '),
+                TextSpan(text: '($m)', style: TextStyle(color: pal.muted, fontFamily: 'monospace', fontSize: 13.5)),
+              ]),
+              first: i == 0,
+            ),
+        ]),
+      ),
+      if (entry['definition'] != null) ...[gap, section(t('Значение'), _strongLinks('${entry['definition']}', const TextStyle(height: 1.55, fontSize: 17)))],
+      if (entry['derivation'] != null) ...[gap, section(t('Происхождение'), _strongLinks('${entry['derivation']}', bodyStyle))],
+      // толковый словарь (Дворецкий) — разделом в статье Стронга; в симфонии не повторяем
+      for (final (m, e) in lex) ...[gap, LexSection(name: m.name, text: '${e['text']}')],
+      if (renderings != null && renderings.isNotEmpty) ...[gap, section(t('В Синодальном переводе'), Renderings(renderings))],
+      if (entry['text'] != null) ...[gap, Text('${entry['text']}', style: bodyStyle)],
       if (refs != null && refs.isNotEmpty) ...[
-        const SizedBox(height: 12),
+        gap,
         section(
           renderings != null ? t('Где встречается') : t('Связанные стихи'),
           ChipWrap([
@@ -448,44 +424,130 @@ class StrongEntry extends ConsumerWidget {
         ),
       ],
       // Места употребления — после вариантов перевода
-      const SizedBox(height: 12),
+      gap,
       WordStatsBlock(num: num, onOpenRef: onOpenRef, onOpenAll: onOpenAll),
-      const SizedBox(height: 12),
+      gap,
       SourceNote([
         '${module.name} · ${module.meta['license'] ?? ''}',
         if (sym != null && renderings != null) '${ModuleStore.instance.get(symphonyId)?.name ?? 'Симфония RST+'} · ${ModuleStore.instance.get(symphonyId)?.meta['license'] ?? ''}',
-        if (module.id != 'rst-symphony')
-          for (final (m, _) in lexiconEntries(num)) '${m.name}: ${m.meta['author'] ?? ''}${(m.meta['license'] ?? '') != '' ? ' · ${m.meta['license']}' : ''}',
+        for (final (m, _) in lex) '${m.name}: ${m.meta['author'] ?? ''}${(m.meta['license'] ?? '') != '' ? ' · ${m.meta['license']}' : ''}',
       ].join('\n')),
     ]);
   }
 }
 
-class _Facts extends ConsumerWidget {
-  const _Facts(this.items);
-  final List<(String, Widget)> items;
+/// Подпись раздела статьи Стронга: мелко, прописными, с разрядкой (.strong-entry h4)
+class SecTitle extends ConsumerWidget {
+  const SecTitle(this.text, {super.key, this.extra});
+  final String text;
+  final String? extra;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
-      child: LayoutBuilder(builder: (context, box) {
-        final cols = ((box.maxWidth + 16) / (170 + 16)).floor().clamp(1, 4);
-        final w = (box.maxWidth - 16 * (cols - 1)) / cols;
-        return Wrap(spacing: 16, runSpacing: 10, children: [
-          for (final (label, value) in items)
-            SizedBox(
-              width: w,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: TextStyle(fontSize: 13.1, color: pal.muted)),
-                const SizedBox(height: 2),
-                value,
-              ]),
-            ),
-        ]);
-      }),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text.rich(TextSpan(style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: pal.muted), children: [
+        TextSpan(text: text.toUpperCase()),
+        if (extra != null) TextSpan(text: ' · $extra', style: const TextStyle(fontWeight: FontWeight.w500, letterSpacing: 0)),
+      ])),
     );
+  }
+}
+
+/// Кнопка-ссылка «Развернуть» / «Ещё 14» (.se-more)
+class _MoreLink extends ConsumerWidget {
+  const _MoreLink(this.label, this.onTap);
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = ref.watch(settingsProvider.select((s) => s.palette));
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(label, style: TextStyle(color: pal.accent, fontWeight: FontWeight.w600, fontSize: 14.4))),
+      ),
+    );
+  }
+}
+
+/// Статья толкового словаря (Дворецкий) — длинная, с цитатами: сначала несколько строк, по нажатию — целиком
+class LexSection extends StatefulWidget {
+  const LexSection({super.key, required this.name, required this.text});
+  final String name;
+  final String text;
+  @override
+  State<LexSection> createState() => _LexSectionState();
+}
+
+class _LexSectionState extends State<LexSection> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) {
+    final long = widget.text.length > 420;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SecTitle(widget.name),
+      Text(widget.text, maxLines: long && !_open ? 7 : null, overflow: long && !_open ? TextOverflow.ellipsis : null, style: const TextStyle(height: 1.55)),
+      if (long) _MoreLink(_open ? t('Свернуть') : t('Развернуть'), () => setState(() => _open = !_open)),
+    ]);
+  }
+}
+
+/// Полосы: слово (или книга) — доля — число (.renderings, .stat-bars)
+class _Bars extends ConsumerWidget {
+  const _Bars(this.rows, {this.labelWidth});
+  final List<(String, int)> rows;
+  final double? labelWidth; // книги — узкой колонкой 56 px, слова — 40 % ширины
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = ref.watch(settingsProvider.select((s) => s.palette));
+    final max = rows.map((r) => r.$2).fold(1, (a, b) => a > b ? a : b);
+    final books = labelWidth != null;
+    final label = TextStyle(fontSize: books ? 13.6 : 14.7, color: books ? pal.muted : null);
+    return Column(children: [
+      for (final (name, n) in rows)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: books ? 1.5 : 2),
+          child: Row(children: [
+            if (books) SizedBox(width: labelWidth, child: Text(name, maxLines: 1, overflow: TextOverflow.clip, style: label)) else Expanded(flex: 4, child: Text(name, maxLines: 1, overflow: TextOverflow.clip, style: label)),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: books ? 1 : 6,
+              child: LayoutBuilder(builder: (context, box) {
+                final w = (n / max * 100).clamp(3, 100) / 100;
+                return Stack(children: [
+                  Container(height: 6, decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(3))),
+                  Container(height: 6, width: box.maxWidth * w, decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(3))),
+                ]);
+              }),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(width: 36, child: Text('$n', textAlign: TextAlign.right, style: TextStyle(color: pal.muted, fontSize: 13.6))),
+          ]),
+        ),
+    ]);
+  }
+}
+
+/// Как переведено в Синодальном: вариантов бывает за двадцать — сначала самые частые, остальные по кнопке
+class Renderings extends StatefulWidget {
+  const Renderings(this.rows, {super.key});
+  final List<List> rows;
+  @override
+  State<Renderings> createState() => _RenderingsState();
+}
+
+class _RenderingsState extends State<Renderings> {
+  bool _all = false;
+  @override
+  Widget build(BuildContext context) {
+    final rows = [for (final r in widget.rows) ('${r[0]}', r[1] as int)];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _Bars(_all ? rows : rows.take(6).toList()),
+      if (!_all && rows.length > 6) _MoreLink(t('Ещё {n}', {'n': '${rows.length - 6}'}), () => setState(() => _all = true)),
+    ]);
   }
 }
 
@@ -531,34 +593,39 @@ class _WordStatsBlockState extends ConsumerState<WordStatsBlock> {
     }
     final st = _st;
     if (st == null || st.total == 0) return const SizedBox.shrink();
-    final max = st.byBook.map((b) => b.$2).reduce((a, b) => a > b ? a : b);
     final order = {for (final (i, b) in st.byBook.indexed) b.$1: i};
-    final top = ([...st.byBook]..sort((a, b) => b.$2 != a.$2 ? b.$2.compareTo(a.$2) : order[a.$1]!.compareTo(order[b.$1]!))).take(10).toList();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      H4(t('Употребление в {module}: {total} раз в {verses} стихах, {books} книгах', {'module': st.module, 'total': '${st.total}', 'verses': '${st.verses}', 'books': '${st.byBook.length}'}), icon: LucideIcons.chartColumn),
-      for (final b in top)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1.5),
-          child: Row(children: [
-            SizedBox(width: 56, child: Text(Books.instance.meta(b.$1).short.replaceAll(RegExp(r'\.$'), ''), maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: pal.muted, fontSize: 13.6))),
-            const SizedBox(width: 8),
-            Expanded(
-              child: LayoutBuilder(builder: (context, box) {
-                final w = (b.$2 / max * 100).clamp(3, 100) / 100;
-                return Stack(children: [
-                  Container(height: 8, decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(4))),
-                  Container(height: 8, width: box.maxWidth * w, decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(4))),
-                ]);
-              }),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(width: 36, child: Text('${b.$2}', textAlign: TextAlign.right, style: TextStyle(color: pal.muted, fontSize: 13.6))),
-          ]),
-        ),
-      if (st.byBook.length > top.length) Padding(padding: const EdgeInsets.only(top: 4), child: Text(t('И ещё в {n} книгах.', {'n': '${st.byBook.length - top.length}'}), style: TextStyle(color: pal.muted, fontSize: 13.6))),
-      const SizedBox(height: 8),
-      ChipWrap([for (final r in st.refs.take(24)) Chip2(fmtRef(r.$1), onTap: () => widget.onOpenRef(r.$1))]),
-      const SizedBox(height: 8),
+    final top = ([...st.byBook]..sort((a, b) => b.$2 != a.$2 ? b.$2.compareTo(a.$2) : order[a.$1]!.compareTo(order[b.$1]!))).take(6).toList();
+    final books = st.byBook.length;
+    // три числа плитками: употреблений, стихов, книг
+    Widget tile(int n, String word) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(color: tint(pal.muted, pal.panel, 0.08), borderRadius: BorderRadius.circular(14)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$n', style: TextStyle(fontSize: 20.8, fontWeight: FontWeight.w700, height: 1.2, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()])),
+              Text(word, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.8, color: pal.muted)),
+            ]),
+          ),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SecTitle(t('Где встречается'), extra: st.module),
+      const SizedBox(height: 2),
+      Row(children: [
+        tile(st.total, tn('употребление|употребления|употреблений', st.total)),
+        const SizedBox(width: 8),
+        tile(st.verses, tn('стих|стиха|стихов', st.verses)),
+        const SizedBox(width: 8),
+        tile(books, tn('книга|книги|книг', books)),
+      ]),
+      // по книгам — только когда книг больше одной: одна полоса ничего не сравнивает
+      if (books > 1) ...[
+        const SizedBox(height: 10),
+        _Bars([for (final b in top) (Books.instance.meta(b.$1).short.replaceAll(RegExp(r'\.$'), ''), b.$2)], labelWidth: 56),
+      ],
+      if (books > top.length) Padding(padding: const EdgeInsets.only(top: 4), child: Text(t('И ещё в {n} книгах.', {'n': '${books - top.length}'}), style: TextStyle(color: pal.muted, fontSize: 13.6))),
+      const SizedBox(height: 10),
+      ChipWrap([for (final r in st.refs.take(8)) Chip2(fmtRef(r.$1), onTap: () => widget.onOpenRef(r.$1))]),
+      const SizedBox(height: 10),
       BigButton(t('Все места ({n})', {'n': '${st.verses}'}), onTap: widget.onOpenAll),
     ]);
   }
