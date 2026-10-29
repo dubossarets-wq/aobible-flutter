@@ -161,6 +161,11 @@ void main() {
             await pumpMs(tester, 900);
             continue; // шаг закончился сам (until) — «Далее» нажимать не нужно
           }
+          if (tour.id == 'read' && i == 2) {
+            // человек выбрал место (книгу, главу, стих или вписал ссылку) — в истории есть куда вернуться, стрелка «назад» видна
+            c.read(panesProvider.notifier).navigate(0, const VerseRef('John', 3, 16));
+            await pumpMs(tester, 300);
+          }
           if (tour.id == 'xref' && i == 1) {
             // человек выбрал место в списке: оно открылось на второй половине экрана
             c.read(panesProvider.notifier).toggleSplit();

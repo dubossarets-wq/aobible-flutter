@@ -196,7 +196,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Высота верхней панели: больше'));
     await tester.pumpAndSettle(const Duration(milliseconds: 400));
-    expect(s().d('barHeight'), 56);
+    expect(s().d('barHeight'), 48); // по умолчанию 46, шаг 2
     // сброс
     await tester.tap(find.byIcon(LucideIcons.chevronLeft));
     await tester.pumpAndSettle();

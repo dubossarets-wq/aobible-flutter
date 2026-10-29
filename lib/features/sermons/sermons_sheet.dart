@@ -294,7 +294,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
               // IntrinsicHeight: в списке высота не ограничена — stretch тянется до высоты поля
               IntrinsicHeight(
                 child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(child: PlainInput(controller: _title, hint: t('Название новой проповеди'), onSubmitted: (_) => _create())),
+                  Expanded(child: PlainInput(controller: _title, hint: t('Новая проповедь'), onSubmitted: (_) => _create())),
                   const SizedBox(width: 8),
                   AobButton(kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Создать'), onTap: _create),
                 ]),

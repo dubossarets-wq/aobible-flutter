@@ -73,7 +73,7 @@ void main() {
       'Tob': chapters('Товит', 2, 6), // неканоническая (dc) — со звёздочкой
       'John': [...chapters('Слово', 2, 10), chapters('Любовь', 1, 20).first],
       'Phlm': chapters('Филимон', 1, 5), // книга из одной главы — сразу стихи
-      'Enoch': chapters('Енох', 2, 4), // нет в справочнике — вкладка «Апокрифы»
+      'Enoch': chapters('Енох', 2, 4), // нет в справочнике — вкладка «Неканон»
     };
     makeBible('rst-plus', 'РСТ', 'ru', books);
     makeBible('kjv', 'KJV', 'en', books, features: {'strongs': true});
@@ -396,16 +396,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('«Перейти»: Ветхий / Новый Завет / Апокрифы, звёздочка у неканонических, свайп между заветами', (tester) async {
+  testWidgets('«Перейти»: Ветхий / Новый Завет / Неканон, звёздочка у неканонических, свайп между заветами', (tester) async {
     await start(tester);
     await tester.tap(find.textContaining('1:1').first);
     await tester.pumpAndSettle();
-    expect(find.text('Апокрифы'), findsOneWidget); // третья вкладка
+    expect(find.text('Неканон'), findsOneWidget); // третья вкладка
     // в Ветхом: неканоническая книга со звёздочкой
     expect(inSheet(Books.instance.meta('Tob').short.replaceAll('.', '')), findsOneWidget);
     expect(inSheet('*'), findsOneWidget);
     expect(inSheet('Enoch'), findsNothing);
-    // свайп влево по окну → Новый Завет → Апокрифы
+    // свайп влево по окну → Новый Завет → Неканон
     final body = find.text('Новый Завет');
     await tester.fling(body, const Offset(-300, 0), 1500);
     await tester.pumpAndSettle();
@@ -420,7 +420,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(inSheet(john.short.replaceAll('.', '')), findsOneWidget);
     // и нажатие на вкладку
-    await tester.tap(find.text('Апокрифы'));
+    await tester.tap(find.text('Неканон'));
     await tester.pumpAndSettle();
     expect(inSheet('Enoch'), findsWidgets);
     expect(tester.takeException(), isNull);
