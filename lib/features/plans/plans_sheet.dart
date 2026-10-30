@@ -60,7 +60,6 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
   int _days = 90;
   String? _pick;
   late final _daysCtl = TextEditingController(text: '$_days');
-  final _detailKey = GlobalKey();
   final _newKey = GlobalKey(); // метка перед карточкой только что начатого плана
   final _list = ScrollController();
   String? _newUid;
@@ -302,55 +301,26 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
               Text(t('Загружаю планы…'), style: TextStyle(color: pal.muted, fontSize: 13.6)),
             ]),
           ),
+        // «Ещё планы» — карточкой-списком (.plan-rows): строка — фото-миниатюра со значком раздела, название, о чём
+        // план и сколько дней; нажатие раскрывает строку на месте: описание, «до …» и «Начать»
         if (_index != null)
-          LayoutBuilder(builder: (_, c) {
-            // два столбца, промежуток 12, плитка 8:5 (по просьбе владельца — невысокая); план, оставшийся
-            // в последнем ряду один, — на оба столбца той же высоты (.plan-grid веб-версии)
-            final tileH = (c.maxWidth - 12) / 2 / 1.6;
-            final tiles = [
-                for (final m in _index!)
-                  _PlanTile(
-                    pal: pal,
-                    m: m,
-                    on: _pick == m.id,
-                    onPick: () {
-                      setState(() => _pick = _pick == m.id ? null : m.id);
-                      Future.delayed(const Duration(milliseconds: 80), () {
-                        final c = _detailKey.currentContext;
-                        if (mounted && c != null && c.mounted) Scrollable.ensureVisible(c, duration: const Duration(milliseconds: 250), alignment: 0.6);
-                      });
-                    },
-                  ),
-            ];
-            return Column(children: [
-              for (var i = 0; i < tiles.length; i += 2) ...[
-                if (i > 0) const SizedBox(height: 12),
-                SizedBox(
-                  height: tileH,
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Expanded(child: tiles[i]),
-                    if (i + 1 < tiles.length) ...[const SizedBox(width: 12), Expanded(child: tiles[i + 1])],
-                  ]),
+          Container(
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              for (final (i, m) in _index!.indexed)
+                _PlanRow(
+                  pal: pal,
+                  m: m,
+                  first: i == 0,
+                  open: _pick == m.id,
+                  running: plans.any((p) => p['planId'] == m.id),
+                  busy: _busy,
+                  onToggle: () => setState(() => _pick = _pick == m.id ? null : m.id),
+                  onStart: () => _start(m),
                 ),
-              ],
-            ]);
-          }),
-        if (_index != null)
-          for (final m in _index!.where((m) => m.id == _pick))
-            Container(
-              key: _detailKey,
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg), // скругление — как у «Своего плана»
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(t(m.name), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text)),
-                const SizedBox(height: 6),
-                Text('${t('{n} дн.', {'n': '${m.days}'})}${m.short != null ? ' · ${t(m.short!)}' : ''}', style: TextStyle(color: pal.muted, fontSize: 13.1)),
-                if (m.description != null) Padding(padding: const EdgeInsets.fromLTRB(0, 8, 0, 6), child: Text(t(m.description!), style: TextStyle(color: pal.muted, fontSize: 13.1, height: 1.4))),
-                const SizedBox(height: 6),
-                _busy == m.id ? BusyButton(label: t('Начать')) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Начать'), onTap: _busy != null ? null : () => _start(m)),
-              ]),
-            ),
+            ]),
+          ),
         gap, // между блоками везде 12
         _customPlan(pal, days),
       ])),
@@ -723,57 +693,85 @@ class _DaysStepper extends StatelessWidget {
   }
 }
 
-/// Готовый план — вертикальная обложка с фотографией и названием (.plan-tile)
-class _PlanTile extends StatelessWidget {
-  const _PlanTile({required this.pal, required this.m, required this.on, required this.onPick});
+/// Готовый план — строкой (.plan-row): фото-миниатюра со значком раздела, название, о чём план, сколько дней
+/// (идёт — помечен); нажатие раскрывает строку на месте: описание, до какого числа (если начать сегодня) и «Начать»
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({required this.pal, required this.m, required this.first, required this.open, required this.running, required this.busy, required this.onToggle, required this.onStart});
   final Palette pal;
   final PlanMeta m;
-  final bool on;
-  final VoidCallback onPick;
+  final bool first, open, running;
+  final String? busy;
+  final VoidCallback onToggle, onStart;
 
   @override
   Widget build(BuildContext context) {
     final l = _look(m.id);
     final c1 = l.c1 ?? pal.accent, c2 = l.c2 ?? mix(pal.accent, 0.6, Colors.white);
-    return GestureDetector(
-      onTap: onPick,
-      child: Stack(clipBehavior: Clip.none, fit: StackFit.expand, children: [
-        // тень — у рамки, а градиент — слоем под фото внутри одной обрезки: иначе по скруглённому краю видна кайма
-        DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 16, offset: Offset(0, 6))],
-          ),
-          child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Stack(fit: StackFit.expand, children: [
-            DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]))),
-            SiteImage(_coverPath(m.id)),
-            const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment(0, -0.2), end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0xB8000000)]))),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0x73000000), borderRadius: BorderRadius.circular(999)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  l.scope == null ? const Icon(LucideIcons.sparkles, size: 13, color: Colors.white) : _scopeIcon(l.scope!, 13, Colors.white),
-                  const SizedBox(width: 4),
-                  Text(t('{n} дн.', {'n': '${m.days}'}), style: const TextStyle(color: Colors.white, fontSize: 11.8, fontWeight: FontWeight.w600)),
-                ]),
-              ),
+    final ok = okOf(pal);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(color: open ? pal.panel : Colors.transparent, border: first ? null : Border(top: BorderSide(color: pal.line))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                // миниатюра: градиент цвета плана, фото, лёгкое затемнение и значок раздела
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 12, offset: Offset(0, 4))]),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Stack(fit: StackFit.expand, children: [
+                      DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]))),
+                      SiteImage(_coverPath(m.id)),
+                      const ColoredBox(color: Color(0x47000000)),
+                      Center(child: l.scope == null ? const Icon(LucideIcons.sparkles, size: 18, color: Colors.white) : _scopeIcon(l.scope!, 18, Colors.white)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t(m.name), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.25, color: pal.text)),
+                    if (m.short != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(t(m.short!), style: TextStyle(fontSize: 13.4, height: 1.3, color: pal.muted))),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Text(t('{n} дн.', {'n': '${m.days}'}), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: pal.muted, fontFeatures: const [FontFeature.tabularFigures()])),
+                      if (running) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                          decoration: BoxDecoration(color: ok.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(999)),
+                          child: Text(t('идёт'), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: ok)),
+                        ),
+                      ],
+                    ]),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 220), child: Icon(LucideIcons.chevronDown, size: 18, color: pal.muted)),
+              ]),
             ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: Text(t(m.name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16.3, height: 1.2, shadows: [Shadow(color: Color(0x66000000), blurRadius: 4, offset: Offset(0, 1))])),
-            ),
-          ]),
           ),
         ),
-        // outline: 3px solid accent; outline-offset: 2px
-        if (on) Positioned(left: -5, top: -5, right: -5, bottom: -5, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(23), border: Border.all(color: pal.accent, width: 3))))),
+        Reveal(
+          open: open,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(MediaQuery.sizeOf(context).width < 380 ? 14 : 90, 0, 14, 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (m.description != null) Text(t(m.description!), style: TextStyle(color: pal.muted, fontSize: 13.8, height: 1.45)),
+              const SizedBox(height: 10),
+              Text(t('до {date}', {'date': planEndText(m.days)}), style: TextStyle(fontSize: 13.1, fontWeight: FontWeight.w600, color: pal.text)),
+              const SizedBox(height: 10),
+              busy == m.id ? BusyButton(label: t('Начать')) : AobButton(kind: BtnKind.primary, wide: true, icon: LucideIcons.plus, label: t('Начать'), onTap: busy != null ? null : onStart),
+            ]),
+          ),
+        ),
       ]),
     );
   }
@@ -817,14 +815,14 @@ class _ActivePlanState extends State<_ActivePlan> {
     _day = d;
   }
 
-  /// Кружок дня в ленте (.pd): прочитанный — зелёная галочка (как у отрывков), пропущенный — оранжевый, сегодняшний —
+  /// Кружок дня в ленте (.pd): прочитанный — как обычный, только приглушён; пропущенный — оранжевый, сегодняшний —
   /// в кольце акцента, выбранный — тёмный
   Widget _dayDot(Palette pal, Plan p, int i, int day, int today, List<int> behind) {
     final done = dayDone(p, i), on = i == day, missed = behind.contains(i);
-    final ok = okOf(pal), late = lateOf(pal);
-    final fg = on ? pal.panel : done ? ok : missed ? late : pal.text;
-    final fill = on ? pal.text : done ? mix(ok, 0.15, pal.panel) : missed ? mix(late, 0.13, pal.panel) : pal.panel;
-    final ring = on || done || missed ? null : i == today ? Border.all(color: pal.accent, width: 2) : Border.all(color: pal.line);
+    final late = lateOf(pal);
+    final fg = on ? pal.panel : missed ? late : pal.text;
+    final fill = on ? pal.text : missed ? mix(late, 0.13, pal.panel) : pal.panel;
+    final ring = on || missed ? null : i == today ? Border.all(color: pal.accent, width: 2) : Border.all(color: pal.line);
     return Semantics(
       button: true,
       selected: on,
@@ -838,14 +836,16 @@ class _ActivePlanState extends State<_ActivePlan> {
             constraints: const BoxConstraints(maxWidth: 40),
             child: AspectRatio(
               aspectRatio: 1,
-              child: AnimatedContainer(
+              child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 160),
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: fill, border: ring),
-                child: done
-                    ? Icon(LucideIcons.check, size: 15, color: fg)
-                    : Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
+                opacity: done && !on ? 0.42 : 1,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: fill, border: ring),
+                  child: Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
+                ),
               ),
             ),
           ),
