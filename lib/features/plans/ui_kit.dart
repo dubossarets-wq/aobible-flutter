@@ -251,6 +251,8 @@ class HintBtn extends StatelessWidget {
 Color dangerOf(Palette pal) => pal.dark ? const Color(0xFFEF8A78) : const Color(0xFFB4412F);
 /// --ok веб-версии: «прочитано», «установлено» (в тёмных темах светлее)
 Color okOf(Palette pal) => pal.dark ? const Color(0xFF7CC68A) : const Color(0xFF2F6339);
+/// --late веб-версии: пропущенный день плана (в тёмных темах светлее)
+Color lateOf(Palette pal) => pal.dark ? const Color(0xFFF0A868) : const Color(0xFFC2621F);
 
 /// Пунктирная линия (border-top: 1px dashed)
 class DashedLine extends StatelessWidget {

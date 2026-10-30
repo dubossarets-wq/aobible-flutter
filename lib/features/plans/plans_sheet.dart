@@ -815,21 +815,14 @@ class _ActivePlanState extends State<_ActivePlan> {
     _day = d;
   }
 
-  /// Кружок дня в ленте (.pd): прочитанный — с галочкой цвета плана, пропущенный — оранжевый, сегодняшний — в кольце
-  /// акцента, выбранный — тёмный
-  Widget _dayDot(Palette pal, Plan p, int i, int day, int today, Color cv, List<int> behind) {
+  /// Кружок дня в ленте (.pd): прочитанный — зелёная галочка (как у отрывков), пропущенный — оранжевый, сегодняшний —
+  /// в кольце акцента, выбранный — тёмный
+  Widget _dayDot(Palette pal, Plan p, int i, int day, int today, List<int> behind) {
     final done = dayDone(p, i), on = i == day, missed = behind.contains(i);
-    const orange = Color(0xFFC96A26);
-    final fg = on ? pal.panel : done ? cv : missed ? orange : pal.text;
-    final ring = on
-        ? null
-        : i == today
-            ? Border.all(color: pal.accent, width: 2)
-            : missed
-                ? Border.all(color: orange.withValues(alpha: 0.55), width: 1.5)
-                : done
-                    ? null
-                    : Border.all(color: pal.line);
+    final ok = okOf(pal), late = lateOf(pal);
+    final fg = on ? pal.panel : done ? ok : missed ? late : pal.text;
+    final fill = on ? pal.text : done ? mix(ok, 0.15, pal.panel) : missed ? mix(late, 0.13, pal.panel) : pal.panel;
+    final ring = on || done || missed ? null : i == today ? Border.all(color: pal.accent, width: 2) : Border.all(color: pal.line);
     return Semantics(
       button: true,
       selected: on,
@@ -847,7 +840,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                 duration: const Duration(milliseconds: 160),
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? pal.text : done ? mix(cv, 0.18, pal.panel) : pal.panel, border: ring),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: fill, border: ring),
                 child: done
                     ? Icon(LucideIcons.check, size: 15, color: fg)
                     : Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
@@ -948,35 +941,13 @@ class _ActivePlanState extends State<_ActivePlan> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // пропущенные дни — мягкой оранжевой плашкой; «Догнать» — к первому пропущенному (.plan-miss)
-            if (behind.isNotEmpty) ...[
-              Container(
-                constraints: const BoxConstraints(minHeight: 40),
-                padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
-                decoration: BoxDecoration(color: mix(const Color(0xFFE08A3C), pal.dark ? 0.16 : 0.14, pal.panel), borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Expanded(child: Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.dark ? const Color(0xFFF0A868) : const Color(0xFFA8561D)))),
-                  if (day != behind.first)
-                    Material(
-                      color: const Color(0xFFC96A26),
-                      shape: const StadiumBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => setState(() => _day = behind.first),
-                        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Text(t('Догнать'), style: const TextStyle(fontSize: 12.8, fontWeight: FontWeight.w700, color: Colors.white))),
-                      ),
-                    ),
-                ]),
-              ),
-              const SizedBox(height: 12),
-            ],
             // лента дней вокруг выбранного: прочитанный — с галочкой, пропущенный — оранжевый, сегодняшний — в кольце
             Semantics(
               label: t('Дни плана'),
               child: Row(children: [
                 IconBtn(icon: LucideIcons.chevronLeft, subtle: true, size: 18, tooltip: t('Предыдущий день'), onTap: day == 0 ? null : () => setState(() => _day = day - 1)),
                 for (var k = 0; k < math.min(7, total); k++)
-                  Expanded(child: _dayDot(pal, p, math.max(0, math.min(day - 3, total - 7)) + k, day, today, cv, behind)),
+                  Expanded(child: _dayDot(pal, p, math.max(0, math.min(day - 3, total - 7)) + k, day, today, behind)),
                 IconBtn(icon: LucideIcons.chevronRight, subtle: true, size: 18, tooltip: t('Следующий день'), onTap: day >= total - 1 ? null : () => setState(() => _day = day + 1)),
               ]),
             ),
@@ -985,11 +956,36 @@ class _ActivePlanState extends State<_ActivePlan> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                Expanded(child: Text('${t('День {n}', {'n': '${day + 1}'})}${day == today ? ' · ${t('сегодня')}' : ''}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: pal.text))),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: t('День {n}', {'n': '${day + 1}'})),
+                      if (day == today) TextSpan(text: ' · ${t('сегодня')}') else if (behind.contains(day)) TextSpan(text: ' · ${t('пропущен')}', style: TextStyle(color: lateOf(pal))),
+                    ]),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: pal.text),
+                  ),
+                ),
                 Text(isDone ? t('прочитано') : t('{done} из {total} отрывков', {'done': '$partDone', 'total': '${rs.length}'}), style: TextStyle(fontSize: 13.1, fontWeight: isDone ? FontWeight.w600 : FontWeight.w400, color: isDone ? okOf(pal) : pal.muted)),
               ]),
             ),
-            const SizedBox(height: 10),
+            // пропущенные дни — тихой строкой, а не плашкой: точка, сколько, справа «Догнать ›» (к первому пропущенному)
+            if (behind.isNotEmpty && day != behind.first)
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => setState(() => _day = behind.first),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(children: [
+                    Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: lateOf(pal))),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: TextStyle(fontSize: 13.4, color: pal.muted))),
+                    Text(t('Догнать'), style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.accent)),
+                    Icon(LucideIcons.chevronRight, size: 15, color: pal.accent),
+                  ]),
+                ),
+              ),
+            SizedBox(height: behind.isNotEmpty && day != behind.first ? 4 : 10),
             // отрывки дня — белым списком с полными названиями (.plan-list): нажатие — читать с этого отрывка
             Container(
               decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
@@ -1001,7 +997,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                     child: InkWell(
                       onTap: () => widget.onRead(p, day, i),
                       child: Container(
-                        constraints: const BoxConstraints(minHeight: 48),
+                        constraints: const BoxConstraints(minHeight: 46),
                         padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
                         decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line))),
                         child: Row(children: [
