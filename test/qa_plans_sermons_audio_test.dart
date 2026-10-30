@@ -348,6 +348,44 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets('планы [${v.name}]: отрывков больше пяти — «Ещё N»; кружок отмечает отрывок, все отмечены — день закрыт', (tester) async {
+      final handle = tester.ensureSemantics();
+      final gen = Books.instance.meta('Gen').name;
+      prefs.setString('plans', jsonEncode([
+        {...plan(start: localDate(DateTime.now())), 'readings': [for (var d = 0; d < 3; d++) [for (var k = 1; k <= 7; k++) 'Gen.$k']]},
+      ]));
+      await openPlans(tester, v);
+      await reveal(tester, find.text('$gen 1'));
+      expect(find.text('$gen 5'), findsOneWidget);
+      expect(find.text('$gen 6'), findsNothing, reason: 'шестой — за «Ещё»');
+      await tapText(tester, 'Ещё 2');
+      expect(find.text('$gen 7'), findsOneWidget);
+      // кружок: отметить и снять
+      Future<void> mark(String label) async {
+        final f = find.bySemanticsLabel(label);
+        // по центру видимой области: у верха строка ушла бы под шапку окна
+        await Scrollable.ensureVisible(tester.element(f), alignment: 0.5);
+        await spin(tester, 100);
+        await tester.tap(f);
+        await spin(tester, 300);
+      }
+
+      await mark('Отметить прочитанным: $gen 2');
+      expect(find.textContaining('1 из 7 отрывков'), findsOneWidget);
+      await mark('Снять отметку: $gen 2');
+      expect(find.textContaining('0 из 7 отрывков'), findsOneWidget);
+      for (var k = 1; k <= 7; k++) {
+        await mark('Отметить прочитанным: $gen $k');
+      }
+      expect(c.read(plansProvider).first['done'], contains('0'), reason: 'все отрывки отмечены — день закрыт');
+      // снял один в закрытом дне — день открыт, остальные шесть остались
+      await mark('Снять отметку: $gen 4');
+      expect(c.read(plansProvider).first['done'], isNot(contains('0')));
+      expect(find.textContaining('6 из 7 отрывков'), findsOneWidget);
+      handle.dispose();
+      await finish(tester);
+    });
+
     testWidgets('планы [${v.name}]: пропущенные дни и переход к первому пропущенному, чтение отрывка', (tester) async {
       final start = localDate(DateTime.now().subtract(const Duration(days: 3)));
       prefs.setString('plans', jsonEncode([plan(start: start)]));

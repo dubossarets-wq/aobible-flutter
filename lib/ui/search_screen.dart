@@ -377,9 +377,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     final textStyle = readerTextStyle(settings, size: 16).copyWith(color: pal.text, height: 1.5);
     const gap = SizedBox(height: 12);
 
+    // поле поиска — отдельно, закреплённой шапкой (ниже); под ним всё, что уезжает при прокрутке
     final top = <Widget>[
-      _form(pal),
-      gap,
       Segmented<String>(
         options: [('all', t('Вся Библия')), ('OT', t('ВЗ')), ('NT', t('НЗ')), ('book', Books.instance.meta(_pane.ref.book).short)],
         value: _scope,
@@ -438,41 +437,52 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       subtitle: m == null ? null : (multi ? '${t('Во всех модулях')} · ${targets.length}' : '${m.name} · ${m.title}'),
       scroll: false,
       padding: EdgeInsets.zero,
-      child: Builder(builder: (bc) => ListView.builder(
+      // При прокрутке поле поиска прилипает к верху окна и становится ниже (46 → 38); выбор области,
+      // переключатели и найденное уезжают под него
+      child: Builder(builder: (bc) => CustomScrollView(
         controller: _scroll,
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + MediaQuery.paddingOf(bc).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        itemCount: 1 + count + (more ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: top);
-          if (i == count + 1) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: AobButton(
-                label: t('Показать ещё ({n})', {'n': '${hits!.length - _shown}'}),
-                wide: true,
-                onTap: () {
-                  setState(() => _shown += _page);
-                  if (_memo != null && _memo!.key == _shownKey) _memo!.shown = _shown;
-                },
-              ),
-            );
-          }
-          final mod = multi ? ModuleStore.instance.get(_hitMods[i - 1]) : null;
-          return _resultRow(pal, textStyle, hits![i - 1], mod, re);
-        },
+        slivers: [
+          SliverPersistentHeader(pinned: true, delegate: _StickyForm(pal: pal, form: (h) => _form(pal, height: h))),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 20 + MediaQuery.paddingOf(bc).bottom),
+            sliver: SliverList.builder(
+              itemCount: 1 + count + (more ? 1 : 0),
+              itemBuilder: (context, i) {
+                if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: top);
+                if (i == count + 1) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: AobButton(
+                      label: t('Показать ещё ({n})', {'n': '${hits!.length - _shown}'}),
+                      wide: true,
+                      onTap: () {
+                        setState(() => _shown += _page);
+                        if (_memo != null && _memo!.key == _shownKey) _memo!.shown = _shown;
+                      },
+                    ),
+                  );
+                }
+                final mod = multi ? ModuleStore.instance.get(_hitMods[i - 1]) : null;
+                return _resultRow(pal, textStyle, hits![i - 1], mod, re);
+              },
+            ),
+          ),
+        ],
       )),
     );
   }
 
   // Поле запроса с крестиком и тёмная квадратная кнопка «Найти» (.search-form)
-  Widget _form(Palette pal) {
+  Widget _form(Palette pal, {double height = 46}) {
     final focused = _focus.hasFocus;
-    return Row(children: [
+    // высота не анимируется (при прокрутке поле ужимается вместе с пальцем); плавно меняется только рамка фокуса
+    return SizedBox(
+      height: height,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Expanded(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          height: 46,
           decoration: BoxDecoration(
             color: pal.bg,
             borderRadius: BorderRadius.circular(kRadius * 0.75),
@@ -512,10 +522,11 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           color: pal.accent,
           borderRadius: BorderRadius.circular(kRadius * 0.75),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(onTap: _submit, child: SizedBox(width: 46, height: 46, child: Icon(LucideIcons.search, size: 18, color: pal.onAccent))),
+          child: InkWell(onTap: _submit, child: SizedBox(width: height, height: height, child: Icon(LucideIcons.search, size: 18, color: pal.onAccent))),
         ),
       ),
-    ]);
+    ]),
+    );
   }
 
   // Карточка перехода по ссылке (.ref-hit)
@@ -653,4 +664,31 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     if (pos < text.length) out.add(TextSpan(text: text.substring(pos)));
     return TextSpan(children: out);
   }
+}
+
+/// Закреплённая шапка окна поиска: поле с кнопкой «Найти». В покое — 46 px и отступы 12 / 8; при прокрутке плавно
+/// ужимается до 38 px и отступов 6 / 6, снизу проявляется тонкая линия — найденное уходит под неё
+class _StickyForm extends SliverPersistentHeaderDelegate {
+  _StickyForm({required this.pal, required this.form});
+  final Palette pal;
+  final Widget Function(double height) form;
+  static const _max = 12 + 46 + 8.0, _min = 6 + 38 + 6.0;
+  @override
+  double get maxExtent => _max;
+  @override
+  double get minExtent => _min;
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final k = (shrinkOffset / (_max - _min)).clamp(0.0, 1.0);
+    double lerp(double a, double b) => a + (b - a) * k;
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, lerp(12, 6), 16, lerp(8, 6)),
+      decoration: BoxDecoration(color: pal.panel, border: Border(bottom: BorderSide(color: pal.line.withValues(alpha: k)))),
+      alignment: Alignment.topCenter,
+      child: form(lerp(46, 38)),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_StickyForm old) => true; // поле зависит от текста и фокуса — перестраиваем вместе с окном
 }

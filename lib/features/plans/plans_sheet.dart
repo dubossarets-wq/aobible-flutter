@@ -801,6 +801,8 @@ class _ActivePlan extends StatefulWidget {
 
 class _ActivePlanState extends State<_ActivePlan> {
   late int _day;
+  int? _openDay; // день, у которого раскрыты все отрывки (больше пяти)
+  static const _partsMax = 5; // отрывков дня в списке — не больше пяти, остальные — за строкой «Ещё N»
 
   @override
   void initState() {
@@ -850,6 +852,35 @@ class _ActivePlanState extends State<_ActivePlan> {
         ),
       ),
     );
+  }
+
+  /// Кружок у отрывка: отметить прочитанным или снять отметку. Отмечены все отрывки — день закрывается сам;
+  /// сняли отметку в закрытом дне — день открывается, остальные отрывки остаются отмеченными
+  void _togglePart(int day, int i) {
+    final p = widget.plan;
+    final rs = readingsOf(p)[day];
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final keys = [for (final u in readingUnits(rs[i])) u.key];
+    final all = [for (final r in rs) for (final u in readingUnits(r)) u.key];
+    final done = Map<String, dynamic>.from((p['done'] as Map?) ?? const {});
+    final parts = Map<String, dynamic>.from((p['parts'] as Map?) ?? const {});
+    final have = dayDone(p, day) ? {for (final k in all) k: done['$day']} : Map<String, dynamic>.from((parts['$day'] as Map?) ?? const {});
+    if (readingDone(p, day, rs[i])) {
+      for (final k in keys) {
+        have.remove(k);
+      }
+    } else {
+      for (final k in keys) {
+        have[k] = now;
+      }
+    }
+    if (all.every(have.containsKey)) {
+      done['$day'] ??= now;
+    } else {
+      done.remove('$day');
+    }
+    parts['$day'] = have;
+    widget.onChange({...p, 'done': done, 'parts': parts});
   }
 
   void _toggle(int i) {
@@ -986,32 +1017,70 @@ class _ActivePlanState extends State<_ActivePlan> {
                 ),
               ),
             SizedBox(height: behind.isNotEmpty && day != behind.first ? 4 : 10),
-            // отрывки дня — белым списком с полными названиями (.plan-list): нажатие — читать с этого отрывка
+            // отрывки дня — белым списком с полными названиями (.plan-list): кружок — отметка «прочитано» (прочитанный
+            // отрывок слегка приглушён), название — открыть отрывок; больше пяти — остальные за строкой «Ещё N»
             Container(
               decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
               clipBehavior: Clip.antiAlias,
               child: Column(children: [
                 for (final (i, r) in rs.indexed)
-                  Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      onTap: () => widget.onRead(p, day, i),
-                      child: Container(
-                        constraints: const BoxConstraints(minHeight: 46),
-                        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
-                        decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line))),
-                        child: Row(children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(shape: BoxShape.circle, color: flags[i] ? okOf(pal) : null, border: flags[i] ? null : Border.all(color: pal.muted.withValues(alpha: 0.55), width: 1.5)),
-                            child: flags[i] ? Icon(LucideIcons.check, size: 13, color: pal.dark ? pal.panel : Colors.white) : null,
+                  if (i < _partsMax || rs.length <= _partsMax || _openDay == day)
+                    Container(
+                      decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line))),
+                      child: Row(children: [
+                        Semantics(
+                          button: true,
+                          checked: flags[i],
+                          label: '${flags[i] ? t('Снять отметку') : t('Отметить прочитанным')}: ${_fullLabel(r)}',
+                          excludeSemantics: true,
+                          child: InkWell(
+                            onTap: () => _togglePart(day, i),
+                            child: SizedBox(
+                              width: 48,
+                              height: 46,
+                              child: Center(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  width: 22,
+                                  height: 22,
+                                  margin: const EdgeInsets.only(left: 4),
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: flags[i] ? okOf(pal) : Colors.transparent, border: flags[i] ? null : Border.all(color: pal.muted.withValues(alpha: 0.55), width: 1.5)),
+                                  child: flags[i] ? Icon(LucideIcons.check, size: 13, color: pal.dark ? pal.panel : Colors.white) : null,
+                                ),
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(_fullLabel(r), style: TextStyle(fontSize: 15.2, fontWeight: flags[i] ? FontWeight.w500 : FontWeight.w600, color: flags[i] ? pal.muted : pal.text))),
-                          Icon(LucideIcons.chevronRight, size: 17, color: pal.muted),
-                        ]),
-                      ),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => widget.onRead(p, day, i),
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 200),
+                              opacity: flags[i] ? 0.7 : 1,
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 46),
+                                padding: const EdgeInsets.fromLTRB(2, 8, 10, 8),
+                                child: Row(children: [
+                                  Expanded(child: Text(_fullLabel(r), style: TextStyle(fontSize: 15.2, fontWeight: flags[i] ? FontWeight.w500 : FontWeight.w600, color: flags[i] ? pal.muted : pal.text))),
+                                  Icon(LucideIcons.chevronRight, size: 17, color: pal.muted),
+                                ]),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                if (rs.length > _partsMax)
+                  InkWell(
+                    onTap: () => setState(() => _openDay = _openDay == day ? null : day),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 42),
+                      decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(_openDay == day ? t('Свернуть') : t('Ещё {n}', {'n': '${rs.length - _partsMax}'}), style: TextStyle(fontSize: 14.1, fontWeight: FontWeight.w600, color: pal.accent)),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(turns: _openDay == day ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 16, color: pal.accent)),
+                      ]),
                     ),
                   ),
               ]),
