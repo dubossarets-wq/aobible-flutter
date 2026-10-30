@@ -289,7 +289,7 @@ void main() {
     String? got;
     final c = await start(tester, settings: {'showStrongs': true}, panes: jsonEncode([{'moduleId': 'rst-plus', 'ref': const VerseRef('John', 2, 1).toJson()}]));
     expect(c.read(panesProvider)[0].ref.book, 'John');
-    Hub.openStrong = (ctx, ref, pane, at, strongNum) => got = strongNum;
+    Hub.openStrong = (ctx, ref, pane, at, strongNum, {closeToParent = false}) => got = strongNum;
     Hub.onVerseDoubleTap = (ctx, ref, pane, at, m) {};
     await tester.tap(find.text('G26').first);
     await go(tester);

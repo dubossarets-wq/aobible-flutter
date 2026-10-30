@@ -503,7 +503,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Благодать');
       await tapText(tester, 'Создать');
       expect(c.read(sermonsProvider).single['title'], 'Благодать');
-      expect(find.text('Проповедь'), findsOneWidget);
+      expect(find.byTooltip('Крупнее'), findsOneWidget); // открыт редактор: в шапке — размер текста
       expect(find.textContaining('Как добавить стих'), findsOneWidget);
       // пустая проповедь: кнопки внизу
       await tapText(tester, 'Текст', last: true);
@@ -561,7 +561,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Ин 3:16-18');
       await spin(tester, 100);
       await tapText(tester, find.textContaining('Добавить в проповедь:').evaluate().map((e) => (e.widget as Text).data!).first);
-      expect(find.text('Проповедь'), findsOneWidget);
+      expect(find.byTooltip('Крупнее'), findsOneWidget); // открыт редактор: в шапке — размер текста
       var blocks = blocksOf(c.read(sermonsProvider).single);
       expect((blocks.single['verse'], blocks.single['to']), (16, 18));
       // между блоками — «+ Стих»: поиск по слову
@@ -579,10 +579,10 @@ void main() {
       // Кафедра
       await tapText(tester, 'Кафедра');
       expect(find.text('Аминь'), findsOneWidget);
-      await tapTip(tester, 'Крупнее');
-      await tapTip(tester, 'Крупнее');
+      await tapTip(tester, 'Крупнее', last: true); // «Кафедра» — поверх проповеди (у неё в шапке свои «− +»)
+      await tapTip(tester, 'Крупнее', last: true); // «Кафедра» — поверх проповеди (у неё в шапке свои «− +»)
       expect(prefs.getString('pulpitSize'), '30');
-      await tapTip(tester, 'Мельче');
+      await tapTip(tester, 'Мельче', last: true);
       expect(prefs.getString('pulpitSize'), '28');
       // щипок двумя пальцами
       final g1 = await tester.startGesture(const Offset(150, 400), pointer: 1);
@@ -651,7 +651,7 @@ void main() {
       // открыть проповедь, «Поделиться» и вернуться «Назад»
       c.read(sermonsProvider.notifier).addTextBlock(a);
       await tapText(tester, 'Первая');
-      expect(find.text('Проповедь'), findsOneWidget);
+      expect(find.byTooltip('Крупнее'), findsOneWidget); // открыт редактор: в шапке — размер текста
       await tapTip(tester, 'Поделиться'); // значком в шапке
       await tapTip(tester, 'Назад');
       expect(find.text('Проповеди'), findsOneWidget);
@@ -668,7 +668,7 @@ void main() {
       var s = c.read(sermonsProvider).single;
       expect(blocksOf(s).single['text'], 'Ибо так возлюбил Бог мир');
       await tapText(tester, 'Открыть проповедь');
-      expect(find.text('Проповедь'), findsOneWidget);
+      expect(find.byTooltip('Крупнее'), findsOneWidget); // открыт редактор: в шапке — размер текста
       expect(find.text('Любовь'), findsWidgets);
       await finish(tester);
     });

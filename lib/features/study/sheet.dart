@@ -98,7 +98,8 @@ class _FrameState extends State<_Frame> {
 }
 
 class SheetScaffold extends ConsumerWidget {
-  const SheetScaffold({super.key, required this.title, this.subtitle, this.onBack, this.headerExtra = const [], required this.body, this.footer});
+  const SheetScaffold({super.key, required this.title, this.subtitle, this.onBack, this.onClose, this.headerExtra = const [], required this.body, this.footer});
+  final VoidCallback? onClose; // «×»: по умолчанию закрывает все окна; задан — своё (вернуться в окно, откуда открыли)
   final String title;
   final String? subtitle;
   final VoidCallback? onBack;
@@ -150,7 +151,7 @@ class SheetScaffold extends ConsumerWidget {
               ]),
             ),
             ...headerExtra,
-            IconBtn(icon: LucideIcons.x, onTap: () => closeAllSheets(context), tooltip: t('Закрыть')),
+            IconBtn(icon: LucideIcons.x, onTap: onClose ?? () => closeAllSheets(context), tooltip: t('Закрыть')),
           ]),
         ),
       ]),

@@ -300,8 +300,9 @@ class _Nested extends InheritedWidget {
 }
 
 class AobSheet extends ConsumerWidget {
-  const AobSheet({super.key, required this.title, this.subtitle, required this.child, this.onBack, this.actions = const [], this.onClose, this.scroll = true, this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 20)});
+  const AobSheet({super.key, required this.title, this.subtitle, required this.child, this.onBack, this.actions = const [], this.onClose, this.scroll = true, this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 20), this.titleWidget});
   final String title;
+  final Widget? titleWidget; // вместо названия — своё (размер текста «− 100% +» в проповеди); title остаётся подписью
   final String? subtitle;
   final Widget child;
   final VoidCallback? onBack;
@@ -351,6 +352,7 @@ class AobSheet extends ConsumerWidget {
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             if (back != null) IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back),
+            if (titleWidget != null) Expanded(child: Semantics(label: title, child: Align(alignment: Alignment.centerLeft, child: titleWidget))) else
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text(title,

@@ -128,7 +128,8 @@ class Hub {
   /// Двойное касание стиха — в любимые / из любимых, с пульсом сердечка (закладки)
   static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String moduleId)? onVerseDoubleTap;
   /// Нажатие на номер Стронга в тексте — статья словаря сразу на всю высоту (изучение)
-  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String strongNum)? openStrong;
+  /// closeToParent — «×» статьи возвращает в окно, откуда её открыли (проповедь), а не закрывает всё
+  static void Function(BuildContext context, WidgetRef ref, int pane, VerseRef at, String strongNum, {bool closeToParent})? openStrong;
   /// «Часть стиха»: выбранные слова from..to (индексы слов) — в любимые частью (закладки)
   static void Function(BuildContext context, WidgetRef ref, VerseRef at, String moduleId, int from, int to, String text)? addFavoritePart;
   /// «Часть стиха» → «В проповедь»: фрагмент текста (проповеди)

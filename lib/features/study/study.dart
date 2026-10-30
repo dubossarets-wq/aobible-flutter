@@ -21,7 +21,8 @@ void register() {
   Hub.openInterlinear = openInterlinearSheet;
   Hub.compareTranslations = openCompare;
   // Нажатие на номер Стронга в тексте — статья словаря сразу на всю высоту (ChapterView.jsx, act sn)
-  Hub.openStrong = (context, ref, pane, at, strongNum) => openDictionary(context, DictRequest(text: strongNum, strongs: [strongNum], morph: const [], ref: at, pane: pane, autoOpen: true), full: true);
+  Hub.openStrong = (context, ref, pane, at, strongNum, {closeToParent = false}) =>
+      openDictionary(context, DictRequest(text: strongNum, strongs: [strongNum], morph: const [], ref: at, pane: pane, autoOpen: true, closeToParent: closeToParent), full: true);
   // Окна панели выделения: у них номер панели и стих; перевод для параллельных мест берём у панели
   Hub.openCommentary = (context, ref, pane, at) => openCommentary(context, pane: pane, at: at);
   Hub.openXrefs = (context, ref, pane, at) => openXrefs(context, pane: pane, moduleId: _moduleOf(ref, pane), at: at);

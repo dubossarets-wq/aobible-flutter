@@ -38,6 +38,7 @@ class DictRequest {
     this.origWord,
     this.wordIndex,
     this.fromInterlinear = false,
+    this.closeToParent = false,
   });
   final String text;
   final List<String> strongs;
@@ -49,6 +50,7 @@ class DictRequest {
   final OrigInfo? origWord;
   final int? wordIndex; // номер слова в стихе RST+ (для формы слова по подстрочнику)
   final bool fromInterlinear; // открыто из подстрочника: «Назад» возвращает к нему
+  final bool closeToParent; // «×» — обратно в окно, откуда открыли (статья из проповеди), а не закрыть всё
 }
 
 /// Открыть окно статьи: Стронг — на всю высоту, остальные словари — на половину экрана
@@ -238,6 +240,7 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
       title: top != null ? t('Статья {num}', {'num': top.num}) : t('Слово: {word}', {'word': req.text}),
       subtitle: fmtRef(req.ref),
       onBack: back,
+      onClose: req.closeToParent ? () => Navigator.pop(context) : null,
       body: SheetList(children: children),
     );
   }
