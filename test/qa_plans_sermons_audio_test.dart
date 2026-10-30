@@ -355,7 +355,7 @@ void main() {
       expect(find.text('Пропущено дней: 3'), findsOneWidget);
       expect(find.textContaining('День 4'), findsOneWidget);
       expect(find.textContaining('сегодня'), findsWidgets);
-      await tapText(tester, 'к первому пропущенному');
+      await tapText(tester, 'Догнать'); // к первому пропущенному
       expect(find.textContaining('День 1'), findsOneWidget);
       await tapText(tester, 'Отметить');
       expect(find.text('Пропущено дней: 2'), findsOneWidget);

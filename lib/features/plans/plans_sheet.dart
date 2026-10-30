@@ -779,6 +779,14 @@ class _PlanTile extends StatelessWidget {
   }
 }
 
+/// Отрывок с полным названием книги: «От Матфея 5», «Псалтирь 9:1–21»
+String _fullLabel(String r) {
+  final p = r.split('.');
+  final name = Books.instance.meta(p[0]).name;
+  if (p.length > 2 && p[2].isNotEmpty) return '$name ${p[1]}:${p[2].replaceAll('-', '–')}';
+  return '$name ${(p.length > 1 && p[1].isNotEmpty ? p[1] : '1').replaceAll('-', '–')}';
+}
+
 class _ActivePlan extends StatefulWidget {
   const _ActivePlan({super.key, required this.pal, required this.plan, required this.onRead, required this.onChange, required this.onRemove});
   final Palette pal;
@@ -805,6 +813,50 @@ class _ActivePlanState extends State<_ActivePlan> {
       d++;
     }
     _day = d;
+  }
+
+  /// Кружок дня в ленте (.pd): прочитанный — с галочкой цвета плана, пропущенный — оранжевый, сегодняшний — в кольце
+  /// акцента, выбранный — тёмный
+  Widget _dayDot(Palette pal, Plan p, int i, int day, int today, Color cv, List<int> behind) {
+    final done = dayDone(p, i), on = i == day, missed = behind.contains(i);
+    const orange = Color(0xFFC96A26);
+    final fg = on ? pal.panel : done ? cv : missed ? orange : pal.text;
+    final ring = on
+        ? null
+        : i == today
+            ? Border.all(color: pal.accent, width: 2)
+            : missed
+                ? Border.all(color: orange.withValues(alpha: 0.55), width: 1.5)
+                : done
+                    ? null
+                    : Border.all(color: pal.line);
+    return Semantics(
+      button: true,
+      selected: on,
+      label: '${t('День {n}', {'n': '${i + 1}'})}${i == today ? ', ${t('сегодня')}' : ''}${done ? ', ${t('прочитано')}' : ''}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _day = i),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 40),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? pal.text : done ? mix(cv, 0.18, pal.panel) : pal.panel, border: ring),
+                child: done
+                    ? Icon(LucideIcons.check, size: 15, color: fg)
+                    : Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _toggle(int i) {
@@ -854,7 +906,8 @@ class _ActivePlanState extends State<_ActivePlan> {
     // со стрелками, отрывки дня и две кнопки рядом: «Читать» (главная) и «Отметить»
     return Container(
       // без своего нижнего отступа: промежуток между блоками окна — общий, 12
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg),
+      // фон — как у остальных блоков окна
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(
@@ -893,33 +946,80 @@ class _ActivePlanState extends State<_ActivePlan> {
           ]),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (behind.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 2, bottom: 6),
-                child: Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: const TextStyle(fontSize: 13.1, color: Color(0xFFB5642A))),
-                  if (day != behind.first) GestureDetector(onTap: () => setState(() => _day = behind.first), child: Text(t('к первому пропущенному'), style: TextStyle(fontSize: 13.1, color: pal.accent, decoration: TextDecoration.underline, decorationColor: pal.accent))),
+            // пропущенные дни — мягкой оранжевой плашкой; «Догнать» — к первому пропущенному (.plan-miss)
+            if (behind.isNotEmpty) ...[
+              Container(
+                constraints: const BoxConstraints(minHeight: 40),
+                padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
+                decoration: BoxDecoration(color: mix(const Color(0xFFE08A3C), pal.dark ? 0.16 : 0.14, pal.panel), borderRadius: BorderRadius.circular(12)),
+                child: Row(children: [
+                  Expanded(child: Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.dark ? const Color(0xFFF0A868) : const Color(0xFFA8561D)))),
+                  if (day != behind.first)
+                    Material(
+                      color: const Color(0xFFC96A26),
+                      shape: const StadiumBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => setState(() => _day = behind.first),
+                        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Text(t('Догнать'), style: const TextStyle(fontSize: 12.8, fontWeight: FontWeight.w700, color: Colors.white))),
+                      ),
+                    ),
                 ]),
               ),
-            // день: стрелки по краям, посередине — какой день и сколько отрывков прочитано
-            Row(children: [
-              IconBtn(icon: LucideIcons.chevronLeft, subtle: true, size: 18, tooltip: t('Предыдущий день'), onTap: day == 0 ? null : () => setState(() => _day = day - 1)),
-              Expanded(
-                child: Column(children: [
-                  Text('${t('День {n}', {'n': '${day + 1}'})}${day == today ? ' · ${t('сегодня')}' : ''}', textAlign: TextAlign.center, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w700, color: pal.text)),
-                  const SizedBox(height: 1),
-                  Text(isDone ? t('прочитано') : t('{done} из {total} отрывков', {'done': '$partDone', 'total': '${rs.length}'}), style: TextStyle(fontSize: 12.8, color: isDone ? okOf(pal) : pal.muted)),
-                ]),
-              ),
-              IconBtn(icon: LucideIcons.chevronRight, subtle: true, size: 18, tooltip: t('Следующий день'), onTap: day >= total - 1 ? null : () => setState(() => _day = day + 1)),
-            ]),
+              const SizedBox(height: 12),
+            ],
+            // лента дней вокруг выбранного: прочитанный — с галочкой, пропущенный — оранжевый, сегодняшний — в кольце
+            Semantics(
+              label: t('Дни плана'),
+              child: Row(children: [
+                IconBtn(icon: LucideIcons.chevronLeft, subtle: true, size: 18, tooltip: t('Предыдущий день'), onTap: day == 0 ? null : () => setState(() => _day = day - 1)),
+                for (var k = 0; k < math.min(7, total); k++)
+                  Expanded(child: _dayDot(pal, p, math.max(0, math.min(day - 3, total - 7)) + k, day, today, cv, behind)),
+                IconBtn(icon: LucideIcons.chevronRight, subtle: true, size: 18, tooltip: t('Следующий день'), onTap: day >= total - 1 ? null : () => setState(() => _day = day + 1)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            // выбранный день: название слева, сколько прочитано — справа
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                Expanded(child: Text('${t('День {n}', {'n': '${day + 1}'})}${day == today ? ' · ${t('сегодня')}' : ''}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: pal.text))),
+                Text(isDone ? t('прочитано') : t('{done} из {total} отрывков', {'done': '$partDone', 'total': '${rs.length}'}), style: TextStyle(fontSize: 13.1, fontWeight: isDone ? FontWeight.w600 : FontWeight.w400, color: isDone ? okOf(pal) : pal.muted)),
+              ]),
+            ),
             const SizedBox(height: 10),
-            // отрывки дня: прочитанные — с галочкой; нажатие — читать с этого отрывка
-            Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: [
-              for (final (i, r) in rs.indexed) ChipBtn(label: readingLabel(r), done: flags[i], onTap: () => widget.onRead(p, day, i)),
-            ]),
+            // отрывки дня — белым списком с полными названиями (.plan-list): нажатие — читать с этого отрывка
+            Container(
+              decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(children: [
+                for (final (i, r) in rs.indexed)
+                  Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(
+                      onTap: () => widget.onRead(p, day, i),
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+                        decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line))),
+                        child: Row(children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: flags[i] ? okOf(pal) : null, border: flags[i] ? null : Border.all(color: pal.muted.withValues(alpha: 0.55), width: 1.5)),
+                            child: flags[i] ? Icon(LucideIcons.check, size: 13, color: pal.dark ? pal.panel : Colors.white) : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(_fullLabel(r), style: TextStyle(fontSize: 15.2, fontWeight: flags[i] ? FontWeight.w500 : FontWeight.w600, color: flags[i] ? pal.muted : pal.text))),
+                          Icon(LucideIcons.chevronRight, size: 17, color: pal.muted),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
