@@ -18,6 +18,7 @@ import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/part_plate.dart';
+import '../hub.dart';
 import '../shell/fonts.dart' show readerTextStyle;
 import '../plans/loc.dart';
 import '../plans/ui_kit.dart';
@@ -608,6 +609,8 @@ class _EditorState extends ConsumerState<_Editor> {
                 onFreshDone: () => _fresh == id ? setState(() => _fresh = null) : null,
                 onGo: (v) => _goVerse(b, v),
                 onDropVerse: (v) => _dropVerse(b, v),
+                // слово подстрочника — статья Стронга поверх проповеди («назад» — обратно в проповедь)
+                onStrong: (v, n) => Hub.openStrong?.call(context, ref, widget.pane, VerseRef(b['book'] as String, b['chapter'] as int, v), n),
               ),
               Positioned(
                 left: -5,
@@ -887,7 +890,8 @@ class _Reorder extends StatelessWidget {
 }
 
 class _BlockCard extends ConsumerStatefulWidget {
-  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.onUp, this.onDown, this.altDefault = const []});
+  const _BlockCard({required this.pal, required this.block, required this.sermonId, required this.fresh, required this.onFreshDone, required this.onGo, required this.onDropVerse, this.onUp, this.onDown, this.onStrong, this.altDefault = const []});
+  final void Function(int verse, String strongNum)? onStrong; // нажали слово подстрочника
   final VoidCallback? onUp, onDown; // переставить на одно место выше / ниже (у крайних блоков — null)
   final List<Map<String, dynamic>> altDefault; // переводы, которые сами подключаются к новым стихам проповеди
   final Palette pal;
@@ -1077,11 +1081,23 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                   padding: const EdgeInsets.only(top: 6),
                   decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line.withValues(alpha: 0.8)))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${a['n']}', style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.2, color: pal.muted)),
-                    const SizedBox(height: 1),
+                    // название перевода и «×» — убрать этот перевод у стиха
+                    Row(children: [
+                      Expanded(child: Text('${a['n']}', style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.2, color: pal.muted))),
+                      ConfirmIcon(
+                        icon: LucideIcons.x,
+                        size: 15,
+                        confirmText: t('Убрать'),
+                        tooltip: '${t('Убрать')}: ${a['n']}',
+                        onConfirm: () => store.setBlockAlts(sermonId, '${block['id']}', [for (final x in alts) if (x['m'] != a['m']) {'m': x['m'], 'n': x['n']}]),
+                      ),
+                    ]),
                     Builder(builder: (_) {
                       final at = [for (final x in (a['t'] as List? ?? const [])) '$x'];
-                      if (a['il'] == true && at.any((x) => x.isNotEmpty)) return IlWords(pal: pal, texts: at, size: 15.7);
+                      // слово подстрочника с номером Стронга — к статье
+                      if (a['il'] == true && at.any((x) => x.isNotEmpty)) {
+                        return IlWords(pal: pal, texts: at, size: 15.7, onWord: widget.onStrong == null ? null : (k, n) => widget.onStrong!((block['verse'] as int) + k, n));
+                      }
                       final text = at.isEmpty ? '…' : at.every((x) => x.isEmpty) ? '—' : at.join(' ');
                       return Text(text, style: verseStyle.copyWith(fontSize: 15.7, color: pal.text.withValues(alpha: 0.85)));
                     }),
@@ -1189,27 +1205,35 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
 
 /// Подстрочник у стиха: слова столбиками — сверху оригинал, под ним перевод; иврит — справа налево
 class IlWords extends StatelessWidget {
-  const IlWords({super.key, required this.pal, required this.texts, required this.size});
+  const IlWords({super.key, required this.pal, required this.texts, required this.size, this.onWord});
   final Palette pal;
   final List<String> texts;
   final double size;
+  final void Function(int verseIndex, String strongNum)? onWord; // слово с номером Стронга — кнопка (k — стих в блоке)
   static final _word = RegExp(r'\{([^|}]*)\|([^|}]*)(?:\|([^|}]*))?(?:\|([^}]*))?\}');
 
   @override
   Widget build(BuildContext context) {
     final words = [
-      for (final x in texts)
-        for (final m in _word.allMatches(x)) (g: m.group(1) == '·' ? '' : m.group(1) ?? '', o: m.group(4) ?? ''),
+      for (final (k, x) in texts.indexed)
+        for (final m in _word.allMatches(x)) (g: m.group(1) == '·' ? '' : m.group(1) ?? '', o: m.group(4) ?? '', s: m.group(2) ?? '', k: k),
     ];
     final rtl = words.any((w) => RegExp(r'[\u0590-\u05FF]').hasMatch(w.o));
     return Directionality(
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       child: Wrap(spacing: 12, runSpacing: 4, children: [
         for (final w in words)
-          Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(w.o.isEmpty ? ' ' : w.o, style: TextStyle(fontSize: size * (rtl ? 1.12 : 1.02), height: 1.3, color: pal.text, fontFamily: rtl ? 'Noto Serif Hebrew' : null)),
-            Text(w.g.isEmpty ? ' ' : w.g, textDirection: TextDirection.ltr, style: TextStyle(fontSize: size * 0.76, height: 1.3, color: pal.muted)),
-          ]),
+          Builder(builder: (_) {
+            final col = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(w.o.isEmpty ? ' ' : w.o, style: TextStyle(fontSize: size * (rtl ? 1.12 : 1.02), height: 1.3, color: pal.text, fontFamily: rtl ? 'Noto Serif Hebrew' : null)),
+              Text(w.g.isEmpty ? ' ' : w.g, textDirection: TextDirection.ltr, style: TextStyle(fontSize: size * 0.76, height: 1.3, color: pal.muted)),
+            ]);
+            if (w.s.isEmpty || onWord == null) return col;
+            return Tooltip(
+              message: w.s,
+              child: InkWell(borderRadius: BorderRadius.circular(6), onTap: () => onWord!(w.k, w.s), child: col),
+            );
+          }),
       ]),
     );
   }
