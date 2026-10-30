@@ -1028,8 +1028,8 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
       child: Stack(children: [
       Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      // заметка для себя — приглушённый фон
-      decoration: BoxDecoration(color: note ? mix(pal.muted, 0.07, pal.bg) : pal.bg, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+      // лёгкий фон, как у карточек планов; заметка для себя — ещё приглушённее
+      decoration: BoxDecoration(color: note ? mix(pal.muted, 0.07, sermonCardBg(pal)) : sermonCardBg(pal), borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verse) ...[
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1860,3 +1860,6 @@ class _VersePickerState extends ConsumerState<VersePicker> {
     );
   }
 }
+
+/// Фон блока проповеди — лёгкий, как у карточек планов.
+Color sermonCardBg(Palette pal) => mix(pal.text, 0.04, pal.panel);
