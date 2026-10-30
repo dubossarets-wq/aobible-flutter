@@ -1084,12 +1084,17 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                     // название перевода и «×» — убрать этот перевод у стиха
                     Row(children: [
                       Expanded(child: Text('${a['n']}', style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.2, color: pal.muted))),
-                      ConfirmIcon(
+                      // сразу, без вопроса — с «Отменить»
+                      IconBtn(
                         icon: LucideIcons.x,
+                        subtle: true,
                         size: 15,
-                        confirmText: t('Убрать'),
                         tooltip: '${t('Убрать')}: ${a['n']}',
-                        onConfirm: () => store.setBlockAlts(sermonId, '${block['id']}', [for (final x in alts) if (x['m'] != a['m']) {'m': x['m'], 'n': x['n']}]),
+                        onTap: () {
+                          final before = [for (final x in alts) {'m': x['m'], 'n': x['n']}];
+                          store.setBlockAlts(sermonId, '${block['id']}', [for (final x in before) if (x['m'] != a['m']) x]);
+                          showUndo(context, t('Убрано: {ref}', {'ref': '${a['n']}'}), () => store.setBlockAlts(sermonId, '${block['id']}', before));
+                        },
                       ),
                     ]),
                     Builder(builder: (_) {
