@@ -424,29 +424,56 @@ class _PullToCloseState extends State<_PullToClose> with SingleTickerProviderSta
     _back.forward(from: 0);
   }
 
+  /// Сдвиг пальца делится до того, как его получит список (_PullPhysics): так список не дёргается туда-обратно
+  /// и не уезжает, пока окно опущено. Возвращает, сколько сдвига осталось списку
+  double _share(ScrollMetrics m, double offset) {
+    if (m.axis != Axis.vertical || _closing) return offset;
+    // палец вниз, список у верха — едет окно (и на iPhone: список у верха не пружинит, а тянет окно)
+    if (offset > 0 && (_pull > 0 || m.pixels <= m.minScrollExtent)) {
+      _back.stop();
+      setState(() => _pull += offset);
+      return 0;
+    }
+    // палец вверх, а окно опущено: сначала окно поднимается до конца, остаток прокручивает список
+    if (offset < 0 && _pull > 0) {
+      _back.stop();
+      final take = math.min(-offset, _pull);
+      setState(() => _pull -= take);
+      return offset + take;
+    }
+    return offset;
+  }
+
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical || _closing) return false;
-    if (n is OverscrollNotification && n.overscroll < 0 && n.dragDetails != null) {
-      _back.stop();
-      setState(() => _pull += -n.overscroll);
-    } else if (n is ScrollUpdateNotification && n.dragDetails != null && _pull > 0 && (n.scrollDelta ?? 0) > 0) {
-      // палец пошёл вверх, а окно ещё опущено: сначала поднимается окно, список внутри стоит на месте
-      // (его сдвиг тут же возвращаем; setPixels, а не jumpTo, — jumpTo оборвал бы перетаскивание)
-      final take = math.min(n.scrollDelta!, _pull);
-      final pos = Scrollable.maybeOf(n.context!)?.position;
-      if (pos != null) pos.setPixels(pos.pixels - take);
-      setState(() => _pull -= take);
-    } else if (n is ScrollEndNotification || (n is UserScrollNotification && n.direction == ScrollDirection.idle)) {
-      _release();
-    }
+    if (n is ScrollEndNotification || (n is UserScrollNotification && n.direction == ScrollDirection.idle)) _release();
     return false;
   }
 
   @override
-  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+  Widget build(BuildContext context) {
+    final conf = ScrollConfiguration.of(context);
+    return ScrollConfiguration(
+      behavior: conf.copyWith(physics: _PullPhysics(this, parent: conf.getScrollPhysics(context))),
+      child: NotificationListener<ScrollNotification>(
         onNotification: _onScroll,
         child: Transform.translate(offset: Offset(0, _pull), child: widget.child),
-      );
+      ),
+    );
+  }
+}
+
+/// Физика списков внутри окна: сдвиг пальца сначала отдаётся окну (_PullToCloseState._share), остаток — списку
+class _PullPhysics extends ScrollPhysics {
+  const _PullPhysics(this.owner, {super.parent});
+  final _PullToCloseState owner;
+  @override
+  _PullPhysics applyTo(ScrollPhysics? ancestor) => _PullPhysics(owner, parent: buildParent(ancestor));
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    final rest = owner._share(position, offset);
+    return rest == 0 ? 0 : super.applyPhysicsToUserOffset(position, rest);
+  }
 }
 
 // --- Кнопки ---------------------------------------------------------------------------------------------

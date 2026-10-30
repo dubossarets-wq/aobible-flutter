@@ -1,6 +1,7 @@
 // Мощная проверка ядра и оболочки: читалка, «Перейти», поиск, вкладки, две панели — на телефоне 400×830
 // в светлой и тёмной теме и при крупном шрифте. Любое исключение Flutter (переполнение, бесконечные
 // ограничения, setState после dispose) роняет тест.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -278,6 +279,58 @@ void main() {
     expect(paneBook(c), 'Gen');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Окно: потянули вниз и тем же движением вверх — окно встаёт на место, список не прокручивается; дальше 90 px — закрывается', (tester) async {
+    await start(tester);
+    final ctx = tester.element(find.byType(ReaderPane).first);
+    final list = ScrollController();
+    addTearDown(list.dispose);
+    Future<void> open() async {
+      unawaited(showAobSheet(ctx, builder: (_) => AobSheet(title: 'Окно', scroll: false, child: ListView(controller: list, children: [for (var i = 0; i < 80; i++) SizedBox(height: 44, child: Text('Строка $i'))]))));
+      await tester.pumpAndSettle();
+    }
+
+    await open();
+    final sheetTop = tester.getTopLeft(find.text('Окно')).dy;
+    final g = await tester.startGesture(tester.getCenter(find.text('Строка 3')));
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(0, 10)); // вниз на 60
+      await tester.pump();
+    }
+    final pulled = tester.getTopLeft(find.text('Окно')).dy - sheetTop;
+    expect(pulled, greaterThan(30), reason: 'окно едет за пальцем (первые 20 px — порог жеста)');
+    expect(list.offset, 0);
+    for (var i = 0; i < pulled ~/ 10; i++) {
+      await g.moveBy(const Offset(0, -10)); // обратно вверх ровно на столько, на сколько опустилось окно
+      await tester.pump();
+    }
+    await g.moveBy(Offset(0, -(pulled % 10)));
+    await tester.pump();
+    expect(tester.getTopLeft(find.text('Окно')).dy, closeTo(sheetTop, 1), reason: 'окно поднялось до конца');
+    expect(list.offset, 0, reason: 'пока окно поднималось, список стоял');
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(0, -10)); // дальше вверх — уже прокрутка списка
+      await tester.pump();
+    }
+    expect(list.offset, greaterThan(30));
+    expect(tester.getTopLeft(find.text('Окно')).dy, closeTo(sheetTop, 1));
+    await g.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Окно'), findsOneWidget);
+
+    // список у верха, потянули дальше 90 px и отпустили — окно закрылось
+    list.jumpTo(0);
+    await tester.pump();
+    final g2 = await tester.startGesture(tester.getCenter(find.text('Строка 3')));
+    for (var i = 0; i < 12; i++) {
+      await g2.moveBy(const Offset(0, 12));
+      await tester.pump();
+    }
+    await g2.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Окно'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant(const {TargetPlatform.android, TargetPlatform.iOS})); // на iPhone список у верха пружинит — окно всё равно едет
 
   testWidgets('«×» закрывает свою панель: у первой — остаётся вторая (её перевод и место), у второй — первая', (tester) async {
     final two = jsonEncode([
