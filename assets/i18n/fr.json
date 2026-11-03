@@ -1458,5 +1458,21 @@
  "Дни плана": "Jours du plan",
  "пропущен": "manqué",
  "Снять отметку": "Retirer la marque",
- "идёт": "en cours"
+ "идёт": "en cours",
+ "{name} добавлен": "{name} ajoutée",
+ "Добавить": "Ajouter",
+ "Добавить {name}": "Ajouter {name}",
+ "Добавлен": "Ajoutée",
+ "Можно читать по сети": "Lire en ligne",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Pas de connexion : cette traduction se lit en ligne. Connectez-vous à Internet ou choisissez une traduction téléchargée.",
+ "Переводы по сети": "Traductions en ligne",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Les traductions en ligne sont indisponibles pour le moment : la limite mensuelle de requêtes est atteinte. Choisissez une traduction téléchargée ou revenez plus tard.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Ces traductions ne se téléchargent pas : les chapitres arrivent en ligne (API.Bible) quand vous les ouvrez.",
+ "по сети": "en ligne",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "en ligne (API.Bible) : les chapitres arrivent quand vous les ouvrez",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Ces traductions sont fournies par API.Bible selon ses propres conditions ; les droits d’auteur de chaque traduction figurent sous chaque chapitre.",
+ "Ещё языки": "Autres langues",
+ "Показать ещё {n}": "Afficher {n} de plus",
+ "Переводы bible.helloao.org": "Traductions de bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Traductions libres (domaine public et Creative Commons) issues de Free Use Bible API — bible.helloao.org, d’après eBible.org. La licence et la source de chacune figurent dans la « Bibliothèque de modules », dans les détails de la traduction."
 }

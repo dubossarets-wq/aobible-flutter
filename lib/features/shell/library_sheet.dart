@@ -1,6 +1,8 @@
 // Библиотека модулей (ModuleLibrary.jsx): установленные и каталог, поиск, фильтры по виду и языку (языки без модулей
 // не показываем), скачать / обновить / удалить, основной перевод, вкладка «Импорт» (library_import.dart), свой каталог
 // («Источник каталога»), включение и выключение небиблейских модулей (переключатель и свайп).
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,7 +46,54 @@ String langName(String code) {
     final s = langDisplayNames[currentLang]?[code];
     if (s != null) return s;
   }
-  return _langNames[code] ?? code.toUpperCase();
+  return _langNames[code] ?? catalogLangNames[code] ?? code.toUpperCase();
+}
+
+/// Ряд языков (LangChips.jsx): «Все», первые max языков кнопками, выбранный из списка — кнопкой рядом,
+/// остальные (их сотни — каталог bible.helloao.org) — кнопкой «Ещё языки» со списком по алфавиту
+List<Widget> langChips(BuildContext context, Palette pal, {required List<String> codes, required String? value, required String? allValue, required String allLabel, required String Function(String) name, required ValueChanged<String?> onChanged, Map<String, int>? counts, int max = 8, bool compact = false}) {
+  final head = codes.take(max).toList();
+  final rest = codes.skip(max).toList()..sort((a, b) => name(a).compareTo(name(b)));
+  return [
+    AobChip(compact: compact, label: allLabel, on: value == allValue, onTap: () => onChanged(allValue)),
+    for (final c in [...head, if (value != null && value != allValue && !head.contains(value)) value])
+      AobChip(compact: compact, label: name(c), on: value == c, count: counts?[c], onTap: () => onChanged(c)),
+    if (rest.isNotEmpty)
+      AobChip(compact: compact, label: t('Ещё языки'), count: rest.length, icon: LucideIcons.chevronDown, onTap: () async {
+        final v = await showDialog<String>(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: pal.panel,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Padding(padding: const EdgeInsets.fromLTRB(20, 18, 20, 8), child: Text(t('Ещё языки'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: pal.text))),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: rest.length,
+                    itemBuilder: (_, i) => InkWell(
+                      onTap: () => Navigator.pop(ctx, rest[i]),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                        child: Row(children: [
+                          Expanded(child: Text(name(rest[i]), style: TextStyle(fontSize: 15, color: pal.text))),
+                          if (counts?[rest[i]] case final n?) Text('$n', style: TextStyle(fontSize: 13, color: pal.muted)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ]),
+            ),
+          ),
+        );
+        if (v != null) onChanged(v);
+      }),
+  ];
 }
 
 String fmtSize(int bytes) => bytes >= 1048576 ? '${(bytes / 1048576).toStringAsFixed(bytes >= 10485760 ? 0 : 1)} ${t('МБ')}' : '${(bytes / 1024).round().clamp(1, 1 << 30)} ${t('КБ')}';
@@ -185,6 +234,7 @@ class LibrarySheet extends ConsumerStatefulWidget {
 class _LibrarySheetState extends ConsumerState<LibrarySheet> {
   late String _tab = widget.tab;
   String _filter = 'all', _lang = 'all', _q = '';
+  final _more = <String, int>{}; // сколько строк раздела показано (по 60, «Показать ещё» — ещё 200)
   final _search = TextEditingController();
   List<CatalogEntry>? _catalog;
   String? _catErr;
@@ -227,7 +277,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       await ModuleStore.instance.install(c, onProgress: (p, l) {
         if (mounted) setState(() => _busy[c.id] = (p, t(l)));
       });
-      if (mounted) toast(context, t('{name} установлен', {'name': c.name}));
+      if (mounted) toast(context, c.json['online'] != null ? t('{name} добавлен', {'name': c.name}) : t('{name} установлен', {'name': c.name}));
     } catch (e) {
       if (mounted) toast(context, '${c.name}: $e');
     } finally {
@@ -284,9 +334,11 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     Widget chips(List<Widget> items) => SizedBox(height: 32, child: FadeRow(padding: const EdgeInsets.symmetric(horizontal: 16), children: items));
 
     // Группы по типам: выбранный тип (или все), только непустые — при любом сочетании типа, языка и поиска
+    // переводы по сети (API.Bible) — отдельным разделом сразу после скачиваемых
+    bool inGroup(String type, _Item m) => type == 'online' ? m.type == 'bible' && m.json['online'] != null : m.type == type && !(type == 'bible' && m.json['online'] != null);
     final groups = [
-      for (final e in moduleSections)
-        if ((_filter == 'all' || e.$1 == _filter) && list.any((m) => m.type == e.$1)) (e.$1, e.$2, list.where((m) => m.type == e.$1).toList()),
+      for (final e in [for (final e in moduleSections) ...(e.$1 == 'bible' ? [e, ('online', 'Переводы по сети')] : [e])])
+        if ((_filter == 'all' || e.$1 == _filter || (e.$1 == 'online' && _filter == 'bible')) && list.any((m) => inGroup(e.$1, m))) (e.$1, e.$2, list.where((m) => inGroup(e.$1, m)).toList()),
     ];
     final empty = !isImport && groups.isEmpty && !(_tab == 'catalog' && _catalog == null);
 
@@ -315,8 +367,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             if (langCodes.length >= 2) ...[
               const SizedBox(height: 8),
               chips([
-                AobChip(compact: true, label: t('Все языки'), on: lang == 'all', onTap: () => setState(() => _lang = 'all')),
-                for (final c in langCodes) AobChip(compact: true, label: langName(c), on: lang == c, count: langCount[c], onTap: () => setState(() => _lang = c)),
+                ...langChips(context, pal, compact: true, codes: langCodes, value: lang, allValue: 'all', allLabel: t('Все языки'), name: langName, counts: langCount, max: 10, onChanged: (v) => setState(() => _lang = v ?? 'all')),
               ]),
             ],
           ],
@@ -356,7 +407,13 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
                   TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400)),
                 ]), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
               ),
-              for (final (i, m) in g.$3.indexed) _row(m, s, pal, last: i == g.$3.length - 1),
+              // длинный раздел (сотни переводов каталога) — сначала первые 60 строк, остальные — «Показать ещё»
+              for (final (i, m) in g.$3.take(_more[g.$1] ?? 60).indexed) _row(m, s, pal, last: i == g.$3.length - 1),
+              if (g.$3.length > (_more[g.$1] ?? 60))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                  child: AobButton(block: true, small: true, label: t('Показать ещё {n}', {'n': '${math.min(200, g.$3.length - (_more[g.$1] ?? 60))}'}), onTap: () => setState(() => _more[g.$1] = (_more[g.$1] ?? 60) + 200)),
+                ),
             ]),
         if (_tab == 'catalog') _sourceFold(pal),
       ],
@@ -401,9 +458,12 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(LucideIcons.check, size: 14, color: pal.muted),
           const SizedBox(width: 4),
-          Text(t('Установлен'), style: TextStyle(fontSize: 13, color: pal.muted)),
+          Text(m.json['online'] != null ? t('Добавлен') : t('Установлен'), style: TextStyle(fontSize: 13, color: pal.muted)),
         ]),
       );
+    } else if (m.json['online'] != null) {
+      // перевод по сети (API.Bible): не скачивается — добавляется
+      action = ModPill(pal: pal, label: t('Добавить'), tip: t('Добавить {name}', {'name': m.name}), onTap: () => _install(m.cat ?? CatalogEntry(m.json)));
     } else {
       action = ModPill(
         pal: pal,
@@ -417,7 +477,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     // «Новый» — модуль появился в каталоге за последние 7 дней (поле added каталога)
     final addedAt = DateTime.tryParse('${m.cat?.json['added'] ?? m.json['added'] ?? ''}');
     final isNew = addedAt != null && DateTime.now().difference(addedAt).inDays < 7;
-    final meta = [if (m.language.isNotEmpty) langName(m.language), if (installed == null && m.size > 0) fmtSize(m.size)].join(' · ');
+    final meta = [if (m.language.isNotEmpty) langName(m.language), if (m.json['online'] != null) t('по сети') else if (installed == null && m.size > 0) fmtSize(m.size)].join(' · ');
     void toggle() => setState(() {
           _was = _open;
           _open = open ? null : m.id;
@@ -521,7 +581,8 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     final facts = <(String, String)>[
       (t('Вид'), t(moduleTypeNames[m.type] ?? m.type) + (m.str('dictionaryKind') != null ? ' · ${m.str('dictionaryKind') == 'strongs' ? t('по номерам Стронга') : t('по словам')}' : '')),
       if (_stats(m) != null || m.size > 0) (t('Объём'), [?_stats(m), if (m.size > 0) fmtSize(m.size)].join(' · ')),
-      if (m.language.isNotEmpty) (t('Язык'), m.language.toUpperCase()),
+      if (m.language.isNotEmpty) (t('Язык'), langName(m.language)),
+      if (m.json['online'] != null) (t('Чтение'), t('по сети (API.Bible): главы приходят, когда вы их открываете')),
       if (m.str('version') != null) (t('Версия'), m.str('version')!),
       if (m.str('license') != null) (t('Лицензия'), m.str('license')!),
       if (m.str('author') != null) (t('Автор'), m.str('author')!),
@@ -553,9 +614,11 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           if (installed?.type == 'bible' && installed?.features['helper'] != true && !isPrimary) AobButton(small: true, icon: LucideIcons.star, label: t('Сделать основным'), onTap: () => _primary(m)),
-          if (installed == null && !m.unavailable)
+          if (installed == null && !m.unavailable && m.json['online'] != null)
+            AobButton(small: true, kind: BtnKind.primary, icon: LucideIcons.plus, label: t('Добавить'), onTap: busy ? null : () => _install(m.cat ?? CatalogEntry(m.json))),
+          if (installed == null && !m.unavailable && m.json['online'] == null)
             AobButton(small: true, kind: BtnKind.primary, icon: LucideIcons.download, label: '${t('Скачать')}${m.size > 0 ? ' · ${fmtSize(m.size)}' : ''}', onTap: busy ? null : () => _install(m.cat ?? CatalogEntry(m.json))),
-          if (installed != null && m.cat != null && !m.cat!.unavailable)
+          if (installed != null && m.cat != null && !m.cat!.unavailable && m.json['online'] == null)
             AobButton(small: true, icon: LucideIcons.refreshCw, label: updatable ? t('Обновить') : t('Переустановить'), onTap: busy ? null : () => _install(m.cat!)),
           if (installed != null) ConfirmButton(small: true, icon: LucideIcons.trash2, label: t('Удалить'), confirmText: t('Удалить'), onConfirm: () => _remove(m)),
         ]),

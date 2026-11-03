@@ -1458,5 +1458,21 @@
  "Дни плана": "Días del plan",
  "пропущен": "pendiente",
  "Снять отметку": "Quitar marca",
- "идёт": "en curso"
+ "идёт": "en curso",
+ "{name} добавлен": "{name} añadida",
+ "Добавить": "Añadir",
+ "Добавить {name}": "Añadir {name}",
+ "Добавлен": "Añadida",
+ "Можно читать по сети": "Leer en línea",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Sin conexión: esta traducción se lee en línea. Conéctese a internet o elija una traducción descargada.",
+ "Переводы по сети": "Traducciones en línea",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Las traducciones en línea no están disponibles ahora: se agotó el límite mensual de solicitudes. Elija una traducción descargada o vuelva más tarde.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Estas traducciones no se descargan: los capítulos llegan en línea (API.Bible) cuando los abre.",
+ "по сети": "en línea",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "en línea (API.Bible): los capítulos llegan cuando los abre",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Estas traducciones las ofrece API.Bible según sus propias condiciones; los derechos de autor de cada traducción se indican bajo cada capítulo.",
+ "Ещё языки": "Más idiomas",
+ "Показать ещё {n}": "Mostrar {n} más",
+ "Переводы bible.helloao.org": "Traducciones de bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Traducciones libres (dominio público y Creative Commons) de Free Use Bible API — bible.helloao.org, con materiales de eBible.org. La licencia y la fuente de cada una se indican en la «Biblioteca de módulos», en los detalles de la traducción."
 }

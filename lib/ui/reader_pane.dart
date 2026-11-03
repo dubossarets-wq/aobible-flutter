@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../core/apibible.dart';
 import '../core/bible.dart';
 import '../core/books.dart';
 import '../core/modules.dart';
@@ -20,6 +21,7 @@ import '../core/i18n.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/background.dart' show ReaderBackground, bgStamp;
+import '../features/shell/sheet.dart' show Loading;
 import 'kit.dart';
 import 'verse_view.dart';
 
@@ -48,6 +50,9 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   final _scroll = ItemScrollController();
   final _positions = ItemPositionsListener.create();
   BookText? _book;
+  // перевод по сети (API.Bible): ждём главу — вместо текста «Загрузка…» или ошибка с «Повторить»
+  String? _onlineErr;
+  bool _onlineMore = false; // подгружается следующая глава (конец ленты)
   int _nav = -1;
   String? _module;
   int _initialIndex = 0;
@@ -210,6 +215,28 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   int _itemOf(VerseRef r) => _book!.indexOf(r.chapter, r.verse);
 
+  // Перевод по сети: пришла следующая глава — книга перечитывается, место чтения остаётся прежним
+  Future<void> _loadNext(BookText book, int c) async {
+    try {
+      await loadChapter(book.module, book.book, c);
+    } catch (_) {
+      return; // нет связи — «Загрузка…» внизу останется; новая попытка — при следующем открытии
+    } finally {
+      _onlineMore = false;
+    }
+    if (!mounted || _book?.module != book.module || _book?.book != book.book) return;
+    final s = ref.read(settingsProvider);
+    final at = livePositions[widget.index]?.value ?? ref.read(panesProvider)[widget.index].ref;
+    setState(() {
+      _book = loadBook(book.module, book.book);
+      _rowsKey = '';
+      _buildRows(isContinuous(s), s.get<bool>('showHeadings'));
+      _initialIndex = _rowOf[_itemOf(at)];
+      _listKey++;
+    });
+    _alignAfterFrame(at);
+  }
+
   void _open(PaneState p, bool cont, bool showHeadings) {
     // В переводе нет открытой книги (например, «От Иоанна» в еврейском Ветхом Завете) — открываем начало перевода
     // и говорим об этом; без проверки пустая книга роняла читалку (RangeError)
@@ -223,6 +250,20 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
         ref.read(panesProvider.notifier).navigate(widget.index, to, flash: false);
         Hub.toast(t('В этом переводе нет книги «{book}»', {'book': missing}));
       });
+    }
+    // перевод по сети: главы ещё нет — сначала она (и следующая), потом книга
+    if (isOnline(p.moduleId) && !hasChapter(p.moduleId, p.ref.book, p.ref.chapter)) {
+      _book = null;
+      _module = p.moduleId;
+      _nav = p.nav;
+      _onlineErr = null;
+      final c = p.ref.chapter, n = (books.where((b) => b['id'] == p.ref.book).firstOrNull?['chapters'] as int?) ?? c;
+      Future.wait([loadChapter(p.moduleId, p.ref.book, c), if (c < n) loadChapter(p.moduleId, p.ref.book, c + 1).catchError((_) {})]).then((_) {
+        if (mounted && _module == p.moduleId) setState(() => _module = null); // следующий кадр откроет книгу заново
+      }, onError: (Object e) {
+        if (mounted) setState(() => _onlineErr = e is OnlineError && e.kind == 'limit' ? t('Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.') : t('Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.'));
+      });
+      return;
     }
     final sameBook = _book != null && _book!.book == p.ref.book && _module == p.moduleId;
     if (!sameBook) {
@@ -252,7 +293,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   // Режим «Сплошной» / «Как книга» или показ заголовков поменялись — строки другие, встаём на то же место
   void _ensureRows(bool cont, bool showHeadings) {
-    if (_rowsKey == '$cont|$showHeadings') return;
+    if (_book == null || _rowsKey == '$cont|$showHeadings') return;
     final at = livePositions[widget.index]?.value ?? ref.read(panesProvider)[widget.index].ref;
     _buildRows(cont, showHeadings);
     _initialIndex = _rowOf[_itemOf(at)];
@@ -632,6 +673,22 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       });
     }
     if (_pinchFs != null) s = s.copyWith({'fontSize': _pinchFs!.toDouble()});
+    if (_book == null) {
+      // перевод по сети: глава ещё идёт или не пришла
+      final pal = s.palette;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: _onlineErr == null
+              ? Loading(t('Загрузка…'))
+              : Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(_onlineErr!, textAlign: TextAlign.center, style: TextStyle(color: pal.muted, height: 1.45)),
+                  const SizedBox(height: 12),
+                  AobButton(label: t('Повторить'), icon: LucideIcons.refreshCw, onTap: () => setState(() => _module = null)),
+                ]),
+        ),
+      );
+    }
     final book = _book!;
     final pal = s.palette;
     final books = bookList(book.module);
@@ -652,15 +709,31 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       itemBuilder: (context, i) {
         if (i == _rows.length) {
+          // перевод по сети: дальше есть главы, которых ещё нет — подгружаем следующую, как только конец ленты виден
+          final total = bi >= 0 ? (books[bi]['chapters'] as int? ?? 0) : 0;
+          final online = isOnline(book.module);
+          final next = book.chapterCount + 1;
+          if (online && next <= total) {
+            if (!_onlineMore) {
+              _onlineMore = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) => _loadNext(book, next));
+            }
+            return Padding(padding: EdgeInsets.only(top: 16, bottom: MediaQuery.sizeOf(context).height * 0.45), child: Loading(t('Загрузка…')));
+          }
           // Конец книги: переход к следующей и запас снизу, чтобы последний стих вставал к верхнему краю
           return Padding(
             padding: EdgeInsets.only(top: 16, bottom: MediaQuery.sizeOf(context).height * 0.45 + MediaQuery.paddingOf(context).bottom),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: nextBook == null
-                  ? Text(t('Конец книги'), style: TextStyle(color: pal.muted))
-                  : _BookJump(label: t('Следующая книга: {name}', {'name': Books.instance.meta(nextBook).name}), trailing: true, pal: pal, onTap: () => _goBook(nextBook, 1)),
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // перевод по сети: авторские права (их требует API.Bible рядом с текстом)
+              if (online && onlineCopyright(book.module).isNotEmpty)
+                Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(onlineCopyright(book.module), style: TextStyle(fontSize: 11.5, height: 1.4, color: pal.muted))),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: nextBook == null
+                    ? Text(t('Конец книги'), style: TextStyle(color: pal.muted))
+                    : _BookJump(label: t('Следующая книга: {name}', {'name': Books.instance.meta(nextBook).name}), trailing: true, pal: pal, onTap: () => _goBook(nextBook, 1)),
+              ),
+            ]),
           );
         }
         final r = _rows[i];
@@ -674,6 +747,14 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
             ),
           ),
         );
+        // перевод по сети: первая из пришедших глав — не первая в книге; предыдущая — по кнопке
+        final firstC = book.items.isEmpty ? 1 : book.items.first.chapter;
+        if (i == 0 && isOnline(book.module) && firstC > 1) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(padding: const EdgeInsets.only(top: 12), child: _BookJump(label: '${Books.instance.meta(book.book).name} ${firstC - 1}', pal: pal, onTap: () => _goBook(book.book, firstC - 1))),
+            row,
+          ]);
+        }
         if (i == 0 && prevBook != null) {
           final lastChapter = (books[bi - 1]['chapters'] as int?) ?? 1;
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

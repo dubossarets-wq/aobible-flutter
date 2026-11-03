@@ -17,7 +17,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/intl_data.dart' show langDisplayNames;
-import '../features/shell/library_sheet.dart' show ModBusy, ModPill, fmtSize;
+import '../features/shell/library_sheet.dart' show ModBusy, ModPill, fmtSize, langChips;
 import '../features/shell/sheet.dart' show loadCatalog;
 import 'kit.dart';
 import 'navigator_sheet.dart';
@@ -524,7 +524,7 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
       await ModuleStore.instance.install(c, onProgress: (p, _) {
         if (mounted) setState(() => _busy[c.id] = p);
       });
-      Hub.toast(t('{name} установлен', {'name': c.name}));
+      Hub.toast(c.json['online'] != null ? t('{name} добавлен', {'name': c.name}) : t('{name} установлен', {'name': c.name}));
     } catch (e) {
       Hub.toast('${c.name}: $e');
     } finally {
@@ -563,7 +563,8 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
         final langs = [...mine, ...rest]..sort((a, b) => a == currentLang ? -1 : b == currentLang ? 1 : 0);
         final lang = langs.contains(_lang) ? _lang : null;
         final byLang = lang == null ? ordered : [for (final m in ordered) if (m.language == lang) m];
-        final moreByLang = lang == null ? more : [for (final c in more) if (c.language == lang) c];
+        // без выбранного языка — не скачанные переводы только на своих языках (каталог — больше тысячи переводов)
+        final moreByLang = lang == null ? [for (final c in more) if (mine.contains(c.language) || c.language == currentLang) c] : [for (final c in more) if (c.language == lang) c];
         // что в переводе: показываем только выборки, которые отбирают часть списка (вместе со скачиваемыми)
         final scopes = {for (final m in byLang) m.id: _scopeOf(m)};
         bool fitsM(_Kind k, InstalledModule m) => k.$3(scopes[m.id]!, m.features);
@@ -577,7 +578,7 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
         final list = kind == null ? byLang : byLang.where((m) => fitsM(kind, m)).toList();
         final moreList = kind == null ? moreByLang : moreByLang.where((c) => fitsC(kind, c)).toList();
         String langName(String code) {
-          final n = langDisplayNames[currentLang]?[code] ?? code;
+          final n = langDisplayNames[currentLang]?[code] ?? catalogLangNames[code] ?? code;
           return n.isEmpty ? code : '${n[0].toUpperCase()}${n.substring(1)}';
         }
         return AobSheet(
@@ -606,8 +607,7 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
                 child: SizedBox(
                   height: 34,
                   child: FadeRow(gap: 6, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
-                    AobChip(label: t('Все'), on: lang == null, onTap: () => setState(() => _lang = null)),
-                    for (final l in langs) AobChip(label: langName(l), on: lang == l, onTap: () => setState(() => _lang = l)),
+                    ...langChips(context, pal, codes: langs, value: lang, allValue: null, allLabel: t('Все'), name: langName, max: math.max(8, mine.length + 4), onChanged: (v) => setState(() => _lang = v)),
                   ]),
                 ),
               ),
@@ -650,45 +650,54 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: Text(t('Загружаю каталог…'), style: TextStyle(fontSize: 13.6, color: pal.muted)),
               ),
-            if (moreList.isNotEmpty)
-              Container(
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
-                child: Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: t('Можно скачать').toUpperCase()),
-                    TextSpan(text: '  ${moreList.length}', style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0)),
-                  ]),
-                  style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: pal.muted),
+            // скачиваемые и (переводы API.Bible) читаемые по сети — двумя разделами; у вторых «Добавить»
+            for (final (items, title, note) in [
+              ([for (final c in moreList) if (c.json['online'] == null) c], t('Можно скачать'), null),
+              ([for (final c in moreList) if (c.json['online'] != null) c], t('Можно читать по сети'), t('Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.')),
+            ])
+              if (items.isNotEmpty) ...[
+                Container(
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: title.toUpperCase()),
+                      TextSpan(text: '  ${items.length}', style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0)),
+                    ]),
+                    style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: pal.muted),
+                  ),
                 ),
-              ),
-            for (final (k, c) in moreList.indexed)
-              Container(
-                decoration: BoxDecoration(border: k == moreList.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
-                padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(c.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
-                      const SizedBox(height: 2),
-                      Text(
-                        [
-                          if (c.title != c.name) c.title,
-                          if (c.features['strongs'] == true) t('номера Стронга'),
-                          if (lang == null && langs.length > 1) langName(c.language),
-                          if (c.size > 0) fmtSize(c.size),
-                        ].join(' · '),
-                        style: TextStyle(fontSize: 12.75, color: pal.muted),
+                if (note != null) Padding(padding: const EdgeInsets.fromLTRB(20, 2, 20, 6), child: Text(note, style: TextStyle(fontSize: 12.75, height: 1.4, color: pal.muted))),
+                for (final (k, c) in items.indexed)
+                  Container(
+                    decoration: BoxDecoration(border: k == items.length - 1 ? null : Border(bottom: BorderSide(color: pal.line))),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(c.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: pal.text)),
+                          const SizedBox(height: 2),
+                          Text(
+                            [
+                              if (c.title != c.name) c.title,
+                              if (c.features['strongs'] == true) t('номера Стронга'),
+                              if (lang == null && langs.length > 1) langName(c.language),
+                              if (c.size > 0) fmtSize(c.size),
+                            ].join(' · '),
+                            style: TextStyle(fontSize: 12.75, color: pal.muted),
+                          ),
+                        ]),
                       ),
+                      const SizedBox(width: 8),
+                      if (_busy[c.id] case final p?)
+                        ModBusy(pal: pal, value: p)
+                      else if (c.json['online'] != null)
+                        ModPill(pal: pal, label: t('Добавить'), tip: t('Добавить {name}', {'name': c.name}), onTap: () => _install(c))
+                      else
+                        ModPill(pal: pal, label: t('Скачать'), tip: c.size > 0 ? '${t('Скачать')} · ${fmtSize(c.size)}' : null, onTap: () => _install(c)),
                     ]),
                   ),
-                  const SizedBox(width: 8),
-                  if (_busy[c.id] case final p?)
-                    ModBusy(pal: pal, value: p)
-                  else
-                    ModPill(pal: pal, label: t('Скачать'), tip: c.size > 0 ? '${t('Скачать')} · ${fmtSize(c.size)}' : null, onTap: () => _install(c)),
-                ]),
-              ),
+              ],
             if (Hub.openLibraryTab != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),

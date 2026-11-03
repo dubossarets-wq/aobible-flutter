@@ -61,6 +61,9 @@ class BookText {
 
 final _cache = <String, BookText>{};
 
+/// Книга изменилась (перевод по сети: пришла глава) — следующее чтение из базы
+void forgetBook(String moduleId, String book) => _cache.remove('$moduleId|$book');
+
 BookText loadBook(String moduleId, String book) {
   final key = '$moduleId|$book';
   final hit = _cache.remove(key);

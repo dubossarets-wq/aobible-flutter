@@ -1464,5 +1464,21 @@
  "Дни плана": "Zilele planului",
  "пропущен": "ratat",
  "Снять отметку": "Debifează",
- "идёт": "în curs"
+ "идёт": "în curs",
+ "{name} добавлен": "{name} adăugată",
+ "Добавить": "Adaugă",
+ "Добавить {name}": "Adaugă {name}",
+ "Добавлен": "Adăugată",
+ "Можно читать по сети": "Se citește online",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Fără conexiune: această traducere se citește online. Conectați-vă la internet sau alegeți o traducere descărcată.",
+ "Переводы по сети": "Traduceri online",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Traducerile online nu sunt disponibile acum: limita lunară de cereri a fost atinsă. Alegeți o traducere descărcată sau reveniți mai târziu.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Aceste traduceri nu se descarcă: capitolele vin online (API.Bible) când le deschideți.",
+ "по сети": "online",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "online (API.Bible): capitolele vin când le deschideți",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Aceste traduceri sunt oferite de API.Bible în condițiile sale; drepturile de autor ale traducerii sunt indicate sub fiecare capitol.",
+ "Ещё языки": "Alte limbi",
+ "Показать ещё {n}": "Arată încă {n}",
+ "Переводы bible.helloao.org": "Traduceri de pe bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Traduceri libere (domeniu public și Creative Commons) din Free Use Bible API — bible.helloao.org, după materialele eBible.org. Licența și sursa fiecăreia sunt indicate în „Biblioteca de module”, în detaliile traducerii."
 }

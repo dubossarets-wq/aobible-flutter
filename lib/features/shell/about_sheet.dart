@@ -164,7 +164,9 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
     final cat = _cat;
     if (cat == null) return [Loading(t('Загрузка…'))];
     // Нет сети — хотя бы установленные модули
-    final items = cat.isNotEmpty ? cat.map((c) => c.json).toList() : ModuleStore.instance.installed.map((m) => m.meta).toList();
+    final all = cat.isNotEmpty ? cat.map((c) => c.json).toList() : ModuleStore.instance.installed.map((m) => m.meta).toList();
+    // переводы по сети (API.Bible) и bible.helloao.org — по абзацу ниже: их сотни, права каждого — у перевода
+    final items = [for (final m in all) if (m['online'] == null && m['helloao'] == null) m];
     final small = TextStyle(color: pal.muted, fontSize: 13.2, height: 1.55);
     return [
       _p(t('Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой.')),
@@ -191,6 +193,14 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
                 ]),
             ]),
         ],
+      if (all.any((m) => m['helloao'] != null)) ...[
+        _h4(t('Переводы bible.helloao.org'), pal),
+        _p(t('Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.')),
+      ],
+      if (all.any((m) => m['online'] != null)) ...[
+        _h4(t('Переводы по сети'), pal),
+        _p(t('Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.')),
+      ],
       if (_photos.isNotEmpty) ...[
         _h4(t('Фотографии'), pal),
         for (final p in _photos)

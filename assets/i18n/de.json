@@ -1452,5 +1452,21 @@
  "Дни плана": "Tage des Plans",
  "пропущен": "verpasst",
  "Снять отметку": "Markierung entfernen",
- "идёт": "läuft"
+ "идёт": "läuft",
+ "{name} добавлен": "{name} hinzugefügt",
+ "Добавить": "Hinzufügen",
+ "Добавить {name}": "{name} hinzufügen",
+ "Добавлен": "Hinzugefügt",
+ "Можно читать по сети": "Online lesen",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Keine Verbindung: Diese Übersetzung wird online gelesen. Verbinden Sie sich mit dem Internet oder wählen Sie eine heruntergeladene Übersetzung.",
+ "Переводы по сети": "Online-Übersetzungen",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Online-Übersetzungen sind gerade nicht verfügbar: Das monatliche Anfragelimit ist erreicht. Wählen Sie eine heruntergeladene Übersetzung oder versuchen Sie es später.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Diese Übersetzungen werden nicht heruntergeladen: Kapitel kommen online (API.Bible), wenn Sie sie öffnen.",
+ "по сети": "online",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "online (API.Bible): Kapitel kommen, wenn Sie sie öffnen",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Diese Übersetzungen stellt API.Bible zu eigenen Bedingungen bereit; das Urheberrecht der Übersetzung steht unter jedem Kapitel.",
+ "Ещё языки": "Weitere Sprachen",
+ "Показать ещё {n}": "{n} weitere anzeigen",
+ "Переводы bible.helloao.org": "Übersetzungen von bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Freie Übersetzungen (gemeinfrei und Creative Commons) aus der Free Use Bible API — bible.helloao.org, nach Material von eBible.org. Lizenz und Quelle jeder Übersetzung stehen in der „Modulbibliothek“ in den Details der Übersetzung."
 }

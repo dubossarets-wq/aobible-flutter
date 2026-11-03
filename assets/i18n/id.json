@@ -1443,5 +1443,21 @@
  "Дни плана": "Hari rencana",
  "пропущен": "terlewat",
  "Снять отметку": "Hapus tanda",
- "идёт": "berjalan"
+ "идёт": "berjalan",
+ "{name} добавлен": "{name} ditambahkan",
+ "Добавить": "Tambah",
+ "Добавить {name}": "Tambah {name}",
+ "Добавлен": "Ditambahkan",
+ "Можно читать по сети": "Baca daring",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Tidak ada koneksi: terjemahan ini dibaca secara daring. Sambungkan ke internet atau pilih terjemahan yang sudah diunduh.",
+ "Переводы по сети": "Terjemahan daring",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Terjemahan daring sedang tidak tersedia: batas permintaan bulanan sudah habis. Pilih terjemahan yang sudah diunduh atau coba lagi nanti.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Terjemahan ini tidak diunduh: pasal dimuat secara daring (API.Bible) saat Anda membukanya.",
+ "по сети": "daring",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "daring (API.Bible): pasal dimuat saat Anda membukanya",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Terjemahan ini disediakan oleh API.Bible dengan ketentuannya sendiri; hak cipta terjemahan tercantum di bawah setiap pasal.",
+ "Ещё языки": "Bahasa lain",
+ "Показать ещё {n}": "Tampilkan {n} lagi",
+ "Переводы bible.helloao.org": "Terjemahan dari bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Terjemahan bebas (domain publik dan Creative Commons) dari Free Use Bible API — bible.helloao.org, berdasarkan bahan eBible.org. Lisensi dan sumber masing-masing tercantum di «Pustaka modul», dalam rincian terjemahan."
 }

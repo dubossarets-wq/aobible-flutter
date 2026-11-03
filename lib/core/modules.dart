@@ -14,6 +14,9 @@ import 'package:sqlite3/sqlite3.dart';
 import '../features/maps/places_data.dart';
 import '../features/shell/module_import.dart';
 import '../features/study/study_tables.dart';
+import 'apibible.dart' show onlineModule;
+import 'books.dart';
+import 'helloao.dart';
 import 'i18n.dart';
 import 'markup.dart';
 import 'net.dart';
@@ -22,8 +25,14 @@ import 'net.dart';
 /// Полное название остаётся в title. Действует и для уже скачанных модулей
 const shortModuleNames = {'desp-notes': 'Десницкий', 'otnt-notes': 'Откр. НЗ'};
 
+/// Названия языков из каталога (у переводов bible.helloao.org — на самом языке): запасные, если своего нет
+final catalogLangNames = <String, String>{};
+
 class CatalogEntry {
-  CatalogEntry(this.json);
+  CatalogEntry(this.json) {
+    final n = json['languageName'];
+    if (n is String && n.isNotEmpty) catalogLangNames.putIfAbsent(language, () => n);
+  }
   final Map<String, dynamic> json;
   String get id => json['id'] as String;
   String get type => json['type'] as String? ?? 'bible';
@@ -166,11 +175,25 @@ class ModuleStore {
     final gz = e.urlGz != null;
     final path = gz ? e.urlGz! : e.url!;
     void onP(double p) => onProgress?.call(p * 0.6, 'Загрузка');
-    final bytes = e.absolute ? await downloadUrl(path, onProgress: onP) : await download('modules/$path', onProgress: onP);
+    // полный адрес — свой каталог или перевод с bible.helloao.org
+    final bytes = e.absolute || path.startsWith('https://') ? await downloadUrl(path, onProgress: onP) : await download('modules/$path', onProgress: onP);
     onProgress?.call(0.65, 'Подготовка');
     final target = '${dir.path}${Platform.pathSeparator}${e.id}.db';
     final tmp = '$target.part';
-    await _convertInIsolate(bytes, gz, tmp, e.version);
+    if (e.json['online'] != null) {
+      // перевод API.Bible: модуль без текста, только книги — главы придут по сети (lib/core/apibible.dart)
+      final entry = e.json;
+      final names = {for (final b in Books.instance.all) b.id: [Books.instance.meta(b.id).name, Books.instance.meta(b.id).short]};
+      final books = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+      await Isolate.run(() => _convertJson(onlineModule(entry, books, names), tmp, ''));
+    } else if (e.json['helloao'] != null) {
+      // перевод bible.helloao.org: complete.json → формат модуля → SQLite (в отдельном потоке)
+      final entry = e.json;
+      final names = {for (final b in Books.instance.all) b.id: [Books.instance.meta(b.id).name, Books.instance.meta(b.id).short]};
+      await Isolate.run(() => _convertJson(fromHelloao(jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>, entry, names), tmp, ''));
+    } else {
+      await _convertInIsolate(bytes, gz, tmp, e.version);
+    }
     await _finish(e.id, tmp, target);
     onProgress?.call(1, 'Готово');
   }

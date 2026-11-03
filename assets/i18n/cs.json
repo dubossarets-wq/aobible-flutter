@@ -1476,5 +1476,21 @@
  "Дни плана": "Dny plánu",
  "пропущен": "zmeškaný",
  "Снять отметку": "Zrušit označení",
- "идёт": "probíhá"
+ "идёт": "probíhá",
+ "{name} добавлен": "{name} přidán",
+ "Добавить": "Přidat",
+ "Добавить {name}": "Přidat {name}",
+ "Добавлен": "Přidáno",
+ "Можно читать по сети": "Lze číst online",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Bez připojení: tento překlad se čte online. Připojte se k internetu nebo vyberte stažený překlad.",
+ "Переводы по сети": "Překlady online",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Překlady online teď nejsou dostupné: měsíční limit požadavků je vyčerpán. Vyberte stažený překlad nebo to zkuste později.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Tyto překlady se nestahují: kapitoly přicházejí online (API.Bible), když je otevřete.",
+ "по сети": "online",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "online (API.Bible): kapitoly přicházejí, když je otevřete",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Tyto překlady poskytuje API.Bible za svých podmínek; autorská práva překladu jsou uvedena pod každou kapitolou.",
+ "Ещё языки": "Další jazyky",
+ "Показать ещё {n}": "Zobrazit dalších {n}",
+ "Переводы bible.helloao.org": "Překlady z bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Volné překlady (volné dílo a Creative Commons) z Free Use Bible API — bible.helloao.org, podle materiálů eBible.org. Licence a zdroj každého jsou uvedeny v „Knihovně modulů“ v podrobnostech překladu."
 }

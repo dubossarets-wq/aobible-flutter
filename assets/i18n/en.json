@@ -1452,5 +1452,21 @@
  "Дни плана": "Plan days",
  "пропущен": "missed",
  "Снять отметку": "Unmark",
- "идёт": "in progress"
+ "идёт": "in progress",
+ "{name} добавлен": "{name} added",
+ "Добавить": "Add",
+ "Добавить {name}": "Add {name}",
+ "Добавлен": "Added",
+ "Можно читать по сети": "Read online",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "No connection: this translation is read online. Connect to the internet or choose a downloaded translation.",
+ "Переводы по сети": "Online translations",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "Online translations are unavailable right now: the monthly request limit has been reached. Choose a downloaded translation or check back later.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "These translations are not downloaded: chapters arrive online (API.Bible) when you open them.",
+ "по сети": "online",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "online (API.Bible): chapters arrive when you open them",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "These translations are provided by API.Bible on its own terms; each translation’s copyright is shown under every chapter.",
+ "Ещё языки": "More languages",
+ "Показать ещё {n}": "Show {n} more",
+ "Переводы bible.helloao.org": "Translations from bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Free translations (public domain and Creative Commons) from the Free Use Bible API — bible.helloao.org, based on eBible.org. The license and source of each are shown in the “Module library”, in the translation’s details."
 }

@@ -1458,5 +1458,21 @@
  "Дни плана": "Dias do plano",
  "пропущен": "perdido",
  "Снять отметку": "Desmarcar",
- "идёт": "em curso"
+ "идёт": "em curso",
+ "{name} добавлен": "{name} adicionada",
+ "Добавить": "Adicionar",
+ "Добавить {name}": "Adicionar {name}",
+ "Добавлен": "Adicionada",
+ "Можно читать по сети": "Ler online",
+ "Нет связи: этот перевод читается по сети. Подключитесь к интернету или выберите скачанный перевод.": "Sem conexão: esta tradução é lida online. Conecte-se à internet ou escolha uma tradução baixada.",
+ "Переводы по сети": "Traduções online",
+ "Переводы по сети сейчас недоступны: исчерпан месячный лимит запросов. Выберите скачанный перевод или загляните позже.": "As traduções online não estão disponíveis agora: o limite mensal de solicitações foi atingido. Escolha uma tradução baixada ou volte mais tarde.",
+ "Эти переводы не скачиваются: главы приходят по сети (API.Bible), когда вы их открываете.": "Estas traduções não são baixadas: os capítulos chegam online (API.Bible) quando você os abre.",
+ "по сети": "online",
+ "по сети (API.Bible): главы приходят, когда вы их открываете": "online (API.Bible): os capítulos chegam quando você os abre",
+ "Эти переводы предоставляет API.Bible на своих условиях; авторские права перевода указаны под каждой главой.": "Estas traduções são fornecidas pela API.Bible nos seus próprios termos; os direitos autorais de cada tradução aparecem sob cada capítulo.",
+ "Ещё языки": "Mais idiomas",
+ "Показать ещё {n}": "Mostrar mais {n}",
+ "Переводы bible.helloao.org": "Traduções de bible.helloao.org",
+ "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Traduções livres (domínio público e Creative Commons) da Free Use Bible API — bible.helloao.org, com materiais do eBible.org. A licença e a fonte de cada uma aparecem na «Biblioteca de módulos», nos detalhes da tradução."
 }
