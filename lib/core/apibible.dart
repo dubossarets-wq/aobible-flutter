@@ -10,6 +10,7 @@ import 'bible.dart' show forgetBook;
 import 'helloao.dart' show usfmToOsis;
 import 'modules.dart';
 import 'net.dart';
+import 'versification.dart';
 
 const _bases = ['https://aobible.app/bapi', 'https://aobible-apibible.apibible.workers.dev'];
 const _keepVerses = 480;
@@ -37,7 +38,7 @@ Map<String, dynamic> onlineModule(Map<String, dynamic> entry, Map<String, dynami
       'language': entry['language'],
       'license': entry['license'],
       'source': entry['source'],
-      'versification': 'kjv',
+      'versification': 'synodal',
       'online': entry['online'],
       'books': [
         for (final e in ((books['books'] as Map?) ?? const {}).entries)
@@ -81,6 +82,21 @@ Future<void> _load(String moduleId, String book, int c) async {
   final api = (m?.meta['online'] as Map?)?['api'];
   final code = _osisToUsfm[book];
   if (api == null || code == null) throw OnlineError('net');
+  // глава в синодальной нумерации — из одной или двух глав API (в нём западная нумерация, versification.dart)
+  final v = <String>[];
+  final h = <int, String>{};
+  var copyright = '';
+  for (final kc in westernChaptersFor(book, c)) {
+    final data = await _fetch(api as String, code, kc);
+    final (kv, kh, title) = parseChapter(data['content'] as List? ?? const []);
+    placeSynodal(book, kc, kv, kh, c, v, h, title);
+    if (copyright.isEmpty) copyright = data['copyright'] as String? ?? '';
+  }
+  _store(m!.path, book, c, v, h, copyright);
+  forgetBook(moduleId, book);
+}
+
+Future<Map<String, dynamic>> _fetch(String api, String code, int c) async {
   const q = 'content-type=json&include-notes=false&include-titles=true&include-chapter-numbers=false&include-verse-numbers=true&include-verse-spans=false';
   Map<String, dynamic>? j;
   final client = await newHttpClient();
@@ -102,10 +118,7 @@ Future<void> _load(String moduleId, String book, int c) async {
   }
   client.close();
   if (j == null) throw OnlineError('net');
-  final data = j['data'] as Map<String, dynamic>;
-  final (verses, heads) = parseChapter(data['content'] as List? ?? const []);
-  _store(m!.path, book, c, verses, heads, data['copyright'] as String? ?? '');
-  forgetBook(moduleId, book);
+  return j['data'] as Map<String, dynamic>;
 }
 
 // Запись главы; старые главы уходят, пока в базе больше _keepVerses стихов или они старше _keepDays дней
@@ -148,10 +161,11 @@ final _head = RegExp(r'^(s\d?|ms\d?|mr|sr|d|sp|qa|r)$');
 const _added = {'add', 'it'}; // слова, добавленные переводчиками (курсив) → ‹…›
 final _spaces = RegExp(r'\s+');
 
-(List<String>, Map<int, String>) parseChapter(List content) {
+(List<String>, Map<int, String>, String) parseChapter(List content) {
   final v = <String>[];
   final h = <int, String>{};
   var head = <String>[];
+  var title = ''; // надписание псалма (стиль d до первого стиха)
   String text(Map n) => n['type'] == 'text' ? '${n['text']}' : [for (final x in (n['items'] as List? ?? const []).whereType<Map>()) text(x)].join();
   void walk(Map n, bool added) {
     if (n['type'] == 'text') {
@@ -177,7 +191,11 @@ final _spaces = RegExp(r'\s+');
     final style = '${(n['attrs'] as Map?)?['style'] ?? ''}';
     if (n['name'] == 'para' && _head.hasMatch(style)) {
       final s = text(n).trim();
-      if (s.isNotEmpty) head.add(s);
+      if (s.isNotEmpty && style == 'd' && v.isEmpty) {
+        title = s;
+      } else if (s.isNotEmpty) {
+        head.add(s);
+      }
       return;
     }
     for (final x in (n['items'] as List? ?? const []).whereType<Map>()) {
@@ -191,5 +209,5 @@ final _spaces = RegExp(r'\s+');
   for (var i = 0; i < v.length; i++) {
     v[i] = v[i].replaceAll(_spaces, ' ').replaceAll(RegExp(r'›\s*‹'), ' ').trim();
   }
-  return (v, h);
+  return (v, h, title);
 }

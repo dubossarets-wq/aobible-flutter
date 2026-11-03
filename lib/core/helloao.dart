@@ -1,6 +1,7 @@
 // Переводы Free Use Bible API (bible.helloao.org): скачиваются целиком (complete.json) прямо с их сайта
 // и перекладываются в формат модуля приложения — дальше работают без сети, как любой скачанный перевод.
-// То же в веб-версии — src/core/helloao.js.
+// Нумерация — синодальная, как у модулей каталога (versification.dart). То же в веб-версии — src/core/helloao.js.
+import 'versification.dart';
 /// USFM-код книги → OSIS-код приложения (scripts/usfm.mjs в веб-версии)
 const usfmToOsis = <String, String>{
   'GEN': 'Gen', 'EXO': 'Exod', 'LEV': 'Lev', 'NUM': 'Num', 'DEU': 'Deut', 'JOS': 'Josh', 'JDG': 'Judg', 'RUT': 'Ruth', '1SA': '1Sam', '2SA': '2Sam',
@@ -35,22 +36,26 @@ Map<String, dynamic> fromHelloao(Map<String, dynamic> json, Map<String, dynamic>
   for (final b in (json['books'] as List? ?? const []).whereType<Map>()) {
     final id = usfmToOsis[b['id']];
     if (id == null) continue;
-    final chapters = <List<String>>[];
-    final headings = <String, String>{};
+    // главы KJV: стихи, заголовки разделов, надписание псалма
+    final kjv = <int, (List<String>, Map<int, String>, String)>{};
     for (final ch in (b['chapters'] as List? ?? const []).whereType<Map>()) {
       final c = ch['chapter'] as Map?;
       final n = c?['number'];
       if (n is! int || n < 1) continue;
       final verses = <String>[];
+      final heads = <int, String>{};
       final head = <String>[];
+      var title = '';
       for (final it in (c!['content'] as List? ?? const []).whereType<Map>()) {
-        if (_head.contains(it['type'])) {
+        if (it['type'] == 'hebrew_subtitle' && verses.isEmpty) {
+          title = _text(it['content']);
+        } else if (_head.contains(it['type'])) {
           final s = _text(it['content']);
           if (s.isNotEmpty) head.add(s);
         } else if (it['type'] == 'verse' && it['number'] is int && (it['number'] as int) > 0) {
           final v = it['number'] as int;
           if (head.isNotEmpty) {
-            headings['$n:$v'] = head.join(' ');
+            heads[v] = head.join(' ');
             head.clear();
           }
           while (verses.length < v) {
@@ -60,10 +65,26 @@ Map<String, dynamic> fromHelloao(Map<String, dynamic> json, Map<String, dynamic>
           verses[v - 1] = verses[v - 1].isEmpty ? s : '${verses[v - 1]} $s';
         }
       }
-      while (chapters.length < n) {
-        chapters.add(<String>[]);
+      kjv[n] = (verses, heads, title);
+    }
+    if (kjv.isEmpty) continue;
+    // синодальные главы: каждая собирается из своих глав KJV (versification.dart)
+    var last = 0;
+    kjv.forEach((kc, k) => last = [last, kc, toSynodal(id, kc, k.$1.isEmpty ? 1 : k.$1.length).$1].reduce((a, b) => a > b ? a : b));
+    final chapters = <List<String>>[];
+    final headings = <String, String>{};
+    for (var c = 1; c <= last; c++) {
+      final v = <String>[];
+      final h = <int, String>{};
+      for (final kc in westernChaptersFor(id, c)) {
+        final k = kjv[kc];
+        if (k != null) placeSynodal(id, kc, k.$1, k.$2, c, v, h, k.$3);
       }
-      chapters[n - 1] = verses;
+      chapters.add(v);
+      h.forEach((vn, text) => headings['$c:$vn'] = text);
+    }
+    while (chapters.isNotEmpty && chapters.last.isEmpty) {
+      chapters.removeLast();
     }
     if (chapters.isEmpty) continue;
     final n = names[id] ?? [id, id];
@@ -79,7 +100,7 @@ Map<String, dynamic> fromHelloao(Map<String, dynamic> json, Map<String, dynamic>
     'language': entry['language'],
     'license': entry['license'],
     'source': entry['source'],
-    'versification': 'kjv',
+    'versification': 'synodal',
     'books': books,
   };
 }

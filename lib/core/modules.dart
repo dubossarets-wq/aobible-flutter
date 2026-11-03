@@ -25,12 +25,17 @@ import 'net.dart';
 /// Полное название остаётся в title. Действует и для уже скачанных модулей
 const shortModuleNames = {'desp-notes': 'Десницкий', 'otnt-notes': 'Откр. НЗ'};
 
-/// Названия языков из каталога (у переводов bible.helloao.org — на самом языке): запасные, если своего нет
+/// Названия языков модулей на языках интерфейса — modules/lang-names.json ({код: {язык интерфейса: название}}),
+/// его собирает сайт по ICU; запасное — английское название из каталога (переводы bible.helloao.org)
+final langNameTable = <String, Map<String, String>>{};
 final catalogLangNames = <String, String>{};
+
+/// Название языка модуля на языке интерфейса ui (или по-английски), если оно известно
+String? langNameFor(String code, String ui) => langNameTable[code]?[ui] ?? langNameTable[code]?['en'] ?? catalogLangNames[code];
 
 class CatalogEntry {
   CatalogEntry(this.json) {
-    final n = json['languageName'];
+    final n = json['languageEnglish'] ?? json['languageName'];
     if (n is String && n.isNotEmpty) catalogLangNames.putIfAbsent(language, () => n);
   }
   final Map<String, dynamic> json;
@@ -143,7 +148,19 @@ class ModuleStore {
     if (url == null || url.isEmpty) {
       final bytes = await download('modules/catalog.json');
       final j = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      return (j['modules'] as List).map((m) => CatalogEntry((m as Map).cast<String, dynamic>())).toList();
+      // переводы API.Bible и bible.helloao.org — отдельным файлом (старые версии приложения его не читают);
+      // не открылся — каталог без них
+      List more = const [];
+      try {
+        more = (jsonDecode(utf8.decode(await download('modules/catalog-more.json'))) as Map)['modules'] as List;
+      } catch (_) {}
+      try {
+        final t = jsonDecode(utf8.decode(await download('modules/lang-names.json'))) as Map;
+        for (final e in t.entries) {
+          langNameTable['${e.key}'] = (e.value as Map).cast<String, String>();
+        }
+      } catch (_) {}
+      return [...(j['modules'] as List), ...more].map((m) => CatalogEntry((m as Map).cast<String, dynamic>())).toList();
     }
     final Uint8List bytes;
     try {

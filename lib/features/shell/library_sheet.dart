@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
+import '../../core/panes.dart';
+import '../hub.dart';
+import '../maps/maps_sheet.dart' show openMapsSheet;
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
@@ -15,7 +18,7 @@ import 'intl_data.dart';
 import 'library_import.dart';
 import 'sheet.dart';
 
-Future<void> openLibrary(BuildContext context, {String tab = 'installed'}) => showAppSheet(context, (_) => LibrarySheet(tab: tab));
+Future<void> openLibrary(BuildContext context, {String tab = 'installed'}) => showAppSheet(context, (_) => LibrarySheet(tab: tab, outer: context));
 
 /// Виды модулей по порядку показа (MODULE_SECTIONS)
 const moduleSections = <(String, String)>[
@@ -46,7 +49,8 @@ String langName(String code) {
     final s = langDisplayNames[currentLang]?[code];
     if (s != null) return s;
   }
-  return _langNames[code] ?? catalogLangNames[code] ?? code.toUpperCase();
+  // русские названия — только в русском интерфейсе; иначе — на языке интерфейса по таблице сайта (или по-английски)
+  return (currentLang == 'ru' ? _langNames[code] : null) ?? langNameFor(code, currentLang) ?? _langNames[code] ?? code.toUpperCase();
 }
 
 /// Ряд языков (LangChips.jsx): «Все», первые max языков кнопками, выбранный из списка — кнопкой рядом,
@@ -225,8 +229,9 @@ class ModPill extends StatelessWidget {
 }
 
 class LibrarySheet extends ConsumerStatefulWidget {
-  const LibrarySheet({super.key, this.tab = 'installed'});
+  const LibrarySheet({super.key, this.tab = 'installed', this.outer});
   final String tab;
+  final BuildContext? outer; // экран под окном: «Перейти» открывает там вторую панель или окно модуля
   @override
   ConsumerState<LibrarySheet> createState() => _LibrarySheetState();
 }
@@ -282,6 +287,26 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       if (mounted) toast(context, '${c.name}: $e');
     } finally {
       if (mounted) setState(() => _busy.remove(c.id));
+    }
+  }
+
+  // «Перейти»: перевод — во второй панели (рядом с первой), комментарий — к стиху первой панели, карты — окном
+  static const _goTypes = {'bible', 'commentary', 'maps'};
+  void _go(InstalledModule m) {
+    final outer = widget.outer;
+    Navigator.pop(context);
+    if (outer == null || !outer.mounted) return;
+    final panes = ref.read(panesProvider.notifier);
+    if (m.type == 'bible') {
+      if (ref.read(panesProvider).length < 2) {
+        panes.toggleSplit(moduleId: m.id);
+      } else {
+        panes.setModule(1, m.id);
+      }
+    } else if (m.type == 'commentary') {
+      Hub.openCommentary?.call(outer, ref, 0, livePositions[0]?.value ?? ref.read(panesProvider).first.ref);
+    } else if (m.type == 'maps') {
+      openMapsSheet(outer, ref, 0);
     }
   }
 
@@ -472,6 +497,10 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         onTap: () => _install(m.cat ?? CatalogEntry(m.json)),
       );
     }
+    // «Перейти» у установленного перевода, комментария, карт — рядом со звездой или переключателем
+    final go = installed != null && busy == null && _goTypes.contains(installed.type) && installed.features['helper'] != true
+        ? Padding(padding: const EdgeInsets.only(right: 4), child: ModPill(pal: pal, outline: true, label: t('Перейти'), tip: t('Перейти к {name}', {'name': m.name}), onTap: () => _go(installed)))
+        : null;
     // полное название — если оно не повторяет короткое; ниже мелко язык и размер для скачивания
     final title = m.title.isNotEmpty && m.title != m.name ? m.title : null;
     // «Новый» — модуль появился в каталоге за последние 7 дней (поле added каталога)
@@ -512,6 +541,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
                 ),
               ),
               const SizedBox(width: 10),
+              ?go,
               action,
               // стрелка подробностей: маленькая и тихая, при раскрытии переворачивается
               SizedBox(width: 32, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 16, color: pal.muted.withValues(alpha: 0.75))))),

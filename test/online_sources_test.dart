@@ -59,8 +59,19 @@ void main() {
     expect(onlineCopyright(e.id), contains('Lockman'));
   });
 
+  test('синодальная нумерация: Пс 21:2 = западный Пс 22:1 (helloao и API.Bible)', () async {
+    await store.install(cat.firstWhere((c) => c.id == 'hao-eng_bbe'));
+    final bbe = loadBook('hao-eng_bbe', 'Ps');
+    expect(bbe.items[bbe.indexOf(21, 2)].text, contains('My God, my God'));
+    expect(bbe.items.firstWhere((i) => i.kind == ItemKind.verse && i.chapter == 22 && i.verse == 1).text, contains('The Lord takes care of me'));
+    final amp = cat.firstWhere((c) => c.name == 'AMP' && c.json['online'] != null).id;
+    await loadChapter(amp, 'Ps', 21);
+    final ps = loadBook(amp, 'Ps');
+    expect(ps.items[ps.indexOf(21, 2)].text, contains('My God, my God'));
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
   test('API.Bible: разбор главы — заголовок, стихи, курсив добавленных слов', () {
-    final (v, h) = parseChapter([
+    final (v, h, _) = parseChapter([
       {
         'name': 'para', 'type': 'tag', 'attrs': {'style': 's'},
         'items': [{'text': 'The New Birth', 'type': 'text'}],

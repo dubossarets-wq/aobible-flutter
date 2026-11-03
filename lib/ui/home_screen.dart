@@ -578,7 +578,7 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
         final list = kind == null ? byLang : byLang.where((m) => fitsM(kind, m)).toList();
         final moreList = kind == null ? moreByLang : moreByLang.where((c) => fitsC(kind, c)).toList();
         String langName(String code) {
-          final n = langDisplayNames[currentLang]?[code] ?? catalogLangNames[code] ?? code;
+          final n = langDisplayNames[currentLang]?[code] ?? langNameFor(code, currentLang) ?? code;
           return n.isEmpty ? code : '${n[0].toUpperCase()}${n.substring(1)}';
         }
         return AobSheet(
