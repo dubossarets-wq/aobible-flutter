@@ -24,6 +24,9 @@ class PaneState {
   Map<String, dynamic> toJson() => {'moduleId': moduleId, 'ref': ref.toJson()};
 }
 
+/// Сколько панелей чтения можно открыть рядом («+» в шапке последней панели; MAX_PANES в App.jsx)
+const maxPanes = 4;
+
 /// Самое первое открытие — с начала Библии; дальше — с последнего места
 const startRef = VerseRef('Gen', 1, 1);
 
@@ -122,17 +125,31 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     _save();
   }
 
-  /// Закрыть панель, на которой нажали «×» (closeSplit в App.jsx): закрыли первую — вторая остаётся одна,
-  /// со своим переводом, историей и на том месте, где её читали
+  /// Ещё одна панель (до maxPanes): перевод — как у первой, место — где сейчас читают первую
+  void addPane() {
+    if (state.length >= maxPanes) return;
+    final at = livePositions[0]?.value ?? state.first.ref;
+    state = [...state, PaneState(moduleId: state.first.moduleId, ref: at)];
+    _save();
+  }
+
+  /// Закрыть панель, на которой нажали «×» (closeSplit в App.jsx): следующие сдвигаются на её место — каждая
+  /// со своим переводом, историей и там, где её читали (новый nav: панель на этом месте экрана перейдёт к своему стиху)
   void closePane(int i) {
-    if (state.length < 2) return;
-    if (i != 0) return toggleSplit();
-    final p = state[1];
-    final at = livePositions[1]?.value ?? p.ref;
-    // nav — больше, чем у обеих панелей: панель на экране перейдёт на место второй
-    state = [p.copyWith(ref: at, nav: math.max(state[0].nav, p.nav) + 1)];
-    livePositions[0]?.value = at;
-    livePositions.remove(1);
+    if (state.length < 2 || i >= state.length) return;
+    final top = state.map((p) => p.nav).reduce(math.max) + 1;
+    final out = <PaneState>[];
+    for (var k = 0; k < state.length; k++) {
+      if (k == i) continue;
+      final p = state[k];
+      out.add(out.length == k ? p : p.copyWith(ref: livePositions[k]?.value ?? p.ref, nav: top + out.length));
+    }
+    // места панелей — по их новым номерам; место закрытой не «прилипнет» к следующей новой панели
+    for (var k = i; k < out.length; k++) {
+      livePosition(k, out[k].ref).value = out[k].ref;
+    }
+    livePositions.remove(state.length - 1);
+    state = out;
     _save();
   }
 

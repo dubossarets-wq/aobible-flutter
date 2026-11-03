@@ -1469,5 +1469,7 @@
  "Показать ещё {n}": "Show {n} more",
  "Переводы bible.helloao.org": "Translations from bible.helloao.org",
  "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Free translations (public domain and Creative Commons) from the Free Use Bible API — bible.helloao.org, based on eBible.org. The license and source of each are shown in the “Module library”, in the translation’s details.",
- "Перейти к {name}": "Go to {name}"
+ "Перейти к {name}": "Go to {name}",
+ "Панель {n}": "Pane {n}",
+ "Ещё одна панель": "Add a pane"
 }

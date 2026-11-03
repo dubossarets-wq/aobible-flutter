@@ -1460,5 +1460,7 @@
  "Показать ещё {n}": "さらに{n}件表示",
  "Переводы bible.helloao.org": "bible.helloao.org の訳",
  "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Free Use Bible API（bible.helloao.org）の自由な訳（パブリックドメインと Creative Commons）。eBible.org の資料に基づきます。各訳のライセンスと出典は「モジュールライブラリ」の訳の詳細にあります。",
- "Перейти к {name}": "{name}へ移動"
+ "Перейти к {name}": "{name}へ移動",
+ "Панель {n}": "パネル{n}",
+ "Ещё одна панель": "パネルを追加"
 }

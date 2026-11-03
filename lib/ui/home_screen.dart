@@ -116,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // текст уходит под проигрыватель и вкладки, а не обрезается над ними; их высота приходит панелям
           // как MediaQuery.padding.bottom (стрелки глав и запас в конце главы встают над проигрывателем)
           extendBody: true,
-          body: SafeArea(bottom: false, child: slots.length == 1 ? slots.first : _Split(columns: columns, first: slots[0], second: slots[1])),
+          body: SafeArea(bottom: false, child: slots.length == 1 ? slots.first : _Split(columns: columns, children: slots)),
           bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
             if (Hub.audioBar != null) Hub.audioBar!(context, ref),
             // сами вкладки лежат поверх навигатора (TabBarOverlay); здесь — место под них, чтобы не закрывать чтение
@@ -167,59 +167,84 @@ class _FocusHide extends ConsumerWidget {
   }
 }
 
-/// Две панели с разделителем (SplitScreenReader.jsx): разделитель перетаскивается, доля помнится в splitRatio
+/// Панели с разделителями (SplitScreenReader.jsx): при двух доля помнится в splitRatio, при трёх и больше — поровну;
+/// каждый разделитель тянется и меняет только две соседние панели
 class _Split extends ConsumerStatefulWidget {
-  const _Split({required this.columns, required this.first, required this.second});
+  const _Split({required this.columns, required this.children});
   final bool columns;
-  final Widget first, second;
+  final List<Widget> children;
   @override
   ConsumerState<_Split> createState() => _SplitState();
 }
 
 class _SplitState extends ConsumerState<_Split> {
-  double? _drag; // доля во время перетаскивания
+  static const _min = 0.12; // меньше этой доли панель не сжимается
+  List<double>? _sizes; // доли во время и после перетаскивания (при трёх и больше панелях); null — по умолчанию
+  int _n = 0;
 
-  double _clamp(double v) => v.clamp(0.2, 0.8);
+  List<double> _equal(int n, double ratio) => n == 2 ? [ratio, 1 - ratio] : List.filled(n, 1 / n);
 
-  void _save(double v) => ref.read(settingsProvider.notifier).set({'splitRatio': _clamp(v)});
+  void _save(double v) => ref.read(settingsProvider.notifier).set({'splitRatio': v.clamp(0.2, 0.8)});
+
+  // разделитель i — между панелями i и i+1
+  void _move(List<double> sz, int i, double delta) {
+    final pair = sz[i] + sz[i + 1];
+    final a = (sz[i] + delta).clamp(_min, pair - _min);
+    setState(() => _sizes = [...sz]
+      ..[i] = a
+      ..[i + 1] = pair - a);
+  }
 
   @override
   Widget build(BuildContext context) {
     final pal = paletteOf(ref);
     final saved = ref.watch(settingsProvider.select((s) => s.d('splitRatio')));
-    final ratio = _clamp(_drag ?? saved);
+    final n = widget.children.length;
+    if (n != _n) {
+      _n = n;
+      _sizes = null; // число панелей изменилось — снова поровну (две — по сохранённой доле)
+    }
+    final sizes = _sizes ?? _equal(n, saved.clamp(0.2, 0.8));
     final cols = widget.columns;
     final thick = cols ? 5.0 : 0.0;
     return LayoutBuilder(builder: (context, c) {
-      final total = (cols ? c.maxWidth : c.maxHeight) - thick;
-      final first = total * ratio;
+      final total = (cols ? c.maxWidth : c.maxHeight) - thick * (n - 1);
       Widget slot(Widget w, double extent) => SizedBox(width: cols ? extent : null, height: cols ? null : extent, child: w);
-      final divider = _Divider(
-        columns: cols,
-        thick: thick,
-        pal: pal,
-        ratio: ratio,
-        onDrag: (delta) => setState(() => _drag = _clamp((_drag ?? saved) + delta / total)),
-        onEnd: () {
-          if (_drag != null) _save(_drag!);
-          setState(() => _drag = null);
-        },
-        onStep: (d) => _save(ratio + d),
-      );
-      // верхняя панель (разделение по строкам) не доходит до проигрывателя — нижний запас ей не нужен
-      final top = cols ? widget.first : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.first);
-      // друг над другом: подложки нет совсем — ползунок висит над текстом в 5 px от шапки нижней панели;
-      // зона захвата 120 × 34 только вокруг ползунка, текст рядом нажимается как обычно
-      if (!cols) {
-        return Stack(fit: StackFit.expand, children: [
-          Column(children: [slot(top, first), slot(widget.second, total - first)]),
-          Positioned(top: first - 28, height: 34, left: (c.maxWidth - 120) / 2, width: 120, child: divider),
-        ]);
+      final ext = [for (final f in sizes) total * f];
+      final kids = <Widget>[];
+      final handles = <Widget>[];
+      var at = 0.0;
+      for (var i = 0; i < n; i++) {
+        // верхние панели (разделение по строкам) не доходят до проигрывателя — нижний запас нужен только последней
+        final w = cols || i == n - 1 ? widget.children[i] : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.children[i]);
+        kids.add(slot(w, ext[i]));
+        at += ext[i];
+        if (i == n - 1) break;
+        if (cols) kids.add(SizedBox(width: thick));
+        final k = i;
+        final divider = _Divider(
+          columns: cols,
+          thick: thick,
+          pal: pal,
+          ratio: sizes.take(k + 1).fold(0.0, (a, b) => a + b),
+          onDrag: (delta) => _move(_sizes ?? sizes, k, delta / total),
+          onEnd: () {
+            if (n == 2 && _sizes != null) {
+              _save(_sizes![0]);
+              setState(() => _sizes = null);
+            }
+          },
+          onStep: (d) => n == 2 ? _save(sizes[0] + d) : _move(sizes, k, d),
+        );
+        // друг над другом: подложки нет совсем — ползунок висит над текстом в 5 px от шапки нижней панели;
+        // колонки: подложка 5 px, а тянуть удобно и рядом — зона захвата по 8 px в обе стороны поверх панелей
+        handles.add(cols
+            ? Positioned(left: at + thick * i - 8, top: 0, bottom: 0, width: thick + 16, child: divider)
+            : Positioned(top: at - 28, height: 34, left: (c.maxWidth - 120) / 2, width: 120, child: divider));
       }
-      // колонки: подложка всего 5 px, а тянуть удобно и рядом — зона захвата по 8 px в обе стороны поверх панелей
       return Stack(fit: StackFit.expand, children: [
-        Row(children: [slot(top, first), SizedBox(width: thick), slot(widget.second, total - first)]),
-        Positioned(left: first - 8, top: 0, bottom: 0, width: thick + 16, child: divider),
+        cols ? Row(children: kids) : Column(children: kids),
+        ...handles,
       ]);
     });
   }
@@ -320,7 +345,7 @@ class _Pane extends ConsumerWidget {
     final pal = paletteOf(ref);
     final barHeight = ref.watch(settingsProvider.select((s) => s.d('barHeight')));
     final module = ref.watch(panesProvider.select((l) => index < l.length ? l[index].moduleId : null));
-    final split = ref.watch(panesProvider.select((l) => l.length > 1));
+    final count = ref.watch(panesProvider.select((l) => l.length));
     final hist = ref.watch(panesProvider.select((l) => index < l.length ? (l[index].hIndex, l[index].history.length) : (0, 0)));
     if (module == null) return const SizedBox.shrink();
     final mod = ModuleStore.instance.get(module);
@@ -329,10 +354,11 @@ class _Pane extends ConsumerWidget {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     // Узкая панель (две панели рядом на телефоне): кнопки и надписи теснее, на самой узкой — без стрелок ˅
     // (@container в styles.css: ≤ 470 px и ≤ 360 px)
-    return LayoutBuilder(builder: (context, box) => _build(context, ref, box.maxWidth, pal, barHeight, module, split, hist, mod, initial, selecting, wide));
+    return LayoutBuilder(builder: (context, box) => _build(context, ref, box.maxWidth, pal, barHeight, module, count, hist, mod, initial, selecting, wide));
   }
 
-  Widget _build(BuildContext context, WidgetRef ref, double paneW, Palette pal, double barHeight, String module, bool split, (int, int) hist, InstalledModule? mod, VerseRef initial, bool selecting, bool wide) {
+  Widget _build(BuildContext context, WidgetRef ref, double paneW, Palette pal, double barHeight, String module, int count, (int, int) hist, InstalledModule? mod, VerseRef initial, bool selecting, bool wide) {
+    final split = count > 1;
     final narrow = paneW <= 470, tiny = paneW <= 360;
     final ilBar = ref.watch(settingsProvider.select((s) => s.get<bool>('ilBar'))) != false; // панель подстрочника раскрыта
     final inter = mod?.features['interlinear'] == true;
@@ -413,10 +439,12 @@ class _Pane extends ConsumerWidget {
                   valueListenable: updateAvailable,
                   builder: (_, upd, _) => tbIcon(LucideIcons.ellipsisVertical, upd ? t('Ещё. Доступно обновление') : t('Ещё'), Hub.openMore == null ? null : () => Hub.openMore!(context, ref, index), dot: upd),
                 ),
+              // «+» — ещё одна панель: у последней, пока панелей меньше maxPanes
+              if (split && index == count - 1 && count < maxPanes) tbIcon(LucideIcons.plus, t('Ещё одна панель'), () => ref.read(panesProvider.notifier).addPane()),
               if (index == 0 || split)
                 // «×» закрывает свою панель: у первой — первую (вторая остаётся одна), у второй — вторую
                 split
-                    ? tbIcon(LucideIcons.x, index == 0 ? t('Закрыть эту панель') : t('Закрыть вторую панель'), () => ref.read(panesProvider.notifier).closePane(index))
+                    ? tbIcon(LucideIcons.x, count > 2 || index == 0 ? t('Закрыть эту панель') : t('Закрыть вторую панель'), () => ref.read(panesProvider.notifier).closePane(index))
                     : tbIcon(LucideIcons.columns2, t('Читать параллельно'), () => ref.read(panesProvider.notifier).toggleSplit()),
             ]),
           ),
