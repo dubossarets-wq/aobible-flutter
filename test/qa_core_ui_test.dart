@@ -357,16 +357,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('До четырёх панелей: «+» у последней, поровну по высоте, «×» средней — следующие встают на её место', (tester) async {
+  testWidgets('До четырёх панелей: «+» под любой, поровну по высоте, «×» средней — следующие встают на её место', (tester) async {
     final two = jsonEncode([
       {'moduleId': 'rst-plus', 'ref': {'book': 'Gen', 'chapter': 3, 'verse': 1}},
       {'moduleId': 'kjv', 'ref': {'book': 'John', 'chapter': 3, 'verse': 16}},
     ]);
     final c = await start(tester, panes: two);
-    expect(find.byTooltip('Ещё одна панель'), findsOneWidget);
-    await tester.tap(find.byTooltip('Ещё одна панель'));
+    expect(find.byTooltip('Ещё одна панель'), findsNWidgets(2)); // «+» у каждой панели
+    // «+» первой панели — новая встаёт сразу под ней (тот же перевод), kjv сдвигается третьей
+    await tester.tap(find.byTooltip('Ещё одна панель').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Ещё одна панель'));
+    expect(c.read(panesProvider).map((p) => p.moduleId), ['rst-plus', 'rst-plus', 'kjv']);
+    await tester.tap(find.byTooltip('Ещё одна панель').last);
     await tester.pumpAndSettle();
     expect(c.read(panesProvider).length, 4);
     expect(find.byTooltip('Ещё одна панель'), findsNothing); // больше четырёх нельзя
@@ -374,14 +376,15 @@ void main() {
     final tops = [for (final e in find.byTooltip('Закрыть эту панель').evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dy]..sort();
     expect(tops.length, 4);
     expect((tops[2] - tops[1]) - (tops[1] - tops[0]), closeTo(0, 2));
-    // «×» второй: третья (была перевод первой) и четвёртая сдвигаются, вторая панель kjv закрыта
+    // «+» последней добавил копию её перевода (kjv) снизу; «×» второй — третья и четвёртая сдвигаются
+    expect(c.read(panesProvider).map((p) => p.moduleId), ['rst-plus', 'rst-plus', 'kjv', 'kjv']);
     c.read(panesProvider.notifier).closePane(1);
     await tester.pumpAndSettle();
     final ps = c.read(panesProvider);
-    expect(ps.length, 3);
-    expect(ps.map((p) => p.moduleId), isNot(contains('kjv')));
-    expect(find.byTooltip('Ещё одна панель'), findsOneWidget);
+    expect(ps.map((p) => p.moduleId), ['rst-plus', 'kjv', 'kjv']);
+    expect(find.byTooltip('Ещё одна панель'), findsNWidgets(3));
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(seconds: 2)); // отложенное сохранение места панелей
   });
 
   testWidgets('Широкий экран: две панели, поиск; снятие дерева не оставляет слушателей', (tester) async {

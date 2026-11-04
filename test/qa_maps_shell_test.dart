@@ -9,6 +9,7 @@ import 'package:aobible/core/modules.dart';
 import 'package:aobible/core/settings.dart';
 import 'package:aobible/features/hub.dart';
 import 'package:aobible/features/maps/map_pane.dart';
+import 'package:aobible/features/maps/tile_map.dart';
 import 'package:aobible/features/maps/maps_sheet.dart';
 import 'package:aobible/features/maps/places_data.dart';
 import 'package:aobible/features/shell/about_sheet.dart';
@@ -421,5 +422,30 @@ void main() {
       closed = false;
       opened = null;
     }
+  });
+
+  testWidgets('Карта места на компьютере: тайлы спутника сразу, точка, масштаб, без «Загружаю карту»', (tester) async {
+    phone(tester);
+    mapViewBuilder = defaultMapView; // настоящая карта: на Windows — своя из тайлов (у MapLibre там окна нет)
+    addTearDown(() => mapViewBuilder = (target, zoom, onCreated, onStyle) => const SizedBox.expand());
+    final place = PlaceStore.search('Хеврон').single;
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: c,
+      child: MaterialApp(home: Scaffold(body: MapPaneView(place: place, onClose: () {}, onOpenVerse: (_) {}))),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(TileMap), findsOneWidget);
+    expect(find.text('Загружаю карту…'), findsNothing);
+    expect(find.byTooltip('Обычная карта'), findsNothing); // только спутник
+    expect(find.byType(Image), findsWidgets); // тайлы
+    final st = tester.state<TileMapState>(find.byType(TileMap));
+    st.zoomBy(1);
+    await tester.pump();
+    // перетаскивание не роняет карту
+    await tester.drag(find.byType(TileMap), const Offset(-80, 40));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 }

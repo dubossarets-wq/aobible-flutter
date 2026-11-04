@@ -3,6 +3,9 @@
 // Кнопки: «Только карта и точка», «Спутник / Обычная карта», «Закрыть карту»; подпись источников — сверху и всегда видна;
 // поверх карты — карточка места (сворачивается) (название, тип, достоверность, отождествление, описание, стихи).
 // Виджет не знает, где лежит: сейчас его открывает отдельный экран (openPlaceMap), позже — вторая половина главного экрана.
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -13,6 +16,7 @@ import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import 'places_data.dart';
+import 'tile_map.dart';
 
 const mapStyle = 'https://tiles.openfreemap.org/styles/liberty';
 const satelliteTiles = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg';
@@ -32,7 +36,13 @@ final _notFill = RegExp('name|label|shadow|building|aeroway|boundary');
 bool isFillLayer(String id) => _fillLike.hasMatch(id) && !_notFill.hasMatch(id);
 
 /// Сама карта: MapLibre. Подменяется в тестах заглушкой (платформенного окна карты в тестах нет)
-Widget Function(LatLng target, double zoom, void Function(MapLibreMapController) onCreated, VoidCallback onStyle) mapViewBuilder = (target, zoom, onCreated, onStyle) => MapLibreMap(
+Widget Function(LatLng target, double zoom, void Function(MapLibreMapController) onCreated, VoidCallback onStyle) mapViewBuilder = defaultMapView;
+
+/// На компьютере у MapLibre нет окна карты («windows is not yet supported») — там своя карта из тайлов спутника
+/// (tile_map.dart); если карту подменили (тесты) — подмена
+bool get _desktopMap => !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux) && identical(mapViewBuilder, defaultMapView);
+
+Widget defaultMapView(LatLng target, double zoom, void Function(MapLibreMapController) onCreated, VoidCallback onStyle) => MapLibreMap(
       styleString: mapStyle,
       initialCameraPosition: CameraPosition(target: target, zoom: zoom),
       onMapCreated: onCreated,
@@ -55,7 +65,8 @@ class MapPaneView extends ConsumerStatefulWidget {
 
 class _MapPaneViewState extends ConsumerState<MapPaneView> {
   MapLibreMapController? _c;
-  bool _ready = false;
+  late bool _ready = _desktopMap; // карта из тайлов готова сразу
+  final _tiles = GlobalKey<TileMapState>();
   bool _sat = true; // по умолчанию — спутник
   bool _clean = false; // только подложка и точка
   bool? _cardOpen;
@@ -186,7 +197,8 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
                     _applyLayers();
                   },
           ),
-          _BarIcon(
+          // на компьютере — только спутник (обычная карта векторная, её рисует MapLibre)
+          if (!_desktopMap) _BarIcon(
             tooltip: _sat ? t('Обычная карта') : t('Спутник'),
             icon: _sat ? LucideIcons.map : LucideIcons.satellite,
             size: 21,
@@ -215,13 +227,15 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
             Positioned.fill(
               child: ColoredBox(
                 color: const Color(0xFFDFE6E9),
-                child: mapViewBuilder(LatLng(place.lat, place.lng), zoomFor(place.type), (c) => _c = c, _onStyle),
+                child: _desktopMap
+                    ? TileMap(key: _tiles, lat: place.lat, lng: place.lng, zoom: zoomFor(place.type), tiles: satelliteTiles, pointColor: pal.dark ? const Color(0xFFD9A35C) : const Color(0xFFB4451F))
+                    : mapViewBuilder(LatLng(place.lat, place.lng), zoomFor(place.type), (c) => _c = c, _onStyle),
               ),
             ),
             // Подпись источников — сверху и всегда видна (условие CC BY и ODbL); внизу её закрывали бы карточка и меню
-            Positioned(left: 6, top: 6, right: 64, child: Align(alignment: Alignment.topLeft, child: _Credits(sat: _sat))),
+            Positioned(left: 6, top: 6, right: 64, child: Align(alignment: Alignment.topLeft, child: _Credits(sat: _sat, osm: !_desktopMap))),
             // NavigationControl (maplibregl-ctrl-group): кнопки масштаба справа вверху, в чистом режиме скрыты
-            if (!_clean) Positioned(right: 10, top: 10, child: _ZoomControl(onZoom: (d) => _c?.animateCamera(d > 0 ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut()))),
+            if (!_clean) Positioned(right: 10, top: 10, child: _ZoomControl(onZoom: (d) => _desktopMap ? _tiles.currentState?.zoomBy(d > 0 ? 1 : -1) : _c?.animateCamera(d > 0 ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut()))),
             if (!_ready) Positioned(left: 12, right: 12, top: 12, child: _Status(pal: pal, text: t('Загружаю карту…'))),
             if (!_clean || cardOpen)
               Positioned(
@@ -300,8 +314,9 @@ class _StatusState extends State<_Status> with SingleTickerProviderStateMixin {
 
 /// Подпись источников (maplibregl-ctrl-attrib): белая плашка 86%, скругление 6, строка 1.35
 class _Credits extends StatelessWidget {
-  const _Credits({required this.sat});
+  const _Credits({required this.sat, this.osm = true});
   final bool sat;
+  final bool osm; // подложка OpenFreeMap (на компьютере её нет — только снимки)
   @override
   Widget build(BuildContext context) {
     const style = TextStyle(fontSize: 12, height: 1.35, color: Color(0xBF000000));
@@ -309,7 +324,7 @@ class _Credits extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(color: const Color(0xDBFFFFFF), borderRadius: BorderRadius.circular(6)),
         padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: Text(sat ? '$satelliteCredit · $osmCredit' : osmCredit, style: style),
+        child: Text(sat ? (osm ? '$satelliteCredit · $osmCredit' : satelliteCredit) : osmCredit, style: style),
       ),
     );
   }

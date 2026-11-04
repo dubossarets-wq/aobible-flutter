@@ -443,8 +443,8 @@ class _Pane extends ConsumerWidget {
                   valueListenable: updateAvailable,
                   builder: (_, upd, _) => tbIcon(LucideIcons.ellipsisVertical, upd ? t('Ещё. Доступно обновление') : t('Ещё'), Hub.openMore == null ? null : () => Hub.openMore!(context, ref, index), dot: upd),
                 ),
-              // «+» — ещё одна панель: у последней, пока панелей меньше maxPanes
-              if (split && index == count - 1 && count < maxPanes) tbIcon(LucideIcons.plus, t('Ещё одна панель'), () => ref.read(panesProvider.notifier).addPane()),
+              // «+» — ещё одна панель под этой: у каждой, пока панелей меньше maxPanes
+              if (split && count < maxPanes) tbIcon(LucideIcons.plus, t('Ещё одна панель'), () => ref.read(panesProvider.notifier).addPane(index)),
               if (index == 0 || split)
                 // «×» закрывает свою панель: у первой — первую (вторая остаётся одна), у второй — вторую
                 split
@@ -1230,34 +1230,6 @@ class _TabBarState extends ConsumerState<_TabBar> {
 
 /// Нижние вкладки поверх навигатора (.tabbar поверх .sheet): остаются видимыми и нажимаемыми над открытыми окнами,
 /// затемнение окон их не перекрывает. На любой ширине (на широком — по центру), когда главный экран на месте.
-/// Затухание под вкладками: от верха капсулы (прозрачно) до её середины — цвет того, что под ней
-/// (открытое окно — panel, иначе фон страницы), ниже — сплошной цвет
-class _TabFade extends ConsumerWidget {
-  const _TabFade();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pal = paletteOf(ref);
-    return IgnorePointer(
-      child: ValueListenableBuilder<int>(
-        valueListenable: sheetsOpen,
-        builder: (context, open, _) {
-          // над главой затухание делает сама читалка (маской текста — виден настоящий фон страницы);
-          // здесь — только над открытым окном, цветом окна
-          if (open == 0) return const SizedBox.shrink();
-          final c = pal.panel;
-          // капсула — 64 px с отступом 4 сверху (_TabBar)
-          return LayoutBuilder(builder: (context, box) {
-            final h = box.maxHeight <= 0 ? 1.0 : box.maxHeight;
-            return DecoratedBox(
-              decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [(4 / h).clamp(0.0, 1.0), (36 / h).clamp(0.0, 1.0)], colors: [c.withValues(alpha: 0), c])),
-            );
-          });
-        },
-      ),
-    );
-  }
-}
-
 class TabBarOverlay extends StatelessWidget {
   const TabBarOverlay({super.key, required this.child});
   final Widget child;
@@ -1281,14 +1253,11 @@ class TabBarOverlay extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              // под вкладками всё (глава, окно, список) плавно гаснет с их середины, чтобы не торчало снизу
               // на широком экране капсула не растягивается: по центру, не шире 544 (как на большом телефоне)
               child: _FocusHide(
                 down: true,
-                child: Stack(children: [
-                  const Positioned.fill(child: _TabFade()),
-                  Center(heightFactor: 1, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 544), child: const _TabBar())),
-                ]),
+                // без затухания под вкладками — ни над главой, ни над окнами (просьба владельца, 04.11.2026)
+                child: Center(heightFactor: 1, child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 544), child: const _TabBar())),
               ),
             ),
           // верхний слой (инструкция) — над вкладками; своё Overlay — для подсказок и полей внутри него

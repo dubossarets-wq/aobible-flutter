@@ -125,11 +125,26 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     _save();
   }
 
-  /// Ещё одна панель (до maxPanes): перевод — как у первой, место — где сейчас читают первую
-  void addPane() {
+  /// Ещё одна панель (до maxPanes) — сразу под той, где нажали «+» (after; без него — под последней): перевод и место —
+  /// как у неё. Панели ниже сдвигаются и остаются там, где их читали (новый nav — панель на этом месте экрана перейдёт
+  /// к своему стиху)
+  void addPane([int? after]) {
     if (state.length >= maxPanes) return;
-    final at = livePositions[0]?.value ?? state.first.ref;
-    state = [...state, PaneState(moduleId: state.first.moduleId, ref: at)];
+    final i = math.min(after ?? state.length - 1, state.length - 1);
+    final src = state[i];
+    final at = livePositions[i]?.value ?? src.ref;
+    final top = state.map((p) => p.nav).reduce(math.max) + 1;
+    final out = <PaneState>[];
+    for (var k = 0; k < state.length; k++) {
+      final p = state[k];
+      out.add(k <= i ? p : p.copyWith(ref: livePositions[k]?.value ?? p.ref, nav: top + k + 1));
+      if (k == i) out.add(PaneState(moduleId: src.moduleId, ref: at, nav: top));
+    }
+    // места панелей — по их новым номерам (снизу вверх, чтобы не затереть ещё не перенесённые)
+    for (var k = out.length - 1; k > i; k--) {
+      livePosition(k, out[k].ref).value = out[k].ref;
+    }
+    state = out;
     _save();
   }
 
