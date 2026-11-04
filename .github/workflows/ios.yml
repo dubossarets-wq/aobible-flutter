@@ -1,0 +1,53 @@
+# Сборка для iPhone на облачном Mac (GitHub Actions).
+# Сейчас — без подписи: готовый .ipa ставится на iPhone программой Sideloadly с бесплатным Apple ID (на 7 дней).
+# Когда появится платная учётная запись Apple Developer — сюда добавится подпись и отправка в TestFlight.
+# Запуск: вкладка Actions → «iOS» → Run workflow (или тег ios-*).
+name: iOS
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ios-*']
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode (последний стабильный на этом Mac)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Flutter (та же версия, что на ПК)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Версии
+        run: |
+          xcodebuild -version
+          flutter --version
+
+      - name: Зависимости
+        run: flutter pub get
+
+      - name: Сборка (без подписи)
+        run: flutter build ios --release --no-codesign
+
+      - name: Файл .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry AOBible-unsigned.ipa Payload
+          ls -la AOBible-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AOBible-ios-unsigned
+          path: AOBible-unsigned.ipa
+          retention-days: 14
