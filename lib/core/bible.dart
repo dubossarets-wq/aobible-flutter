@@ -46,6 +46,9 @@ class BookText {
     return _index[chapter * 1000] ?? 0;
   }
 
+  /// Элемент ровно этого стиха (null — такого стиха в книге нет)
+  int? exactIndex(int chapter, int verse) => _index[chapter * 1000 + verse];
+
   /// Ссылка на стих по индексу элемента (для шапки и запоминания места)
   VerseRef refAt(int index) {
     final i = index.clamp(0, items.length - 1);

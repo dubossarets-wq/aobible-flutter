@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -53,7 +54,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // панель. Позицию берём из уведомлений прокрутки списка (сам список её не отдаёт)
   ScrollPosition? _pos;
   bool _followBusy = false; // сдвиг отдан списку, его положение ещё не обновилось
-  (VerseRef, double)? _followNext; // что пришло за это время — применим, когда положение обновится
+  (VerseRef, double, int)? _followNext; // что пришло за это время — применим, когда положение обновится
+  double _k = 1; // во сколько раз стих у верхнего края здесь выше, чем у ведущей панели (один перевод и ширина — 1)
   final _positions = ItemPositionsListener.create();
   BookText? _book;
   // перевод по сети (API.Bible): ждём главу — вместо текста «Загрузка…» или ошибка с «Повторить»
@@ -139,6 +141,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     super.initState();
     _positions.itemPositions.addListener(_onPositions);
     SyncHub.listeners[widget.index] = _follow;
+    SyncHub.deltaListeners[widget.index] = _followDelta;
     _dwellTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tickDwell());
     _back.addListener(() {
       final k = 1 - Curves.easeOut.transform(_back.value);
@@ -157,6 +160,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     partSelection.removeListener(_onPartChange);
     _positions.itemPositions.removeListener(_onPositions);
     if (SyncHub.listeners[widget.index] == _follow) SyncHub.listeners.remove(widget.index);
+    if (SyncHub.deltaListeners[widget.index] == _followDelta) SyncHub.deltaListeners.remove(widget.index);
     // Панель закрыта: выбор части стиха и скрытые панели режима чтения не должны остаться
     final idx = widget.index;
     Future.microtask(() {
@@ -375,16 +379,17 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // вернуться ровно к нему: строки меняют высоту стихов выше, и без этого текст уезжал бы на другой стих
   VerseRef? _topAt;
   double _topFrac = 0;
+  int _topKind = 2; // глава / заголовок / стих (как SyncHub.leadKind)
 
   void _holdTopVerse() {
-    final at = _topAt, f = _topFrac;
+    final at = _topAt, f = _topFrac, kd = _topKind;
     if (at == null) return;
     // два кадра: в первом блоки перестраиваются, во втором известны их новые высоты
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _follow(at, f);
+      _follow(at, f, kd);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _follow(at, f);
+        if (mounted) _follow(at, f, kd);
       });
     });
   }
@@ -411,6 +416,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final h = top.itemTrailingEdge - top.itemLeadingEdge;
     var frac = h > 0 ? (-top.itemLeadingEdge / h).clamp(0.0, 1.0) : 0.0;
     final VerseRef at, emitAt;
+    var hpx = h * _vh; // высота стиха у верхнего края, пиксели
+    var kind = ItemKind.verse.index;
     if (row.para) {
       // Внутри абзаца: стих у верхнего края и доля его высоты
       final y = math.max(0.0, -top.itemLeadingEdge * _vh);
@@ -420,17 +427,20 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       at = emitAt = VerseRef(book.book, item.chapter, item.verse);
       final vt = handle?.verseTop(verse), vb = handle?.verseBottom(verse);
       frac = vt != null && vb != null && vb > vt ? ((y - vt) / (vb - vt)).clamp(0.0, 1.0) : 0.0;
+      hpx = vt != null && vb != null && vb > vt ? vb - vt : 0;
     } else {
       at = book.refAt(row.start);
       final it = book.items[row.start];
       emitAt = VerseRef(book.book, it.chapter, it.verse);
+      kind = it.kind.index;
     }
     _remember(at);
     _topAt = emitAt;
     _topFrac = frac;
+    _topKind = kind;
     if (_following || SyncHub.driver != widget.index) return;
     if (!ref_.syncOn) return;
-    SyncHub.emit(widget.index, emitAt, frac);
+    SyncHub.emit(widget.index, emitAt, frac, hpx, kind);
   }
 
   void _remember(VerseRef at) {
@@ -485,13 +495,14 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     _followBusy = false;
     final next = _followNext;
     _followNext = null;
-    if (next != null) _follow(next.$1, next.$2);
+    if (next != null) _follow(next.$1, next.$2, next.$3);
   }
 
   // Ведомая панель: тот же стих (или заголовок главы), та же доля его высоты
-  void _follow(VerseRef at, double frac) {
+  void _follow(VerseRef at, double frac, [int? kindOf]) {
+    final kind = kindOf ?? SyncHub.leadKind;
     if (_followBusy) {
-      _followNext = (at, frac); // прежний сдвиг ещё не применился
+      _followNext = (at, frac, kind); // прежний сдвиг ещё не применился
       return;
     }
     final book = _book;
@@ -500,18 +511,36 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       ref.read(panesProvider.notifier).navigate(widget.index, at, flash: false);
       return;
     }
-    final i = at.verse == 0 ? book.indexOf(at.chapter, 1) : book.indexOf(at.chapter, at.verse);
+    // тот же элемент, что у ведущей: заголовок главы, заголовок раздела перед стихом или сам стих
+    // (раньше стих 1 ставился на место заголовка главы, заголовок раздела — на место стиха: на каждой такой
+    // границе ведомая панель скачком догоняла на высоту заголовка)
+    final int i;
+    if (at.verse == 0 || kind == ItemKind.chapter.index) {
+      i = book.indexOf(at.chapter, 1);
+    } else {
+      final v = book.exactIndex(at.chapter, at.verse);
+      if (v == null) {
+        i = book.indexOf(at.chapter, at.verse);
+      } else if (kind == ItemKind.heading.index) {
+        i = v > 0 && book.items[v - 1].kind == ItemKind.heading ? v - 1 : v;
+      } else {
+        i = v;
+      }
+    }
     final r = _rowOf[i];
     final row = _rows[r];
     double alignment;
+    var own = 0.0; // высота этого стиха здесь, пиксели (0 — не знаем)
     if (!row.para) {
       final h = _rowFrac[r] ?? 0.05;
       alignment = -frac * h;
+      if (_rowFrac[r] != null) own = h * _vh;
     } else {
       final handle = blockHandle(widget.index, r);
       final vt = handle?.verseTop(at.verse), vb = handle?.verseBottom(at.verse);
       if (vt != null && vb != null) {
         alignment = -(vt + frac * (vb - vt)) / _vh;
+        own = vb - vt;
       } else {
         // Блок не построен: примерно, по числу знаков абзаца
         final total = row.verses.fold<int>(0, (a, x) => a + x.text.length);
@@ -532,6 +561,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     // сверху и у ведомой панели её ещё нет) — от ближайшей видимой по известным высотам строк между ними.
     // Тогда это тоже сдвиг на пиксели; переход по номеру строки (перестраивает весь список — «прыжок» второй
     // панели) — только если строка далеко
+    _k = own > 0 && SyncHub.leadH > 0 ? (own / SyncHub.leadH).clamp(0.25, 4.0) : 1;
     final lead = _leadOf(r);
     if (lead != null && _vh > 0) {
       final dy = (lead - alignment) * _vh;
@@ -552,6 +582,26 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     _following = true;
     _scroll.jumpTo(index: r, alignment: alignment);
     _following = false;
+  }
+
+  // Ведущая панель сдвинулась на dy пикселей — сдвигаемся сразу же (в этом кадре обе панели рисуются уже сдвинутыми),
+  // на столько же, умноженное на отношение высот текущего стиха. Поправка по стиху (_follow) приходит после кадра
+  // и при одинаковых переводах почти нулевая — не видна. Пока сдвиг не дошёл до списка — поправку откладываем
+  // (считать её по старому положению — сдвинуть дважды)
+  void _followDelta(double dy) {
+    final p = _pos;
+    if (p == null || !p.hasPixels || !ref_.syncOn) return;
+    // во время раскладки двигать список нельзя — тогда догонит поправка по стиху
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) return;
+    final to = (p.pixels + dy * _k).clamp(p.minScrollExtent, p.maxScrollExtent);
+    if ((to - p.pixels).abs() < 0.01) return;
+    _followBusy = true;
+    _following = true;
+    p.jumpTo(to);
+    _following = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _followDone();
+    });
   }
 
   // ---- жесты ----
@@ -702,7 +752,10 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   }
 
   bool _onScroll(ScrollNotification n) {
-    if (n is! ScrollUpdateNotification || n.metrics.axis != Axis.vertical || widget.index != 0) return false;
+    if (n is! ScrollUpdateNotification || n.metrics.axis != Axis.vertical) return false;
+    // ведущая панель — сдвиг сразу ведомым (не ждём, пока обновятся положения строк)
+    if (!_following && SyncHub.driver == widget.index && (n.scrollDelta ?? 0) != 0 && ref_.syncOn) SyncHub.emitDelta(widget.index, n.scrollDelta!);
+    if (widget.index != 0) return false;
     if (!ref.read(settingsProvider).get<bool>('focusMode') || _pinching) return false;
     final d = n.scrollDelta ?? 0;
     if (d == 0) return false;

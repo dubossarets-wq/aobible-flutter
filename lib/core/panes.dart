@@ -224,9 +224,24 @@ ValueNotifier<VerseRef> livePosition(int i, VerseRef initial) => livePositions.p
 class SyncHub {
   static int driver = 0;
   static final listeners = <int, void Function(VerseRef ref, double frac)>{};
-  static void emit(int from, VerseRef ref, double frac) {
+  // высота (пиксели) стиха у верхнего края ведущей панели — ведомая сравнивает со своей: во сколько раз
+  // её текст длиннее на экране, во столько раз дальше ей сдвигаться
+  static double leadH = 0;
+  // что у верхнего края ведущей: заголовок главы, заголовок раздела или стих (стих 1 и заголовок главы — разные строки)
+  static int leadKind = 2; // 0 — глава, 1 — заголовок раздела, 2 — стих
+  static void emit(int from, VerseRef ref, double frac, [double h = 0, int kind = 2]) {
+    leadH = h;
+    leadKind = kind;
     listeners.forEach((pane, fn) {
       if (pane != from) fn(ref, frac);
+    });
+  }
+
+  // Сдвиг ведущей панели (пиксели) — сразу, в том же кадре: ведомая двигается вместе с ней, а не кадром позже
+  static final deltaListeners = <int, void Function(double dy)>{};
+  static void emitDelta(int from, double dy) {
+    deltaListeners.forEach((pane, fn) {
+      if (pane != from) fn(dy);
     });
   }
 }

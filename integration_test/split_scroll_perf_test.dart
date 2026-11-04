@@ -4,6 +4,8 @@
 import 'dart:ui';
 
 import 'package:aobible/core/panes.dart';
+import 'package:aobible/ui/reader_pane.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aobible/main.dart' as app;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -33,13 +35,38 @@ void main() {
       final timings = <FrameTiming>[];
       void cb(List<FrameTiming> t) => timings.addAll(t);
       SchedulerBinding.instance.addTimingsCallback(cb);
-      var frames = 0, differ = 0;
+      var frames = 0, differ = 0, jumps = 0, lag = 0, rebuild = 0;
+      // позиции прокрутки панелей (по порядку панелей): сдвиг ведущей и ведомой за кадр
+      List<ScrollPosition> panes() => [
+            for (final e in find.byType(ReaderPane).evaluate())
+              (tester.stateList<ScrollableState>(find.descendant(of: find.byWidget(e.widget), matching: find.byType(Scrollable))).where((x) => x.position.axis == Axis.vertical).toList()
+                    ..sort((a, b) => (b.context.findRenderObject() as RenderBox).size.height.compareTo((a.context.findRenderObject() as RenderBox).size.height)))
+                  .first
+                  .position,
+          ];
+      final rects = [for (final e in find.byType(ReaderPane).evaluate()) (e.renderObject as RenderBox).localToGlobal(Offset.zero) & (e.renderObject as RenderBox).size];
+      List<double>? prev;
+      final lead = rects.length > 1 && rects[1].contains(at) ? 1 : 0;
       for (var k = 0; k < 4; k++) {
         final g = await tester.startGesture(at);
         for (var i = 0; i < 45; i++) {
           await g.moveBy(Offset(0, step));
           await tester.pump(const Duration(milliseconds: 16));
           if (split) {
+            final ps = panes();
+            if (ps.length >= 2) {
+              final now = [ps[0].pixels, ps[1].pixels];
+              if (prev != null) {
+                final dl = now[lead] - prev[lead], df = now[1 - lead] - prev[1 - lead];
+                if (df.abs() > 200 || dl.abs() > 200) {
+                  rebuild++;
+                } else {
+                  if ((df - dl).abs() > 20) jumps++;
+                  if (dl.abs() > 1 && df.abs() < 0.5) lag++;
+                }
+              }
+              prev = now;
+            }
             frames++;
             final a = livePositions[0]?.value, b = livePositions[1]?.value;
             if (a != null && b != null && (a.chapter != b.chapter || a.verse != b.verse)) differ++;
@@ -59,7 +86,7 @@ void main() {
       final long = timings.where((t) => ms(t.buildDuration) + ms(t.rasterDuration) > 16.7).length;
       out.add('$label: кадров ${timings.length}, длинных (>16,7 мс) $long; построение сред ${p(build, 0.5).toStringAsFixed(1)} / 90% ${p(build, 0.9).toStringAsFixed(1)} / 99% ${p(build, 0.99).toStringAsFixed(1)} / макс ${p(build, 1).toStringAsFixed(1)}; '
           'отрисовка 90% ${p(raster, 0.9).toStringAsFixed(1)} / макс ${p(raster, 1).toStringAsFixed(1)}'
-          '${split ? '; ведомая на другом стихе: $differ из $frames кадров' : ''}');
+          '${split ? '; ведомая на другом стихе: $differ из $frames кадров; рывков (сдвиг ведомой за кадр отличается > 20 px) $jumps, отстала на кадр $lag, перестроек списка $rebuild' : ''}');
     }
 
     // одна панель: сначала вниз по тексту (палец вверх), потом вверх (палец вниз)
@@ -74,11 +101,28 @@ void main() {
         await tester.pump(const Duration(milliseconds: 250));
       }
     }
-    final top = Offset(size.width / 2, size.height * 0.30), bottom = Offset(size.width / 2, size.height * 0.70);
-    await measure('две, тяну ВЕРХНЮЮ вниз по тексту', top, -12, split: true);
-    await measure('две, тяну ВЕРХНЮЮ вверх по тексту', top, 12, split: true);
-    await measure('две, тяну НИЖНЮЮ вниз по тексту', bottom, -12, split: true);
-    await measure('две, тяну НИЖНЮЮ вверх по тексту', bottom, 12, split: true);
+    final pr = [for (final e in find.byType(ReaderPane).evaluate()) (e.renderObject as RenderBox).localToGlobal(Offset.zero) & (e.renderObject as RenderBox).size];
+    final top = pr.isNotEmpty ? pr[0].center : Offset(size.width / 2, size.height * 0.30);
+    final bottom = pr.length > 1 ? pr[1].center : Offset(size.width / 2, size.height * 0.70);
+    await measure('две, тяну ПЕРВУЮ вниз по тексту', top, -12, split: true);
+    await measure('две, тяну ПЕРВУЮ вверх по тексту', top, 12, split: true);
+    await measure('две, тяну ВТОРУЮ вниз по тексту', bottom, -12, split: true);
+    await measure('две, тяну ВТОРУЮ вверх по тексту', bottom, 12, split: true);
+    // тот же перевод в обеих панелях: ведомая должна идти пиксель в пиксель
+    for (final e in find.byType(ReaderPane).evaluate()) {
+      final b = e.renderObject as RenderBox;
+      out.add('панель ${b.localToGlobal(Offset.zero)} ${b.size}');
+    }
+    final c = ProviderScope.containerOf(tester.element(find.byType(ReaderPane).first));
+    final ps = c.read(panesProvider);
+    c.read(panesProvider.notifier).setModule(1, ps[0].moduleId);
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    await measure('ОДИН ПЕРЕВОД, тяну ПЕРВУЮ вниз', top, -12, split: true);
+    await measure('ОДИН ПЕРЕВОД, тяну ПЕРВУЮ вверх', top, 12, split: true);
+    await measure('ОДИН ПЕРЕВОД, тяну ВТОРУЮ вниз', bottom, -12, split: true);
+    await measure('ОДИН ПЕРЕВОД, тяну ВТОРУЮ вверх', bottom, 12, split: true);
     for (final l in out) {
       // ignore: avoid_print
       print('PERF $l');
