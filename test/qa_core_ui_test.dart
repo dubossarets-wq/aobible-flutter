@@ -398,7 +398,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     c.read(panesProvider.notifier).toggleSplit();
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Поиск'));
+    await tester.tap(find.byTooltip('Поиск').first); // при двух панелях — у каждой свой поиск
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());

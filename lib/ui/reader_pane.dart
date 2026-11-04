@@ -451,6 +451,34 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   _RefHelper get ref_ => _RefHelper(ref);
 
+  // Верх строки r в долях высоты окна: видна — точно; рядом с видимыми (до 8 строк) — по высотам строк между ними
+  // (запомнены, пока строки были на экране; неизвестные — как средняя видимая)
+  double? _leadOf(int r) {
+    final vis = _positions.itemPositions.value.toList();
+    if (vis.isEmpty) return null;
+    final cur = vis.where((x) => x.index == r).firstOrNull;
+    if (cur != null) return cur.itemLeadingEdge;
+    vis.sort((a, b) => a.index.compareTo(b.index));
+    final avg = vis.fold<double>(0, (a, x) => a + (x.itemTrailingEdge - x.itemLeadingEdge)) / vis.length;
+    double h(int k) => _rowFrac[k] ?? avg;
+    final first = vis.first, last = vis.last;
+    if (r < first.index && first.index - r <= 8) {
+      var l = first.itemLeadingEdge;
+      for (var k = first.index - 1; k >= r; k--) {
+        l -= h(k);
+      }
+      return l;
+    }
+    if (r > last.index && r - last.index <= 8) {
+      var l = last.itemTrailingEdge;
+      for (var k = last.index + 1; k < r; k++) {
+        l += h(k);
+      }
+      return l;
+    }
+    return null;
+  }
+
   // Сдвиг ведомой панели применился — то, что пришло за это время, — от нового положения
   void _followDone() {
     if (!_followBusy) return;
@@ -500,9 +528,13 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       }
     }
     // нужная строка на экране — сдвиг на разницу (обычная прокрутка, без перестройки списка)
-    final cur = _positions.itemPositions.value.where((x) => x.index == r).firstOrNull;
-    if (cur != null && _vh > 0) {
-      final dy = (cur.itemLeadingEdge - alignment) * _vh;
+    // где сейчас верх нужной строки (доля высоты окна): видна — по ней; не видна (листают вверх — она въезжает
+    // сверху и у ведомой панели её ещё нет) — от ближайшей видимой по известным высотам строк между ними.
+    // Тогда это тоже сдвиг на пиксели; переход по номеру строки (перестраивает весь список — «прыжок» второй
+    // панели) — только если строка далеко
+    final lead = _leadOf(r);
+    if (lead != null && _vh > 0) {
+      final dy = (lead - alignment) * _vh;
       if (dy.abs() < 0.5) return;
       final p = _pos;
       if (p != null && p.hasPixels) {

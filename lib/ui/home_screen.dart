@@ -437,7 +437,9 @@ class _Pane extends ConsumerWidget {
               // «Назад» — только когда есть куда: бледная неактивная стрелка — лишний шум в шапке
               if (hist.$1 > 0) tbIcon(LucideIcons.arrowLeft, t('Назад по истории'), () => ref.read(panesProvider.notifier).go(index, -1)),
               if (hist.$1 < hist.$2 - 1) tbIcon(LucideIcons.arrowRight, t('Вперёд по истории'), () => ref.read(panesProvider.notifier).go(index, 1)),
-              if (wide && index == 0) tbIcon(LucideIcons.search, t('Поиск'), () => openSearch(context, index)),
+              // поиск по всей Библии — у каждой панели, когда их несколько (результаты открываются в этой панели);
+              // панель одна — поиск только в меню (вкладка «Поиск»)
+              if (split) tbIcon(LucideIcons.search, t('Поиск'), () => openSearch(context, index)),
               if (wide && index == 0)
                 ValueListenableBuilder<bool>(
                   valueListenable: updateAvailable,
