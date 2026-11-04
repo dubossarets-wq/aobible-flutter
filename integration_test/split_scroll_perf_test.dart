@@ -35,7 +35,8 @@ void main() {
       final timings = <FrameTiming>[];
       void cb(List<FrameTiming> t) => timings.addAll(t);
       SchedulerBinding.instance.addTimingsCallback(cb);
-      var frames = 0, differ = 0, jumps = 0, lag = 0, rebuild = 0;
+      var frames = 0, differ = 0, jumps = 0, lag = 0, rebuild = 0, jitter = 0;
+      double? pdl, pdf;
       // позиции прокрутки панелей (по порядку панелей): сдвиг ведущей и ведомой за кадр
       List<ScrollPosition> panes() => [
             for (final e in find.byType(ReaderPane).evaluate())
@@ -62,6 +63,10 @@ void main() {
                   rebuild++;
                 } else {
                   if ((df - dl).abs() > 20) jumps++;
+                  // дрожь: ведущая идёт ровно, а скорость ведомой скачет
+                  if (pdl != null && pdf != null && (dl - pdl).abs() < 0.5 && (df - pdf).abs() > 2) jitter++;
+                  pdl = dl;
+                  pdf = df;
                   if (dl.abs() > 1 && df.abs() < 0.5) lag++;
                 }
               }
@@ -73,6 +78,7 @@ void main() {
           }
         }
         await g.up();
+        pdl = pdf = null;
         for (var i = 0; i < 25; i++) {
           await tester.pump(const Duration(milliseconds: 16));
         }
@@ -86,7 +92,7 @@ void main() {
       final long = timings.where((t) => ms(t.buildDuration) + ms(t.rasterDuration) > 16.7).length;
       out.add('$label: кадров ${timings.length}, длинных (>16,7 мс) $long; построение сред ${p(build, 0.5).toStringAsFixed(1)} / 90% ${p(build, 0.9).toStringAsFixed(1)} / 99% ${p(build, 0.99).toStringAsFixed(1)} / макс ${p(build, 1).toStringAsFixed(1)}; '
           'отрисовка 90% ${p(raster, 0.9).toStringAsFixed(1)} / макс ${p(raster, 1).toStringAsFixed(1)}'
-          '${split ? '; ведомая на другом стихе: $differ из $frames кадров; рывков (сдвиг ведомой за кадр отличается > 20 px) $jumps, отстала на кадр $lag, перестроек списка $rebuild' : ''}');
+          '${split ? '; ведомая на другом стихе: $differ из $frames кадров; рывков (сдвиг ведомой за кадр отличается > 20 px) $jumps, отстала на кадр $lag, дрожь $jitter, перестроек списка $rebuild' : ''}');
     }
 
     // одна панель: сначала вниз по тексту (палец вверх), потом вверх (палец вниз)

@@ -54,8 +54,12 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // панель. Позицию берём из уведомлений прокрутки списка (сам список её не отдаёт)
   ScrollPosition? _pos;
   bool _followBusy = false; // сдвиг отдан списку, его положение ещё не обновилось
-  (VerseRef, double, int)? _followNext; // что пришло за это время — применим, когда положение обновится
-  double _k = 1; // во сколько раз стих у верхнего края здесь выше, чем у ведущей панели (один перевод и ширина — 1)
+  (VerseRef, double)? _followNext; // что пришло за это время — применим, когда положение обновится
+  // позиция прокрутки на момент последней раскладки строк: положения строк обновляются после кадра, а прокрутка
+  // уже ушла дальше — сдвиг с тех пор досчитываем сами (место ведущей и цель ведомой — в том же кадре)
+  double _pixAt = 0;
+  ScrollPosition? _posAt;
+  int _drivenAt = 0; // когда эту панель последний раз прокручивали как ведущую (мс)
   final _positions = ItemPositionsListener.create();
   BookText? _book;
   // перевод по сети (API.Bible): ждём главу — вместо текста «Загрузка…» или ошибка с «Повторить»
@@ -141,7 +145,6 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     super.initState();
     _positions.itemPositions.addListener(_onPositions);
     SyncHub.listeners[widget.index] = _follow;
-    SyncHub.deltaListeners[widget.index] = _followDelta;
     _dwellTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tickDwell());
     _back.addListener(() {
       final k = 1 - Curves.easeOut.transform(_back.value);
@@ -160,7 +163,6 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     partSelection.removeListener(_onPartChange);
     _positions.itemPositions.removeListener(_onPositions);
     if (SyncHub.listeners[widget.index] == _follow) SyncHub.listeners.remove(widget.index);
-    if (SyncHub.deltaListeners[widget.index] == _followDelta) SyncHub.deltaListeners.remove(widget.index);
     // Панель закрыта: выбор части стиха и скрытые панели режима чтения не должны остаться
     final idx = widget.index;
     Future.microtask(() {
@@ -379,17 +381,16 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // вернуться ровно к нему: строки меняют высоту стихов выше, и без этого текст уезжал бы на другой стих
   VerseRef? _topAt;
   double _topFrac = 0;
-  int _topKind = 2; // глава / заголовок / стих (как SyncHub.leadKind)
 
   void _holdTopVerse() {
-    final at = _topAt, f = _topFrac, kd = _topKind;
+    final at = _topAt, f = _topFrac;
     if (at == null) return;
     // два кадра: в первом блоки перестраиваются, во втором известны их новые высоты
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _follow(at, f, kd);
+      _follow(at, f);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _follow(at, f, kd);
+        if (mounted) _follow(at, f);
       });
     });
   }
@@ -397,8 +398,9 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // ---- место чтения ----
   // Верхний видимый элемент → место панели (шапка, запоминание) и сигнал второй панели
   void _onPositions() {
-    // положение после сдвига ведомой панели пришло — следующий сдвиг считаем от него
-    _followDone();
+    // положения строк — на эту позицию прокрутки
+    _posAt = _pos;
+    _pixAt = _pos?.hasPixels == true ? _pos!.pixels : 0;
     final book = _book;
     if (book == null || _rows.isEmpty) return;
     final pos = _positions.itemPositions.value;
@@ -406,6 +408,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     for (final p in pos) {
       if (p.index < _rows.length) _rowFrac[p.index] = p.itemTrailingEdge - p.itemLeadingEdge;
     }
+    // переход по номеру строки у ведомой завершился — то, что пришло за это время, — от нового положения
+    _followDone();
     ItemPosition? top;
     for (final p in pos) {
       if (p.itemTrailingEdge > 0.0 && (top == null || p.index < top.index)) top = p;
@@ -415,32 +419,35 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final row = _rows[r];
     final h = top.itemTrailingEdge - top.itemLeadingEdge;
     var frac = h > 0 ? (-top.itemLeadingEdge / h).clamp(0.0, 1.0) : 0.0;
-    final VerseRef at, emitAt;
-    var hpx = h * _vh; // высота стиха у верхнего края, пиксели
-    var kind = ItemKind.verse.index;
+    final VerseRef at;
     if (row.para) {
       // Внутри абзаца: стих у верхнего края и доля его высоты
       final y = math.max(0.0, -top.itemLeadingEdge * _vh);
       final handle = blockHandle(widget.index, r);
       final verse = handle?.verseAtY(y) ?? _verseByChars(row, frac).verse;
       final item = row.verses.firstWhere((x) => x.verse == verse, orElse: () => row.verses.first);
-      at = emitAt = VerseRef(book.book, item.chapter, item.verse);
-      final vt = handle?.verseTop(verse), vb = handle?.verseBottom(verse);
-      frac = vt != null && vb != null && vb > vt ? ((y - vt) / (vb - vt)).clamp(0.0, 1.0) : 0.0;
-      hpx = vt != null && vb != null && vb > vt ? vb - vt : 0;
+      at = VerseRef(book.book, item.chapter, item.verse);
     } else {
       at = book.refAt(row.start);
-      final it = book.items[row.start];
-      emitAt = VerseRef(book.book, it.chapter, it.verse);
-      kind = it.kind.index;
     }
     _remember(at);
-    _topAt = emitAt;
-    _topFrac = frac;
-    _topKind = kind;
-    if (_following || SyncHub.driver != widget.index) return;
-    if (!ref_.syncOn) return;
-    SyncHub.emit(widget.index, emitAt, frac, hpx, kind);
+    final st = _syncState();
+    if (st != null) {
+      _topAt = st.$1;
+      _topFrac = st.$2;
+    }
+    // ведущая, которую только что прокручивали: место — и после раскладки (строки въехали и получили настоящую
+    // высоту); после всех обработчиков этого кадра, чтобы ведомая успела записать свои положения строк до сдвига.
+    // Без прокрутки (открытие, переход) — не шлём: панели на разных местах так и остаются
+    if (_following || SyncHub.driver != widget.index || !ref_.syncOn) return;
+    if (DateTime.now().millisecondsSinceEpoch - _drivenAt > 600) return;
+    scheduleMicrotask(_emitSync);
+  }
+
+  void _emitSync() {
+    if (!mounted || _following || SyncHub.driver != widget.index || !ref_.syncOn) return;
+    final st = _syncState();
+    if (st != null) SyncHub.emit(widget.index, st.$1, st.$2);
   }
 
   void _remember(VerseRef at) {
@@ -461,13 +468,27 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   _RefHelper get ref_ => _RefHelper(ref);
 
-  // Верх строки r в долях высоты окна: видна — точно; рядом с видимыми (до 8 строк) — по высотам строк между ними
-  // (запомнены, пока строки были на экране; неизвестные — как средняя видимая)
+  // ---- синхронная прокрутка ----
+  // Место у верхнего края — стих и доля его промежутка: от верха стиха до верха следующего стиха (заголовки глав
+  // и разделов между ними входят в промежуток предыдущего стиха). Место меняется непрерывно, и ведомая панель
+  // с другим переводом (заголовков там нет или они другие, стихи другой высоты) идёт плавно — без скачков и поправок.
+  // Ведущая считает место прямо в обработчике прокрутки, ведомая сразу встаёт на него — обе в одном кадре
+
+  // сколько прокручено с последней раскладки строк (доли высоты окна)
+  double _shiftFrac() {
+    final p = _pos;
+    if (p == null || !p.hasPixels || !identical(p, _posAt) || _vh <= 0) return 0;
+    return (p.pixels - _pixAt) / _vh;
+  }
+
+  // Верх строки r сейчас, в долях высоты окна: видна — точно; рядом с видимыми (до 8 строк) — по высотам строк
+  // между ними (запомнены, пока строки были на экране; неизвестные — как средняя видимая)
   double? _leadOf(int r) {
     final vis = _positions.itemPositions.value.toList();
     if (vis.isEmpty) return null;
+    final s = _shiftFrac();
     final cur = vis.where((x) => x.index == r).firstOrNull;
-    if (cur != null) return cur.itemLeadingEdge;
+    if (cur != null) return cur.itemLeadingEdge - s;
     vis.sort((a, b) => a.index.compareTo(b.index));
     final avg = vis.fold<double>(0, (a, x) => a + (x.itemTrailingEdge - x.itemLeadingEdge)) / vis.length;
     double h(int k) => _rowFrac[k] ?? avg;
@@ -477,130 +498,200 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       for (var k = first.index - 1; k >= r; k--) {
         l -= h(k);
       }
-      return l;
+      return l - s;
     }
     if (r > last.index && r - last.index <= 8) {
       var l = last.itemTrailingEdge;
       for (var k = last.index + 1; k < r; k++) {
         l += h(k);
       }
-      return l;
+      return l - s;
     }
     return null;
   }
 
-  // Сдвиг ведомой панели применился — то, что пришло за это время, — от нового положения
+  int? _nextVerseItem(int i) {
+    final items = _book!.items;
+    for (var k = i + 1; k < items.length; k++) {
+      if (items[k].kind == ItemKind.verse) return k;
+    }
+    return null;
+  }
+
+  int? _prevVerseItem(int i) {
+    final items = _book!.items;
+    for (var k = i - 1; k >= 0; k--) {
+      if (items[k].kind == ItemKind.verse) return k;
+    }
+    return null;
+  }
+
+  // Верх стиха (элемент книги i) сейчас, пиксели от верха окна; null — далеко от видимого
+  double? _verseTopPx(int i) {
+    final r = _rowOf[i];
+    final l = _leadOf(r);
+    if (l == null) return null;
+    final top = l * _vh;
+    final row = _rows[r];
+    if (!row.para) return top;
+    final it = _book!.items[i];
+    final vt = blockHandle(widget.index, r)?.verseTop(it.verse);
+    if (vt != null) return top + vt;
+    // абзац ещё не построен — по числу знаков
+    final total = row.verses.fold<int>(0, (a, x) => a + x.text.length);
+    var before = 0;
+    for (final x in row.verses) {
+      if (x.chapter == it.chapter && x.verse == it.verse) break;
+      before += x.text.length;
+    }
+    return top + before / math.max(1, total) * (_rowFrac[r] ?? 0) * _vh;
+  }
+
+  // Конец промежутка стиха i: верх следующего стиха (у последнего в книге — низ его строки)
+  double? _spanEndPx(int i) {
+    final n = _nextVerseItem(i);
+    if (n != null) return _verseTopPx(n);
+    final r = _rowOf[i];
+    final l = _leadOf(r);
+    return l == null ? null : (l + (_rowFrac[r] ?? 0)) * _vh;
+  }
+
+  // Начало и конец промежутка стиха (элемент i), пиксели; i < 0 — заголовок над первым стихом книги («стих 0»)
+  (double, double)? _span(int i) {
+    if (i < 0) {
+      final l0 = _leadOf(0);
+      final first = _nextVerseItem(-1);
+      final tn = first == null ? null : _verseTopPx(first);
+      return l0 == null || tn == null ? null : (l0 * _vh, tn);
+    }
+    final tv = _verseTopPx(i), tn = _spanEndPx(i);
+    return tv == null || tn == null ? null : (tv, tn);
+  }
+
+  // Плавная кривая места внутри стиха: верхние края стихов в обеих панелях совпадают точно, а между ними —
+  // не прямая (скорость ведомой менялась бы скачком на каждой границе стихов, если стихи там разной высоты),
+  // а монотонная кубическая кривая через края соседних стихов (Эрмит, наклоны — среднее гармоническое соседних
+  // промежутков): скорость меняется плавно, текст не дёргается и не «плывёт»
+  static double _hm(double a, double b) => a > 0 && b > 0 ? 2 * a * b / (a + b) : math.max(a, b);
+  static double _herm(double s, double d, double m0, double m1) {
+    final s2 = s * s, s3 = s2 * s;
+    return (-2 * s3 + 3 * s2) * d + (s3 - 2 * s2 + s) * m0 + (s3 - s2) * m1;
+  }
+
+  // длина промежутка стиха i и наклоны кривой на его краях (пиксели на стих)
+  (double, double, double) _shape(int i, double d) {
+    if (i < 0) return (d, d, d);
+    double len(int? j) {
+      if (j == null) return d;
+      final sp = _span(j);
+      return sp == null || sp.$2 <= sp.$1 ? d : sp.$2 - sp.$1;
+    }
+    final prev = len(_prevVerseItem(i)), next = len(_nextVerseItem(i));
+    return (d, _hm(prev, d), _hm(d, next));
+  }
+
+  // доля промежутка (параметр кривой) для расстояния y от верха стиха
+  double _paramAt(int i, double y, double d) {
+    if (d <= 0) return 0;
+    final (_, m0, m1) = _shape(i, d);
+    var lo = 0.0, hi = 1.0;
+    for (var k = 0; k < 22; k++) {
+      final mid = (lo + hi) / 2;
+      if (_herm(mid, d, m0, m1) < y) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return (lo + hi) / 2;
+  }
+
+  // Место у верхнего края этой панели: стих и доля его промежутка
+  (VerseRef, double)? _syncState() {
+    final book = _book;
+    if (book == null || _rows.isEmpty) return null;
+    final s = _shiftFrac();
+    ItemPosition? top;
+    for (final p in _positions.itemPositions.value) {
+      if (p.itemTrailingEdge - s > 0.0 && (top == null || p.index < top.index)) top = p;
+    }
+    if (top == null) return null;
+    final r = math.min(top.index, _rows.length - 1);
+    final row = _rows[r];
+    int? i;
+    if (row.para) {
+      final h = (top.itemTrailingEdge - top.itemLeadingEdge) * _vh;
+      final y = math.max(0.0, -(top.itemLeadingEdge - s) * _vh);
+      final verse = blockHandle(widget.index, r)?.verseAtY(y) ?? _verseByChars(row, h > 0 ? (y / h).clamp(0.0, 1.0) : 0.0).verse;
+      final item = row.verses.firstWhere((x) => x.verse == verse, orElse: () => row.verses.first);
+      i = book.exactIndex(item.chapter, item.verse);
+    } else if (book.items[row.start].kind == ItemKind.verse) {
+      i = row.start;
+    } else {
+      i = _prevVerseItem(row.start); // заголовок — в промежутке стиха перед ним
+    }
+    final sp = _span(i ?? -1);
+    if (sp == null) return null;
+    final d = sp.$2 - sp.$1;
+    final f = d > 0 ? _paramAt(i ?? -1, (0 - sp.$1).clamp(0.0, d), d) : 0.0;
+    if (i == null) return (VerseRef(book.book, book.items.first.chapter, 0), f);
+    final it = book.items[i];
+    return (VerseRef(book.book, it.chapter, it.verse), f);
+  }
+
+  // Переход по номеру строки у ведомой завершился — то, что пришло за это время, — от нового положения
   void _followDone() {
     if (!_followBusy) return;
     _followBusy = false;
     final next = _followNext;
     _followNext = null;
-    if (next != null) _follow(next.$1, next.$2, next.$3);
+    if (next != null) _follow(next.$1, next.$2);
   }
 
-  // Ведомая панель: тот же стих (или заголовок главы), та же доля его высоты
-  void _follow(VerseRef at, double frac, [int? kindOf]) {
-    final kind = kindOf ?? SyncHub.leadKind;
+  // Ведомая панель: тот же стих, та же доля его промежутка — сдвиг прокрутки на разницу (обычная прокрутка,
+  // список не перестраивается). Переход по номеру строки — только если стих далеко от видимого
+  void _follow(VerseRef at, double frac) {
     if (_followBusy) {
-      _followNext = (at, frac, kind); // прежний сдвиг ещё не применился
+      _followNext = (at, frac); // переход ещё не применился
       return;
     }
     final book = _book;
-    if (book == null || !_scroll.isAttached) return;
+    if (book == null || !_scroll.isAttached || book.items.isEmpty) return;
     if (book.book != at.book) {
       ref.read(panesProvider.notifier).navigate(widget.index, at, flash: false);
       return;
     }
-    // тот же элемент, что у ведущей: заголовок главы, заголовок раздела перед стихом или сам стих
-    // (раньше стих 1 ставился на место заголовка главы, заголовок раздела — на место стиха: на каждой такой
-    // границе ведомая панель скачком догоняла на высоту заголовка)
-    final int i;
-    if (at.verse == 0 || kind == ItemKind.chapter.index) {
-      i = book.indexOf(at.chapter, 1);
-    } else {
-      final v = book.exactIndex(at.chapter, at.verse);
-      if (v == null) {
-        i = book.indexOf(at.chapter, at.verse);
-      } else if (kind == ItemKind.heading.index) {
-        i = v > 0 && book.items[v - 1].kind == ItemKind.heading ? v - 1 : v;
-      } else {
-        i = v;
-      }
+    var i = -1;
+    if (at.verse > 0) {
+      i = book.exactIndex(at.chapter, at.verse) ?? book.indexOf(at.chapter, at.verse);
+      if (book.items[i].kind != ItemKind.verse) i = _nextVerseItem(i) ?? i;
     }
-    final r = _rowOf[i];
-    final row = _rows[r];
-    double alignment;
-    var own = 0.0; // высота этого стиха здесь, пиксели (0 — не знаем)
-    if (!row.para) {
-      final h = _rowFrac[r] ?? 0.05;
-      alignment = -frac * h;
-      if (_rowFrac[r] != null) own = h * _vh;
-    } else {
-      final handle = blockHandle(widget.index, r);
-      final vt = handle?.verseTop(at.verse), vb = handle?.verseBottom(at.verse);
-      if (vt != null && vb != null) {
-        alignment = -(vt + frac * (vb - vt)) / _vh;
-        own = vb - vt;
-      } else {
-        // Блок не построен: примерно, по числу знаков абзаца
-        final total = row.verses.fold<int>(0, (a, x) => a + x.text.length);
-        var before = 0;
-        var len = 1;
-        for (final x in row.verses) {
-          if (x.verse == at.verse) {
-            len = x.text.length;
-            break;
-          }
-          before += x.text.length;
-        }
-        alignment = -((before + frac * len) / math.max(1, total)) * (_rowFrac[r] ?? 0);
-      }
-    }
-    // нужная строка на экране — сдвиг на разницу (обычная прокрутка, без перестройки списка)
-    // где сейчас верх нужной строки (доля высоты окна): видна — по ней; не видна (листают вверх — она въезжает
-    // сверху и у ведомой панели её ещё нет) — от ближайшей видимой по известным высотам строк между ними.
-    // Тогда это тоже сдвиг на пиксели; переход по номеру строки (перестраивает весь список — «прыжок» второй
-    // панели) — только если строка далеко
-    _k = own > 0 && SyncHub.leadH > 0 ? (own / SyncHub.leadH).clamp(0.25, 4.0) : 1;
-    final lead = _leadOf(r);
-    if (lead != null && _vh > 0) {
-      final dy = (lead - alignment) * _vh;
-      if (dy.abs() < 0.5) return;
-      final p = _pos;
-      if (p != null && p.hasPixels) {
-        _followBusy = true;
-        _following = true;
-        p.jumpTo(p.pixels + dy);
-        _following = false;
-        // у края списка положение не меняется и слушатель молчит — тогда сдвиг считается сделанным после кадра
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _followDone();
-        });
-        return;
-      }
-    }
-    _following = true;
-    _scroll.jumpTo(index: r, alignment: alignment);
-    _following = false;
-  }
-
-  // Ведущая панель сдвинулась на dy пикселей — сдвигаемся сразу же (в этом кадре обе панели рисуются уже сдвинутыми),
-  // на столько же, умноженное на отношение высот текущего стиха. Поправка по стиху (_follow) приходит после кадра
-  // и при одинаковых переводах почти нулевая — не видна. Пока сдвиг не дошёл до списка — поправку откладываем
-  // (считать её по старому положению — сдвинуть дважды)
-  void _followDelta(double dy) {
+    final sp = _span(i);
     final p = _pos;
-    if (p == null || !p.hasPixels || !ref_.syncOn) return;
-    // во время раскладки двигать список нельзя — тогда догонит поправка по стиху
-    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) return;
-    final to = (p.pixels + dy * _k).clamp(p.minScrollExtent, p.maxScrollExtent);
-    if ((to - p.pixels).abs() < 0.01) return;
+    if (sp != null && p != null && p.hasPixels) {
+      final d = sp.$2 - sp.$1;
+      final (_, m0, m1) = _shape(i, d);
+      final dy = sp.$1 + _herm(frac.clamp(0.0, 1.0), d, m0, m1);
+      if (dy.abs() < 0.25) return;
+      _following = true;
+      p.jumpTo(p.pixels + dy);
+      _following = false;
+      return;
+    }
+    // далеко: переход к строке, точное место — когда придут её положения
+    _followNext = (at, frac);
     _followBusy = true;
     _following = true;
-    p.jumpTo(to);
+    _scroll.jumpTo(index: i < 0 ? 0 : _rowOf[i], alignment: 0);
     _following = false;
+    // у края списка положения могут не обновиться — тогда через пару кадров снимаем ожидание
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _followDone();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _followBusy) {
+          _followBusy = false;
+          _followNext = null;
+        }
+      });
     });
   }
 
@@ -753,8 +844,12 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   bool _onScroll(ScrollNotification n) {
     if (n is! ScrollUpdateNotification || n.metrics.axis != Axis.vertical) return false;
-    // ведущая панель — сдвиг сразу ведомым (не ждём, пока обновятся положения строк)
-    if (!_following && SyncHub.driver == widget.index && (n.scrollDelta ?? 0) != 0 && ref_.syncOn) SyncHub.emitDelta(widget.index, n.scrollDelta!);
+    // ведущая панель — место сразу ведомым, в этом же кадре (не ждём, пока обновятся положения строк)
+    if (!_following && SyncHub.driver == widget.index && (n.scrollDelta ?? 0) != 0 && ref_.syncOn &&
+        SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+      _drivenAt = DateTime.now().millisecondsSinceEpoch;
+      _emitSync();
+    }
     if (widget.index != 0) return false;
     if (!ref.read(settingsProvider).get<bool>('focusMode') || _pinching) return false;
     final d = n.scrollDelta ?? 0;

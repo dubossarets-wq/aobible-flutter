@@ -395,7 +395,11 @@ class _Pane extends ConsumerWidget {
           child: Container(
             height: barHeight,
             // у подстрочника под шапкой — своя панель: тень переезжает под неё, между ними — еле заметная линия
-            decoration: BoxDecoration(color: pal.bar, boxShadow: mod?.features['interlinear'] == true && ilBar ? null : [BoxShadow(color: mix(pal.line, 0.7, Colors.black26), offset: const Offset(0, 1))]),
+            // под шапкой — лёгкая разделительная линия (как в веб-версии: 1 px цвета линий и мягкая тень)
+            decoration: BoxDecoration(
+              color: pal.bar,
+              boxShadow: mod?.features['interlinear'] == true && ilBar ? null : [BoxShadow(color: pal.line, offset: const Offset(0, 1)), const BoxShadow(color: Color(0x0D000000), offset: Offset(0, 4), blurRadius: 14)],
+            ),
             padding: const EdgeInsets.only(left: 8, right: 4),
             child: Row(children: [
               // Перевод и место — одна капсула: слева короткое имя перевода (мельче, приглушённо), тонкий разделитель,
