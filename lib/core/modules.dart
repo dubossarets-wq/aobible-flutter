@@ -146,21 +146,17 @@ class ModuleStore {
   /// Каталог. url — свой каталог (aob-catalog по адресу, «Источник каталога» в веб-версии); без него — встроенный
   Future<List<CatalogEntry>> catalog({String? url}) async {
     if (url == null || url.isEmpty) {
-      final bytes = await download('modules/catalog.json');
-      final j = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      // переводы API.Bible и bible.helloao.org — отдельным файлом (старые версии приложения его не читают);
-      // не открылся — каталог без них
-      List more = const [];
-      try {
-        more = (jsonDecode(utf8.decode(await download('modules/catalog-more.json'))) as Map)['modules'] as List;
-      } catch (_) {}
-      try {
-        final t = jsonDecode(utf8.decode(await download('modules/lang-names.json'))) as Map;
-        for (final e in t.entries) {
-          langNameTable['${e.key}'] = (e.value as Map).cast<String, String>();
-        }
-      } catch (_) {}
-      return [...(j['modules'] as List), ...more].map((m) => CatalogEntry((m as Map).cast<String, dynamic>())).toList();
+      // встроенный каталог помним 2 минуты (как fetchCatalog в веб-версии): окно перевода, библиотека и «О приложении»
+      // просили его при каждом открытии — 0,9 МБ из сети и разбор в основном потоке
+      final hit = _catalogMemo;
+      if (hit != null && DateTime.now().difference(hit.$1) < const Duration(minutes: 2)) return hit.$2;
+      final f = _builtinCatalog();
+      _catalogMemo = (DateTime.now(), f);
+      f.catchError((_) {
+        _catalogMemo = null; // не вышло — в следующий раз заново
+        return <CatalogEntry>[];
+      });
+      return f;
     }
     final Uint8List bytes;
     try {
@@ -186,6 +182,29 @@ class ModuleStore {
           if (m['urlGz'] != null) 'urlGz': base.resolve('${m['urlGz']}').toString(),
         }),
     ];
+  }
+
+  (DateTime, Future<List<CatalogEntry>>)? _catalogMemo;
+
+  Future<List<CatalogEntry>> _builtinCatalog() async {
+    // три файла — одновременно; переводы API.Bible и bible.helloao.org — отдельным файлом (старые версии приложения
+    // его не читают); дополнительный каталог или названия языков не открылись — без них
+    final main = download('modules/catalog.json');
+    final more = download('modules/catalog-more.json').then<Uint8List?>((b) => b, onError: (_) => null);
+    final names = download('modules/lang-names.json').then<Uint8List?>((b) => b, onError: (_) => null);
+    final bytes = (await main, await more, await names);
+    // в поток уходят только байты (обещания загрузок передать нельзя)
+    final (j, m, n) = await Isolate.run(() {
+      Object? dec(Uint8List? b) => b == null ? null : jsonDecode(utf8.decode(b));
+      return (dec(bytes.$1), dec(bytes.$2), dec(bytes.$3));
+    });
+    if (n is Map) {
+      for (final e in n.entries) {
+        langNameTable['${e.key}'] = (e.value as Map).cast<String, String>();
+      }
+    }
+    final list = [...((j as Map)['modules'] as List), ...(m is Map ? m['modules'] as List : const [])];
+    return [for (final x in list) CatalogEntry((x as Map).cast<String, dynamic>())];
   }
 
   Future<void> install(CatalogEntry e, {void Function(double, String)? onProgress}) async {

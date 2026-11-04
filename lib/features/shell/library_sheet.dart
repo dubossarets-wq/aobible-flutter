@@ -38,8 +38,8 @@ const _langNames = <String, String>{
   'sr': 'Сербский', 'sq': 'Албанский', 'hy': 'Армянский', 'hr': 'Хорватский', 'da': 'Датский', 'nb': 'Норвежский',
   'be': 'Белорусский', 'eo': 'Эсперанто', 'he': 'Иврит', 'grc': 'Греческий', 'la': 'Латынь', 'cu': 'Церковнославянский', 'syr': 'Сирийский',
 };
-final _order = _langNames.keys.toList();
-int langRank(String code) => _order.contains(code) ? _order.indexOf(code) : _order.length + (code.isEmpty ? 1 : 0);
+final _order = {for (final (i, k) in _langNames.keys.indexed) k: i};
+int langRank(String code) => _order[code] ?? _order.length + (code.isEmpty ? 1 : 0);
 
 /// Название языка: в русском интерфейсе — по-русски, в остальных — на самом языке (если он среди языков приложения)
 String langName(String code) {
@@ -323,7 +323,16 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     toast(context, t('{name} — основной перевод', {'name': m.name}));
   }
 
-  bool _matches(_Item m, String q) => q.isEmpty || [m.name, m.title, m.str('description'), m.str('author'), langName(m.language)].any((x) => x != null && x.toLowerCase().replaceAll('ё', 'е').contains(q));
+  // строка для поиска собирается один раз на модуль (и язык интерфейса): каталог — полторы тысячи модулей
+  static final _hay = Expando<(String, String)>();
+  bool _matches(_Item m, String q) {
+    if (q.isEmpty) return true;
+    var h = _hay[m.json];
+    if (h == null || h.$1 != currentLang) {
+      _hay[m.json] = h = (currentLang, [m.name, m.title, m.str('description'), m.str('author'), langName(m.language)].whereType<String>().join(' ').toLowerCase().replaceAll('ё', 'е'));
+    }
+    return h.$2.contains(q);
+  }
 
   bool _updatable(_Item m) {
     final c = m.cat, i = m.installed;
