@@ -228,7 +228,7 @@ final tourDefs = <TourDef>[
     TourStep('Крестик на месте той же кнопки закрывает вторую часть.', target: 'tb-split', until: (a) => !_second(a)),
   ]),
   TourDef('search', LucideIcons.search, 'Поиск', 'Основное', (phone) => [
-    TourStep('Нажмите на лупу.', target: phone ? 'tab-search' : 'tb-search', next: (a) => a.openSheet('search'), until: (a) => sheetOpen()),
+    TourStep('Нажмите на лупу.', target: 'tab-search', next: (a) => a.openSheet('search'), until: (a) => sheetOpen()),
     TourStep('Введите слово — места появятся сразу. Или ссылку: «Ин 3:16».', target: 'sheet-input', before: (a) => sheetOpen() ? null : a.openSheet('search')),
   ]),
   TourDef('saved', LucideIcons.heart, 'Закладки, заметки, любимые', 'Мои записи', (phone) => [
