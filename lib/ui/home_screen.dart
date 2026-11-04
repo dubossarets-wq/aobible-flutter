@@ -210,7 +210,11 @@ class _SplitState extends ConsumerState<_Split> {
     return LayoutBuilder(builder: (context, c) {
       final total = (cols ? c.maxWidth : c.maxHeight) - thick * (n - 1);
       Widget slot(Widget w, double extent) => SizedBox(width: cols ? extent : null, height: cols ? null : extent, child: w);
-      final ext = [for (final f in sizes) total * f];
+      // друг над другом: нижнюю панель снизу закрывают вкладки (и проигрыватель) — их высота прибавляется к ней
+      // сверх доли, чтобы видимая часть у всех панелей была поровну
+      final inset = cols ? 0.0 : math.min(MediaQuery.paddingOf(context).bottom, total / 2);
+      final usable = total - inset;
+      final ext = [for (var i = 0; i < n; i++) usable * sizes[i] + (i == n - 1 ? inset : 0)];
       final kids = <Widget>[];
       final handles = <Widget>[];
       var at = 0.0;
@@ -227,7 +231,7 @@ class _SplitState extends ConsumerState<_Split> {
           thick: thick,
           pal: pal,
           ratio: sizes.take(k + 1).fold(0.0, (a, b) => a + b),
-          onDrag: (delta) => _move(_sizes ?? sizes, k, delta / total),
+          onDrag: (delta) => _move(_sizes ?? sizes, k, delta / usable),
           onEnd: () {
             if (n == 2 && _sizes != null) {
               _save(_sizes![0]);
