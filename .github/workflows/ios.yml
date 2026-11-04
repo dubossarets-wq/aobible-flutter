@@ -37,7 +37,9 @@ jobs:
         run: flutter pub get
 
       - name: Сборка (без подписи)
-        run: flutter build ios --release --no-codesign
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign -v 2>&1 | tee build.log > /dev/null || { echo '--- ошибки компилятора ---'; grep -E "error:|\.swift:[0-9]+:[0-9]+:" build.log | sort -u | head -60; exit 1; }
 
       - name: Файл .ipa
         run: |
