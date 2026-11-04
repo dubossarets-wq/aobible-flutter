@@ -48,6 +48,12 @@ class ReaderPane extends ConsumerStatefulWidget {
 
 class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProviderStateMixin {
   final _scroll = ItemScrollController();
+  // ведомая панель (синхронная прокрутка) двигается сдвигом на пиксели своей позиции прокрутки — как обычная прокрутка;
+  // jumpTo по номеру строки перестраивает весь список с нужной строки, и на каждом кадре это подтормаживало ведомую
+  // панель. Позицию берём из уведомлений прокрутки списка (сам список её не отдаёт)
+  ScrollPosition? _pos;
+  bool _followBusy = false; // сдвиг отдан списку, его положение ещё не обновилось
+  (VerseRef, double)? _followNext; // что пришло за это время — применим, когда положение обновится
   final _positions = ItemPositionsListener.create();
   BookText? _book;
   // перевод по сети (API.Bible): ждём главу — вместо текста «Загрузка…» или ошибка с «Повторить»
@@ -386,6 +392,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // ---- место чтения ----
   // Верхний видимый элемент → место панели (шапка, запоминание) и сигнал второй панели
   void _onPositions() {
+    // положение после сдвига ведомой панели пришло — следующий сдвиг считаем от него
+    _followDone();
     final book = _book;
     if (book == null || _rows.isEmpty) return;
     final pos = _positions.itemPositions.value;
@@ -443,8 +451,21 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
 
   _RefHelper get ref_ => _RefHelper(ref);
 
+  // Сдвиг ведомой панели применился — то, что пришло за это время, — от нового положения
+  void _followDone() {
+    if (!_followBusy) return;
+    _followBusy = false;
+    final next = _followNext;
+    _followNext = null;
+    if (next != null) _follow(next.$1, next.$2);
+  }
+
   // Ведомая панель: тот же стих (или заголовок главы), та же доля его высоты
   void _follow(VerseRef at, double frac) {
+    if (_followBusy) {
+      _followNext = (at, frac); // прежний сдвиг ещё не применился
+      return;
+    }
     final book = _book;
     if (book == null || !_scroll.isAttached) return;
     if (book.book != at.book) {
@@ -476,6 +497,24 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           before += x.text.length;
         }
         alignment = -((before + frac * len) / math.max(1, total)) * (_rowFrac[r] ?? 0);
+      }
+    }
+    // нужная строка на экране — сдвиг на разницу (обычная прокрутка, без перестройки списка)
+    final cur = _positions.itemPositions.value.where((x) => x.index == r).firstOrNull;
+    if (cur != null && _vh > 0) {
+      final dy = (cur.itemLeadingEdge - alignment) * _vh;
+      if (dy.abs() < 0.5) return;
+      final p = _pos;
+      if (p != null && p.hasPixels) {
+        _followBusy = true;
+        _following = true;
+        p.jumpTo(p.pixels + dy);
+        _following = false;
+        // у края списка положение не меняется и слушатель молчит — тогда сдвиг считается сделанным после кадра
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _followDone();
+        });
+        return;
       }
     }
     _following = true;
@@ -624,6 +663,12 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   }
 
   // Режим чтения: прокрутка вниз прячет панели, вверх — возвращает (по первой панели чтения)
+  // позиция прокрутки списка — из уведомлений (и при первой раскладке — ScrollMetricsNotification)
+  void _catchPosition(BuildContext? ctx) {
+    final p = ctx == null ? null : Scrollable.maybeOf(ctx)?.position;
+    if (p != null) _pos = p;
+  }
+
   bool _onScroll(ScrollNotification n) {
     if (n is! ScrollUpdateNotification || n.metrics.axis != Axis.vertical || widget.index != 0) return false;
     if (!ref.read(settingsProvider).get<bool>('focusMode') || _pinching) return false;
@@ -781,8 +826,17 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           const Positioned.fill(child: ReaderBackground()),
           ColoredBox(
             color: ref.watch(settingsProvider.select((s) => bgStamp(s) != 0)) ? Colors.transparent : pal.bg,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _onScroll,
+            // позиция прокрутки списка — уже при первой раскладке, до всякой прокрутки
+            child: NotificationListener<ScrollMetricsNotification>(
+              onNotification: (n) {
+                _catchPosition(n.context);
+                return false;
+              },
+              child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                _catchPosition(n.context);
+                return _onScroll(n);
+              },
               child: Directionality(
                 textDirection: rtl ? TextDirection.rtl : Directionality.of(context),
                 child: ValueListenableBuilder<(double, double)>(
@@ -791,6 +845,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
                   // Всегда в одной обёртке: иначе список пересоздавался бы и терял место при каждом свайпе
                   builder: (context, d, child) => Opacity(opacity: d.$2, child: Transform.translate(offset: Offset(d.$1, 0), child: child)),
                 ),
+              ),
               ),
             ),
           ),
