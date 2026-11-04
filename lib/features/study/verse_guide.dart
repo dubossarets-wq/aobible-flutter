@@ -93,7 +93,6 @@ class _VerseGuideSheetState extends ConsumerState<VerseGuideSheet> {
     return _Data(text, words, StudyData.commentaryFor(at), xrefs, [for (final p in places) if (seen.add(p.id)) p], tagged?.name);
   }
 
-  void _go(VerseRef r) => openRefInOther(context, ref, widget.pane, r);
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +152,7 @@ class _VerseGuideSheetState extends ConsumerState<VerseGuideSheet> {
         children.add(_Sec(LucideIcons.link2, t('Параллельные места'), [
           for (final x in d.xrefs)
             _Card(
-              onTap: () => _go(x.ref.start),
+              onTap: () => openRefBelow(context, ref, widget.pane, x.ref.start),
               child: Text.rich(TextSpan(children: [
                 TextSpan(text: fmtOsis(x.ref), style: const TextStyle(fontWeight: FontWeight.w700)),
                 TextSpan(text: ' ${x.text}'),

@@ -8,6 +8,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../../core/panes.dart' show panesProvider;
 import 'dictionary_sheet.dart';
 import 'sheet.dart';
 import 'study_data.dart';
@@ -69,7 +70,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Flexible(child: H4('${t('Места')} · ${refs.length}')),
-                  Hint(widget.pane == 0 ? t('Место откроется во второй панели.') : t('Место откроется здесь; вернуться — кнопкой «назад».')),
+                  Hint(belowHint(widget.pane, ref.read(panesProvider).length)),
                 ]),
               ]),
             );
@@ -79,7 +80,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
           final (parts, truncated) = tx;
           // строка — от края до края окна, отступ 20 — у содержимого
           return bleed(InkWell(
-            onTap: () => openRefInOther(context, ref, widget.pane, it.ref.start),
+            onTap: () => openRefBelow(context, ref, widget.pane, it.ref.start),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),

@@ -492,6 +492,8 @@
  "Параллельных мест нет": "No cross-references",
  "Места": "Places",
  "Место откроется во второй панели.": "The passage opens in the second panel.",
+ "Место откроется в новой панели под этой.": "The passage opens in a new panel below this one.",
+ "Место откроется в панели ниже.": "The passage opens in the panel below.",
  "Место откроется здесь; вернуться — кнопкой «назад».": "The passage opens here; use “back” to return.",
  "по номерам Стронга": "by Strong’s numbers",
  "по словам": "by words",

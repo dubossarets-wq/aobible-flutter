@@ -127,12 +127,12 @@ class PanesNotifier extends Notifier<List<PaneState>> {
 
   /// Ещё одна панель (до maxPanes) — сразу под той, где нажали «+» (after; без него — под последней): перевод и место —
   /// как у неё. Панели ниже сдвигаются и остаются там, где их читали (новый nav — панель на этом месте экрана перейдёт
-  /// к своему стиху)
-  void addPane([int? after]) {
+  /// к своему стиху). place — открыть в новой это место (с миганием стиха)
+  void addPane([int? after, VerseRef? place]) {
     if (state.length >= maxPanes) return;
     final i = math.min(after ?? state.length - 1, state.length - 1);
     final src = state[i];
-    final at = livePositions[i]?.value ?? src.ref;
+    final at = place ?? livePositions[i]?.value ?? src.ref;
     final top = state.map((p) => p.nav).reduce(math.max) + 1;
     final out = <PaneState>[];
     for (var k = 0; k < state.length; k++) {
@@ -144,6 +144,11 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     for (var k = out.length - 1; k > i; k--) {
       livePosition(k, out[k].ref).value = out[k].ref;
     }
+    // пометки переходов панелей ниже — снимаем (сдвинутая панель не мигнёт старым местом ещё раз);
+    // у новой панели — мигание открытого места
+    final marks = {for (final e in readerMarks.value.entries) if (e.key <= i) e.key: e.value};
+    if (place != null) marks[i + 1] = (ref: place, highlight: null, flash: true, stamp: DateTime.now().millisecondsSinceEpoch);
+    readerMarks.value = marks;
     state = out;
     _save();
   }

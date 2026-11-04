@@ -493,6 +493,8 @@
  "Параллельных мест нет": "Aucun passage parallèle",
  "Места": "Lieux",
  "Место откроется во второй панели.": "Le passage s’ouvre dans le second panneau.",
+ "Место откроется в новой панели под этой.": "Le passage s’ouvre dans un nouveau panneau sous celui-ci.",
+ "Место откроется в панели ниже.": "Le passage s’ouvre dans le panneau du dessous.",
  "Место откроется здесь; вернуться — кнопкой «назад».": "Le passage s’ouvre ici ; revenez avec « Retour ».",
  "по номерам Стронга": "par numéros Strong",
  "по словам": "par mots",

@@ -493,6 +493,8 @@
  "Параллельных мест нет": "No hay referencias cruzadas",
  "Места": "Lugares",
  "Место откроется во второй панели.": "El pasaje se abre en el segundo panel.",
+ "Место откроется в новой панели под этой.": "El pasaje se abre en un panel nuevo debajo de este.",
+ "Место откроется в панели ниже.": "El pasaje se abre en el panel de abajo.",
  "Место откроется здесь; вернуться — кнопкой «назад».": "El pasaje se abre aquí; para volver, use «atrás».",
  "по номерам Стронга": "por números de Strong",
  "по словам": "por palabras",

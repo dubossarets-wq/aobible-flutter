@@ -670,13 +670,22 @@ void main() {
       // у стиха нет ссылок
       await _opened(tester, (context, ref) => openXrefs(context, pane: 1, moduleId: 'rst-plus', at: const VerseRef('Rom', 1, 1)), theme: theme, scale: scale);
       expect(_ft('Параллельных мест нет'), findsOneWidget);
-      // нажатие на ссылку открывает место во второй панели
+      // нажатие на ссылку открывает место в новой панели под этой
       final c = await _opened(tester, (context, ref) => openXrefs(context, pane: 0, moduleId: 'rst-plus', at: _gen), theme: theme, scale: scale);
       final row = _ftc('Ин. 1:1');
       if (row.evaluate().isNotEmpty) {
         await tester.tap(row.first, warnIfMissed: false);
         await _settle(tester);
         expect(c.read(panesProvider).length, 2);
+        expect(c.read(panesProvider)[1].ref, const VerseRef('John', 1, 1));
+        // две панели: место из первой — новой второй, прежняя вторая сдвигается третьей
+        c.read(panesProvider.notifier).navigate(1, const VerseRef('Rom', 1, 1));
+        c.read(panesProvider.notifier).addPane(0, const VerseRef('John', 1, 1)); // то, что делает openRefBelow при свободном месте
+        await _settle(tester);
+        final ps = c.read(panesProvider);
+        expect(ps.length, 3);
+        expect(ps[1].ref, const VerseRef('John', 1, 1));
+        expect(ps[2].ref, const VerseRef('Rom', 1, 1));
       }
     });
 
