@@ -25,7 +25,7 @@ class PaneState {
 }
 
 /// Сколько панелей чтения можно открыть рядом («+» в шапке последней панели; MAX_PANES в App.jsx)
-const maxPanes = 4;
+const maxPanes = 6;
 
 /// Самое первое открытие — с начала Библии; дальше — с последнего места
 const startRef = VerseRef('Gen', 1, 1);

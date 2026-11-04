@@ -69,7 +69,7 @@ void openRefInOther(BuildContext context, WidgetRef ref, int pane, VerseRef to) 
   closeAllSheets(context);
 }
 
-/// Параллельное место — в новой панели сразу под той, откуда его открыли (openBelow в App.jsx). Панелей уже maxPanes —
+/// Параллельное место — в новой панели сразу под той, откуда его открыли (openBelow в App.jsx). Панелей уже maxPanes (шесть) —
 /// в панели под ней, у нижней — в ней самой (вернуться — «назад»)
 void openRefBelow(BuildContext context, WidgetRef ref, int pane, VerseRef to) {
   final n = ref.read(panesProvider.notifier);

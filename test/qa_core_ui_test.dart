@@ -357,7 +357,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('До четырёх панелей: «+» под любой, поровну по высоте, «×» средней — следующие встают на её место', (tester) async {
+  testWidgets('До шести панелей: «+» под любой, поровну по высоте, «×» средней — следующие встают на её место', (tester) async {
     final two = jsonEncode([
       {'moduleId': 'rst-plus', 'ref': {'book': 'Gen', 'chapter': 3, 'verse': 1}},
       {'moduleId': 'kjv', 'ref': {'book': 'John', 'chapter': 3, 'verse': 16}},
@@ -368,21 +368,25 @@ void main() {
     await tester.tap(find.byTooltip('Ещё одна панель').first);
     await tester.pumpAndSettle();
     expect(c.read(panesProvider).map((p) => p.moduleId), ['rst-plus', 'rst-plus', 'kjv']);
-    await tester.tap(find.byTooltip('Ещё одна панель').last);
-    await tester.pumpAndSettle();
-    expect(c.read(panesProvider).length, 4);
-    expect(find.byTooltip('Ещё одна панель'), findsNothing); // больше четырёх нельзя
+    for (var k = 4; k <= 6; k++) {
+      await tester.tap(find.byTooltip('Ещё одна панель').last);
+      await tester.pumpAndSettle();
+      expect(c.read(panesProvider).length, k);
+    }
+    expect(find.byTooltip('Ещё одна панель'), findsNothing); // больше шести нельзя
     // поровну: шапки панелей — через одинаковые промежутки
     final tops = [for (final e in find.byTooltip('Закрыть эту панель').evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dy]..sort();
-    expect(tops.length, 4);
-    expect((tops[2] - tops[1]) - (tops[1] - tops[0]), closeTo(0, 2));
-    // «+» последней добавил копию её перевода (kjv) снизу; «×» второй — третья и четвёртая сдвигаются
-    expect(c.read(panesProvider).map((p) => p.moduleId), ['rst-plus', 'rst-plus', 'kjv', 'kjv']);
+    expect(tops.length, 6);
+    for (var k = 2; k < 6; k++) {
+      expect((tops[k] - tops[k - 1]) - (tops[1] - tops[0]), closeTo(0, 2));
+    }
+    // «+» последней добавлял копию её перевода (kjv) снизу; «×» второй — следующие сдвигаются
+    expect(c.read(panesProvider).map((p) => p.moduleId), ['rst-plus', 'rst-plus', 'kjv', 'kjv', 'kjv', 'kjv']);
     c.read(panesProvider.notifier).closePane(1);
     await tester.pumpAndSettle();
     final ps = c.read(panesProvider);
-    expect(ps.map((p) => p.moduleId), ['rst-plus', 'kjv', 'kjv']);
-    expect(find.byTooltip('Ещё одна панель'), findsNWidgets(3));
+    expect(ps.map((p) => p.moduleId), ['rst-plus', 'kjv', 'kjv', 'kjv', 'kjv']);
+    expect(find.byTooltip('Ещё одна панель'), findsNWidgets(5));
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 2)); // отложенное сохранение места панелей
   });

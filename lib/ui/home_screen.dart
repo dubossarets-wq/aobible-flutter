@@ -167,46 +167,19 @@ class _FocusHide extends ConsumerWidget {
   }
 }
 
-/// Панели с разделителями (SplitScreenReader.jsx): при двух доля помнится в splitRatio, при трёх и больше — поровну;
-/// каждый разделитель тянется и меняет только две соседние панели
-class _Split extends ConsumerStatefulWidget {
+/// Панели (SplitScreenReader.jsx): всегда поровну, между ними — лёгкая линия. Размер панелей не меняется
+/// (перетаскивание разделителя убрано по решению владельца 04.11.2026; сохранённая splitRatio больше не используется)
+class _Split extends ConsumerWidget {
   const _Split({required this.columns, required this.children});
   final bool columns;
   final List<Widget> children;
-  @override
-  ConsumerState<_Split> createState() => _SplitState();
-}
-
-class _SplitState extends ConsumerState<_Split> {
-  static const _min = 0.12; // меньше этой доли панель не сжимается
-  List<double>? _sizes; // доли во время и после перетаскивания (при трёх и больше панелях); null — по умолчанию
-  int _n = 0;
-
-  List<double> _equal(int n, double ratio) => n == 2 ? [ratio, 1 - ratio] : List.filled(n, 1 / n);
-
-  void _save(double v) => ref.read(settingsProvider.notifier).set({'splitRatio': v.clamp(0.2, 0.8)});
-
-  // разделитель i — между панелями i и i+1
-  void _move(List<double> sz, int i, double delta) {
-    final pair = sz[i] + sz[i + 1];
-    final a = (sz[i] + delta).clamp(_min, pair - _min);
-    setState(() => _sizes = [...sz]
-      ..[i] = a
-      ..[i + 1] = pair - a);
-  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    final saved = ref.watch(settingsProvider.select((s) => s.d('splitRatio')));
-    final n = widget.children.length;
-    if (n != _n) {
-      _n = n;
-      _sizes = null; // число панелей изменилось — снова поровну (две — по сохранённой доле)
-    }
-    final sizes = _sizes ?? _equal(n, saved.clamp(0.2, 0.8));
-    final cols = widget.columns;
-    final thick = cols ? 5.0 : 0.0;
+    final n = children.length;
+    final cols = columns;
+    const thick = 1.0;
     return LayoutBuilder(builder: (context, c) {
       final total = (cols ? c.maxWidth : c.maxHeight) - thick * (n - 1);
       Widget slot(Widget w, double extent) => SizedBox(width: cols ? extent : null, height: cols ? null : extent, child: w);
@@ -214,129 +187,15 @@ class _SplitState extends ConsumerState<_Split> {
       // сверх доли, чтобы видимая часть у всех панелей была поровну
       final inset = cols ? 0.0 : math.min(MediaQuery.paddingOf(context).bottom, total / 2);
       final usable = total - inset;
-      final ext = [for (var i = 0; i < n; i++) usable * sizes[i] + (i == n - 1 ? inset : 0)];
       final kids = <Widget>[];
-      final handles = <Widget>[];
-      var at = 0.0;
       for (var i = 0; i < n; i++) {
         // верхние панели (разделение по строкам) не доходят до проигрывателя — нижний запас нужен только последней
-        final w = cols || i == n - 1 ? widget.children[i] : MediaQuery.removePadding(context: context, removeBottom: true, child: widget.children[i]);
-        kids.add(slot(w, ext[i]));
-        at += ext[i];
-        if (i == n - 1) break;
-        if (cols) kids.add(SizedBox(width: thick));
-        final k = i;
-        final divider = _Divider(
-          columns: cols,
-          thick: thick,
-          pal: pal,
-          ratio: sizes.take(k + 1).fold(0.0, (a, b) => a + b),
-          onDrag: (delta) => _move(_sizes ?? sizes, k, delta / usable),
-          onEnd: () {
-            if (n == 2 && _sizes != null) {
-              _save(_sizes![0]);
-              setState(() => _sizes = null);
-            }
-          },
-          onStep: (d) => n == 2 ? _save(sizes[0] + d) : _move(sizes, k, d),
-        );
-        // друг над другом: подложки нет совсем — ползунок висит над текстом в 5 px от шапки нижней панели;
-        // колонки: подложка 5 px, а тянуть удобно и рядом — зона захвата по 8 px в обе стороны поверх панелей
-        handles.add(cols
-            ? Positioned(left: at + thick * i - 8, top: 0, bottom: 0, width: thick + 16, child: divider)
-            : Positioned(top: at - 28, height: 34, left: (c.maxWidth - 120) / 2, width: 120, child: divider));
+        final w = cols || i == n - 1 ? children[i] : MediaQuery.removePadding(context: context, removeBottom: true, child: children[i]);
+        kids.add(slot(w, usable / n + (i == n - 1 ? inset : 0)));
+        if (i < n - 1) kids.add(cols ? SizedBox(width: thick, child: ColoredBox(color: pal.line)) : SizedBox(height: thick, child: ColoredBox(color: pal.line)));
       }
-      return Stack(fit: StackFit.expand, children: [
-        cols ? Row(children: kids) : Column(children: kids),
-        ...handles,
-      ]);
+      return cols ? Row(children: kids) : Column(children: kids);
     });
-  }
-}
-
-/// Разделитель (.divider): фон страницы, тёмная «ручка» посередине; тянется пальцем и мышью, стрелки двигают на 5 %
-class _Divider extends StatefulWidget {
-  const _Divider({required this.columns, required this.thick, required this.pal, required this.ratio, required this.onDrag, required this.onEnd, required this.onStep});
-  final bool columns;
-  final double thick, ratio;
-  final Palette pal;
-  final void Function(double delta) onDrag;
-  final VoidCallback onEnd;
-  final void Function(double d) onStep;
-  @override
-  State<_Divider> createState() => _DividerState();
-}
-
-class _DividerState extends State<_Divider> {
-  bool _on = false; // наведён или в фокусе — ручка цвета акцента
-  bool _drag = false; // тянется
-
-  // Пока тянется разделитель, высота панелей меняется и место в них пересчитывается: синхронная прокрутка
-  // молчит (ведущей панели нет), иначе вторая панель прыгала бы вслед за первой. Ведущей снова станет та, которой коснутся
-  void _start() {
-    SyncHub.driver = -1;
-    setState(() => _drag = true);
-  }
-
-  void _end() {
-    if (mounted) setState(() => _drag = false);
-    widget.onEnd();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pal = widget.pal;
-    final cols = widget.columns;
-    // короткая ручка, как у системных шторок; наведён, в фокусе или тянется — вытягивается и цвета акцента
-    final on = _on || _drag;
-    final grip = AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOut,
-      width: cols ? 3 : (on ? 56 : 36),
-      height: cols ? (on ? 56 : 36) : 5,
-      decoration: BoxDecoration(color: on ? pal.accent : pal.text.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(3)),
-    );
-    return Semantics(
-      label: t('Изменить размер панелей'),
-      value: '${(widget.ratio * 100).round()}',
-      child: Focus(
-        onFocusChange: (f) => setState(() => _on = f),
-        onKeyEvent: (_, e) {
-          if (e is! KeyDownEvent) return KeyEventResult.ignored;
-          final k = e.logicalKey;
-          final d = k == LogicalKeyboardKey.arrowLeft || k == LogicalKeyboardKey.arrowUp
-              ? -0.05
-              : k == LogicalKeyboardKey.arrowRight || k == LogicalKeyboardKey.arrowDown
-                  ? 0.05
-                  : null;
-          if (d == null) return KeyEventResult.ignored;
-          SyncHub.driver = -1;
-          widget.onStep(d);
-          return KeyEventResult.handled;
-        },
-        child: MouseRegion(
-          cursor: cols ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
-          onEnter: (_) => setState(() => _on = true),
-          onExit: (_) => setState(() => _on = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: cols ? (_) => _start() : null,
-            onHorizontalDragUpdate: cols ? (d) => widget.onDrag(d.delta.dx) : null,
-            onHorizontalDragEnd: cols ? (_) => _end() : null,
-            onHorizontalDragCancel: cols ? _end : null,
-            onVerticalDragStart: cols ? null : (_) => _start(),
-            onVerticalDragUpdate: cols ? null : (d) => widget.onDrag(d.delta.dy),
-            onVerticalDragEnd: cols ? null : (_) => _end(),
-            onVerticalDragCancel: cols ? null : _end,
-            // строки: без подложки — только ползунок;
-            // колонки: вдоль линии раздела сероватая подложка чуть шире ползунка (вокруг — прозрачная зона захвата)
-            child: cols
-                ? Center(child: Container(width: widget.thick, color: Color.lerp(pal.bg, pal.text, 0.09), alignment: Alignment.center, child: grip))
-                : Align(alignment: Alignment.bottomCenter, child: Padding(padding: const EdgeInsets.only(bottom: 11), child: grip)),
-          ),
-        ),
-      ),
-    );
   }
 }
 

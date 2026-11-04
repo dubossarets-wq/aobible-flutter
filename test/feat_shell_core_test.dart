@@ -456,25 +456,24 @@ void main() {
     // колонки: вторая панель правее первой
     expect(tester.getTopLeft(panes.at(1)).dx, greaterThan(tester.getTopRight(panes.at(0)).dx - 1));
     expect(tester.getTopLeft(panes.at(1)).dy, tester.getTopLeft(panes.at(0)).dy);
+    // всегда поровну, между панелями — линия 1 px; размер не меняется (тянуть нечего)
     final w0 = tester.getSize(panes.at(0)).width;
-    expect(w0, closeTo((1200 - 5) * 0.5, 2));
-    final divider = find.bySemanticsLabel('Изменить размер панелей');
-    expect(divider, findsOneWidget);
-    await tester.drag(divider, const Offset(240, 0));
+    expect(w0, closeTo((1200 - 1) * 0.5, 2));
+    expect(tester.getSize(panes.at(1)).width, closeTo(w0, 2));
+    expect(find.bySemanticsLabel('Изменить размер панелей'), findsNothing);
+    // сохранённая доля от прежних версий не применяется
+    c.read(settingsProvider.notifier).set({'splitRatio': 0.7});
     await tester.pumpAndSettle();
-    expect(tester.getSize(panes.at(0)).width, closeTo((1200 - 5) * 0.7, 8));
-    expect(c.read(settingsProvider).d('splitRatio'), closeTo(0.7, 0.01));
-    // дальше предела 80 % не уехать
-    await tester.drag(divider, const Offset(900, 0));
+    expect(tester.getSize(panes.at(0)).width, closeTo(w0, 1));
+    // тянем по месту прежнего разделителя — ничего не меняется
+    await tester.dragFrom(Offset(w0 + 0.5, 400), const Offset(240, 0));
     await tester.pumpAndSettle();
-    expect(c.read(settingsProvider).d('splitRatio'), closeTo(0.8, 0.001));
-    // доля помнится после перезапуска
-    expect(jsonDecode(prefs.getString('settings')!)['splitRatio'], closeTo(0.8, 0.001));
+    expect(tester.getSize(panes.at(0)).width, closeTo(w0, 1));
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
 
-  testWidgets('Две панели на телефоне: друг над другом, разделитель тянется вверх-вниз; настройка колонок переопределяет', (tester) async {
+  testWidgets('Две панели на телефоне: друг над другом, поровну, размер не меняется; настройка колонок переопределяет', (tester) async {
     final handle = tester.ensureSemantics();
     final c = await start(tester);
     await tester.tap(find.byTooltip('Читать параллельно'));
@@ -482,10 +481,10 @@ void main() {
     final panes = find.byType(ReaderPane);
     expect(tester.getTopLeft(panes.at(1)).dy, greaterThan(tester.getBottomLeft(panes.at(0)).dy - 1));
     final h0 = tester.getSize(panes.at(0)).height;
-    await tester.drag(find.bySemanticsLabel('Изменить размер панелей'), const Offset(0, -80));
+    expect(find.bySemanticsLabel('Изменить размер панелей'), findsNothing);
+    await tester.dragFrom(tester.getBottomLeft(panes.at(0)) + const Offset(60, 0), const Offset(0, -80));
     await tester.pumpAndSettle();
-    expect(tester.getSize(panes.at(0)).height, lessThan(h0));
-    expect(c.read(settingsProvider).d('splitRatio'), lessThan(0.5));
+    expect(tester.getSize(panes.at(0)).height, closeTo(h0, 1));
     c.read(settingsProvider.notifier).set({'splitLayout': 'columns'});
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(panes.at(1)).dy, tester.getTopLeft(panes.at(0)).dy);
