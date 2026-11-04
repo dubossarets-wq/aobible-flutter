@@ -2,6 +2,7 @@
 // (книга читается из SQLite синхронно, без ожидания сети и без промежуточных экранов).
 import 'dart:io' show Platform;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNTabBarRouteObserver;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -111,7 +112,8 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       title: 'AO Bible',
       scaffoldMessengerKey: Hub.messengerKey,
       navigatorKey: Hub.navigatorKey,
-      navigatorObservers: [SheetObserver()],
+      // CNTabBarRouteObserver — системное стекло iOS 26 (glass.dart) не просвечивает сквозь открытые поверх окна
+      navigatorObservers: [SheetObserver(), CNTabBarRouteObserver()],
       debugShowCheckedModeBanner: false,
       // перетаскивание мышью листает списки и ряды плашек (на компьютере — как пальцем на телефоне)
       scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse, PointerDeviceKind.trackpad, PointerDeviceKind.stylus}),

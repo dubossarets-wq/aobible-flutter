@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/i18n.dart';
+import 'glass.dart';
 import '../core/settings.dart';
 
 export 'package:lucide_icons_flutter/lucide_icons.dart' show LucideIcons;
@@ -1120,13 +1121,15 @@ class _AobInputState extends ConsumerState<AobInput> {
 
 /// Круглая кнопка поверх текста (стрелки глав, «Слушать»): 44×44, полупрозрачная панель, тень
 class RoundFab extends ConsumerWidget {
-  const RoundFab({super.key, required this.icon, required this.onTap, this.tooltip});
+  const RoundFab({super.key, required this.icon, required this.onTap, this.tooltip, this.glass = true});
   final IconData icon;
   final VoidCallback onTap;
   final String? tooltip;
+  final bool glass; // на iOS 26 — системное стекло (false — когда панелей слишком много)
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    if (glass && nativeGlass) return GlassFab(icon: icon, onTap: onTap, label: tooltip, tint: pal.text);
     return Tooltip(
       message: tooltip ?? '',
       child: Container(

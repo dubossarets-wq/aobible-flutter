@@ -7,6 +7,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/glass.dart';
 import '../../ui/kit.dart';
 import 'audio_engine.dart';
 import 'audio_listen.dart';
@@ -25,6 +26,10 @@ class ListenFab extends ConsumerWidget {
         final panes = ref.read(panesProvider);
         final at = livePositions[pane]?.value ?? (pane < panes.length ? panes[pane].ref : startRef);
         final label = Books.instance.formatRef(at.book, at.chapter, at.verse);
+        // iOS 26: системное стекло, пока панелей немного
+        if (nativeGlass && panes.length <= glassMaxPanes) {
+          return GlassFab(icon: LucideIcons.headphones, onTap: () => openAudioFrom(context, ref, pane), label: t('Слушать с {ref}', {'ref': label}), tint: pal.accent);
+        }
         return Semantics(
           button: true,
           label: t('Слушать с этого места: {ref}', {'ref': label}),

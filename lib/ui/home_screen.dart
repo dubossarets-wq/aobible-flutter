@@ -4,6 +4,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import '../features/hub.dart';
 import '../features/shell/intl_data.dart' show langDisplayNames;
 import '../features/shell/library_sheet.dart' show ModBusy, ModPill, fmtSize, langChips;
 import '../features/shell/sheet.dart' show loadCatalog;
+import 'glass.dart';
 import 'kit.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
@@ -995,6 +997,38 @@ class _TabBarState extends ConsumerState<_TabBar> {
     final icons = {'plans': LucideIcons.calendarCheck, 'search': LucideIcons.search, 'bible': LucideIcons.bookOpen, 'saved': LucideIcons.heart, 'more': LucideIcons.menu};
     final bottom = MediaQuery.paddingOf(context).bottom;
     final anim = ref.watch(settingsProvider.select((s) => s.get<bool>('animations')));
+    // iOS 26: системная панель вкладок (Liquid Glass) — значки SF Symbols, выбранная вкладка — цветом акцента.
+    // Над окнами остаётся видимой, как и наша (autoHideOnModal: false)
+    if (nativeGlass) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(12, 4, 12, 12 + bottom),
+        child: SizedBox(
+          height: 64,
+          child: ValueListenableBuilder<String>(
+            valueListenable: tabActive,
+            builder: (context, activeId, _) => CNTabBar(
+              items: [
+                CNTabBarItem(label: labels['plans'], icon: const CNSymbol('calendar')),
+                CNTabBarItem(label: labels['search'], icon: const CNSymbol('magnifyingglass')),
+                CNTabBarItem(label: labels['bible'], icon: const CNSymbol('book'), activeIcon: const CNSymbol('book.fill')),
+                CNTabBarItem(label: labels['saved'], icon: const CNSymbol('heart'), activeIcon: const CNSymbol('heart.fill')),
+                CNTabBarItem(label: labels['more'], icon: const CNSymbol('line.3.horizontal')),
+              ],
+              currentIndex: _ids.indexOf(activeId).clamp(0, _ids.length - 1),
+              tint: pal.accent,
+              height: 64,
+              autoHideOnModal: false,
+              autoHideOnPageTransition: false,
+              onTap: (i) {
+                _open(_ids[i]);
+                // окно не открылось (например, «Скоро») — выбранной остаётся прежняя вкладка
+                setState(() {});
+              },
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.fromLTRB(12, 4, 12, 12 + bottom),
       child: ClipRRect(

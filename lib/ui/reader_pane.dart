@@ -24,6 +24,7 @@ import '../features/hub.dart';
 import '../features/shell/background.dart' show ReaderBackground, bgStamp;
 import '../features/shell/sheet.dart' show Loading;
 import 'kit.dart';
+import 'glass.dart' show glassMaxPanes;
 import 'verse_view.dart';
 
 /// Подсветка найденного слова держится столько после перехода (HL_MS в ChapterView.jsx)
@@ -874,6 +875,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   Widget build(BuildContext context) {
     // Следим только за переходами и сменой перевода: запоминание места при прокрутке панель не перерисовывает
     final sel = ref.watch(panesProvider.select((l) => widget.index < l.length ? (l[widget.index].moduleId, l[widget.index].nav) : null));
+    final fewPanes = ref.watch(panesProvider.select((l) => l.length <= glassMaxPanes));
     var s = ref.watch(settingsProvider);
     if (sel == null) return const SizedBox.shrink();
     final cont = isContinuous(s);
@@ -1039,10 +1041,11 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
             top: mod?.features['interlinear'] == true && ref.watch(settingsProvider.select((s) => s.get<bool>('ilBar'))) != false ? 40 : 0,
             child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct),
           ),
-          // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио)
+          // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио).
+          // На iOS 26 — системное стекло, пока панелей не больше glassMaxPanes (fewPanes)
           // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
-          _AboveBars(left: 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1))),
-          _AboveBars(right: 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1))),
+          _AboveBars(left: 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1), glass: fewPanes)),
+          _AboveBars(right: 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1), glass: fewPanes)),
           if (Hub.listenFab != null)
             _AboveBars(left: 0, right: 0, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
           else if (Hub.listenFrom != null)
@@ -1052,6 +1055,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
               child: Center(
                 child: RoundFab(
                   icon: LucideIcons.headphones,
+                  glass: fewPanes,
                   tooltip: t('Слушать'),
                   onTap: () => Hub.listenFrom!(context, ref, widget.index, livePositions[widget.index]?.value ?? p.ref),
                 ),
