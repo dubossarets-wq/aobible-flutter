@@ -56,7 +56,7 @@ dependencies:
   just_audio_media_kit: 2.1.0
   media_kit_libs_windows_audio: ^1.0.9
   pdf: ^3.13.1
-  cupertino_native_better: 2.1.2
+  cupertino_native_better: 2.0.0 # 2.1.x не собирается в Xcode 26 (листы CNNativeSheet — только Xcode 27); на облачных Mac GitHub пока Xcode 26
 dev_dependencies:
   flutter_test:
     sdk: flutter

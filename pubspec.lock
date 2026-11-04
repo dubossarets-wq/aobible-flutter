@@ -149,10 +149,10 @@ packages:
     dependency: "direct main"
     description:
       name: cupertino_native_better
-      sha256: "0a91f5ceb11bb998b78613c3b9c2e12ddc88039aceb640d1c33ccba56f3c74c4"
+      sha256: "3ba04c684763f42dd7df0fada58ccb1725ccccd268afdabdf3fb5671fa8cab2e"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.2"
+    version: "2.0.0"
   dbus:
     dependency: transitive
     description:
