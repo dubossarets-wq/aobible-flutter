@@ -71,6 +71,11 @@ void main() {
       await wait();
       await shot('01-reader');
       await step('02-search', () => tester.tap(find.text('Поиск').last));
+      await step('02b-search-nokb', () async {
+        await tester.tap(find.text('Поиск').last);
+        await wait(10);
+        FocusManager.instance.primaryFocus?.unfocus();
+      });
       await step('03-plans', () => tester.tap(find.text('Планы').last));
       await step('04-saved', () => tester.tap(find.text('Закладки').last));
       await step('05-more', () => tester.tap(find.text('Ещё').last));

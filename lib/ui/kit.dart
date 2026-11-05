@@ -175,7 +175,7 @@ Future<T?> showAobSheet<T>(
   // окно к тексту (выбор перевода, «Перейти», выбор цвета): в стиле iPhone остаётся листом снизу;
   // остальные окна в стиле iPhone — на весь экран, с «назад» и «закрыть»
   bool scripture = false,
-  // false — окно не забирает фокус (поиск: фокус остаётся у системного поля поиска в нижнем меню)
+  // false — окно не забирает фокус
   bool requestFocus = true,
 }) {
   final ios = ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
@@ -200,7 +200,7 @@ Future<T?> showAobSheet<T>(
               alignment: Alignment.bottomCenter,
               child: SizedBox(
                 height: want,
-                child: MediaQuery(data: mq.copyWith(padding: mq.padding.copyWith(bottom: kb)), child: builder(c)),
+                child: MediaQuery(data: mq.copyWith(padding: mq.padding.copyWith(bottom: kb)), child: SheetKeyboard(height: kb, child: builder(c))),
               ),
             );
           }
@@ -477,15 +477,14 @@ class SheetObserver extends NavigatorObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
-    // окно закрыли — клавиатура уходит вместе с ним; но не когда пишут в системном поиске нижнего меню: фокус
-    // там, а не в окне (иначе смена вкладки сворачивала поиск и закрывала только что открытое окно поиска)
-    if (!nativeSearchActive.value) FocusManager.instance.primaryFocus?.unfocus();
+    // окно закрыли — клавиатура уходит вместе с ним
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
-    if (!nativeSearchActive.value) FocusManager.instance.primaryFocus?.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -732,6 +731,15 @@ class AobSheet extends ConsumerWidget {
       ]),
     );
   }
+}
+
+/// Окно уходит под клавиатуру (underKeyboard): её высота — для строки ввода, что встаёт над ней
+class SheetKeyboard extends InheritedWidget {
+  const SheetKeyboard({super.key, required this.height, required super.child});
+  final double height;
+  static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<SheetKeyboard>()?.height ?? 0;
+  @override
+  bool updateShouldNotify(SheetKeyboard old) => old.height != height;
 }
 
 /// Высота прозрачной шапки страницы iOS над содержимым: на столько список окна сдвигает начало (padTabs)

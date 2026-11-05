@@ -4,6 +4,7 @@
 // прокрутка — в памяти до перезапуска.
 import 'dart:convert';
 
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNButton, CNButtonConfig, CNButtonStyle, CNGlassEffectShape, CNSymbol, LiquidGlassConfig, LiquidGlassContainer;
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -75,13 +76,22 @@ class _Memo {
 
 _Memo? _memo;
 
-Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope}) =>
-    // открыто системной вкладкой поиска iOS 26 — окно не забирает фокус у её поля (иначе клавиатура не открывается)
-    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search', underKeyboard: true, requestFocus: !nativeSearchActive.value);
+/// fromTab — открыто вкладкой поиска нижнего меню: клавиатура открывается сразу
+Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope, bool fromTab = false}) {
+  final ios = ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
+  if (!fromTab) Hub.searchFrom = 'bible';
+  // стиль iPhone — как вкладка поиска iOS 26: пока открыт поиск, нижнего меню нет; внизу окна — круглая кнопка
+  // возврата к вкладке и поле поиска
+  final hide = ios || nativeGlass;
+  if (hide) tabBarSuppress.value++;
+  final f = showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope, fromTab: fromTab), tab: 'search', underKeyboard: true);
+  return hide ? f.whenComplete(() => tabBarSuppress.value--) : f;
+}
 
 class SearchSheet extends ConsumerStatefulWidget {
-  const SearchSheet({super.key, required this.pane, this.query, this.scope});
+  const SearchSheet({super.key, required this.pane, this.query, this.scope, this.fromTab = false});
   final int pane;
+  final bool fromTab;
   final String? query; // явный запрос при открытии (например, из словаря) важнее сохранённого
   final String? scope;
   @override
@@ -127,16 +137,6 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         warmSearch(m.id);
       }
     });
-    // системный поиск iOS 26: запрос приходит из поля в нижнем меню; окно раскрывает поле и задаёт в нём текст
-    if (nativeGlass && iosStyleOn) {
-      _closeNative = () {
-        if (mounted) Navigator.of(context).maybePop();
-      };
-      nativeSearchPageClose = _closeNative;
-      nativeSearchQuery.addListener(_fromNative);
-      nativeSearchSubmits.addListener(_submitNative);
-      _native = nativeSearchActive.value;
-    }
     final restored = _memo != null && _memo!.key == _keyOf(_q.text.trim()) ? _memo : null;
     if (restored != null) {
       _hits = restored.hits;
@@ -153,39 +153,15 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     _scroll.addListener(() {
       if (_memo != null && _memo!.key == _shownKey) _memo!.scroll = _scroll.offset;
     });
-    // На телефоне при восстановленных результатах клавиатуру не открываем — она закрыла бы список
+    // На телефоне при восстановленных результатах клавиатуру не открываем — она закрыла бы список; открыли вкладкой
+    // поиска — открываем всегда (как поле вкладки поиска iOS)
     Future.delayed(const Duration(milliseconds: 220), () {
-      if (mounted && restored == null && !_native) _focus.requestFocus();
+      if (mounted && (widget.fromTab || restored == null)) _focus.requestFocus();
     });
-  }
-
-  bool get iosStyleOn => ref.read(settingsProvider).get<bool>('iosStyle');
-  // своё «закрыть окно» для системного поиска: закрывающееся старое окно не трогает новое
-  VoidCallback? _closeNative;
-  // запрос идёт из системного поля поиска в нижнем меню (окно открыто его вкладкой)
-  bool _native = false;
-
-  void _fromNative() {
-    if (!mounted || _q.text == nativeSearchQuery.value) return;
-    _q.text = nativeSearchQuery.value;
-    setState(() {});
-    _schedule();
-  }
-
-  void _submitNative() {
-    if (mounted) _submit();
   }
 
   @override
   void dispose() {
-    nativeSearchQuery.removeListener(_fromNative);
-    nativeSearchSubmits.removeListener(_submitNative);
-    // окно закрыли — поле в меню сворачивается; только если это окно — нынешнее окно поиска (старое окно,
-    // убранное уже после открытия нового, не сворачивает поле нового)
-    if (_closeNative != null && identical(nativeSearchPageClose, _closeNative) && nativeGlass) {
-      nativeSearchPageClose = null;
-      nativeSearchDeactivate?.call();
-    }
     _gen++;
     final q = _q.text.trim();
     prefs.setString('searchQuery', _q.text);
@@ -501,17 +477,18 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         scroll: false,
         padding: EdgeInsets.zero,
         child: Builder(builder: (bc) {
-          final bottom = MediaQuery.paddingOf(bc).bottom;
-          return Column(children: [
-            Expanded(
+          // строка внизу — на месте нижнего меню (в iosEdge от низа экрана), с клавиатурой — над ней
+          final kb = SheetKeyboard.of(bc);
+          final gap = kb > 0 ? kb + 8 : iosEdge;
+          return Stack(children: [
+            Positioned.fill(
               child: CustomScrollView(
                 controller: _scroll,
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), sliver: results())],
+                slivers: [SliverPadding(padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _iosBarH + gap), sliver: results())],
               ),
             ),
-            if (!_native) Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
-            if (_native) SizedBox(height: bottom),
+            Positioned(left: iosEdge, right: iosEdge, bottom: gap, child: _iosBar(pal)),
           ]);
         }),
       );
@@ -555,6 +532,73 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         ],
       )),
     );
+  }
+
+  // высота строки внизу — как у капсулы нижнего меню
+  static const _iosBarH = 58.0;
+
+  // Низ окна в стиле iPhone — как вкладка поиска iOS 26: меню свёрнуто в круглую кнопку прежней вкладки (нажатие —
+  // назад к ней), справа — поле поиска в стеклянной капсуле
+  Widget _iosBar(Palette pal) {
+    const h = _iosBarH;
+    const sf = {'plans': 'calendar', 'bible': 'book', 'saved': 'heart', 'more': 'line.3.horizontal'};
+    const lu = {'plans': LucideIcons.calendarCheck, 'bible': LucideIcons.bookOpen, 'saved': LucideIcons.heart, 'more': LucideIcons.menu};
+    final id = sf.containsKey(Hub.searchFrom) ? Hub.searchFrom : 'bible';
+    final label = {'plans': t('Планы'), 'bible': t('Библия'), 'saved': t('Закладки'), 'more': t('Ещё')}[id]!;
+    void back() {
+      final open = Hub.openTab;
+      if (open != null) {
+        open(ref, id);
+      } else {
+        Navigator.of(context).maybePop();
+      }
+    }
+
+    final circle = nativeGlass
+        ? SizedBox(
+            width: h,
+            height: h,
+            child: CNButton.icon(icon: CNSymbol(sf[id]!, size: 21), onPressed: back, semanticLabel: label, autoHideOnModal: false, config: const CNButtonConfig(style: CNButtonStyle.glass)),
+          )
+        : Semantics(
+            button: true,
+            label: label,
+            child: GestureDetector(
+              onTap: back,
+              child: Container(width: h, height: h, decoration: ShapeDecoration(color: iosFill(pal), shape: const CircleBorder()), child: AIcon(ico(lu[id]!), size: 22, color: pal.text)),
+            ),
+          );
+    final field = SizedBox(
+      height: h,
+      child: Row(children: [
+        Padding(padding: const EdgeInsets.only(left: 18), child: AIcon(CupertinoIcons.search, size: 19, color: pal.muted)),
+        Expanded(
+          child: BareField(
+            controller: _q,
+            focusNode: _focus,
+            textInputAction: TextInputAction.search,
+            onChanged: (_) {
+              setState(() {});
+              _schedule();
+            },
+            onSubmitted: (_) => _submit(),
+            hint: t('Слово, Ин 3:16 или G26'),
+            style: TextStyle(fontSize: 17, height: 1.25, color: pal.text),
+            hintColor: pal.muted,
+            cursorColor: pal.accent,
+            padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
+          ),
+        ),
+        if (_q.text.isNotEmpty)
+          Padding(padding: const EdgeInsets.only(right: 10), child: IconBtn(icon: CupertinoIcons.xmark_circle_fill, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear))
+        else
+          const SizedBox(width: 14),
+      ]),
+    );
+    final capsule = nativeGlass
+        ? LiquidGlassContainer(config: const LiquidGlassConfig(shape: CNGlassEffectShape.capsule), autoHideOnModal: false, child: field)
+        : DecoratedBox(decoration: ShapeDecoration(color: iosFill(pal), shape: const StadiumBorder()), child: field);
+    return Row(children: [circle, const SizedBox(width: 10), Expanded(child: capsule)]);
   }
 
   // Поле запроса с крестиком и тёмная квадратная кнопка «Найти» (.search-form)

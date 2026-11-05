@@ -4,7 +4,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchController, CNTabBarSearchItem;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchItem;
 import 'package:flutter/cupertino.dart' show CupertinoColors;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
@@ -942,6 +942,70 @@ class _BarCrumb extends StatelessWidget {
   }
 }
 
+// Окно, открытое с вкладки: пока оно открыто, вкладка подсвечена
+Route<dynamic>? _tabBound;
+
+// Вкладки лежат выше навигатора: окна открываем и закрываем через контекст самого навигатора
+void _tabRun(WidgetRef ref, BuildContext nav, String id) {
+  void call(PaneAction? a) => a == null ? Hub.toast(t('Скоро')) : a(nav, ref, 0);
+  switch (id) {
+    case 'plans':
+      call(Hub.openPlans);
+    case 'search':
+      openSearch(nav, 0, fromTab: true);
+    case 'saved':
+      call(Hub.openBookmarks);
+    case 'more':
+      call(Hub.openMore);
+  }
+}
+
+/// Нажатие на вкладку нижнего меню: «Библия» или повторное нажатие на открытую вкладку закрывает окно; остальные
+/// открывают своё окно поверх чтения. Работает и без самого меню (из поиска — кнопка возврата к вкладке)
+void openTab(WidgetRef ref, String id) {
+  final ctx = Hub.navigatorKey.currentContext;
+  if (ctx == null) return;
+  final ios = ref.read(settingsProvider).get<bool>('iosStyle');
+  // поверх может быть и страница (большой проигрыватель) — нажатие на вкладку закрывает и её
+  final nav = Navigator.of(ctx);
+  if (id == 'bible' || tabActive.value == id) {
+    if (nav.canPop()) nav.popUntil((r) => r.isFirst);
+    closeAllSheets(ctx);
+    return;
+  }
+  // в поиск: запоминаем, с какой вкладки пришли (круглая кнопка слева от поля поиска возвращает к ней)
+  if (id == 'search') Hub.searchFrom = tabActive.value;
+  // другая вкладка: прежние окна закрываем, потом открываем раздел; в стиле iPhone — мгновенно, без анимаций
+  // (как переключение вкладок в iOS: закрытие и въезд новой страницы одновременно накладывались)
+  if (ios) {
+    dropAllSheets(ctx);
+  } else {
+    if (nav.canPop()) nav.popUntil((r) => r.isFirst);
+    if (sheetsOpen.value > 0 || isSheetRoute(topRoute(ctx))) closeAllSheets(ctx);
+  }
+  final before = topRoute(ctx);
+  iosTabSwitch = ios;
+  try {
+    _tabRun(ref, ctx, id);
+  } finally {
+    iosTabSwitch = false;
+  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final c = Hub.navigatorKey.currentContext;
+    if (c == null) return;
+    final after = topRoute(c);
+    if (after == null || after == before || !isSheetRoute(after)) return;
+    _tabBound = after;
+    tabActive.value = id;
+    after.popped.whenComplete(() {
+      if (identical(_tabBound, after)) {
+        _tabBound = null;
+        tabActive.value = 'bible';
+      }
+    });
+  });
+}
+
 /// Нижние вкладки — плавающая капсула (.tabbar): высота 64, отступы 12, скругление 32, полупрозрачная с размытием.
 /// Подсвечена вкладка открытого окна; одна плашка переезжает к выбранному пункту. Пальцем можно вести по меню:
 /// плашка идёт за пальцем, отпустили — открывается этот раздел.
@@ -954,89 +1018,15 @@ class _TabBar extends ConsumerStatefulWidget {
 class _TabBarState extends ConsumerState<_TabBar> {
   static const _ids = ['plans', 'search', 'bible', 'saved', 'more'];
   int? _hover; // плашка идёт за пальцем
-  Route<dynamic>? _bound; // окно, открытое с вкладки
-  // системный поиск iOS 26 в меню: окно поиска раскрывает и сворачивает поле, задаёт в нём текст
-  final _search = CNTabBarSearchController();
-  int _tabKey = 0;
-  int _lastTab = 1; // последняя выбранная вкладка меню (кроме поиска)
+  int _lastTab = 1; // последняя выбранная вкладка системного меню (кроме поиска)
 
   @override
   void initState() {
     super.initState();
-    nativeSearchActivate = _search.activateSearch;
-    // свернуть поле: пакет сам меню не перерисовывает — панель создаётся заново (уже свёрнутой)
-    nativeSearchDeactivate = () {
-      if (!mounted || !nativeSearchActive.value) return;
-      nativeSearchActive.value = false;
-      setState(() => _tabKey++);
-    };
-    nativeSearchSetText = (s) => _search.text = s;
+    Hub.openTab = openTab;
   }
 
-  @override
-  void dispose() {
-    nativeSearchActivate = nativeSearchDeactivate = null;
-    nativeSearchSetText = null;
-    _search.dispose();
-    super.dispose();
-  }
-
-  // Вкладки лежат выше навигатора: окна открываем и закрываем через контекст самого навигатора
-  BuildContext get _nav => Hub.navigatorKey.currentContext ?? context;
-
-  void _call(PaneAction? a) => a == null ? Hub.toast(t('Скоро')) : a(_nav, ref, 0);
-
-  void _run(String id) {
-    switch (id) {
-      case 'plans':
-        _call(Hub.openPlans);
-      case 'search':
-        openSearch(_nav, 0);
-      case 'saved':
-        _call(Hub.openBookmarks);
-      case 'more':
-        _call(Hub.openMore);
-    }
-  }
-
-  // «Библия» или повторное нажатие на открытую вкладку закрывает окно; остальные открывают своё окно поверх чтения
-  void _open(String id) {
-    final ios = ref.read(settingsProvider).get<bool>('iosStyle');
-    // поверх может быть и страница (большой проигрыватель) — нажатие на вкладку закрывает и её
-    final nav = Navigator.of(_nav);
-    if (id == 'bible' || tabActive.value == id) {
-      if (nav.canPop()) nav.popUntil((r) => r.isFirst);
-      return closeAllSheets(_nav);
-    }
-    // другая вкладка: прежние окна закрываем, потом открываем раздел; в стиле iPhone — мгновенно, без анимаций
-    // (как переключение вкладок в iOS: закрытие и въезд новой страницы одновременно накладывались)
-    if (ios) {
-      dropAllSheets(_nav);
-    } else {
-      if (nav.canPop()) nav.popUntil((r) => r.isFirst);
-      if (sheetsOpen.value > 0 || isSheetRoute(topRoute(_nav))) closeAllSheets(_nav);
-    }
-    final before = topRoute(_nav);
-    iosTabSwitch = ios;
-    try {
-      _run(id);
-    } finally {
-      iosTabSwitch = false;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final after = topRoute(_nav);
-      if (after == null || after == before || !isSheetRoute(after)) return;
-      _bound = after;
-      tabActive.value = id;
-      after.popped.whenComplete(() {
-        if (identical(_bound, after)) {
-          _bound = null;
-          tabActive.value = 'bible';
-        }
-      });
-    });
-  }
+  void _open(String id) => openTab(ref, id);
 
   int _at(double x, double width) => ((x - 5) / ((width - 10) / _ids.length)).floor().clamp(0, _ids.length - 1);
 
@@ -1060,35 +1050,23 @@ class _TabBarState extends ConsumerState<_TabBar> {
           child: ValueListenableBuilder<String>(
             valueListenable: tabActive,
             builder: (context, activeId, _) => CNTabBar(
-              key: ValueKey(_tabKey),
               items: [
                 CNTabBarItem(label: labels['plans'], icon: const CNSymbol('calendar')),
                 CNTabBarItem(label: labels['bible'], icon: const CNSymbol('book'), activeIcon: const CNSymbol('book.fill')),
                 CNTabBarItem(label: labels['saved'], icon: const CNSymbol('heart'), activeIcon: const CNSymbol('heart.fill')),
                 CNTabBarItem(label: labels['more'], icon: const CNSymbol('line.3.horizontal')),
               ],
-              // поиск — системная вкладка iOS 26: круглая кнопка справа, раскрывается в поле поиска
+              // поиск — круглая кнопка справа (как вкладка поиска iOS 26); нажатие открывает окно поиска — меню на это
+              // время прячется, внизу окна своя строка: кнопка возврата к вкладке и поле поиска с клавиатурой
               searchItem: CNTabBarSearchItem(
                 label: labels['search']!,
-                placeholder: t('Слово, Ин 3:16 или G26'),
-                onSearchChanged: (q) => nativeSearchQuery.value = q,
-                onSearchSubmit: (q) {
-                  nativeSearchQuery.value = q;
-                  nativeSearchSubmits.value++;
-                },
+                automaticallyActivatesSearch: false,
                 onSearchActiveChanged: (on) {
-                  nativeSearchActive.value = on;
-                  if (on && tabActive.value != 'search') {
-                    _open('search');
-                  } else if (!on) {
-                    nativeSearchPageClose?.call();
-                  }
+                  if (on) _open('search');
                 },
               ),
-              searchController: _search,
               currentIndex: () {
-                // поиск — не вкладка из списка: пока он открыт, остаётся прежняя (номер −1 давал «Планы», и система
-                // переключала вкладку и сворачивала поле поиска)
+                // поиск — не вкладка из списка (номер −1 давал «Планы»)
                 final i = ids.indexOf(activeId);
                 if (i >= 0) _lastTab = i;
                 return _lastTab;
@@ -1217,15 +1195,11 @@ class TabBarOverlay extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: tabBarSuppress,
       builder: (context, suppressed, _) => ValueListenableBuilder<bool>(
-      valueListenable: nativeSearchActive,
-      builder: (context, _, _) => ValueListenableBuilder<bool>(
       valueListenable: homeMounted,
       builder: (context, mounted, _) {
         // с клавиатурой вкладки прячутся (окно поднимается над ней); поверх — полноэкранная страница (проигрыватель)
         final kb = mq.viewInsets.bottom;
-        // системный поиск iOS 26 раскрыт: меню (с полем поиска) не прячется под клавиатуру, а встаёт над ней
-        final searching = nativeGlass && nativeSearchActive.value;
-        final show = mounted && suppressed == 0 && (kb == 0 || searching);
+        final show = mounted && suppressed == 0 && kb == 0;
         final inset = show ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
@@ -1234,7 +1208,7 @@ class TabBarOverlay extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              bottom: searching && kb > 0 ? kb - 12 : 0,
+              bottom: 0,
               // на широком экране капсула не растягивается: по центру, не шире 544 (как на большом телефоне)
               child: _FocusHide(
                 down: true,
@@ -1252,7 +1226,6 @@ class TabBarOverlay extends StatelessWidget {
           ),
         ]);
       },
-    ),
     ),
     );
   }
