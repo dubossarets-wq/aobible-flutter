@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/settings.dart';
+import 'kit.dart' show GroupTitle;
 
 /// Включён ли стиль iPhone (виджет перестраивается при переключении)
 bool iosStyleOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
@@ -145,6 +146,9 @@ List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad) {
   var run = <(Widget, IosGroupRow)>[];
   void flush() {
     if (run.isEmpty) return;
+    final m = (iosEdge - sidePad).clamp(0.0, iosEdge);
+    // подзаголовок прямо над карточкой — на линии текста её строк, как в «Настройках» iPhone
+    if (out.isNotEmpty && out.last is GroupTitle) out[out.length - 1] = Padding(padding: EdgeInsets.only(left: m + iosRowIconLeft), child: out.last);
     out.add(IosSection(rows: [for (final (w, _) in run) w is Padding ? w.child! : w], indents: [for (final (_, r) in run) r.iosIndent], pal: pal, margin: (iosEdge - sidePad).clamp(0.0, iosEdge)));
     run = [];
   }

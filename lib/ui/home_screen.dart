@@ -997,14 +997,28 @@ class _TabBarState extends ConsumerState<_TabBar> {
 
   // «Библия» или повторное нажатие на открытую вкладку закрывает окно; остальные открывают своё окно поверх чтения
   void _open(String id) {
+    final ios = ref.read(settingsProvider).get<bool>('iosStyle');
     // поверх может быть и страница (большой проигрыватель) — нажатие на вкладку закрывает и её
     final nav = Navigator.of(_nav);
-    if (nav.canPop()) nav.popUntil((r) => r.isFirst);
-    if (id == 'bible' || tabActive.value == id) return closeAllSheets(_nav);
-    // нажали вкладку при открытых окнах: сперва закрываем их все, потом открываем раздел
-    if (sheetsOpen.value > 0 || isSheetRoute(topRoute(_nav))) closeAllSheets(_nav);
+    if (id == 'bible' || tabActive.value == id) {
+      if (nav.canPop()) nav.popUntil((r) => r.isFirst);
+      return closeAllSheets(_nav);
+    }
+    // другая вкладка: прежние окна закрываем, потом открываем раздел; в стиле iPhone — мгновенно, без анимаций
+    // (как переключение вкладок в iOS: закрытие и въезд новой страницы одновременно накладывались)
+    if (ios) {
+      dropAllSheets(_nav);
+    } else {
+      if (nav.canPop()) nav.popUntil((r) => r.isFirst);
+      if (sheetsOpen.value > 0 || isSheetRoute(topRoute(_nav))) closeAllSheets(_nav);
+    }
     final before = topRoute(_nav);
-    _run(id);
+    iosTabSwitch = ios;
+    try {
+      _run(id);
+    } finally {
+      iosTabSwitch = false;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final after = topRoute(_nav);

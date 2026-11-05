@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/i18n.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../shell/tour_targets.dart' show tourKey;
 import 'ui.dart';
@@ -81,7 +82,8 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
     // .pref-btns: кнопки в ряд, у каждой не уже 180 px — на узком экране переносятся
     Widget btns(List<Widget> children, {Key? key}) => LayoutBuilder(
           builder: (_, c) {
-            final two = c.maxWidth >= 2 * 180 + 8;
+            // стиль iPhone: кнопки одна под другой, во всю ширину (как в системе)
+            final two = !iosStyleOf(ref) && c.maxWidth >= 2 * 180 + 8;
             return Wrap(key: key, spacing: 8, runSpacing: 8, children: [for (final w in children) SizedBox(width: two ? (c.maxWidth - 8) / 2 : c.maxWidth, child: w)]);
           },
         );

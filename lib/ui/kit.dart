@@ -220,6 +220,7 @@ Future<T?> showAobSheet<T>(
       // свайп от левого края — назад)
       ? Navigator.of(context).push<T>(IosPageRoute<T>(
           requestFocus: requestFocus,
+          instant: iosTabSwitch,
           builder: (c) => SafeArea(bottom: false, child: Material(type: MaterialType.transparency, child: body(c))),
         ))
       : nested
@@ -273,9 +274,26 @@ void closeToReader(BuildContext context) => Navigator.of(context).popUntil((r) =
 
 void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) => !isSheetRoute(r));
 
+/// Сейчас окно открывается сменой вкладки нижнего меню (стиль iPhone: без анимации перехода)
+bool iosTabSwitch = false;
+
+/// Убрать все окна и страницы поверх чтения сразу, без анимации (смена вкладки в стиле iPhone): закрытие с анимацией
+/// и одновременный въезд новой страницы накладывались друг на друга
+void dropAllSheets(BuildContext context) {
+  final nav = Navigator.of(context);
+  for (var r = topRoute(context); r != null && !r.isFirst; r = topRoute(context)) {
+    nav.removeRoute(r);
+  }
+}
+
 /// Страница окна на весь экран в стиле iPhone (системный переход iOS со свайпом назад) — тоже «окно»
 class IosPageRoute<T> extends CupertinoPageRoute<T> {
-  IosPageRoute({required super.builder, super.requestFocus});
+  IosPageRoute({required super.builder, super.requestFocus, this.instant = false});
+
+  // открыто сменой вкладки нижнего меню — без анимации перехода (в iOS вкладки переключаются мгновенно)
+  final bool instant;
+  @override
+  Duration get transitionDuration => instant ? Duration.zero : super.transitionDuration;
 
   // Назад — свайпом вправо с любого места страницы (как в iOS 26), а не только от левого края
   @override
@@ -883,6 +901,23 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
       );
 }
 
+/// Строка списка стиля iPhone без значка: название, справа — значение серым и «›» (системная CupertinoListTile)
+class IosNavRow extends StatelessWidget implements IosGroupRow {
+  const IosNavRow({super.key, required this.title, required this.onTap, this.value});
+  final String title;
+  final String? value;
+  final VoidCallback onTap;
+  @override
+  double get iosIndent => iosRowIconLeft + 2;
+  @override
+  Widget build(BuildContext context) => iosTile(
+        title: Text(title),
+        additionalInfo: value == null ? null : Text(value!),
+        trailing: const CupertinoListTileChevron(),
+        onTap: onTap,
+      );
+}
+
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
 class MenuRow extends ConsumerWidget implements IosGroupRow {
   const MenuRow({super.key, required this.icon, required this.label, required this.onTap, this.extra, this.color, this.flat = false, this.last = false});
@@ -954,7 +989,7 @@ class GroupTitle extends ConsumerWidget {
     final ios = iosStyleOf(ref);
     return Padding(
       // стиль iPhone: подзаголовок группы прописными, мелко и серым, как в «Настройках» iPhone
-      padding: ios ? const EdgeInsets.only(top: 14, bottom: 2, left: 20) : const EdgeInsets.only(top: 6, bottom: 6),
+      padding: ios ? const EdgeInsets.only(top: 14, bottom: 2) : const EdgeInsets.only(top: 6, bottom: 6),
       child: Row(children: [
         if (dot != null) ...[Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
         Text(ios ? text.toUpperCase() : text,

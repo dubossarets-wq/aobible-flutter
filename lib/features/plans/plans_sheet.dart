@@ -762,7 +762,8 @@ class _PlanRow extends StatelessWidget {
         Reveal(
           open: open,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(MediaQuery.sizeOf(context).width < 380 ? 14 : 90, 0, 14, 14),
+            // описание и «Начать» — на всю ширину карточки (от края миниатюры)
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               if (m.description != null) Text(t(m.description!), style: TextStyle(color: pal.muted, fontSize: 13.8, height: 1.45)),
               const SizedBox(height: 10),

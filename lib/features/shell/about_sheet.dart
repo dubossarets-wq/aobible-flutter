@@ -110,6 +110,27 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
       'privacy' => _privacy(pal),
       _ => _about(pal),
     };
+    // Стиль iPhone — как «Правовая информация» в iPhone: главная страница — текст и строки «›», каждая открывает
+    // свою страницу с текстом (без вкладок сверху)
+    if (ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')))) {
+      final titles = {'about': t('О приложении'), 'licenses': t('Лицензии и авторы'), 'privacy': t('Конфиденциальность')};
+      final page = widget.tab != 'about';
+      return AppSheet(
+        title: titles[widget.tab] ?? t('О приложении'),
+        subtitle: page ? null : t('AO Bible · версия {v}', {'v': appVersion}),
+        gap: 12,
+        children: page
+            ? [DefaultTextStyle.merge(style: const TextStyle(height: 1.55), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body))]
+            : [
+                DefaultTextStyle.merge(style: TextStyle(height: 1.5, color: pal.muted, fontSize: 15), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _aboutText())),
+                IosNavRow(title: t('Лицензии и авторы'), onTap: () => showAppSheet(context, (_) => const AboutSheet(tab: 'licenses'))),
+                IosNavRow(title: t('Конфиденциальность'), onTap: () => showAppSheet(context, (_) => const AboutSheet(tab: 'privacy'))),
+                GroupTitle(t('Связь')),
+                IosNavRow(title: supportEmail, onTap: () => openLink('mailto:$supportEmail')),
+                IosNavRow(title: 'Telegram', onTap: () => openLink(telegramUrl)),
+              ],
+      );
+    }
     return AppSheet(
       title: t('О приложении'),
       subtitle: t('AO Bible · версия {v}', {'v': appVersion}),
@@ -143,6 +164,12 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: parts)),
         ]),
       );
+
+  List<Widget> _aboutText() => [
+        _p(t('AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения.')),
+        _p(t('Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение.')),
+        _p(t('Всё хранится на вашем устройстве; скачанные модули работают без интернета.')),
+      ];
 
   List<Widget> _about(Palette pal) => [
         _p(t('AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения.')),
