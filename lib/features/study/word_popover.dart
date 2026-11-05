@@ -16,6 +16,7 @@ import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'lexicon.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 const _gap = 10.0; // GAP из WordPopover.jsx
 
@@ -223,12 +224,12 @@ class _PopoverState extends ConsumerState<_Popover> {
     final items = [...all.where((x) => strong.hasMatch(x.key)), ...all.where((x) => !strong.hasMatch(x.key))];
     final rows = <Widget>[];
     const base = TextStyle(fontSize: 16); // font-size: 1rem
-    final go = Icon(LucideIcons.chevronRight, size: 16, color: pal.muted);
+    final go = Icon(ico(LucideIcons.chevronRight), size: 16, color: pal.muted);
     final tabular = base.copyWith(color: pal.text, fontFeatures: const [FontFeature.tabularFigures()], letterSpacing: 0.16);
 
     // Пункты других функций («Название · Карта»): значок места, название, «·», подпись, стрелка
     Widget place(WordMenuItem x) => _item(pal, [
-          Icon(LucideIcons.mapPin, size: 17, color: pal.accent),
+          Icon(ico(LucideIcons.mapPin), size: 17, color: pal.accent),
           const SizedBox(width: 10),
           Text(x.label, style: tabular.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(width: 10),

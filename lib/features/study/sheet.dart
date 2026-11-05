@@ -12,6 +12,7 @@ import '../../core/settings.dart';
 import '../shell/fonts.dart' show readerTextStyle;
 import '../../ui/kit.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 const sheetRoute = 'study-sheet';
 
@@ -227,10 +228,10 @@ class Empty extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Column(children: [
-        Icon(icon, size: 28, color: pal.muted),
-        const SizedBox(height: 8),
-        Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
-        if (child != null) ...[const SizedBox(height: 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: 14.4, height: 1.45), child: child!)],
+        Icon(ico(icon), size: iosUiNow ? 48 : 28, color: pal.muted),
+        SizedBox(height: iosUiNow ? 14 : 8),
+        Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: pal.text) : TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
+        if (child != null) ...[SizedBox(height: iosUiNow ? 6 : 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: iosUiNow ? 17 : 14.4, height: iosUiNow ? 1.3 : 1.45), child: child!)],
       ]),
     );
   }
@@ -247,7 +248,7 @@ class H4 extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(children: [
-        if (icon != null) ...[Icon(icon, size: 13, color: pal.muted), const SizedBox(width: 6)],
+        if (icon != null) ...[Icon(ico(icon), size: 13, color: pal.muted), const SizedBox(width: 6)],
         Expanded(child: Text(text, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted))),
       ]),
     );
@@ -361,7 +362,7 @@ class WarnBox extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(kRadius * 0.75)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (icon) const Padding(padding: EdgeInsets.only(top: 2), child: Icon(LucideIcons.triangleAlert, size: 16, color: Color(0xFFC0841F))),
+        if (icon) Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 16, color: const Color(0xFFC0841F))),
         if (icon) const SizedBox(width: 8),
         Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 14.1, height: 1.45), child: child)),
       ]),

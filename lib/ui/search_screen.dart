@@ -469,7 +469,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     Widget results() => SliverList.builder(
           itemCount: 1 + count + (more ? 1 : 0),
           itemBuilder: (context, i) {
-            if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: top);
+            if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: iosUiNow ? iosGroup(top, pal, 16, gap: iosSectionGap) : top);
             if (i == count + 1) {
               return Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -528,7 +528,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
             sliver: SliverList.builder(
               itemCount: 1 + count + (more ? 1 : 0),
               itemBuilder: (context, i) {
-                if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: top);
+                if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: iosUiNow ? iosGroup(top, pal, 16, gap: iosSectionGap) : top);
                 if (i == count + 1) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -609,7 +609,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           color: pal.accent,
           borderRadius: BorderRadius.circular(kRadius * 0.75),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(onTap: _submit, child: SizedBox(width: height, height: height, child: Icon(LucideIcons.search, size: 18, color: pal.onAccent))),
+          child: InkWell(onTap: _submit, child: SizedBox(width: height, height: height, child: Icon(ico(LucideIcons.search), size: 18, color: pal.onAccent))),
         ),
       ),
     ]),
@@ -630,7 +630,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(LucideIcons.cornerDownLeft, size: 15, color: pal.accent),
+              Icon(ico(LucideIcons.cornerDownLeft), size: 15, color: pal.accent),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(t('Перейти: {ref}', {'ref': '${b.name} ${r.ref.chapter}:${r.ref.verse}'}), style: TextStyle(fontWeight: FontWeight.w700, color: pal.accent)),
@@ -657,7 +657,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
               color: const Color(0xffd1342b),
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
-              child: const Icon(LucideIcons.trash2, size: 18, color: Colors.white),
+              child: Icon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
             ),
             onDismissed: (_) => _forget(h),
             child: Material(
@@ -676,7 +676,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                       child: Padding(
                         padding: const EdgeInsets.only(right: 4, top: 12, bottom: 12),
                         child: Row(children: [
-                          Icon(LucideIcons.clock, size: 16, color: pal.muted),
+                          Icon(ico(LucideIcons.clock), size: 16, color: pal.muted),
                           const SizedBox(width: 12),
                           Expanded(child: Text(h, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 15, color: pal.text))),
                         ]),

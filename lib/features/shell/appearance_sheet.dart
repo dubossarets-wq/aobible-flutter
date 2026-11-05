@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' show PathMetric;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -368,9 +369,12 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       // .font-list: рамка со скруглением, строки не ниже 62, выбранная — с лёгкой заливкой акцента
       Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+        // стиль iPhone: карточка группы (системная заливка и скругление, без рамки)
+        decoration: iosUiNow
+            ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+            : BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
         child: Column(children: [
-          for (final (i, e) in defs.indexed)
+          for (final (i, e) in defs.indexed) ...[
             InkWell(
               onTap: () => set({'fontFamily': e.key}),
               // выбранный шрифт: подложка проявляется плавно
@@ -378,11 +382,13 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                 duration: const Duration(milliseconds: 240),
                 curve: Curves.fastOutSlowIn,
                 constraints: const BoxConstraints(minHeight: 62),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  color: pal.accent.withValues(alpha: s.get<String>('fontFamily') == e.key ? 0.09 : 0),
-                  border: i == defs.length - 1 ? null : Border(bottom: BorderSide(color: pal.line)),
-                ),
+                padding: iosUiNow ? const EdgeInsets.fromLTRB(iosRowIconLeft, 9, iosRowRight, 9) : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: iosUiNow
+                    ? null
+                    : BoxDecoration(
+                        color: pal.accent.withValues(alpha: s.get<String>('fontFamily') == e.key ? 0.09 : 0),
+                        border: i == defs.length - 1 ? null : Border(bottom: BorderSide(color: pal.line)),
+                      ),
                 child: Row(children: [
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -396,12 +402,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 240),
                       opacity: s.get<String>('fontFamily') == e.key ? 1 : 0,
-                      child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: s.get<String>('fontFamily') == e.key ? 1 : 0.6, child: Icon(LucideIcons.check, size: 20, color: pal.accent)),
+                      child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: s.get<String>('fontFamily') == e.key ? 1 : 0.6, child: Icon(ico(LucideIcons.check), size: 20, color: pal.accent)),
                     ),
                   ),
                 ]),
               ),
             ),
+            // стиль iPhone: линия между строками — от начала текста, тонкая
+            if (iosUiNow && i < defs.length - 1) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: Container(height: 0.5, color: pal.line)),
+          ],
         ]),
       ),
       Card2(children: [
@@ -571,7 +580,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     Widget label(IconData icon, String text, Color color) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 22, color: color),
+            Icon(ico(icon), size: 22, color: color),
             const SizedBox(height: 4),
             Text(text, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.2, height: 1.15, color: color)),
           ]),
@@ -679,7 +688,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       ]),
       // как показывать: текстом под стихом (свёрнут до двух строк) или прежней меткой после стиха
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(t('Как показывать'))) else Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 8),
         Segmented<String>(
           options: [('below', t('Под стихом')), ('tag', t('Меткой после стиха'))],
@@ -688,29 +697,32 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
       ]),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(t('Комментарии в тексте'))) else Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 4),
-        Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+        Padding(
+          padding: EdgeInsets.only(left: iosUiNow ? iosRowIconLeft : 0, right: iosUiNow ? iosRowRight : 0),
+          child: Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
+        ),
       ]),
       // источники — строками от края до края, как списки в настройках: название, ниже описание и язык, справа переключатель
       Column(children: [
         for (final (i, m) in sorted.indexed)
-          bleed(InkWell(
+          (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: i == 0, last: i == sorted.length - 1, child: w) : bleed)(InkWell(
             onTap: () => _toggleInline(list, inline, m, !isOn(m)),
             child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 11, 16, 11),
-              decoration: BoxDecoration(border: Border(top: i == 0 ? BorderSide(color: pal.line) : BorderSide.none, bottom: BorderSide(color: pal.line))),
+              padding: iosUiNow ? const EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 11, 16, 11),
+              decoration: iosUiNow ? null : BoxDecoration(border: Border(top: i == 0 ? BorderSide(color: pal.line) : BorderSide.none, bottom: BorderSide(color: pal.line))),
               child: Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(m.name, style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.text)),
+                    Text(m.name, style: iosUiNow ? TextStyle(fontSize: 17, color: pal.text) : TextStyle(fontSize: 15.2, fontWeight: FontWeight.w600, color: pal.text)),
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         [if (m.title != m.name) m.title, langDisplayNames[currentLang]?[m.language] ?? m.language].join(' · '),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.6, height: 1.35, color: pal.muted),
+                        style: TextStyle(fontSize: iosUiNow ? 15 : 12.6, height: 1.35, color: pal.muted),
                       ),
                     ),
                   ]),
@@ -898,12 +910,14 @@ class _ViewTile extends ConsumerWidget {
           curve: Curves.fastOutSlowIn,
           constraints: const BoxConstraints(minHeight: 84),
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: pal.bg,
-            border: Border.all(color: on ? pal.accent : pal.line, width: iosStyleOf(ref) && !on ? 0.5 : 1),
-            borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : 12),
-            boxShadow: [BoxShadow(color: on ? pal.accent : pal.accent.withValues(alpha: 0), spreadRadius: on ? 2 : 0)],
-          ),
+          decoration: iosStyleOf(ref)
+              ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+              : BoxDecoration(
+                  color: pal.bg,
+                  border: Border.all(color: on ? pal.accent : pal.line),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: on ? pal.accent : pal.accent.withValues(alpha: 0), spreadRadius: on ? 2 : 0)],
+                ),
           child: LayoutBuilder(
             builder: (context, c) {
               final w = c.maxWidth;
@@ -933,7 +947,12 @@ class _ViewTile extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 7),
-        Text(name, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: pal.text)),
+        if (iosStyleOf(ref)) ...[
+          Text(name, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, height: 1.2, color: pal.text)),
+          const SizedBox(height: 8),
+          Icon(on ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle, size: 24, color: on ? pal.accent : sysColor(CupertinoColors.tertiaryLabel, dark: pal.dark)),
+        ] else
+          Text(name, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.2, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: pal.text)),
       ]),
     );
   }
@@ -1003,7 +1022,7 @@ class _ColorPick extends ConsumerWidget {
                         switchInCurve: Curves.fastOutSlowIn,
                         switchOutCurve: Curves.fastOutSlowIn,
                         transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
-                        child: on ? Icon(LucideIcons.check, key: const ValueKey('on'), size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : KeyedSubtree(key: const ValueKey('off'), child: child ?? const SizedBox.shrink()),
+                        child: on ? Icon(ico(LucideIcons.check), key: const ValueKey('on'), size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : KeyedSubtree(key: const ValueKey('off'), child: child ?? const SizedBox.shrink()),
                       ),
               ),
             ),
@@ -1012,7 +1031,8 @@ class _ColorPick extends ConsumerWidget {
     final curHex = toHex(cur);
     final custom = changed && !list.any((e) => e.$1 == curHex);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(label, style: fieldLabel(pal, bold: true)),
+      // стиль iPhone: подпись над образцами — заголовком группы
+      if (iosUiNow) GroupTitle(label) else Text(label, style: fieldLabel(pal, bold: true)),
       const SizedBox(height: 6),
       // зазор между кружками 8, а кольцо у выбранного занимает ещё по 4 с каждой стороны — берём его из ячейки 52
       Transform.translate(
@@ -1020,7 +1040,7 @@ class _ColorPick extends ConsumerWidget {
         child: Wrap(spacing: 0, runSpacing: 0, children: [
           dot(base, !changed, tip: t('Как в теме'), onTap: onReset),
           for (final e in list) dot(parseHex(e.$1)!, changed && curHex == e.$1, tip: t(e.$2), onTap: () => onChanged(parseHex(e.$1)!)),
-          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), dashed: true, child: Icon(LucideIcons.pipette, size: 18, color: pal.text), onTap: () async {
+          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), dashed: true, child: Icon(ico(LucideIcons.pipette), size: 18, color: pal.text), onTap: () async {
             final c = await pickColor(context, cur);
             if (c != null) onChanged(c);
           }),
@@ -1182,7 +1202,7 @@ class _HlLabelsState extends ConsumerState<_HlLabels> {
   Widget build(BuildContext context) {
     final pal = paletteOf(ref);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text(t('Цвета выделений'), style: fieldLabel(pal, bold: true)),
+      if (iosUiNow) GroupTitle(t('Цвета выделений')) else Text(t('Цвета выделений'), style: fieldLabel(pal, bold: true)),
       const SizedBox(height: 4),
       Text(t('Дайте цветам названия — например, «Обетования», «Вопросы».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
       const SizedBox(height: 8),

@@ -3,7 +3,7 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoActionSheet, CupertinoActionSheetAction, showCupertinoModalPopup, CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTile, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActionSheet, CupertinoActionSheetAction, showCupertinoModalPopup, CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -717,7 +717,7 @@ class IconBtn extends ConsumerWidget {
         type: MaterialType.transparency,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(onTap: onTap, child: Icon(icon, size: size ?? (subtle ? 18 : 22), color: color ?? (on ? pal.accent : subtle ? pal.muted : pal.text))),
+        child: InkWell(onTap: onTap, child: Icon(ico(icon), size: size ?? (subtle ? 18 : 22), color: color ?? (on ? pal.accent : subtle ? pal.muted : pal.text))),
       ),
     );
     return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
@@ -752,13 +752,13 @@ class AobButton extends ConsumerWidget {
       BtnKind.normal => ios ? (iosFill(pal), pal.accent, Colors.transparent) : (pal.bg, pal.text, pal.line),
     };
     final content = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-      if (icon != null) ...[Icon(icon, size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
+      if (icon != null) ...[Icon(ico(icon), size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
       Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)))),
     ]);
     if (ios) {
       final size = small ? CupertinoButtonSize.small : CupertinoButtonSize.medium;
       final child = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-        if (icon != null) ...[Icon(icon, size: small ? 15 : 17), const SizedBox(width: 6)],
+        if (icon != null) ...[Icon(ico(icon), size: small ? 15 : 17), const SizedBox(width: 6)],
         Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]);
       final btn = switch (kind) {
@@ -824,7 +824,7 @@ class AobChip extends ConsumerWidget {
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: compact ? 30 : 0),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 5)],
+                  if (icon != null) ...[Icon(ico(icon), size: 14, color: fg), const SizedBox(width: 5)],
                   // на 1 px выше: строчные без выносных элементов визуально садятся ниже середины
                   Transform.translate(offset: const Offset(0, -1), child: Text(label, style: TextStyle(fontSize: compact ? 13.5 : 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg))),
                   if (count != null) ...[
@@ -872,7 +872,7 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.bg), borderRadius: BorderRadius.circular(11)),
-                child: Icon(icon, size: 20, color: pal.accent),
+                child: Icon(ico(icon), size: 20, color: pal.accent),
               ),
           const SizedBox(width: 14),
           Expanded(
@@ -881,7 +881,7 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
               if (sub != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub!, style: TextStyle(fontSize: 12.5, color: pal.muted))),
             ]),
           ),
-          trailing ?? Icon(LucideIcons.chevronRight, size: 18, color: pal.muted),
+          trailing ?? Icon(ico(LucideIcons.chevronRight), size: 18, color: pal.muted),
         ]),
       ),
     ));
@@ -994,7 +994,7 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
             : Padding(
                 padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
                 child: Row(children: [
-                  Icon(icon, size: ios ? 22 : 20, color: color ?? pal.accent),
+                  Icon(ico(icon), size: ios ? 22 : 20, color: color ?? pal.accent),
                   const SizedBox(width: 12),
                   Expanded(child: Text(label, style: TextStyle(fontSize: ios ? 16.5 : 15.7, color: color ?? pal.text))),
                   ?extra,
@@ -1506,7 +1506,7 @@ class RoundFab extends ConsumerWidget {
           border: Border.all(color: pal.line),
           boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 14, offset: Offset(0, 4))],
         ),
-        child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Icon(icon, size: 22, color: pal.text))),
+        child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Icon(ico(icon), size: 22, color: pal.text))),
       ),
     );
   }
@@ -1537,7 +1537,7 @@ class Hint extends ConsumerWidget {
         boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 10))],
       ),
       textStyle: TextStyle(fontSize: 13.4, height: 1.45, color: pal.barText),
-      child: SizedBox(width: 26, height: 24, child: Icon(LucideIcons.circleAlert, size: 15, color: pal.muted)),
+      child: SizedBox(width: 26, height: 24, child: Icon(ico(LucideIcons.circleAlert), size: 15, color: pal.muted)),
     );
   }
 }
@@ -1594,7 +1594,7 @@ class _SpinnerState extends ConsumerState<Spinner> with SingleTickerProviderStat
   Widget build(BuildContext context) =>
       iosStyleOf(ref)
           ? SizedBox(width: widget.size, height: widget.size, child: CupertinoActivityIndicator(radius: widget.size / 2.2, color: widget.color))
-          : RotationTransition(turns: _c, child: Icon(LucideIcons.loaderCircle, size: widget.size, color: widget.color ?? paletteOf(ref).muted));
+          : RotationTransition(turns: _c, child: Icon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color ?? paletteOf(ref).muted));
 }
 
 /// Уведомление (.toast): тёмная «таблетка» цвета панели инструментов над нижним краем; с действием — кнопка справа

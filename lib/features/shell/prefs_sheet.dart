@@ -206,7 +206,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
                             child: Text(t('новая'), style: const TextStyle(color: Colors.white, fontSize: 11.8, fontWeight: FontWeight.w600)),
                           ),
                         ),
-                      Icon(LucideIcons.chevronRight, size: 18, color: pal.muted),
+                      Icon(ico(LucideIcons.chevronRight), size: 18, color: pal.muted),
                     ],
                   ]),
                 ),
@@ -265,7 +265,7 @@ class _LangRow extends ConsumerWidget {
           AnimatedOpacity(
             duration: const Duration(milliseconds: 240),
             opacity: on ? 1 : 0,
-            child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(LucideIcons.check, size: 20, color: pal.accent)),
+            child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(ico(LucideIcons.check), size: 20, color: pal.accent)),
           ),
         ]),
       ),

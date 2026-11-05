@@ -22,6 +22,7 @@ import '../shell/intl_data.dart' show monthDayTemplates;
 import 'reminders.dart';
 import 'ui_kit.dart';
 import 'verse_card.dart';
+import '../../ui/ios_style.dart';
 
 // Обложки планов: фото (из фонов для картинок со стихом), значок и цвет; свой план и неизвестные — по умолчанию.
 // Значок — тот же, что у раздела в «Своём плане» (что читаем): вся Библия, Новый Завет, Евангелия, Псалмы
@@ -345,7 +346,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: mix(pal.accent, 0.14, pal.panel)),
-            child: Icon(LucideIcons.calendarPlus, size: 22, color: pal.accent),
+            child: Icon(ico(LucideIcons.calendarPlus), size: 22, color: pal.accent),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -533,7 +534,7 @@ class _Step extends StatelessWidget {
           color: pal.panel,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius), side: BorderSide(color: pal.line)),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: SizedBox(width: size, height: size, child: Icon(icon, size: iconSize, color: pal.text)))),
+          child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: SizedBox(width: size, height: size, child: Icon(ico(icon), size: iconSize, color: pal.text)))),
         ),
       );
 }
@@ -654,7 +655,7 @@ class _DaysStepper extends StatelessWidget {
             child: SizedBox(
               width: 56,
               height: 56,
-              child: AnimatedOpacity(duration: const Duration(milliseconds: 200), opacity: onTap == null ? 0.35 : 1, child: Icon(icon, size: 20, color: pal.accent)),
+              child: AnimatedOpacity(duration: const Duration(milliseconds: 200), opacity: onTap == null ? 0.35 : 1, child: Icon(ico(icon), size: 20, color: pal.accent)),
             ),
           ),
         );
@@ -730,7 +731,7 @@ class _PlanRow extends StatelessWidget {
                       DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]))),
                       SiteImage(_coverPath(m.id)),
                       const ColoredBox(color: Color(0x47000000)),
-                      Center(child: l.scope == null ? const Icon(LucideIcons.sparkles, size: 18, color: Colors.white) : _scopeIcon(l.scope!, 18, Colors.white)),
+                      Center(child: l.scope == null ? Icon(ico(LucideIcons.sparkles), size: 18, color: Colors.white) : _scopeIcon(l.scope!, 18, Colors.white)),
                     ]),
                   ),
                 ),
@@ -754,7 +755,7 @@ class _PlanRow extends StatelessWidget {
                   ]),
                 ),
                 const SizedBox(width: 8),
-                AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 220), child: Icon(LucideIcons.chevronDown, size: 18, color: pal.muted)),
+                AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 220), child: Icon(ico(LucideIcons.chevronDown), size: 18, color: pal.muted)),
               ]),
             ),
           ),
@@ -1013,7 +1014,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                     const SizedBox(width: 8),
                     Expanded(child: Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: TextStyle(fontSize: 13.4, color: pal.muted))),
                     Text(t('Догнать'), style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.accent)),
-                    Icon(LucideIcons.chevronRight, size: 15, color: pal.accent),
+                    Icon(ico(LucideIcons.chevronRight), size: 15, color: pal.accent),
                   ]),
                 ),
               ),
@@ -1021,13 +1022,16 @@ class _ActivePlanState extends State<_ActivePlan> {
             // отрывки дня — белым списком с полными названиями (.plan-list): кружок — отметка «прочитано» (прочитанный
             // отрывок слегка приглушён), название — открыть отрывок; больше пяти — остальные за строкой «Ещё N»
             Container(
-              decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
+              // стиль iPhone: вложенный список — системной заливкой без рамки, скругление — по карточке (меньше на её поле)
+              decoration: iosUiNow
+                  ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(iosRadius - 12))
+                  : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
               clipBehavior: Clip.antiAlias,
               child: Column(children: [
                 for (final (i, r) in rs.indexed)
                   if (i < _partsMax || rs.length <= _partsMax || _openDay == day)
                     Container(
-                      decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line))),
+                      decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: pal.line, width: iosUiNow ? 0.5 : 1))),
                       child: Row(children: [
                         Semantics(
                           button: true,
@@ -1046,7 +1050,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                                   height: 22,
                                   margin: const EdgeInsets.only(left: 4),
                                   decoration: BoxDecoration(shape: BoxShape.circle, color: flags[i] ? okOf(pal) : Colors.transparent, border: flags[i] ? null : Border.all(color: pal.muted.withValues(alpha: 0.55), width: 1.5)),
-                                  child: flags[i] ? Icon(LucideIcons.check, size: 13, color: pal.dark ? pal.panel : Colors.white) : null,
+                                  child: flags[i] ? Icon(ico(LucideIcons.check), size: 13, color: pal.dark ? pal.panel : Colors.white) : null,
                                 ),
                               ),
                             ),
@@ -1063,7 +1067,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                                 padding: const EdgeInsets.fromLTRB(2, 8, 10, 8),
                                 child: Row(children: [
                                   Expanded(child: Text(_fullLabel(r), style: TextStyle(fontSize: 15.2, fontWeight: flags[i] ? FontWeight.w500 : FontWeight.w600, color: flags[i] ? pal.muted : pal.text))),
-                                  Icon(LucideIcons.chevronRight, size: 17, color: pal.muted),
+                                  Icon(ico(LucideIcons.chevronRight), size: 17, color: pal.muted),
                                 ]),
                               ),
                             ),
@@ -1080,7 +1084,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Text(_openDay == day ? t('Свернуть') : t('Ещё {n}', {'n': '${rs.length - _partsMax}'}), style: TextStyle(fontSize: 14.1, fontWeight: FontWeight.w600, color: pal.accent)),
                         const SizedBox(width: 4),
-                        AnimatedRotation(turns: _openDay == day ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 16, color: pal.accent)),
+                        AnimatedRotation(turns: _openDay == day ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(ico(LucideIcons.chevronDown), size: 16, color: pal.accent)),
                       ]),
                     ),
                   ),
@@ -1250,7 +1254,7 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
                 const Spacer(),
                 Text(repeatLabel(x.every), style: TextStyle(fontSize: 15.2, color: pal.muted)),
                 const SizedBox(width: 4),
-                Icon(LucideIcons.chevronDown, size: 16, color: pal.muted),
+                Icon(ico(LucideIcons.chevronDown), size: 16, color: pal.muted),
               ]),
             ),
           ),
@@ -1498,7 +1502,7 @@ class _ReadHeroState extends State<_ReadHero> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(LucideIcons.flame, size: 18, color: streakOn ? const Color(0xFFF07C22) : pal.muted),
+                Icon(ico(LucideIcons.flame), size: 18, color: streakOn ? const Color(0xFFF07C22) : pal.muted),
                 const SizedBox(width: 6),
                 Text('${st.streak}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: pal.text)),
                 const SizedBox(width: 6),
@@ -1605,7 +1609,7 @@ class _StreamRow extends StatelessWidget {
                   child: AnimatedOpacity(
                     duration: dur,
                     opacity: on ? 1 : 0,
-                    child: AnimatedScale(duration: dur, curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(LucideIcons.check, size: 14, color: pal.onAccent)),
+                    child: AnimatedScale(duration: dur, curve: Curves.fastOutSlowIn, scale: on ? 1 : 0.6, child: Icon(ico(LucideIcons.check), size: 14, color: pal.onAccent)),
                   ),
                 ),
                 const SizedBox(width: 10),

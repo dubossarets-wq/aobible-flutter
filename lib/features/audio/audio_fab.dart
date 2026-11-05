@@ -11,6 +11,7 @@ import '../../ui/glass.dart';
 import '../../ui/kit.dart';
 import 'audio_engine.dart';
 import 'audio_listen.dart';
+import '../../ui/ios_style.dart';
 
 class ListenFab extends ConsumerWidget {
   const ListenFab({super.key, required this.pane});
@@ -51,7 +52,7 @@ class ListenFab extends ConsumerWidget {
                   type: MaterialType.transparency,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
-                  child: InkWell(onTap: () => openAudioFrom(context, ref, pane), child: Icon(LucideIcons.headphones, size: 20, color: pal.accent)),
+                  child: InkWell(onTap: () => openAudioFrom(context, ref, pane), child: Icon(ico(LucideIcons.headphones), size: 20, color: pal.accent)),
                 ),
               ),
             ),

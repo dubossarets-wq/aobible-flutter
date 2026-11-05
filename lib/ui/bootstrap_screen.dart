@@ -7,6 +7,7 @@ import '../core/modules.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import 'kit.dart';
+import 'ios_style.dart';
 
 class BootstrapScreen extends ConsumerStatefulWidget {
   const BootstrapScreen({super.key, required this.onReady});
@@ -131,7 +132,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(color: Color.lerp(pal.panel, _danger, 0.1), borderRadius: BorderRadius.circular(14)),
                     child: Row(children: [
-                      const Icon(LucideIcons.wifiOff, size: 20, color: _danger),
+                      Icon(ico(LucideIcons.wifiOff), size: 20, color: _danger),
                       const SizedBox(width: 10),
                       Expanded(child: Text(_error!, style: const TextStyle(fontSize: 15, height: 1.4, color: _danger))),
                     ]),
@@ -175,7 +176,7 @@ class _Steps extends StatelessWidget {
             width: 20,
             height: 20,
             decoration: BoxDecoration(color: pal.accent, shape: BoxShape.circle),
-            child: Icon(LucideIcons.check, size: 12, color: pal.onAccent),
+            child: Icon(ico(LucideIcons.check), size: 12, color: pal.onAccent),
           ),
         1 => SizedBox(
             key: const ValueKey(1),

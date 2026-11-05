@@ -111,7 +111,8 @@ class SheetFixed extends StatelessWidget {
 }
 
 /// Подпись поля (.field-label): w500, в «Оформлении» — w600
-TextStyle fieldLabel(Palette pal, {bool bold = false}) => TextStyle(fontSize: 15, fontWeight: bold ? FontWeight.w600 : FontWeight.w500, color: pal.text);
+TextStyle fieldLabel(Palette pal, {bool bold = false}) =>
+    iosUiNow ? TextStyle(fontSize: 17, color: pal.text) : TextStyle(fontSize: 15, fontWeight: bold ? FontWeight.w600 : FontWeight.w500, color: pal.text);
 
 /// Значок ⓘ с подсказкой (Hint в ui.jsx): нажатие раскрывает плашку цвета верхней панели
 class HintDot extends ConsumerWidget {
@@ -124,7 +125,7 @@ class HintDot extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: SizedBox(width: 28, height: 24, child: Icon(LucideIcons.info, size: 16, color: on ? pal.accent : pal.muted)),
+      child: SizedBox(width: 28, height: 24, child: Icon(ico(LucideIcons.info), size: 16, color: on ? pal.accent : pal.muted)),
     );
   }
 }
@@ -173,7 +174,7 @@ class _SwitchFieldState extends ConsumerState<SwitchField> {
             child: Row(children: [
               Expanded(
                 child: Text.rich(TextSpan(children: [
-                  TextSpan(text: widget.label, style: widget.big ? base.copyWith(fontSize: 16.3, fontWeight: FontWeight.w700) : base),
+                  TextSpan(text: widget.label, style: widget.big && !iosUiNow ? base.copyWith(fontSize: 16.3, fontWeight: FontWeight.w700) : base),
                   if (widget.hint != null) WidgetSpan(alignment: PlaceholderAlignment.middle, child: HintDot(on: _hint, onTap: () => setState(() => _hint = !_hint))),
                 ])),
               ),
@@ -402,7 +403,7 @@ class _RangeRowState extends ConsumerState<RangeRow> {
                             offset: Offset(0, -(delta < 0 ? 13 : 23) * 0.08),
                             child: Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 23, fontWeight: FontWeight.w600, height: 1, leadingDistribution: TextLeadingDistribution.even, color: pal.text)),
                           )
-                        : Icon(icon, size: 18, color: pal.text),
+                        : Icon(ico(icon), size: 18, color: pal.text),
                   ),
                 ),
               ),
@@ -481,9 +482,9 @@ class Card2 extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    final all = [if (title != null) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
     final ios = iosStyleOf(ref);
-    return Container(
+    final all = [if (title != null && !ios) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
+    final card = Container(
       padding: ios ? const EdgeInsets.fromLTRB(iosRowIconLeft, 12, iosRowRight, 14) : const EdgeInsets.fromLTRB(14, 12, 14, 14),
       // стиль iPhone: карточка группы — системная заливка и скругление, без рамки
       decoration: ios
@@ -494,6 +495,11 @@ class Card2 extends ConsumerWidget {
         for (var i = 0; i < all.length; i++) ...[if (i > 0 && all[i] is! Reveal) const SizedBox(height: 14), all[i]],
       ]),
     );
+    if (!ios || title == null) return card;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(padding: const EdgeInsets.only(left: iosRowIconLeft, bottom: 6), child: GroupTitle(title!)),
+      card,
+    ]);
   }
 }
 
@@ -577,7 +583,7 @@ class _SpinState extends State<Spin> with SingleTickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(LucideIcons.loaderCircle, size: widget.size, color: widget.color));
+  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color));
 }
 
 /// Надпись «Загрузка…» (.loading): по центру, бледная

@@ -12,6 +12,7 @@ import 'colors.dart';
 import 'plural.dart';
 import 'sheet.dart';
 import 'tour.dart';
+import '../../ui/ios_style.dart';
 
 Future<void> openHelp(BuildContext context) => showAppSheet(context, (_) => const HelpSheet());
 
@@ -48,7 +49,7 @@ class _HelpSheetState extends ConsumerState<HelpSheet> {
       children: [
         // .help-intro: значок руки цвета акцента и подсказка
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(top: 2), child: Icon(LucideIcons.hand, size: 18, color: pal.accent)),
+          Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.hand), size: 18, color: pal.accent)),
           const SizedBox(width: 8),
           Expanded(child: Text(t('Выберите тему — покажем, куда нажимать.'), style: TextStyle(fontSize: 14.25, height: 1.45, color: pal.text))),
         ]),

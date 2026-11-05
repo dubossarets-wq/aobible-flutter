@@ -14,6 +14,7 @@ import '../core/modules.dart';
 import '../core/panes.dart';
 import '../core/settings.dart';
 import 'kit.dart';
+import 'ios_style.dart';
 
 Future<void> openNavigator(BuildContext context, int pane) => showAobSheet(context, builder: (_) => NavigatorSheet(pane: pane), scripture: true);
 
@@ -365,7 +366,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
         ),
         child: Row(children: [
           const SizedBox(width: 14),
-          Icon(LucideIcons.search, size: 18, color: muted),
+          Icon(ico(LucideIcons.search), size: 18, color: muted),
           Expanded(
             child: Focus(
               // Escape в заполненном поле сначала стирает его, второй — закрывает окно
@@ -393,7 +394,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
             ),
           ),
           if (q.isNotEmpty)
-            SizedBox(width: 44, height: 44, child: IconButton(padding: EdgeInsets.zero, tooltip: t('Очистить'), onPressed: _clear, icon: Icon(LucideIcons.x, size: 18, color: muted))),
+            SizedBox(width: 44, height: 44, child: IconButton(padding: EdgeInsets.zero, tooltip: t('Очистить'), onPressed: _clear, icon: Icon(ico(LucideIcons.x), size: 18, color: muted))),
           Padding(
             padding: const EdgeInsets.only(right: 3),
             child: Tooltip(
@@ -401,7 +402,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
               child: Material(
                 color: q.isEmpty ? Colors.transparent : pal.accent,
                 shape: const CircleBorder(),
-                child: InkWell(customBorder: const CircleBorder(), onTap: _submit, child: SizedBox(width: 44, height: 44, child: Icon(LucideIcons.arrowRight, size: 18, color: q.isEmpty ? muted : pal.onAccent))),
+                child: InkWell(customBorder: const CircleBorder(), onTap: _submit, child: SizedBox(width: 44, height: 44, child: Icon(ico(LucideIcons.arrowRight), size: 18, color: q.isEmpty ? muted : pal.onAccent))),
               ),
             ),
           ),
@@ -421,7 +422,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
                 constraints: const BoxConstraints(minHeight: 54),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(children: [
-                  Icon(LucideIcons.cornerDownLeft, size: 18, color: pal.accent),
+                  Icon(ico(LucideIcons.cornerDownLeft), size: 18, color: pal.accent),
                   const SizedBox(width: 12),
                   Expanded(child: Text(t('Перейти: {ref}', {'ref': hit.label}), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: pal.text))),
                 ]),
@@ -438,7 +439,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           height: 30,
           child: Row(children: [
             // значок истории, затем недавние книги
-            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: Icon(LucideIcons.history, size: 16, color: muted))),
+            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: Icon(ico(LucideIcons.history), size: 16, color: muted))),
             Expanded(
               // маленькие капсулы (высота 28) с лёгкой заливкой — видно, что это кнопки, и места почти не занимают;
               // текущая книга — цветом акцента
@@ -594,7 +595,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
             child: SizedBox(
               height: 52,
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(LucideIcons.bookOpen, size: 19, color: pal.accent),
+                Icon(ico(LucideIcons.bookOpen), size: 19, color: pal.accent),
                 const SizedBox(width: 10),
                 Text(t('С начала главы'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: pal.text)),
               ]),

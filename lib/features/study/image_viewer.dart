@@ -10,6 +10,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../ui/kit.dart' show LucideIcons, Spinner;
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 const _maxScale = 5.0;
 const _tapScale = 2.5;
@@ -89,7 +90,7 @@ class _ViewerState extends State<_Viewer> {
                       alignment: PlaceholderAlignment.middle,
                       child: GestureDetector(
                         onTap: () => launchUrl(Uri.parse(src), mode: LaunchMode.externalApplication),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(t('источник'), style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline)), const SizedBox(width: 3), const Icon(LucideIcons.externalLink, size: 12)]),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Text(t('источник'), style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline)), const SizedBox(width: 3), Icon(ico(LucideIcons.externalLink), size: 12)]),
                       ),
                     ),
                   ],
@@ -115,7 +116,7 @@ class _RoundBtn extends StatelessWidget {
         child: Material(
           color: const Color(0x14FFFFFF),
           shape: const CircleBorder(),
-          child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: Tooltip(message: label, child: SizedBox(width: 44, height: 44, child: Icon(icon, size: 24, color: const Color(0xFFF2EFE9))))),
+          child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: Tooltip(message: label, child: SizedBox(width: 44, height: 44, child: Icon(ico(icon), size: 24, color: const Color(0xFFF2EFE9))))),
         ),
       );
 }

@@ -10,6 +10,7 @@ import '../plans/ui_kit.dart';
 import '../plans/verse_text.dart';
 import 'sermon_store.dart';
 import 'sermons_sheet.dart';
+import '../../ui/ios_style.dart';
 
 class SermonAddSheet extends ConsumerStatefulWidget {
   const SermonAddSheet({super.key, required this.pane, required this.refs, required this.moduleId, this.fragment});
@@ -74,7 +75,7 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
                 width: 68,
                 height: 68,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: mix(kOk, 0.14, pal.panel), boxShadow: [BoxShadow(color: mix(kOk, 0.06, Colors.transparent), spreadRadius: 6)]),
-                child: const Icon(LucideIcons.check, size: 34, color: kOk),
+                child: Icon(ico(LucideIcons.check), size: 34, color: kOk),
               ),
             ),
           ),
@@ -122,7 +123,7 @@ class _SermonAddSheetState extends ConsumerState<SermonAddSheet> {
           const SizedBox(height: 20), // margin-bottom 8 + промежуток 12
           GroupTitle(t('Или выберите проповедь')),
           const SizedBox(height: 2),
-          for (final s in sermons) bleed(SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(LucideIcons.plus, size: 18, color: pal.accent), onTap: () => _add('${s['id']}', '${s['title']}'))),
+          for (final s in sermons) bleed(SermonRow(pal: pal, sermon: s, shortDate: true, trailing: Icon(ico(LucideIcons.plus), size: 18, color: pal.accent), onTap: () => _add('${s['id']}', '${s['title']}'))),
         ],
       ]),
     );

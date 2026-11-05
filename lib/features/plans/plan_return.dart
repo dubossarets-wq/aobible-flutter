@@ -7,6 +7,7 @@ import 'plan_logic.dart';
 import 'plan_mode.dart';
 import 'plan_store.dart';
 import 'ui_kit.dart';
+import '../../ui/ios_style.dart';
 
 class PlanReturnPill extends ConsumerWidget {
   const PlanReturnPill({super.key});
@@ -38,7 +39,7 @@ class PlanReturnPill extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.cornerUpLeft, size: 16, color: pal.onAccent),
+                      Icon(ico(LucideIcons.cornerUpLeft), size: 16, color: pal.onAccent),
                       const SizedBox(width: 7),
                       Text(t('К плану · {done} из {total}', {'done': '$done', 'total': '${rs.length}'}), style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: pal.onAccent)),
                     ]),
@@ -48,7 +49,7 @@ class PlanReturnPill extends ConsumerWidget {
                   message: t('Скрыть кнопку возврата к плану'),
                   child: InkWell(
                     onTap: () => dismissPlanReturn(e.key),
-                    child: Padding(padding: const EdgeInsets.fromLTRB(6, 10, 12, 10), child: Icon(LucideIcons.x, size: 15, color: pal.onAccent.withValues(alpha: 0.8))),
+                    child: Padding(padding: const EdgeInsets.fromLTRB(6, 10, 12, 10), child: Icon(ico(LucideIcons.x), size: 15, color: pal.onAccent.withValues(alpha: 0.8))),
                   ),
                 ),
               ]),

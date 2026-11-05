@@ -16,6 +16,7 @@ import '../hub.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
 import 'audio_player.dart';
+import '../../ui/ios_style.dart';
 
 const rates = [0.75, 1.0, 1.25, 1.5];
 String rateText(double r) => '${r == r.roundToDouble() ? r.toInt() : r}×';
@@ -189,7 +190,7 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
                                         padding: const EdgeInsets.fromLTRB(8, 3, 10, 3),
                                         decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
                                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                          SizedBox(width: 14, child: Icon(LucideIcons.cornerUpLeft, size: 14, color: pal.accent)),
+                                          SizedBox(width: 14, child: Icon(ico(LucideIcons.cornerUpLeft), size: 14, color: pal.accent)),
                                           const SizedBox(width: 5),
                                           Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
                                         ]),
@@ -284,7 +285,7 @@ class _ListenHere extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 10, 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(width: 14, child: Icon(LucideIcons.play, size: 12, color: pal.accent)),
+                SizedBox(width: 14, child: Icon(ico(LucideIcons.play), size: 12, color: pal.accent)),
                 const SizedBox(width: 5),
                 Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: style)),
               ]),
@@ -385,7 +386,7 @@ class _Btn extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: on ? BoxDecoration(shape: BoxShape.circle, color: pal.accent.withValues(alpha: 0.12)) : null,
-            child: Icon(icon, size: size, color: on ? pal.accent : pal.text),
+            child: Icon(ico(icon), size: size, color: on ? pal.accent : pal.text),
           ),
         ),
       );

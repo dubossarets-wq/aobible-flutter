@@ -11,6 +11,7 @@ import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../../ui/ios_style.dart';
 
 export '../../ui/kit.dart';
 
@@ -138,7 +139,7 @@ class ChipBtn extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (done) ...[const Icon(LucideIcons.check, size: 12, color: kOk), const SizedBox(width: 5)],
+            if (done) ...[Icon(ico(LucideIcons.check), size: 12, color: kOk), const SizedBox(width: 5)],
             Text(label, style: TextStyle(fontSize: 13.8, color: done ? pal.muted : pal.text)),
             if (sub != null) ...[const SizedBox(width: 5), Text(sub!, style: TextStyle(fontSize: 12, color: pal.muted))],
           ]),

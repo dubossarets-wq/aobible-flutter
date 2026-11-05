@@ -893,7 +893,7 @@ class _BarCrumb extends StatelessWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg)))),
               // стрелка ˅ — на одной линии с поднятой надписью
-              if (chevron) ...[const SizedBox(width: 4), Transform.translate(offset: const Offset(0, -0.5), child: Icon(LucideIcons.chevronDown, size: 16, color: fg.withValues(alpha: 0.6)))],
+              if (chevron) ...[const SizedBox(width: 4), Transform.translate(offset: const Offset(0, -0.5), child: Icon(ico(LucideIcons.chevronDown), size: 16, color: fg.withValues(alpha: 0.6)))],
             ]),
           ),
         ),
@@ -925,7 +925,7 @@ class _BarCrumb extends StatelessWidget {
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 220),
                           opacity: tools!.on ? 1 : 0,
-                          child: Icon(LucideIcons.slidersHorizontal, size: 16, color: fg.withValues(alpha: 0.75)),
+                          child: Icon(ico(LucideIcons.slidersHorizontal), size: 16, color: fg.withValues(alpha: 0.75)),
                         ),
                       ),
                     ),

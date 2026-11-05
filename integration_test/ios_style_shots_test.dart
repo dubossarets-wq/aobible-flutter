@@ -20,6 +20,10 @@ void main() {
   const dark = bool.fromEnvironment('DARK');
 
   testWidgets('стиль iPhone: снимки', (tester) async {
+    // окно как у iPhone 16 Pro: 402×874 pt
+    tester.view.physicalSize = const Size(402 * 2, 874 * 2);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
     await app.main();
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 250));
@@ -36,7 +40,8 @@ void main() {
     Future<void> shot(String name) async {
       final rv = tester.binding.renderViews.first;
       final layer = rv.debugLayer! as OffsetLayer;
-      final img = await layer.toImage(Offset.zero & rv.size, pixelRatio: 1);
+      // слой окна — в физических пикселях (402×874 pt × 2)
+      final img = await layer.toImage(Offset.zero & tester.view.physicalSize, pixelRatio: 1);
       final png = await img.toByteData(format: ui.ImageByteFormat.png);
       Directory(dir).createSync(recursive: true);
       File('$dir/$name.png').writeAsBytesSync(png!.buffer.asUint8List());
@@ -85,6 +90,35 @@ void main() {
         await wait(10);
         await tester.drag(find.byType(Scrollable).last, const Offset(0, -600));
       });
+      Future<void> sub(String page, String row) async {
+        await fromMore(page);
+        await wait(10);
+        final f = find.text(row);
+        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byType(Scrollable).last);
+        await wait(4);
+        await tester.tap(f.first, warnIfMissed: false);
+      }
+
+      Future<void> low(Future<void> Function() open) async {
+        await open();
+        await wait(10);
+        await tester.drag(find.byType(Scrollable).last, const Offset(0, -700));
+      }
+
+      await step('06b-settings-low', () => low(() => fromMore('Настройки')));
+      for (final (i, r) in ['Шрифт', 'Номера и заголовки', 'Фон', 'Цвета', 'Кнопки и панели', 'Комментарии'].indexed) {
+        await step('07-${'cdefgh'[i]}-$r', () => sub('Оформление', r));
+      }
+      await step('05b-more-low', () => low(() => tester.tap(find.text('Ещё').last)));
+      await step('11-about', () => fromMore('О приложении'));
+      await step('12-whatsnew', () => fromMore('Что нового'));
+      await step('13-bookmarks', () => fromMore('Закладки и заметки'));
+      await step('14-sermons', () => fromMore('Проповеди'));
+      await step('15-plans', () => fromMore('Планы чтения'));
+      await step('16-maps', () => fromMore('Карты'));
+      await step('17-report', () => fromMore('Сообщить о проблеме'));
+      // выделение стиха: нажатие на текст первой панели
+      await step('18-selection', () => tester.tapAt(const Offset(200, 260)));
       await step('08-library', () => fromMore('Библиотека модулей'));
       // капсула первой панели: слева — перевод, справа — место
       await step('09-goto', () => tester.tapAt(const Offset(130, 22)));

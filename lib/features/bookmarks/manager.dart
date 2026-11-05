@@ -13,6 +13,7 @@ import '../../ui/kit.dart';
 import 'marks.dart';
 import 'sheets.dart';
 import 'ui.dart';
+import '../../ui/ios_style.dart';
 
 void openBookmarksPage(BuildContext context, WidgetRef ref, int pane) {
   showAobSheet<void>(context, builder: (_) => BookmarksPage(pane: pane), tab: 'saved'); // BookmarksManager.jsx: BottomSheet initial={2}
@@ -102,7 +103,7 @@ String _full(Map x) => Books.instance.formatRef('${x['book']}', (x['chapter'] as
 
 /// Значок + название в заголовке строки (.list-title: значок 14, промежуток 6)
 Widget _titleRow(IconData icon, Color color, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: color),
+      Icon(ico(icon), size: 14, color: color),
       const SizedBox(width: 6),
       Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis)),
     ]);
@@ -133,8 +134,10 @@ class _BookmarksTab extends ConsumerWidget {
       if (list.isEmpty)
         EmptyState(icon: LucideIcons.bookmark, title: t('Закладок пока нет'), text: t('Зажмите стих и нажмите «Закладка».'))
       else
-        for (final b in list)
+        for (final (bi, b) in list.indexed)
           AobListRow(
+            first: bi == 0,
+            last: bi == list.length - 1,
             id: 'b${itemKey(b)}${b['at']}',
             title: _titleRow(LucideIcons.bookmark, pal.accent, _full(b)),
             meta: fmtDate(b['at']),
@@ -167,6 +170,8 @@ class _FavoritesTab extends ConsumerWidget {
       itemBuilder: (_, i) {
         final f = list[i];
         return AobListRow(
+          first: i == 0,
+          last: i == list.length - 1,
           id: 'f${itemKey(f)}',
           title: Row(mainAxisSize: MainAxisSize.min, children: [
             FillIcon(path: lucideHeartPath, size: 14, color: loveColor, stroke: true),
@@ -241,6 +246,8 @@ class _NotesTabState extends ConsumerState<_NotesTab> {
         final n = shown[searching ? k - 1 : k];
         final label = (n.$2['label'] as String?)?.isNotEmpty == true ? n.$2['label'] as String : Books.instance.formatRef(n.$1.book, n.$1.chapter, n.$1.verse, full: true);
         return AobListRow(
+          first: (searching ? k - 1 : k) == 0,
+          last: (searching ? k - 1 : k) == shown.length - 1,
           id: 'n${refKey(n.$1)}',
           title: _titleRow(LucideIcons.notebookPen, pal.accent, label),
           meta: fmtDate(n.$2['updated'] ?? n.$2['at']),
@@ -309,6 +316,8 @@ class _HighlightsTabState extends ConsumerState<_HighlightsTab> {
             final x = list[i];
             final r = x.$1;
             return AobListRow(
+              first: i == 0,
+              last: i == list.length - 1,
               id: 'h${refKey(r)}',
               title: Row(mainAxisSize: MainAxisSize.min, children: [
                 _swatch(hlColor(x.$2)?.color ?? pal.line),
@@ -408,8 +417,10 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
         Align(alignment: Alignment.centerLeft, child: AobButton(small: true, icon: LucideIcons.chevronLeft, label: t('Все подборки'), onTap: () => setState(() => _cur = null))),
         const SizedBox(height: 12),
         GroupTitle('${c['name']} · ${items.length}'),
-        for (final x in items)
+        for (final (xi, x) in items.indexed)
           AobListRow(
+            first: xi == 0,
+            last: xi == items.length - 1,
             id: 'ci${c['id']}${itemKey(x)}',
             title: Text(_full(x), maxLines: 1, overflow: TextOverflow.ellipsis),
             text: x['text'] as String?,
@@ -426,6 +437,8 @@ class _CollectionsTabState extends ConsumerState<_CollectionsTab> {
       itemBuilder: (_, i) {
         final x = cols[i];
         return AobListRow(
+          first: i == 0,
+          last: i == cols.length - 1,
           id: 'c${x['id']}',
           title: _titleRow(LucideIcons.folder, pal.accent, '${x['name']}'),
           meta: t('{n} ст.', {'n': '${(x['items'] as List).length}'}),
@@ -466,7 +479,7 @@ class _HistoryTab extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
               child: Row(children: [
-                Icon(LucideIcons.history, size: 16, color: cur ? pal.accent : pal.text),
+                Icon(ico(LucideIcons.history), size: 16, color: cur ? pal.accent : pal.text),
                 const SizedBox(width: 10),
                 Expanded(child: Text(_full({'book': r.book, 'chapter': r.chapter, 'verse': r.verse}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: cur ? FontWeight.w600 : FontWeight.w500, color: cur ? pal.accent : pal.text))),
                 if (cur) Text(t('сейчас'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
@@ -507,8 +520,8 @@ class _ContinueCardState extends State<_ContinueCard> {
         scale: _down ? 0.98 : 1,
         duration: const Duration(milliseconds: 120),
         child: Material(
-          color: mix(pal.accent, 0.1, pal.panel),
-          borderRadius: BorderRadius.circular(16),
+          color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : mix(pal.accent, 0.1, pal.panel),
+          borderRadius: BorderRadius.circular(iosUiNow ? iosRadius : 16),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: widget.onTap,
@@ -535,7 +548,7 @@ class _ContinueCardState extends State<_ContinueCard> {
                   ]),
                 ),
                 const SizedBox(width: 6),
-                Icon(LucideIcons.chevronRight, size: 20, color: pal.muted),
+                Icon(ico(LucideIcons.chevronRight), size: 20, color: pal.muted),
               ]),
             ),
           ),

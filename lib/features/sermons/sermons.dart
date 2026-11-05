@@ -13,6 +13,7 @@ import '../shell/fonts.dart' show menuFlag;
 import 'sermon_add.dart';
 import 'sermon_store.dart';
 import 'sermons_sheet.dart';
+import '../../ui/ios_style.dart';
 
 void register() {
   Hub.addToSermon = (context, ref, refs, moduleId) => showPage(context, (_) => SermonAddSheet(pane: 0, refs: refs, moduleId: moduleId), height: 0.7);
@@ -85,7 +86,7 @@ VerseDecor? _decor(BuildContext context, WidgetRef ref, int pane, String moduleI
                 width: fs * 1.05,
                 height: fs * 1.05,
                 decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(4)),
-                child: Icon(LucideIcons.scrollText, size: fs * 0.72, color: pal.accent),
+                child: Icon(ico(LucideIcons.scrollText), size: fs * 0.72, color: pal.accent),
               ),
             ),
           ),
@@ -150,7 +151,7 @@ class _SermonReturn extends ConsumerWidget {
                             height: 32,
                             child: Row(children: [
                               const SizedBox(width: 8),
-                              Icon(LucideIcons.arrowLeft, size: 16, color: fg),
+                              Icon(ico(LucideIcons.arrowLeft), size: 16, color: fg),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Transform.translate(

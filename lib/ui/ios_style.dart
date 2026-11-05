@@ -49,6 +49,12 @@ Color iosGroupedBg(Palette p, bool elevated) => sysColor(CupertinoColors.systemG
 /// Значок из набора Apple вместо нашего (если есть похожий), иначе — тот же
 IconData iosIcon(IconData i) => _map[i] ?? i;
 
+/// Включён ли сейчас стиль iPhone (ставит главное окно по настройке iosStyle) — для мест без доступа к настройкам
+bool iosUiNow = false;
+
+/// Значок для показа: в стиле iPhone — системный знак iOS (CupertinoIcons, аналог SF Symbols), иначе — как есть
+T ico<T extends IconData?>(T i) => (iosUiNow && i != null ? iosIcon(i) : i) as T;
+
 final Map<IconData, IconData> _map = {
   LucideIcons.x: CupertinoIcons.xmark,
   LucideIcons.plus: CupertinoIcons.add,
@@ -129,6 +135,41 @@ final Map<IconData, IconData> _map = {
   LucideIcons.textQuote: CupertinoIcons.text_quote,
   LucideIcons.pipette: CupertinoIcons.eyedropper,
   LucideIcons.hand: CupertinoIcons.hand_raised,
+  LucideIcons.rows2: CupertinoIcons.square_split_1x2,
+  LucideIcons.scanText: CupertinoIcons.doc_text_viewfinder,
+  LucideIcons.messageSquareWarning: CupertinoIcons.exclamationmark_bubble,
+  LucideIcons.link: CupertinoIcons.link,
+  LucideIcons.globe: CupertinoIcons.globe,
+  LucideIcons.eyeOff: CupertinoIcons.eye_slash,
+  LucideIcons.eye: CupertinoIcons.eye,
+  LucideIcons.cornerDownLeft: CupertinoIcons.arrow_turn_down_left,
+  LucideIcons.circlePlay: CupertinoIcons.play_circle,
+  LucideIcons.bookOpenText: CupertinoIcons.book,
+  LucideIcons.satellite: CupertinoIcons.antenna_radiowaves_left_right,
+  LucideIcons.listChecks: CupertinoIcons.checkmark_rectangle,
+  LucideIcons.italic: CupertinoIcons.italic,
+  LucideIcons.flame: CupertinoIcons.flame,
+  LucideIcons.ellipsis: CupertinoIcons.ellipsis,
+  LucideIcons.copyPlus: CupertinoIcons.plus_square_on_square,
+  LucideIcons.compass: CupertinoIcons.compass,
+  LucideIcons.clock: CupertinoIcons.clock,
+  LucideIcons.circleCheck: CupertinoIcons.checkmark_circle,
+  LucideIcons.circleAlert: CupertinoIcons.exclamationmark_circle,
+  LucideIcons.chevronUp: CupertinoIcons.chevron_up,
+  LucideIcons.calendarPlus: CupertinoIcons.calendar_badge_plus,
+  LucideIcons.bookCopy: CupertinoIcons.book,
+  LucideIcons.bold: CupertinoIcons.bold,
+  LucideIcons.bell: CupertinoIcons.bell,
+  LucideIcons.arrowUp: CupertinoIcons.arrow_up,
+  LucideIcons.arrowDown: CupertinoIcons.arrow_down,
+  LucideIcons.alignLeft: CupertinoIcons.text_alignleft,
+  LucideIcons.alignJustify: CupertinoIcons.text_justify,
+  LucideIcons.alarmClockPlus: CupertinoIcons.alarm,
+  LucideIcons.alarmClock: CupertinoIcons.alarm,
+  LucideIcons.presentation: CupertinoIcons.rectangle_on_rectangle,
+  LucideIcons.panelTop: CupertinoIcons.rectangle,
+  LucideIcons.mousePointerClick: CupertinoIcons.hand_point_right,
+  LucideIcons.eraser: CupertinoIcons.clear,
 };
 
 // --- Группы строк, как в «Настройках» iPhone -----------------------------------------------------------
@@ -231,6 +272,32 @@ class IosSection extends StatelessWidget {
           ],
         ]),
       );
+}
+
+/// Строка длинного списка (строится по ходу прокрутки) как часть карточки группы iOS: у первой — скруглён верх,
+/// у последней — низ; между строками — тонкая линия от начала текста
+class IosCardItem extends StatelessWidget {
+  const IosCardItem({super.key, required this.child, required this.pal, this.first = false, this.last = false, this.indent = iosRowIconLeft, this.margin = iosEdge - 16});
+  final Widget child;
+  final Palette pal;
+  final bool first, last;
+  final double indent, margin;
+  @override
+  Widget build(BuildContext context) {
+    const r = Radius.circular(iosRadius);
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: margin),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: iosCardAt(pal, IosElevated.of(context)),
+        borderRadius: BorderRadius.only(topLeft: first ? r : Radius.zero, topRight: first ? r : Radius.zero, bottomLeft: last ? r : Radius.zero, bottomRight: last ? r : Radius.zero),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child,
+        if (!last) Padding(padding: EdgeInsets.only(left: indent), child: Container(height: 0.5, color: pal.line)),
+      ]),
+    );
+  }
 }
 
 /// Значок строки, как в «Настройках» iPhone: белый знак в цветном скруглённом квадрате 30×30

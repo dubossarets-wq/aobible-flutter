@@ -17,6 +17,7 @@ import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import 'places_data.dart';
 import 'tile_map.dart';
+import '../../ui/ios_style.dart';
 
 const mapStyle = 'https://tiles.openfreemap.org/styles/liberty';
 const satelliteTiles = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg';
@@ -175,7 +176,7 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(children: [
-                Icon(LucideIcons.mapPin, size: 18, color: fg),
+                Icon(ico(LucideIcons.mapPin), size: 18, color: fg),
                 const SizedBox(width: 8),
                 Expanded(child: Text(place.name, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17.28, color: fg))),
               ]),
@@ -273,7 +274,7 @@ class _BarIcon extends StatelessWidget {
             type: MaterialType.transparency,
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
-            child: InkWell(onTap: onTap, child: Tooltip(message: tooltip, child: Icon(icon, size: size, color: color))),
+            child: InkWell(onTap: onTap, child: Tooltip(message: tooltip, child: Icon(ico(icon), size: size, color: color))),
           ),
         ),
       );
@@ -304,7 +305,7 @@ class _StatusState extends State<_Status> with SingleTickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(kRadius), boxShadow: const [BoxShadow(color: Color(0x26000000), blurRadius: 16, offset: Offset(0, 4))]),
       child: Row(children: [
-        RotationTransition(turns: _spin, child: Icon(LucideIcons.loaderCircle, size: 20, color: pal.text)),
+        RotationTransition(turns: _spin, child: Icon(ico(LucideIcons.loaderCircle), size: 20, color: pal.text)),
         const SizedBox(width: 8),
         Flexible(child: Text(widget.text, style: TextStyle(fontSize: 14.4, color: pal.text))),
       ]),
@@ -374,7 +375,7 @@ class _PlaceCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 // Стрелка вниз у раскрытой, вверх у свёрнутой (.place-chev)
-                AnimatedRotation(turns: open ? 0 : 0.5, duration: const Duration(milliseconds: 200), child: Icon(LucideIcons.chevronDown, size: 18, color: pal.muted)),
+                AnimatedRotation(turns: open ? 0 : 0.5, duration: const Duration(milliseconds: 200), child: Icon(ico(LucideIcons.chevronDown), size: 18, color: pal.muted)),
               ]),
             ),
           ),
@@ -434,7 +435,7 @@ class _PlaceCard extends StatelessWidget {
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(t('Спутник Google'), style: TextStyle(color: pal.accent, fontSize: 12.8)),
                           const SizedBox(width: 3),
-                          Icon(LucideIcons.externalLink, size: 12, color: pal.accent),
+                          Icon(ico(LucideIcons.externalLink), size: 12, color: pal.accent),
                         ]),
                       ),
                       Text(' · ${place.license.isEmpty ? 'OpenBible.info, CC BY 4.0' : place.license}', style: TextStyle(color: pal.muted, fontSize: 12.8)),

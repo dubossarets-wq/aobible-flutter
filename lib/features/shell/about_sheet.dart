@@ -122,7 +122,7 @@ class _AboutSheetState extends ConsumerState<AboutSheet> {
         children: page
             ? [DefaultTextStyle.merge(style: const TextStyle(height: 1.55), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body))]
             : [
-                DefaultTextStyle.merge(style: TextStyle(height: 1.5, color: pal.muted, fontSize: 15), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _aboutText())),
+                DefaultTextStyle.merge(style: TextStyle(height: 1.5, color: pal.muted, fontSize: 15), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final w in _aboutText()) Padding(padding: const EdgeInsets.only(bottom: 10), child: w)])),
                 IosNavRow(title: t('Лицензии и авторы'), onTap: () => showAppSheet(context, (_) => const AboutSheet(tab: 'licenses'))),
                 IosNavRow(title: t('Конфиденциальность'), onTap: () => showAppSheet(context, (_) => const AboutSheet(tab: 'privacy'))),
                 GroupTitle(t('Связь')),

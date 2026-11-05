@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
 import '../../ui/kit.dart';
+import '../../ui/ios_style.dart';
 
 void toast(BuildContext context, String text) => toastOn(context.mounted ? ScaffoldMessenger.maybeOf(context) : null, text);
 
@@ -124,12 +125,12 @@ class EmptyState extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 28, color: pal.muted),
-          const SizedBox(height: 8),
-          Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)),
+          Icon(ico(icon), size: iosUiNow ? 48 : 28, color: pal.muted),
+          SizedBox(height: iosUiNow ? 14 : 8),
+          Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: pal.text) : TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)),
           if (text != null) ...[
-            const SizedBox(height: 8),
-            ConstrainedBox(constraints: const BoxConstraints(maxWidth: 290), child: Text(text!, textAlign: TextAlign.center, style: TextStyle(fontSize: 14.4, height: 1.45, color: pal.muted))),
+            SizedBox(height: iosUiNow ? 6 : 8),
+            ConstrainedBox(constraints: const BoxConstraints(maxWidth: 290), child: Text(text!, textAlign: TextAlign.center, style: TextStyle(fontSize: iosUiNow ? 17 : 14.4, height: iosUiNow ? 1.3 : 1.45, color: pal.muted))),
           ],
         ]),
       ),
@@ -154,7 +155,10 @@ class AobListRow extends ConsumerWidget {
     required this.deleteLabel,
     this.actionText,
     this.extra = const [],
+    this.first = false,
+    this.last = false,
   });
+  final bool first, last; // место в списке: в стиле iPhone строки складываются в карточку группы
   final Object id;
   final Widget title;
   final String? meta, text;
@@ -168,8 +172,10 @@ class AobListRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     final metaText = meta == null ? null : Text(meta!, style: TextStyle(fontSize: 13.1, fontWeight: FontWeight.w400, color: pal.muted));
-    // строка — от края до края окна (bleed поверх полей 16), и подсветка, и линия, и красная полоса; отступ 20 — у содержимого
-    return bleed(Dismissible(
+    // строка — от края до края окна (bleed поверх полей 16), и подсветка, и линия, и красная полоса; отступ 20 — у содержимого.
+    // Стиль iPhone: строка — часть карточки группы, удаление — смахиванием (без значка корзины в строке)
+    final ios = iosStyleOf(ref);
+    final row = Dismissible(
       key: ValueKey(id),
       direction: DismissDirection.endToStart,
       onDismissed: (_) => onDelete(),
@@ -179,20 +185,20 @@ class AobListRow extends ConsumerWidget {
         child: SizedBox(
           width: 88,
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(LucideIcons.trash2, size: 18, color: Colors.white),
+            Icon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
             const SizedBox(height: 3),
             Text(actionText ?? t('Удалить'), maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white)),
           ]),
         ),
       ),
       child: Material(
-        color: pal.panel,
+        color: ios ? Colors.transparent : pal.panel,
         child: InkWell(
           onTap: onTap,
           child: Container(
           // справа 12: у кнопки 32 значок 16 — его край приходится на 20
-          padding: const EdgeInsets.only(left: 20, right: 12),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+          padding: ios ? const EdgeInsets.only(left: iosRowIconLeft, right: iosRowRight) : const EdgeInsets.only(left: 20, right: 12),
+          decoration: ios ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             Expanded(
                 child: Padding(
@@ -209,12 +215,13 @@ class AobListRow extends ConsumerWidget {
                 ),
             ),
             ...extra,
-            IconBtn(icon: LucideIcons.trash2, subtle: true, size: 16, tooltip: deleteLabel, onTap: onDelete),
+            if (!ios) IconBtn(icon: LucideIcons.trash2, subtle: true, size: 16, tooltip: deleteLabel, onTap: onDelete),
           ]),
         ),
         ),
       ),
-    ));
+    );
+    return ios ? IosCardItem(pal: pal, first: first, last: last, child: row) : bleed(row);
   }
 }
 

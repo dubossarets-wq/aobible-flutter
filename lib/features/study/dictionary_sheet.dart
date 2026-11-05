@@ -17,6 +17,7 @@ import 'lexicon.dart';
 import 'morph.dart';
 import 'sheet.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 /// Слово оригинала, которому соответствует нажатое слово (из подстрочника)
 class OrigInfo {
@@ -319,7 +320,7 @@ class _DictRow extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
-            Icon(LucideIcons.bookText, size: 20, color: pal.accent),
+            Icon(ico(LucideIcons.bookText), size: 20, color: pal.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

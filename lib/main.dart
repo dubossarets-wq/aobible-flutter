@@ -21,7 +21,7 @@ import 'features/hub.dart';
 import 'ui/bootstrap_screen.dart';
 import 'ui/home_screen.dart';
 import 'ui/keyboard_emu.dart';
-import 'ui/ios_style.dart' show iosTextTheme;
+import 'ui/ios_style.dart' show iosTextTheme, iosUiNow;
 import 'ui/kit.dart' show SheetObserver;
 
 Future<void> main() async {
@@ -131,7 +131,8 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       // iPhone: системный шрифт (SF Pro) с системным трекингом; общий текст без интервалов Material
       theme: () {
         final base = ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true);
-        return ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle'))) ? base.copyWith(textTheme: iosTextTheme(base.textTheme)) : base;
+        iosUiNow = ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
+        return iosUiNow ? base.copyWith(textTheme: iosTextTheme(base.textTheme)) : base;
       }(),
       // Строка состояния и нижняя системная панель — цвета темы. Через AnnotatedRegion: MaterialApp сам ставит
       // светлые/тёмные значки при каждой сборке, прямой вызов SystemChrome проиграл бы ему

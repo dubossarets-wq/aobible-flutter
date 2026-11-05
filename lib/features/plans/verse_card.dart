@@ -17,6 +17,7 @@ import 'ui_kit.dart';
 import 'verse_image.dart';
 import 'verse_list.dart';
 import 'verse_text.dart';
+import '../../ui/ios_style.dart';
 
 class DayVerse {
   const DayVerse(this.ref, this.text, this.module);
@@ -183,7 +184,7 @@ class _Act extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: label == null ? 13 : 8, vertical: 11),
           child: Row(mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 18, color: fg),
+            Icon(ico(icon), size: 18, color: fg),
             if (label != null) ...[
               const SizedBox(width: 6),
               Flexible(child: Text(label!, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: fg))),

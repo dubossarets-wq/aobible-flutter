@@ -24,6 +24,7 @@ import 'audio_bar.dart';
 import 'audio_download.dart';
 import 'audio_engine.dart';
 import 'audio_logic.dart';
+import '../../ui/ios_style.dart';
 
 bool _open = false;
 
@@ -182,7 +183,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                         label: t('Свернуть проигрыватель'),
                         child: InkResponse(
                           onTap: () => Navigator.of(context).pop(),
-                          child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: pal.text.withValues(alpha: 0.08)), child: Icon(LucideIcons.chevronDown, size: 26, color: pal.text)),
+                          child: Container(width: 44, height: 44, decoration: BoxDecoration(shape: BoxShape.circle, color: pal.text.withValues(alpha: 0.08)), child: Icon(ico(LucideIcons.chevronDown), size: 26, color: pal.text)),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -314,7 +315,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
             ]),
             // Громкость (.ap-volume: промежуток 10, значки 18)
             Row(spacing: 10, children: [
-              Icon(LucideIcons.volume1, size: 18, color: pal.muted),
+              Icon(ico(LucideIcons.volume1), size: 18, color: pal.muted),
               Expanded(
                 child: SizedBox(
                   height: 24,
@@ -328,7 +329,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                   ),
                 ),
               ),
-              Icon(LucideIcons.volume2, size: 18, color: pal.muted),
+              Icon(ico(LucideIcons.volume2), size: 18, color: pal.muted),
             ]),
             // .ap-extras: между краями, промежуток 8
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, spacing: 8, children: [
@@ -347,7 +348,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
                 label: '${t('Таймер сна')}: $sleepLabel',
                 pal: pal,
                 child: Row(mainAxisSize: MainAxisSize.min, spacing: 6, children: [
-                  Icon(LucideIcons.moon, size: 16, color: a.sleep != null ? pal.accent : pal.text),
+                  Icon(ico(LucideIcons.moon), size: 16, color: a.sleep != null ? pal.accent : pal.text),
                   if (a.sleep != null) Text(sleepLabel),
                 ]),
               ),
@@ -355,7 +356,7 @@ class _AudioPlayerPageState extends ConsumerState<AudioPlayerPage> {
               InkResponse(
                 onTap: _e.stop,
                 radius: 24,
-                child: SizedBox(width: 40, height: 40, child: Icon(LucideIcons.x, size: 20, color: pal.text, semanticLabel: t('Закрыть аудио'))),
+                child: SizedBox(width: 40, height: 40, child: Icon(ico(LucideIcons.x), size: 20, color: pal.text, semanticLabel: t('Закрыть аудио'))),
               ),
             ]),
           ]),

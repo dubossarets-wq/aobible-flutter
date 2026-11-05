@@ -24,6 +24,7 @@ import '../features/shell/colors.dart' show headingColor, strongColor;
 import '../features/shell/fonts.dart' show readerTextStyle, textAlignOf;
 import '../features/shell/tour_targets.dart' show tourResolvers, findElement, rectOfElement;
 import 'kit.dart';
+import 'ios_style.dart';
 
 /// Пауза двойного касания (DOUBLE_TAP_MS в tapState.js)
 const kDoubleTapMs = 350;
@@ -918,7 +919,7 @@ class _PartInline extends ConsumerWidget {
           message: tip,
           child: InkWell(
             onTap: onTap,
-            child: SizedBox(width: h, height: h, child: Icon(icon, size: 18, color: onTap == null ? pal.text.withValues(alpha: 0.4) : pal.text)),
+            child: SizedBox(width: h, height: h, child: Icon(ico(icon), size: 18, color: onTap == null ? pal.text.withValues(alpha: 0.4) : pal.text)),
           ),
         );
     Widget divider() => Container(width: 1, height: h - 16, color: pal.line);
@@ -951,7 +952,7 @@ class _PartInline extends ConsumerWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(LucideIcons.scrollText, size: 17, color: pal.onAccent),
+                          Icon(ico(LucideIcons.scrollText), size: 17, color: pal.onAccent),
                           const SizedBox(width: 6),
                           Text(t('В проповедь'), maxLines: 1, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w500, color: pal.onAccent)),
                         ]),

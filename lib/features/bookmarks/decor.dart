@@ -15,6 +15,7 @@ import 'marks.dart';
 import 'sel_inline.dart';
 import 'sheets.dart';
 import 'ui.dart';
+import '../../ui/ios_style.dart';
 
 VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String moduleId, ReaderItem item, String book) {
   if (item.kind != ItemKind.verse) return null;
@@ -108,7 +109,7 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
             width: fs * 1.25,
             height: fs * 1.05,
             decoration: BoxDecoration(color: const Color(0xfff3e27a), borderRadius: BorderRadius.circular(4)),
-            child: Icon(LucideIcons.penLine, size: fs * 0.62, color: const Color(0xff6b5a10)),
+            child: Icon(ico(LucideIcons.penLine), size: fs * 0.62, color: const Color(0xff6b5a10)),
           ),
         ),
       ),
