@@ -151,5 +151,8 @@ flutter:
 # Проверочная сборка под Windows: уведомления Windows требуют ATL, которого нет в Build Tools этой машины —
 # подменяем их пустой заглушкой (tool/stubs). На Android и iOS этот пакет не используется.
 dependency_overrides:
+  # iOS: версии без моста objective_c (FFI) — с ним приложение падало при запуске на iOS 27 (сбой сборщика мусора Dart)
+  path_provider_foundation: 2.5.1
+  shared_preferences_foundation: 2.5.7
   flutter_local_notifications_windows:
     path: tool/stubs/flutter_local_notifications_windows

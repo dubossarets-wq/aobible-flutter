@@ -39,7 +39,7 @@ jobs:
       - name: Сборка (без подписи)
         run: |
           set -o pipefail
-          flutter build ios --release --no-codesign -v 2>&1 | tee build.log > /dev/null || { echo '--- ошибки компилятора ---'; grep -E "error:|\.swift:[0-9]+:[0-9]+:" build.log | sort -u | head -60; exit 1; }
+          flutter build ios --release --no-codesign --split-debug-info=build/symbols -v 2>&1 | tee build.log > /dev/null || { echo '--- ошибки компилятора ---'; grep -E "error:|\.swift:[0-9]+:[0-9]+:" build.log | sort -u | head -60; exit 1; }
 
       - name: Файл .ipa
         run: |
@@ -47,6 +47,15 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app Payload/
           zip -qry AOBible-unsigned.ipa Payload
           ls -la AOBible-unsigned.ipa
+
+      - name: Символы для разбора журналов сбоя
+        uses: actions/upload-artifact@v4
+        with:
+          name: AOBible-ios-symbols
+          path: |
+            build/symbols
+            build/ios/iphoneos/Runner.app/Frameworks/App.framework/App
+          retention-days: 30
 
       - uses: actions/upload-artifact@v4
         with:
