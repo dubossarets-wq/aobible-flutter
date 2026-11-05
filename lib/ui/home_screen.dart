@@ -1018,7 +1018,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
               ],
               currentIndex: _ids.indexOf(activeId).clamp(0, _ids.length - 1),
               tint: pal.accent,
-              iconSize: 22,
+              iconSize: 19,
               autoHideOnModal: false,
               autoHideOnPageTransition: false,
               onTap: (i) {
