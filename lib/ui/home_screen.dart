@@ -1000,10 +1000,12 @@ class _TabBarState extends ConsumerState<_TabBar> {
     // iOS 26: системная панель вкладок (Liquid Glass) — значки SF Symbols, выбранная вкладка — цветом акцента.
     // Над окнами остаётся видимой, как и наша (autoHideOnModal: false)
     if (nativeGlass) {
+      // высоту панель берёт свою (системную), снизу — только отступ под полосу «домой»
       return Padding(
-        padding: EdgeInsets.fromLTRB(12, 4, 12, 12 + bottom),
-        child: SizedBox(
-          height: 64,
+        padding: EdgeInsets.fromLTRB(8, 0, 8, bottom > 0 ? bottom - 4 : 8),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: 1,
           child: ValueListenableBuilder<String>(
             valueListenable: tabActive,
             builder: (context, activeId, _) => CNTabBar(
@@ -1016,7 +1018,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
               ],
               currentIndex: _ids.indexOf(activeId).clamp(0, _ids.length - 1),
               tint: pal.accent,
-              height: 64,
+              iconSize: 22,
               autoHideOnModal: false,
               autoHideOnPageTransition: false,
               onTap: (i) {
