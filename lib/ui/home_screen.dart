@@ -34,7 +34,11 @@ export 'kit.dart' show tabActive; // переехал в kit.dart (его под
 final homeMounted = ValueNotifier<bool>(false);
 
 /// Высота вкладок: 4 + капсула 64 + 12 + системный отступ снизу
-double tabBarHeight(BuildContext context) => 80 + MediaQuery.paddingOf(context).bottom;
+double tabBarHeight(BuildContext context) => nativeGlass ? iosEdge + _nativeTabCapsule : 80 + MediaQuery.paddingOf(context).bottom;
+
+// Системная панель вкладок iOS 26: капсула высотой ~45 точек, вокруг неё в своей рамке — поля ~18 по бокам
+// и ~17 снизу (измерено по снимку с iPhone). Свои отступы — так, чтобы сама капсула была в iosEdge от краёв и низа
+const _nativeTabCapsule = 46.0, _nativeTabSide = 18.0, _nativeTabBottom = 17.0;
 
 // Короткое название перевода для верхней панели — не длиннее 5 знаков (moduleShort.js).
 // Длинным названиям — общепринятые сокращения, остальным — первые 5 знаков первого слова.
@@ -263,7 +267,8 @@ class _Pane extends ConsumerWidget {
               color: pal.bar,
               boxShadow: mod?.features['interlinear'] == true && ilBar ? null : [BoxShadow(color: pal.line, offset: const Offset(0, 1)), const BoxShadow(color: Color(0x0D000000), offset: Offset(0, 4), blurRadius: 14)],
             ),
-            padding: const EdgeInsets.only(left: 8, right: 4),
+            // стиль iPhone: капсула и значки — на общей линии iosEdge (у значка 22 в кнопке 40 — поле 9)
+            padding: ios ? const EdgeInsets.only(left: iosEdge, right: iosEdge - 9) : const EdgeInsets.only(left: 8, right: 4),
             child: Row(children: [
               // Перевод и место — одна капсула: слева короткое имя перевода (мельче, приглушённо), тонкий разделитель,
               // справа место — полное название книги («Бытие 1:1»), длинное или не помещается — сокращение; у каждой
@@ -1004,7 +1009,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
     if (nativeGlass) {
       // высоту панель берёт свою (системную), снизу — только отступ под полосу «домой»
       return Padding(
-        padding: EdgeInsets.fromLTRB(8, 0, 8, bottom > 0 ? bottom - 4 : 8),
+        padding: const EdgeInsets.fromLTRB(iosEdge - _nativeTabSide, 0, iosEdge - _nativeTabSide, iosEdge - _nativeTabBottom),
         child: Align(
           alignment: Alignment.bottomCenter,
           heightFactor: 1,

@@ -4,6 +4,7 @@
 // прокрутка — в памяти до перезапуска.
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/fonts.dart' show readerTextStyle;
+import 'ios_style.dart';
 import 'kit.dart';
 
 const _page = 200;
@@ -476,6 +478,9 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   // Поле запроса с крестиком и тёмная квадратная кнопка «Найти» (.search-form)
   Widget _form(Palette pal, {double height = 46}) {
     final focused = _focus.hasFocus;
+    // стиль iPhone: как строка поиска iOS — серая заливка без рамки, лупа внутри слева, круглый крестик справа;
+    // отдельной кнопки «Найти» нет (поиск идёт по мере набора и по кнопке клавиатуры)
+    final ios = iosStyleOf(ref);
     // высота не анимируется (при прокрутке поле ужимается вместе с пальцем); плавно меняется только рамка фокуса
     return SizedBox(
       height: height,
@@ -483,13 +488,16 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       Expanded(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          decoration: BoxDecoration(
-            color: pal.bg,
-            borderRadius: BorderRadius.circular(kRadius * 0.75),
-            border: Border.all(color: focused ? pal.accent : pal.line),
-            boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.22), spreadRadius: 3)] : null,
-          ),
+          decoration: ios
+              ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(10))
+              : BoxDecoration(
+                  color: pal.bg,
+                  borderRadius: BorderRadius.circular(kRadius * 0.75),
+                  border: Border.all(color: focused ? pal.accent : pal.line),
+                  boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.22), spreadRadius: 3)] : null,
+                ),
           child: Row(children: [
+            if (ios) Padding(padding: const EdgeInsets.only(left: 8), child: Icon(CupertinoIcons.search, size: 18, color: pal.muted)),
             Expanded(
               child: BareField(
                 controller: _q,
@@ -501,22 +509,24 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                 },
                 onSubmitted: (_) => _submit(),
                 hint: t('Слово, Ин 3:16 или G26'),
-                style: TextStyle(fontSize: 16, height: 1.25, color: pal.text),
+                style: TextStyle(fontSize: ios ? 17 : 16, height: 1.25, color: pal.text),
                 hintColor: pal.muted,
                 cursorColor: pal.accent,
-                padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+                padding: EdgeInsets.fromLTRB(ios ? 6 : 12, 0, 4, 0),
               ),
             ),
             if (_q.text.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 3),
-                child: IconBtn(icon: LucideIcons.x, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear),
+                child: ios
+                    ? IconBtn(icon: CupertinoIcons.xmark_circle_fill, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear)
+                    : IconBtn(icon: LucideIcons.x, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear),
               ),
           ]),
         ),
       ),
-      const SizedBox(width: 8),
-      Tooltip(
+      if (!ios) const SizedBox(width: 8),
+      if (!ios) Tooltip(
         message: t('Найти'),
         child: Material(
           color: pal.accent,

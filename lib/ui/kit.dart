@@ -3,7 +3,7 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoIcons, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -917,10 +917,11 @@ class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
     final pal = paletteOf(ref);
     final scale = MediaQuery.textScalerOf(context);
     // запас строки — поровну сверху и снизу: надпись ровно посередине плашки
-    TextStyle style(bool on) => TextStyle(fontSize: 14.08, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: on ? FontWeight.w600 : FontWeight.w400, color: on ? pal.accent : pal.text);
+    final ios = iosStyleOf(ref);
+    TextStyle style(bool on) => TextStyle(fontSize: ios ? 13.5 : 14.08, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: on ? FontWeight.w600 : (ios ? FontWeight.w500 : FontWeight.w400), color: on && !ios ? pal.accent : pal.text);
     return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+      padding: EdgeInsets.all(ios ? 2 : 3),
+      decoration: BoxDecoration(color: ios ? iosFill(pal) : pal.muted.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(ios ? 9 : kRadius * 0.75)),
       child: LayoutBuilder(builder: (context, c) {
         const gap = 2.0;
         final maxW = c.maxWidth;
@@ -1007,8 +1008,8 @@ class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
                 height: rects[sel].height,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: pal.panel,
-                    borderRadius: BorderRadius.circular(kRadius * 0.6),
+                    color: ios ? (pal.dark ? const Color(0xff636366) : Colors.white) : pal.panel,
+                    borderRadius: BorderRadius.circular(ios ? 7 : kRadius * 0.6),
                     boxShadow: const [BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1))],
                   ),
                 ),
@@ -1173,21 +1174,25 @@ class _AobInputState extends ConsumerState<AobInput> {
     final pal = paletteOf(ref);
     final w = widget;
     final focused = _focus.hasFocus;
-    final style = w.style ?? TextStyle(fontSize: 16, height: 1.25, color: pal.text);
+    final ios = iosStyleOf(ref);
+    final style = w.style ?? TextStyle(fontSize: ios ? 17 : 16, height: 1.25, color: pal.text);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _focus.requestFocus, // нажатие на поля рамки — тоже в поле
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: w.height,
-        decoration: BoxDecoration(
-          color: pal.bg,
-          borderRadius: BorderRadius.circular(kRadius * 0.75),
-          border: Border.all(color: focused ? pal.accent : pal.line),
-          boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
-        ),
+        decoration: ios
+            // стиль iPhone: как поле поиска iOS — серая заливка, скругление 10, без рамки
+            ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(10))
+            : BoxDecoration(
+                color: pal.bg,
+                borderRadius: BorderRadius.circular(kRadius * 0.75),
+                border: Border.all(color: focused ? pal.accent : pal.line),
+                boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
+              ),
         child: Row(children: [
-          if (w.icon != null) ...[const SizedBox(width: 12), Icon(w.icon, size: 18, color: pal.muted)],
+          if (w.icon != null) ...[SizedBox(width: ios ? 8 : 12), Icon(ios ? iosIcon(w.icon!) : w.icon, size: ios ? 17 : 18, color: pal.muted)],
           Expanded(
             child: BareField(
               controller: w.controller,
@@ -1345,7 +1350,9 @@ class _SpinnerState extends ConsumerState<Spinner> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) =>
-      RotationTransition(turns: _c, child: Icon(LucideIcons.loaderCircle, size: widget.size, color: widget.color ?? paletteOf(ref).muted));
+      iosStyleOf(ref)
+          ? SizedBox(width: widget.size, height: widget.size, child: CupertinoActivityIndicator(radius: widget.size / 2.2, color: widget.color))
+          : RotationTransition(turns: _c, child: Icon(LucideIcons.loaderCircle, size: widget.size, color: widget.color ?? paletteOf(ref).muted));
 }
 
 /// Уведомление (.toast): тёмная «таблетка» цвета панели инструментов над нижним краем; с действием — кнопка справа

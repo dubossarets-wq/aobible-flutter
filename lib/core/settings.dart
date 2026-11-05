@@ -1,7 +1,9 @@
 // Настройки и темы — значения по умолчанию те же, что в веб-версии (src/core/settings.js).
 // Хранятся одним JSON в SharedPreferences; меняются через Riverpod — перерисовывается только то, что зависит.
 import 'dart:convert';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -107,7 +109,9 @@ class Settings {
     'menu': <String, dynamic>{'help': true, 'lastBookmark': true, 'sermons': true, 'plans': true, 'listen': true, 'maps': true, 'focus': false, 'book': false, 'split': true},
   };
 
-  T get<T>(String k) => (j[k] ?? defaults[k]) as T;
+  T get<T>(String k) => (j[k] ?? (k == 'iosStyle' ? _iosDefault : defaults[k])) as T;
+  // стиль iPhone по умолчанию — на iPhone и iPad (выключить — в «Оформлении»)
+  static final bool _iosDefault = !kIsWeb && Platform.isIOS;
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
   /// Тема со своими цветами поверх (настройка colorOverrides) — для читалки, окон и MaterialApp
   Palette get palette => paletteWith(basePalette, (j['colorOverrides'] as Map?)?.cast<String, dynamic>() ?? const {});

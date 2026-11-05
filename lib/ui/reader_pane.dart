@@ -25,6 +25,7 @@ import '../features/shell/background.dart' show ReaderBackground, bgStamp;
 import '../features/shell/sheet.dart' show Loading;
 import 'kit.dart';
 import 'glass.dart' show glassMaxPanes;
+import 'ios_style.dart';
 import 'verse_view.dart';
 
 /// Подсветка найденного слова держится столько после перехода (HL_MS в ChapterView.jsx)
@@ -925,6 +926,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final mod = ModuleStore.instance.get(book.module);
     final rtl = mod?.language == 'he';
 
+    final ios = iosStyleOf(ref);
     final list = ScrollablePositionedList.builder(
       key: ValueKey('${book.module}|${book.book}|$_listKey'),
       itemCount: _rows.length + 1,
@@ -933,7 +935,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       itemScrollController: _scroll,
       itemPositionsListener: _positions,
       physics: _pinching ? const NeverScrollableScrollPhysics() : null,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      // стиль iPhone: текст — на общей линии iosEdge с шапкой, кнопками и меню
+      padding: EdgeInsets.fromLTRB(ios ? iosEdge : 16, 6, ios ? iosEdge : 16, 0),
       itemBuilder: (context, i) {
         if (i == _rows.length) {
           // перевод по сети: дальше есть главы, которых ещё нет — подгружаем следующую, как только конец ленты виден
@@ -1044,8 +1047,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
           // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио).
           // На iOS 26 — системное стекло, пока панелей не больше glassMaxPanes (fewPanes)
           // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
-          _AboveBars(left: 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1), glass: fewPanes)),
-          _AboveBars(right: 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1), glass: fewPanes)),
+          _AboveBars(left: iosStyleOf(ref) ? iosEdge : 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1), glass: fewPanes)),
+          _AboveBars(right: iosStyleOf(ref) ? iosEdge : 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1), glass: fewPanes)),
           if (Hub.listenFab != null)
             _AboveBars(left: 0, right: 0, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
           else if (Hub.listenFrom != null)

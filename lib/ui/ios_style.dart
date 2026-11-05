@@ -17,6 +17,10 @@ Color iosCard(Palette p) => p.dark ? const Color(0xff2c2c2e) : const Color(0xfff
 /// Заливка кнопок и плашек без рамки (tertiarySystemFill)
 Color iosFill(Palette p) => p.dark ? const Color(0x3d767680) : const Color(0x1f767680);
 
+/// Общий отступ от краёв экрана в стиле iPhone: шапка, текст, круглые кнопки и нижнее меню — на одной линии,
+/// у меню снизу — такой же, как по бокам
+const iosEdge = 20.0;
+
 /// Системный зелёный — включённый переключатель
 const iosGreen = Color(0xff34c759);
 
