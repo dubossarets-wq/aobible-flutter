@@ -91,7 +91,7 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
                   child: Ink(
                     height: h,
                     decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(inRow ? 10 : 12)),
-                    child: Center(child: Icon(ico(icon), size: 20, color: pal.onAccent)),
+                    child: Center(child: AIcon(ico(icon), size: 20, color: pal.onAccent)),
                   ),
                 ),
               ),
@@ -103,8 +103,8 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
           final row = Row(mainAxisSize: MainAxisSize.min, children: [
             // у «Слушать» акцентная подложка только под значком
             main
-                ? Container(width: 30, height: 28, decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)), child: Icon(ico(icon), size: 16, color: pal.onAccent))
-                : Icon(ico(icon), size: 16, color: pal.text),
+                ? Container(width: 30, height: 28, decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)), child: AIcon(ico(icon), size: 16, color: pal.onAccent))
+                : AIcon(ico(icon), size: 16, color: pal.text),
             const SizedBox(width: 6),
             Flexible(
               child: Transform.translate(
@@ -120,7 +120,7 @@ Widget buildSelectionInline(BuildContext context, WidgetRef ref, {required int p
           // сторон); у «Слушать» она залита акцентом, скругление 9
           // значок над подписью, пара — по центру ячейки; между ними 2
           body = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            SizedBox(height: 24, child: Center(child: Icon(ico(icon), size: 20, color: pal.text))),
+            SizedBox(height: 24, child: Center(child: AIcon(ico(icon), size: 20, color: pal.text))),
             const SizedBox(height: 2),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),

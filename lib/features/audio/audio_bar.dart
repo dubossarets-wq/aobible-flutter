@@ -190,7 +190,7 @@ class _AudioBarState extends ConsumerState<AudioBar> with SingleTickerProviderSt
                                         padding: const EdgeInsets.fromLTRB(8, 3, 10, 3),
                                         decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
                                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                          SizedBox(width: 14, child: Icon(ico(LucideIcons.cornerUpLeft), size: 14, color: pal.accent)),
+                                          SizedBox(width: 14, child: AIcon(ico(LucideIcons.cornerUpLeft), size: 14, color: pal.accent)),
                                           const SizedBox(width: 5),
                                           Flexible(child: Text(Books.instance.formatRef(r.book, r.chapter, r.verse), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.4, color: pal.accent))),
                                         ]),
@@ -285,7 +285,7 @@ class _ListenHere extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 10, 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(width: 14, child: Icon(ico(LucideIcons.play), size: 12, color: pal.accent)),
+                SizedBox(width: 14, child: AIcon(ico(LucideIcons.play), size: 12, color: pal.accent)),
                 const SizedBox(width: 5),
                 Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: style)),
               ]),
@@ -386,7 +386,7 @@ class _Btn extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: on ? BoxDecoration(shape: BoxShape.circle, color: pal.accent.withValues(alpha: 0.12)) : null,
-            child: Icon(ico(icon), size: size, color: on ? pal.accent : pal.text),
+            child: AIcon(ico(icon), size: size, color: on ? pal.accent : pal.text),
           ),
         ),
       );

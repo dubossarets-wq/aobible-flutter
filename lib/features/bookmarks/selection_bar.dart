@@ -152,10 +152,10 @@ class _SelectionBar extends ConsumerWidget {
             done();
           },
           itemBuilder: (_) => [_PaletteEntry(marks.hlLabels, marks.highlights[refKey(first)], pal)],
-          child: tb((c) => Icon(ico(LucideIcons.highlighter), size: 21, color: c), t('Выделить цветом'), null, on: hl),
+          child: tb((c) => AIcon(ico(LucideIcons.highlighter), size: 21, color: c), t('Выделить цветом'), null, on: hl),
         ),
         if (wide) // .tb-opt: на узкой панели (≤ 400 px) «любимые» остаются только в меню «⋯»
-          tb((c) => fav ? FillIcon(path: lucideHeartPath, size: 21, color: c, stroke: true) : Icon(ico(LucideIcons.heart), size: 21, color: c), fav ? t('Убрать из любимых') : t('В любимые'), toggleFav, on: fav),
+          tb((c) => fav ? FillIcon(path: lucideHeartPath, size: 21, color: c, stroke: true) : AIcon(ico(LucideIcons.heart), size: 21, color: c), fav ? t('Убрать из любимых') : t('В любимые'), toggleFav, on: fav),
         lucide(LucideIcons.notebookPen, 21, hasNote ? t('Открыть заметку') : t('Добавить заметку'), () {
           showNoteSheet(c, refs, moduleId, pane: pane);
           done();
@@ -227,7 +227,7 @@ class _SelectionBar extends ConsumerWidget {
               item(LucideIcons.share2, t('Поделиться'), share),
             ];
           },
-          child: tb((c) => Icon(ico(LucideIcons.ellipsis), size: 22, color: c), t('Ещё действия'), null),
+          child: tb((c) => AIcon(ico(LucideIcons.ellipsis), size: 22, color: c), t('Ещё действия'), null),
         ),
       ]),
     );
@@ -280,7 +280,7 @@ class _PaletteEntryState extends State<_PaletteEntry> {
             onTap: () => Navigator.pop(context, ''),
             child: CustomPaint(
               painter: _DashedCircle(pal.muted),
-              child: SizedBox(width: 32, height: 32, child: Icon(ico(LucideIcons.eraser), size: 15, color: pal.muted)),
+              child: SizedBox(width: 32, height: 32, child: AIcon(ico(LucideIcons.eraser), size: 15, color: pal.muted)),
             ),
           ),
         ),

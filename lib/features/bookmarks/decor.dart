@@ -109,7 +109,7 @@ VerseDecor? verseDecor(BuildContext context, WidgetRef ref, int pane, String mod
             width: fs * 1.25,
             height: fs * 1.05,
             decoration: BoxDecoration(color: const Color(0xfff3e27a), borderRadius: BorderRadius.circular(4)),
-            child: Icon(ico(LucideIcons.penLine), size: fs * 0.62, color: const Color(0xff6b5a10)),
+            child: AIcon(ico(LucideIcons.penLine), size: fs * 0.62, color: const Color(0xff6b5a10)),
           ),
         ),
       ),

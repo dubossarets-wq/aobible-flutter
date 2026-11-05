@@ -173,7 +173,7 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                       color: pal.accent,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.accent)),
                       clipBehavior: Clip.antiAlias,
-                      child: InkWell(onTap: canCreate ? () => add(null, ctl.text.trim()) : null, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: Icon(ico(LucideIcons.folderPlus), size: 18, color: pal.onAccent))),
+                      child: InkWell(onTap: canCreate ? () => add(null, ctl.text.trim()) : null, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: AIcon(ico(LucideIcons.folderPlus), size: 18, color: pal.onAccent))),
                     ),
                   ),
                 ),
@@ -188,7 +188,7 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                   padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                   child: Row(children: [
-                    Icon(ico(LucideIcons.folder), size: 16, color: pal.accent),
+                    AIcon(ico(LucideIcons.folder), size: 16, color: pal.accent),
                     const SizedBox(width: 10),
                     Expanded(child: Text('${c['name']}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
                     // стих добавлен в подборку — вместо числа плавно проявляется галочка
@@ -197,7 +197,7 @@ void showCollectSheet(BuildContext context, List<VerseRef> refs, String moduleId
                       switchInCurve: Curves.fastOutSlowIn,
                       switchOutCurve: Curves.fastOutSlowIn,
                       transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
-                      child: has(c) ? Icon(ico(LucideIcons.check), key: const ValueKey('has'), size: 15, color: pal.muted) : Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), key: const ValueKey('n'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
+                      child: has(c) ? AIcon(ico(LucideIcons.check), key: const ValueKey('has'), size: 15, color: pal.muted) : Text(t('{n} ст.', {'n': '${(c['items'] as List).length}'}), key: const ValueKey('n'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
                     ),
                   ]),
                 ),

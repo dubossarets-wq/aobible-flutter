@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/settings.dart';
-import 'kit.dart' show GroupTitle, MenuSep;
+import 'kit.dart' show GroupTitle, MenuSep, Segmented;
 
 /// Включён ли стиль iPhone (виджет перестраивается при переключении)
 bool iosStyleOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
@@ -52,6 +52,31 @@ Color iosGroupedBg(Palette p, bool elevated) => sysColor(CupertinoColors.systemG
 
 /// Значок из набора Apple вместо нашего (если есть похожий), иначе — тот же
 IconData iosIcon(IconData i) => _map[i] ?? i;
+
+/// Значок: в стиле iPhone — чуть толще (знаки Cupertino тонкие рядом с надписями): тот же знак обведён тенью
+/// своего цвета на ~2 % размера во все стороны
+class AIcon extends StatelessWidget {
+  const AIcon(this.icon, {super.key, this.size, this.color, this.semanticLabel, this.textDirection, this.shadows});
+  final IconData? icon;
+  final double? size;
+  final Color? color;
+  final String? semanticLabel;
+  final TextDirection? textDirection;
+  final List<Shadow>? shadows;
+  @override
+  Widget build(BuildContext context) {
+    if (!iosUiNow || shadows != null) return Icon(icon, size: size, color: color, semanticLabel: semanticLabel, textDirection: textDirection, shadows: shadows);
+    final th = IconTheme.of(context);
+    final c = color ?? th.color ?? const Color(0xff000000);
+    final d = ((size ?? th.size ?? 24) * 0.022).clamp(0.25, 0.6);
+    return Icon(icon, size: size, color: c, semanticLabel: semanticLabel, textDirection: textDirection, shadows: [
+      Shadow(color: c, offset: Offset(d, 0)),
+      Shadow(color: c, offset: Offset(-d, 0)),
+      Shadow(color: c, offset: Offset(0, d)),
+      Shadow(color: c, offset: Offset(0, -d)),
+    ]);
+  }
+}
 
 /// Включён ли сейчас стиль iPhone (ставит главное окно по настройке iosStyle) — для мест без доступа к настройкам
 bool iosUiNow = false;
@@ -303,7 +328,9 @@ List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad, {doubl
     }
     // подзаголовок прямо над карточкой — на линии текста её строк, как в «Настройках» iPhone
     final left = k == 1 && next == 2 ? m + iosHeaderLeft : 0.0;
-    res.add(top <= 0 && left == 0 ? w : Padding(padding: EdgeInsets.only(left: left, top: top.clamp(0.0, iosSectionGap)), child: w));
+    // сегменты — по ширине карточек (на линии их краёв)
+    final side = k == 0 && w is Segmented ? m : 0.0;
+    res.add(top <= 0 && left == 0 && side == 0 ? w : Padding(padding: EdgeInsets.only(left: left + side, right: side, top: top.clamp(0.0, iosSectionGap)), child: w));
   }
   return res;
 }

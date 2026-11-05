@@ -1,6 +1,7 @@
 // Стих дня (VerseOfDayCard.jsx): крупно на свободной фотографии, кнопки «Читать», «Картинка», «Поделиться».
 // Стих и фото выбираются по дате. Текст — из установленного перевода.
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,6 +175,36 @@ class _Act extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (iosUiNow) {
+      final fg = primary ? pal.onAccent : const Color(0xffffffff);
+      final inner = Semantics(
+        button: true,
+        label: label ?? tooltip,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox(
+            height: 50,
+            width: label == null ? 50 : null,
+            child: Row(mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.center, children: [
+              AIcon(ico(icon), size: 19, color: fg),
+              if (label != null) ...[
+                const SizedBox(width: 6),
+                Flexible(child: Text(label!, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: fg))),
+              ],
+            ]),
+          ),
+        ),
+      );
+      if (primary) return DecoratedBox(decoration: ShapeDecoration(color: pal.accent, shape: const StadiumBorder()), child: inner);
+      return ClipPath(
+        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: DecoratedBox(decoration: const BoxDecoration(color: Color(0x33ffffff)), child: inner),
+        ),
+      );
+    }
     final fg = primary ? pal.onAccent : pal.text;
     final btn = Material(
       color: primary ? pal.accent : mix(pal.panel, 0.86, Colors.transparent),
@@ -184,7 +215,7 @@ class _Act extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: label == null ? 13 : 8, vertical: 11),
           child: Row(mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(ico(icon), size: 18, color: fg),
+            AIcon(ico(icon), size: 18, color: fg),
             if (label != null) ...[
               const SizedBox(width: 6),
               Flexible(child: Text(label!, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: fg))),

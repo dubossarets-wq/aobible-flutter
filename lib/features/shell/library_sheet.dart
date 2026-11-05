@@ -421,7 +421,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 28),
             child: Column(children: [
-              Icon(ico(LucideIcons.bookOpen), size: 28, color: pal.muted),
+              AIcon(ico(LucideIcons.bookOpen), size: 28, color: pal.muted),
               const SizedBox(height: 8),
               // выборка (тип, язык, поиск) пуста, а модули есть — «Ничего не найдено», а не «Модулей нет»
               Text(base.isNotEmpty ? t('Ничего не найдено.') : t('Модулей нет'), style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
@@ -478,14 +478,14 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       // идёт загрузка: на месте кнопки — кольцо прогресса и проценты цветом акцента
       action = ModBusy(pal: pal, value: busy.$1);
     } else if (_tab == 'catalog' && m.unavailable) {
-      action = _Act(tip: t('Нет свободной электронной версии'), child: Icon(ico(LucideIcons.ban), size: 18, color: pal.muted));
+      action = _Act(tip: t('Нет свободной электронной версии'), child: AIcon(ico(LucideIcons.ban), size: 18, color: pal.muted));
     } else if (updatable) {
       action = ModPill(pal: pal, outline: true, label: t('Обновить'), tip: t('Есть новая версия'), onTap: () => _install(m.cat!));
     } else if (_tab == 'installed' && installed?.type == 'bible' && installed?.features['helper'] != true) {
       action = _Act(
         tip: isPrimary ? t('Основной перевод') : t('Сделать основным'),
         onTap: isPrimary ? null : () => _primary(m),
-        child: isPrimary ? _FilledStar(color: pal.accent) : Icon(ico(LucideIcons.star), size: 20, color: pal.muted),
+        child: isPrimary ? _FilledStar(color: pal.accent) : AIcon(ico(LucideIcons.star), size: 20, color: pal.muted),
       );
     } else if (_tab == 'installed' && installed != null && installed.type != 'bible') {
       // включить / выключить: выключенный не участвует в словарях, комментариях и картах
@@ -503,7 +503,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
       action = Padding(
         padding: const EdgeInsets.only(left: 4, right: 2),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(ico(LucideIcons.check), size: 14, color: pal.muted),
+          AIcon(ico(LucideIcons.check), size: 14, color: pal.muted),
           const SizedBox(width: 4),
           Text(m.json['online'] != null ? t('Добавлен') : t('Установлен'), style: TextStyle(fontSize: 13, color: pal.muted)),
         ]),
@@ -576,7 +576,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
               ?go,
               action,
               // стрелка подробностей: маленькая и тихая, при раскрытии переворачивается
-              SizedBox(width: 32, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(ico(LucideIcons.chevronDown), size: 16, color: pal.muted.withValues(alpha: 0.75))))),
+              SizedBox(width: 32, height: 44, child: Center(child: AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: AIcon(ico(LucideIcons.chevronDown), size: 16, color: pal.muted.withValues(alpha: 0.75))))),
             ]),
           ),
         ),

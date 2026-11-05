@@ -39,7 +39,7 @@ class PlanReturnPill extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(ico(LucideIcons.cornerUpLeft), size: 16, color: pal.onAccent),
+                      AIcon(ico(LucideIcons.cornerUpLeft), size: 16, color: pal.onAccent),
                       const SizedBox(width: 7),
                       Text(t('К плану · {done} из {total}', {'done': '$done', 'total': '${rs.length}'}), style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: pal.onAccent)),
                     ]),
@@ -49,7 +49,7 @@ class PlanReturnPill extends ConsumerWidget {
                   message: t('Скрыть кнопку возврата к плану'),
                   child: InkWell(
                     onTap: () => dismissPlanReturn(e.key),
-                    child: Padding(padding: const EdgeInsets.fromLTRB(6, 10, 12, 10), child: Icon(ico(LucideIcons.x), size: 15, color: pal.onAccent.withValues(alpha: 0.8))),
+                    child: Padding(padding: const EdgeInsets.fromLTRB(6, 10, 12, 10), child: AIcon(ico(LucideIcons.x), size: 15, color: pal.onAccent.withValues(alpha: 0.8))),
                   ),
                 ),
               ]),

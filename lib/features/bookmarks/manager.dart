@@ -103,7 +103,7 @@ String _full(Map x) => Books.instance.formatRef('${x['book']}', (x['chapter'] as
 
 /// Значок + название в заголовке строки (.list-title: значок 14, промежуток 6)
 Widget _titleRow(IconData icon, Color color, String text) => Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(ico(icon), size: 14, color: color),
+      AIcon(ico(icon), size: 14, color: color),
       const SizedBox(width: 6),
       Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis)),
     ]);
@@ -479,7 +479,7 @@ class _HistoryTab extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
               child: Row(children: [
-                Icon(ico(LucideIcons.history), size: 16, color: cur ? pal.accent : pal.text),
+                AIcon(ico(LucideIcons.history), size: 16, color: cur ? pal.accent : pal.text),
                 const SizedBox(width: 10),
                 Expanded(child: Text(_full({'book': r.book, 'chapter': r.chapter, 'verse': r.verse}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: cur ? FontWeight.w600 : FontWeight.w500, color: cur ? pal.accent : pal.text))),
                 if (cur) Text(t('сейчас'), style: TextStyle(fontSize: 13.1, color: pal.muted)),
@@ -549,7 +549,7 @@ class _ContinueCardState extends State<_ContinueCard> {
                   ]),
                 ),
                 const SizedBox(width: 6),
-                Icon(ico(LucideIcons.chevronRight), size: 20, color: pal.muted),
+                AIcon(ico(LucideIcons.chevronRight), size: 20, color: pal.muted),
               ]),
             ),
           ),

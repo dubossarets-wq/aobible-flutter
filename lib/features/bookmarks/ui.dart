@@ -127,7 +127,7 @@ class EmptyState extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
+          AIcon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
           SizedBox(height: iosUiNow ? 14 : 8),
           Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: pal.text) : TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)),
           if (text != null) ...[
@@ -200,7 +200,7 @@ class AobListRow extends ConsumerWidget {
         child: SizedBox(
           width: 88,
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
+            AIcon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
             const SizedBox(height: 3),
             Text(actionText ?? t('Удалить'), maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white)),
           ]),

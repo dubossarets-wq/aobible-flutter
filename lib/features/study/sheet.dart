@@ -239,7 +239,7 @@ class Empty extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Column(children: [
-        Icon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
+        AIcon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
         SizedBox(height: iosUiNow ? 14 : 8),
         Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: pal.text) : TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
         if (child != null) ...[SizedBox(height: iosUiNow ? 6 : 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: iosUiNow ? 22 : 14.4, fontWeight: iosUiNow ? FontWeight.w500 : null, height: iosUiNow ? 1.2 : 1.45), child: child!)],
@@ -261,7 +261,7 @@ class H4 extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(children: [
-        if (icon != null) ...[Icon(ico(icon), size: 13, color: pal.muted), const SizedBox(width: 6)],
+        if (icon != null) ...[AIcon(ico(icon), size: 13, color: pal.muted), const SizedBox(width: 6)],
         Expanded(child: Text(text, style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted))),
       ]),
     );
@@ -381,7 +381,7 @@ class WarnBox extends ConsumerWidget {
           ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6))
           : BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(kRadius * 0.75)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (icon) Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 16, color: iosUiNow ? sysColor(CupertinoColors.systemOrange, dark: pal.dark) : const Color(0xFFC0841F))),
+        if (icon) Padding(padding: const EdgeInsets.only(top: 2), child: AIcon(ico(LucideIcons.triangleAlert), size: 16, color: iosUiNow ? sysColor(CupertinoColors.systemOrange, dark: pal.dark) : const Color(0xFFC0841F))),
         if (icon) const SizedBox(width: 8),
         Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 14.1, height: 1.45), child: child)),
       ]),

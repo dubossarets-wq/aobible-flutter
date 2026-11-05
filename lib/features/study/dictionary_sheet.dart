@@ -320,7 +320,7 @@ class _DictRow extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
-            Icon(ico(LucideIcons.bookText), size: 20, color: pal.accent),
+            AIcon(ico(LucideIcons.bookText), size: 20, color: pal.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

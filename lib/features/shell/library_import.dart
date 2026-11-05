@@ -15,6 +15,7 @@ import 'library_sheet.dart' show fmtSize, moduleTypeNames;
 import 'module_import.dart';
 import 'sheet.dart';
 import '../../ui/ios_style.dart';
+import '../../ui/glass.dart' show nativeGlass;
 
 /// Выбор файлов модулей: (имя, содержимое). По умолчанию — окно выбора файлов системы; тесты подменяют
 Future<List<(String, Uint8List)>> Function() pickModuleFiles = () async {
@@ -154,7 +155,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
         decoration: BoxDecoration(border: Border.all(color: pal.line, width: 2), borderRadius: BorderRadius.circular(kRadius)),
         child: Column(children: [
-          Icon(ico(LucideIcons.upload), size: 26, color: pal.muted),
+          AIcon(ico(LucideIcons.upload), size: 26, color: pal.muted),
           const SizedBox(height: 10),
           Text(t('Перетащите JSON-файлы сюда или'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)),
           const SizedBox(height: 10),
@@ -209,7 +210,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
       decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Icon(ico(LucideIcons.fileJson), size: 18, color: pal.accent),
+          AIcon(ico(LucideIcons.fileJson), size: 18, color: pal.accent),
           const SizedBox(width: 8),
           Flexible(child: Text('${m?['name'] ?? it.name}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, color: pal.text))),
         ]),
@@ -219,7 +220,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
         if (it.state == 'error') ...[
           const SizedBox(height: 8),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 15, color: dangerColor(pal))),
+            Padding(padding: const EdgeInsets.only(top: 2), child: AIcon(ico(LucideIcons.triangleAlert), size: 15, color: dangerColor(pal))),
             const SizedBox(width: 6),
             Expanded(child: Text(it.error ?? '', style: TextStyle(color: dangerColor(pal), height: 1.4))),
           ]),
@@ -241,7 +242,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 13, color: pal.muted)),
+                  Padding(padding: const EdgeInsets.only(top: 2), child: AIcon(ico(LucideIcons.triangleAlert), size: 13, color: pal.muted)),
                   const SizedBox(width: 6),
                   Expanded(child: Text(w, style: TextStyle(fontSize: 13.6, color: pal.muted, height: 1.35))),
                 ]),
@@ -256,7 +257,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(color: okColor(pal).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(ico(LucideIcons.circleCheck), size: 13, color: okColor(pal)),
+                AIcon(ico(LucideIcons.circleCheck), size: 13, color: okColor(pal)),
                 const SizedBox(width: 4),
                 Text(t('Установлен'), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: okColor(pal))),
               ]),
@@ -289,7 +290,7 @@ class LibFold extends ConsumerWidget {
           decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
           child: Row(children: [
             Expanded(child: Text(title, style: TextStyle(fontSize: 14.25, fontWeight: FontWeight.w600, color: open ? pal.text : pal.muted))),
-            AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: Icon(ico(LucideIcons.chevronDown), size: 17, color: open ? pal.text : pal.muted)),
+            AnimatedRotation(turns: open ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: AIcon(ico(LucideIcons.chevronDown), size: 17, color: open ? pal.text : pal.muted)),
           ]),
         ),
       ),
@@ -320,6 +321,8 @@ class _RowSwitchState extends State<RowSwitch> {
   @override
   Widget build(BuildContext context) {
     final on = _pos != null ? _pos! > _thumb / 2 : widget.value;
+    // iPhone: системный переключатель сам ведёт нажатие и свайп
+    if (nativeGlass) return Tooltip(message: widget.tip ?? '', child: SizedBox(width: 64, height: 44, child: Center(child: AobSwitch(value: widget.value, onChanged: widget.onChanged))));
     return Tooltip(
       message: widget.tip ?? '',
       child: GestureDetector(

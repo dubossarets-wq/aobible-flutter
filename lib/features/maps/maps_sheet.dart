@@ -136,7 +136,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(ico(LucideIcons.mapPin), size: 14, color: pal.accent),
+                      AIcon(ico(LucideIcons.mapPin), size: 14, color: pal.accent),
                       const SizedBox(width: 6),
                       Flexible(child: Text(p.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
                     ]),
@@ -155,7 +155,7 @@ class _MapsSheetState extends ConsumerState<_MapsSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
             child: Column(children: [
-              Icon(ico(LucideIcons.map), size: 28, color: pal.muted),
+              AIcon(ico(LucideIcons.map), size: 28, color: pal.muted),
               const SizedBox(height: 8),
               Text(t('Карты не установлены'), style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
               const SizedBox(height: 8),
@@ -263,7 +263,7 @@ class _FullBtn extends StatelessWidget {
             color: const Color(0xCC1B1A18),
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
-            child: InkWell(onTap: onTap, child: SizedBox(width: 44, height: 44, child: Icon(ico(icon), size: 20, color: Colors.white))),
+            child: InkWell(onTap: onTap, child: SizedBox(width: 44, height: 44, child: AIcon(ico(icon), size: 20, color: Colors.white))),
           ),
         ),
       );
@@ -342,7 +342,7 @@ class _Viewer extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(color: pal.panel.withValues(alpha: 0.9), shape: BoxShape.circle, border: Border.all(color: pal.line)),
-                            child: Icon(ico(LucideIcons.maximize2), size: 16, color: pal.text),
+                            child: AIcon(ico(LucideIcons.maximize2), size: 16, color: pal.text),
                           ),
                         ),
                       ),
@@ -352,7 +352,7 @@ class _Viewer extends StatelessWidget {
               : Center(
                   child: s.hasError
                       ? Padding(padding: const EdgeInsets.all(12), child: Text(t('Карта не загрузилась. Проверьте интернет.'), textAlign: TextAlign.center, style: TextStyle(color: pal.muted)))
-                      : Icon(ico(LucideIcons.loaderCircle), size: 20, color: pal.muted),
+                      : AIcon(ico(LucideIcons.loaderCircle), size: 20, color: pal.muted),
                 ),
         ),
       ),

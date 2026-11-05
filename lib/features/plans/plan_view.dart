@@ -357,7 +357,7 @@ class _PlanViewState extends ConsumerState<PlanView> {
               Text(planReadingLabel(_readings[r], widget.module, full: true), style: _ui(pal, 23.2, weight: FontWeight.w700)),
               if (done)
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(ico(LucideIcons.check), size: 14, color: kOk),
+                  AIcon(ico(LucideIcons.check), size: 14, color: kOk),
                   const SizedBox(width: 4),
                   Text(t('Прочитано'), style: _ui(pal, 12.8, weight: FontWeight.w600, color: kOk)),
                 ]),
@@ -383,7 +383,7 @@ class _PlanViewState extends ConsumerState<PlanView> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (flags[i])
           Row(children: [
-            Icon(ico(LucideIcons.check), size: 16, color: kOk),
+            AIcon(ico(LucideIcons.check), size: 16, color: kOk),
             const SizedBox(width: 6),
             Flexible(child: Text(t('{ref} — прочитано', {'ref': readingLabel(r)}), style: _ui(pal, 14.7, weight: FontWeight.w600, color: kOk))),
           ])
@@ -395,7 +395,7 @@ class _PlanViewState extends ConsumerState<PlanView> {
         else if (allDone)
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
-              Icon(ico(LucideIcons.partyPopper), size: 22, color: kOk),
+              AIcon(ico(LucideIcons.partyPopper), size: 22, color: kOk),
               const SizedBox(width: 10),
               Expanded(child: Text(t('План на сегодня выполнен'), style: _ui(pal, 16, weight: FontWeight.w700).copyWith(height: 1.3))),
               const SizedBox(width: 10),
@@ -470,7 +470,7 @@ class _Strip extends ConsumerWidget {
                         child: Stack(alignment: Alignment.bottomCenter, children: [
                           Center(
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              if (flags[i]) ...[Icon(ico(LucideIcons.check), size: 12, color: pal.accent), const SizedBox(width: 4)],
+                              if (flags[i]) ...[AIcon(ico(LucideIcons.check), size: 12, color: pal.accent), const SizedBox(width: 4)],
                               Text(readingLabel(readings[i]), style: TextStyle(fontSize: 14.1, fontWeight: cur == i ? FontWeight.w700 : FontWeight.w500, color: flags[i] ? pal.muted : pal.text)),
                             ]),
                           ),
@@ -516,7 +516,7 @@ class _Btn extends ConsumerWidget {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 14, vertical: small ? 6 : (kind == _BK.primary && expand ? 11 : 9)),
           child: Row(mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-            if (icon != null) ...[Icon(ico(icon), size: 14, color: fg), const SizedBox(width: 6)],
+            if (icon != null) ...[AIcon(ico(icon), size: 14, color: fg), const SizedBox(width: 6)],
             Flexible(child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: small ? 13.8 : 15, fontWeight: kind == _BK.plain ? FontWeight.w500 : FontWeight.w600, color: fg))),
             if (trailing != null) ...[const SizedBox(width: 4), Icon(trailing, size: 17, color: fg)],
           ]),
@@ -544,7 +544,7 @@ class _OffPlan extends ConsumerWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(child: Text(main, style: TextStyle(fontSize: 14.4, fontWeight: FontWeight.w600, color: pal.text))),
               const SizedBox(width: 4),
-              Icon(ico(LucideIcons.chevronRight), size: 15, color: pal.text),
+              AIcon(ico(LucideIcons.chevronRight), size: 15, color: pal.text),
             ]),
             const SizedBox(height: 2),
             Text(sub, style: TextStyle(fontSize: 12.2, color: pal.muted)),

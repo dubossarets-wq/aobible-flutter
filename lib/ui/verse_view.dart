@@ -920,7 +920,7 @@ class _PartInline extends ConsumerWidget {
           message: tip,
           child: InkWell(
             onTap: onTap,
-            child: SizedBox(width: h, height: h, child: Icon(ico(icon), size: 18, color: onTap == null ? pal.text.withValues(alpha: 0.4) : pal.text)),
+            child: SizedBox(width: h, height: h, child: AIcon(ico(icon), size: 18, color: onTap == null ? pal.text.withValues(alpha: 0.4) : pal.text)),
           ),
         );
     Widget divider() => Container(width: 1, height: h - 16, color: pal.line);
@@ -953,7 +953,7 @@ class _PartInline extends ConsumerWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(ico(LucideIcons.scrollText), size: 17, color: pal.onAccent),
+                          AIcon(ico(LucideIcons.scrollText), size: 17, color: pal.onAccent),
                           const SizedBox(width: 6),
                           Text(t('В проповедь'), maxLines: 1, style: TextStyle(fontSize: 15.7, fontWeight: FontWeight.w500, color: pal.onAccent)),
                         ]),

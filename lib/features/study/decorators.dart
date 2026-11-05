@@ -55,7 +55,7 @@ VerseDecor? studyDecorator(BuildContext context, WidgetRef ref, int pane, String
         padding: EdgeInsets.symmetric(horizontal: f * 0.25),
         decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(5)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(ico(LucideIcons.image), size: f * 1.45, color: pal.accent),
+          AIcon(ico(LucideIcons.image), size: f * 1.45, color: pal.accent),
           if (ill > 1) Padding(padding: const EdgeInsets.only(left: 1), child: Text('2', style: TextStyle(fontSize: f * 0.9, fontWeight: FontWeight.w600, color: pal.accent, height: 1))),
         ]),
       ),

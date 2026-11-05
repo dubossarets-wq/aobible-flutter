@@ -86,7 +86,7 @@ VerseDecor? _decor(BuildContext context, WidgetRef ref, int pane, String moduleI
                 width: fs * 1.05,
                 height: fs * 1.05,
                 decoration: BoxDecoration(color: pal.accent.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(4)),
-                child: Icon(ico(LucideIcons.scrollText), size: fs * 0.72, color: pal.accent),
+                child: AIcon(ico(LucideIcons.scrollText), size: fs * 0.72, color: pal.accent),
               ),
             ),
           ),
@@ -151,7 +151,7 @@ class _SermonReturn extends ConsumerWidget {
                             height: 32,
                             child: Row(children: [
                               const SizedBox(width: 8),
-                              Icon(ico(LucideIcons.arrowLeft), size: 16, color: fg),
+                              AIcon(ico(LucideIcons.arrowLeft), size: 16, color: fg),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Transform.translate(

@@ -168,7 +168,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
             Padding(
               padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
               child: Row(children: [
-                Icon(ico(LucideIcons.layers), size: 14, color: pal.muted),
+                AIcon(ico(LucideIcons.layers), size: 14, color: pal.muted),
                 const SizedBox(width: 6),
                 Expanded(child: Text(iosUiNow ? name : name.toUpperCase(), style: iosUiNow ? TextStyle(fontSize: 17, height: 22 / 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: pal.muted))),
               ]),
@@ -203,7 +203,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
           child: SizedBox(
             width: 88,
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
+              AIcon(ico(LucideIcons.trash2), size: 18, color: Colors.white),
               const SizedBox(height: 3),
               Text(t('Удалить'), style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600)),
             ]),
@@ -324,7 +324,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
                   child: Column(children: [
-                    Icon(ico(LucideIcons.scrollText), size: 28, color: pal.muted),
+                    AIcon(ico(LucideIcons.scrollText), size: 28, color: pal.muted),
                     const SizedBox(height: 8),
                     Text(t('Проповедей пока нет'), style: TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
                     const SizedBox(height: 8),
@@ -380,7 +380,7 @@ class SermonRow extends StatelessWidget {
           padding: inCard ? EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 12, 20, 12),
           decoration: inCard ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
-            Icon(ico(LucideIcons.scrollText), size: 18, color: pal.accent),
+            AIcon(ico(LucideIcons.scrollText), size: 18, color: pal.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -596,7 +596,7 @@ class _EditorState extends ConsumerState<_Editor> {
             child: Wrap(alignment: WrapAlignment.center, spacing: 6, children: [
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: pal.muted, textStyle: const TextStyle(fontSize: 14.4, fontWeight: FontWeight.w500)),
-                icon: Icon(ico(LucideIcons.copyPlus), size: 16),
+                icon: AIcon(ico(LucideIcons.copyPlus), size: 16),
                 label: Text(t('Сделать копию')),
                 onPressed: () {
                   final id = _store.duplicate(_id);
@@ -685,7 +685,7 @@ class _WideDeleteState extends State<_WideDelete> {
   Widget build(BuildContext context) => Center(
         child: TextButton.icon(
           style: TextButton.styleFrom(foregroundColor: const Color(0xffc93a3a), textStyle: const TextStyle(fontSize: 14.4, fontWeight: FontWeight.w500)),
-          icon: Icon(ico(LucideIcons.trash2), size: 16),
+          icon: AIcon(ico(LucideIcons.trash2), size: 16),
           label: Text(_ask ? t('Удалить проповедь?') : t('Удалить проповедь')),
           onPressed: () {
           if (_ask) {
@@ -743,7 +743,7 @@ class _SeriesFieldState extends State<_SeriesField> {
     return TextFieldTapRegion(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Icon(ico(LucideIcons.layers), size: 15, color: pal.muted),
+          AIcon(ico(LucideIcons.layers), size: 15, color: pal.muted),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
@@ -822,7 +822,7 @@ class _Inserter extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 alignment: Alignment.center,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(ico(LucideIcons.plus), size: 14, color: pal.accent),
+                  AIcon(ico(LucideIcons.plus), size: 14, color: pal.accent),
                   const SizedBox(width: 4),
                   Text(label, style: TextStyle(fontSize: ios ? 14 : 13.4, fontWeight: FontWeight.w600, color: ios ? pal.accent : pal.muted)),
                 ]),
@@ -869,7 +869,7 @@ class _ToolPill extends StatelessWidget {
           child: Padding(
             padding: label == null ? EdgeInsets.zero : const EdgeInsets.only(left: 9, right: 11),
             child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(ico(icon), size: 15, color: on ? pal.accent : pal.muted),
+              AIcon(ico(icon), size: 15, color: on ? pal.accent : pal.muted),
               if (label != null) ...[
                 const SizedBox(width: 5),
                 Transform.translate(offset: const Offset(0, -0.5), child: Text(label!, style: TextStyle(fontSize: 13.1, fontWeight: FontWeight.w500, color: pal.text))),
@@ -896,7 +896,7 @@ class _Reorder extends StatelessWidget {
           child: InkWell(
             onTap: f,
             customBorder: const CircleBorder(),
-            child: SizedBox(width: 30, height: 30, child: Icon(ico(icon), size: 16, color: f == null ? pal.muted.withValues(alpha: 0.35) : pal.text)),
+            child: SizedBox(width: 30, height: 30, child: AIcon(ico(icon), size: 16, color: f == null ? pal.muted.withValues(alpha: 0.35) : pal.text)),
           ),
         );
     return Container(
@@ -904,7 +904,7 @@ class _Reorder extends StatelessWidget {
       padding: const EdgeInsets.only(left: 6, right: 2),
       decoration: BoxDecoration(color: pal.text.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(15)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Tooltip(message: t('Зажмите, чтобы перетащить'), child: Icon(ico(LucideIcons.gripVertical), size: 16, color: pal.muted)),
+        Tooltip(message: t('Зажмите, чтобы перетащить'), child: AIcon(ico(LucideIcons.gripVertical), size: 16, color: pal.muted)),
         Container(width: 1, height: 16, margin: const EdgeInsets.symmetric(horizontal: 4), color: pal.line),
         arrow(LucideIcons.arrowUp, t('Переместить выше'), onUp),
         arrow(LucideIcons.arrowDown, t('Переместить ниже'), onDown),
@@ -1200,7 +1200,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Row(children: [
-                      Icon(ico(LucideIcons.stickyNote), size: 13, color: pal.muted),
+                      AIcon(ico(LucideIcons.stickyNote), size: 13, color: pal.muted),
                       const SizedBox(width: 4),
                       Text(t('Заметка для себя'), style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w600, color: pal.muted)),
                     ]),
@@ -1389,7 +1389,7 @@ class _TextBlockState extends ConsumerState<_TextBlock> {
             height: 26,
             margin: const EdgeInsets.only(right: 4),
             decoration: BoxDecoration(color: widget.pal.text.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8)),
-            child: Icon(ico(icon), size: 15, color: widget.pal.text),
+            child: AIcon(ico(icon), size: 15, color: widget.pal.text),
           ),
         ),
       );
@@ -1523,7 +1523,7 @@ class _PulpitState extends ConsumerState<Pulpit> {
           child: Row(children: [
             IconBtn(icon: LucideIcons.minus, size: 20, tooltip: t('Мельче'), onTap: () => _setSize(_size - 2)),
             const SizedBox(width: 6),
-            Icon(ico(LucideIcons.type), size: 18, color: pal.muted),
+            AIcon(ico(LucideIcons.type), size: 18, color: pal.muted),
             const SizedBox(width: 6),
             IconBtn(icon: LucideIcons.plus, size: 20, tooltip: t('Крупнее'), onTap: () => _setSize(_size + 2)),
             const SizedBox(width: 6),

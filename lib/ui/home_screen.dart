@@ -896,7 +896,7 @@ class _BarCrumb extends StatelessWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(place, maxLines: 1, overflow: TextOverflow.clip, softWrap: false, style: TextStyle(fontSize: placeSize, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w700, letterSpacing: .1, color: fg)))),
               // стрелка ˅ — на одной линии с поднятой надписью
-              if (chevron) ...[const SizedBox(width: 4), Transform.translate(offset: const Offset(0, -0.5), child: Icon(ico(LucideIcons.chevronDown), size: 16, color: fg.withValues(alpha: 0.6)))],
+              if (chevron) ...[const SizedBox(width: 4), Transform.translate(offset: const Offset(0, -0.5), child: AIcon(ico(LucideIcons.chevronDown), size: 16, color: fg.withValues(alpha: 0.6)))],
             ]),
           ),
         ),
@@ -928,7 +928,7 @@ class _BarCrumb extends StatelessWidget {
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 220),
                           opacity: tools!.on ? 1 : 0,
-                          child: Icon(ico(LucideIcons.slidersHorizontal), size: 16, color: fg.withValues(alpha: 0.75)),
+                          child: AIcon(ico(LucideIcons.slidersHorizontal), size: 16, color: fg.withValues(alpha: 0.75)),
                         ),
                       ),
                     ),
@@ -958,6 +958,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
   // системный поиск iOS 26 в меню: окно поиска раскрывает и сворачивает поле, задаёт в нём текст
   final _search = CNTabBarSearchController();
   int _tabKey = 0;
+  int _lastTab = 1; // последняя выбранная вкладка меню (кроме поиска)
 
   @override
   void initState() {
@@ -1085,7 +1086,13 @@ class _TabBarState extends ConsumerState<_TabBar> {
                 },
               ),
               searchController: _search,
-              currentIndex: ids.indexOf(activeId).clamp(0, ids.length - 1),
+              currentIndex: () {
+                // поиск — не вкладка из списка: пока он открыт, остаётся прежняя (номер −1 давал «Планы», и система
+                // переключала вкладку и сворачивала поле поиска)
+                final i = ids.indexOf(activeId);
+                if (i >= 0) _lastTab = i;
+                return _lastTab;
+              }(),
               tint: pal.accent,
               iconSize: 19,
               autoHideOnModal: false,

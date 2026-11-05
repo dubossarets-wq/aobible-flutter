@@ -73,6 +73,7 @@ class AppSheet extends ConsumerWidget {
         subtitle: subtitle,
         onBack: onBack,
         scroll: false,
+        underHeader: fixed == null,
         padding: EdgeInsets.zero,
         child: DefaultTextStyle.merge(
           style: TextStyle(fontSize: 15, color: pal.text),
@@ -81,7 +82,7 @@ class AppSheet extends ConsumerWidget {
             Expanded(
               child: Builder(builder: (bc) => ListView.separated(
                 key: ValueKey(title), // другая страница окна («Меню «Ещё»», подраздел «Оформления») — с самого верха, а не с прежнего места прокрутки
-                padding: padding.copyWith(bottom: padding.bottom + MediaQuery.paddingOf(bc).bottom),
+                padding: padding.copyWith(top: padding.top + IosPageTop.of(bc), bottom: padding.bottom + MediaQuery.paddingOf(bc).bottom),
                 itemCount: children.length,
                 separatorBuilder: (_, _) => SizedBox(height: gap),
                 itemBuilder: (_, i) => children[i],
@@ -127,7 +128,7 @@ class HintDot extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: SizedBox(width: 28, height: 24, child: Icon(ico(LucideIcons.info), size: 16, color: on ? pal.accent : pal.muted)),
+      child: SizedBox(width: 28, height: 24, child: AIcon(ico(LucideIcons.info), size: 16, color: on ? pal.accent : pal.muted)),
     );
   }
 }
@@ -168,7 +169,8 @@ class _SwitchFieldState extends ConsumerState<SwitchField> {
     final base = fieldLabel(pal, bold: widget.bold);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       InkWell(
-        onTap: () => widget.onChanged(!widget.value),
+        // iPhone: переключают самим системным переключателем (нажатие и свайп — его)
+        onTap: nativeGlass ? null : () => widget.onChanged(!widget.value),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 44),
           child: Padding(
@@ -408,7 +410,7 @@ class _RangeRowState extends ConsumerState<RangeRow> {
                             offset: Offset(0, -(delta < 0 ? 13 : 23) * 0.08),
                             child: Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 23, fontWeight: FontWeight.w600, height: 1, leadingDistribution: TextLeadingDistribution.even, color: pal.text)),
                           )
-                        : Icon(ico(icon), size: 18, color: pal.text),
+                        : AIcon(ico(icon), size: 18, color: pal.text),
                   ),
                 ),
               ),
@@ -608,7 +610,7 @@ class _SpinState extends State<Spin> with SingleTickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) => RotationTransition(turns: _c, child: Icon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color));
+  Widget build(BuildContext context) => RotationTransition(turns: _c, child: AIcon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color));
 }
 
 /// Надпись «Загрузка…» (.loading): по центру, бледная

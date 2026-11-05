@@ -2,6 +2,7 @@
 // BottomSheet.jsx). Значки — Lucide (как lucide-react в веб-версии): LucideIcons.<имя в camelCase>.
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
@@ -225,7 +226,7 @@ Future<T?> showAobSheet<T>(
           builder: (c) => Consumer(
             builder: (c, ref, _) => ColoredBox(
               color: iosGroupedBg(paletteOf(ref), false),
-              child: SafeArea(bottom: false, child: Material(type: MaterialType.transparency, child: body(c))),
+              child: Material(type: MaterialType.transparency, child: body(c)),
             ),
           ),
         ))
@@ -396,6 +397,16 @@ class _SwipeBackState extends State<_SwipeBack> {
     final nav = widget.route.navigator!;
     final v = d.velocity.pixelsPerSecond.dx / (context.size?.width ?? 1);
     final back = v > 1.0 || (v > -1.0 && c.value < 0.5);
+    if (back && widget.route.instant) {
+      // страница вкладки открыта без анимации — её закрытие тоже мгновенное: сначала плавно уводим страницу
+      // (как системный жест iOS), затем закрываем уже уехавшую
+      final ms = (c.value * (v > 1.0 ? 240 : 350)).round().clamp(90, 350);
+      c.animateBack(0.0, duration: Duration(milliseconds: ms), curve: Curves.easeOutCubic).whenComplete(() {
+        if (widget.route.isActive) nav.pop();
+        nav.didStopUserGesture();
+      });
+      return;
+    }
     if (back) {
       nav.pop();
       // доводка, как у системного жеста iOS: быстро и с замедлением у края; время — по оставшемуся пути
@@ -492,7 +503,7 @@ Widget tabInsetBuilder(BuildContext context, Widget Function(double inset) build
     );
 
 /// Нижний отступ списка в окне: прежний + высота вкладок, лежащих поверх окна (MediaQuery.padding.bottom)
-EdgeInsets padTabs(BuildContext context, EdgeInsets p) => p.copyWith(bottom: p.bottom + MediaQuery.paddingOf(context).bottom);
+EdgeInsets padTabs(BuildContext context, EdgeInsets p) => p.copyWith(top: p.top + IosPageTop.of(context), bottom: p.bottom + MediaQuery.paddingOf(context).bottom);
 
 class _Nested extends InheritedWidget {
   const _Nested({required this.nested, required super.child});
@@ -503,7 +514,10 @@ class _Nested extends InheritedWidget {
 }
 
 class AobSheet extends ConsumerWidget {
-  const AobSheet({super.key, required this.title, this.subtitle, required this.child, this.onBack, this.actions = const [], this.onClose, this.scroll = true, this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 20), this.titleWidget});
+  const AobSheet({super.key, required this.title, this.subtitle, required this.child, this.onBack, this.actions = const [], this.onClose, this.scroll = true, this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 20), this.titleWidget, this.underHeader = false});
+  // стиль iPhone, страница: содержимое (свой список окна) уходит под прозрачную шапку, как в iOS; список прибавляет
+  // отступ сверху сам (padTabs или IosPageTop.of). С прокруткой окна (scroll) — всегда так
+  final bool underHeader;
   final String title;
   final Widget? titleWidget; // вместо названия — своё (размер текста «− 100% +» в проповеди); title остаётся подписью
   final String? subtitle;
@@ -621,6 +635,32 @@ class AobSheet extends ConsumerWidget {
 
   Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back, bool ios) {
     final nested = _Nested.of(context);
+    if (ios && nested) {
+      final root = IosTabRoot.of(context) && titleWidget == null;
+      return Material(
+        color: iosGroupedBg(pal, false),
+        child: _IosPageFrame(
+          pal: pal,
+          under: scroll || underHeader,
+          root: root,
+          title: title,
+          subtitle: subtitle,
+          actions: actions,
+          bar: root
+              ? null
+              : Container(padding: EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8), constraints: const BoxConstraints(minHeight: 44), child: _iosHeader(context, pal, back)),
+          body: (top, under) => tabInsetBuilder(
+            context,
+            (inset) => scroll
+                ? SingleChildScrollView(child: Column(children: [SizedBox(height: top), body, SizedBox(height: inset)]))
+                : MediaQuery(
+                    data: MediaQuery.of(context).copyWith(padding: MediaQuery.paddingOf(context).copyWith(bottom: MediaQuery.paddingOf(context).bottom + inset)),
+                    child: under ? IosPageTop(top: top, child: body) : Padding(padding: EdgeInsets.only(top: top), child: body),
+                  ),
+          ),
+        ),
+      );
+    }
     return Material(
       color: ios ? iosGroupedBg(pal, !nested) : pal.panel,
       // окно на весь экран — без скругления; стиль iPhone — скругление листа iOS
@@ -687,6 +727,162 @@ class AobSheet extends ConsumerWidget {
                     data: MediaQuery.of(context).copyWith(padding: MediaQuery.paddingOf(context).copyWith(bottom: MediaQuery.paddingOf(context).bottom + inset)),
                     child: body,
                   ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Высота прозрачной шапки страницы iOS над содержимым: на столько список окна сдвигает начало (padTabs)
+class IosPageTop extends InheritedWidget {
+  const IosPageTop({super.key, required this.top, required super.child});
+  final double top;
+  static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IosPageTop>()?.top ?? 0;
+  @override
+  bool updateShouldNotify(IosPageTop old) => old.top != top;
+}
+
+/// Размер ребёнка — после раскладки (высота шапки страницы)
+class _SizeReport extends SingleChildRenderObjectWidget {
+  const _SizeReport({required this.onSize, super.child});
+  final ValueChanged<Size> onSize;
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderSizeReport(onSize);
+  @override
+  void updateRenderObject(BuildContext context, _RenderSizeReport r) => r.onSize = onSize;
+}
+
+class _RenderSizeReport extends RenderProxyBox {
+  _RenderSizeReport(this.onSize);
+  ValueChanged<Size> onSize;
+  Size? _last;
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (size != _last) {
+      _last = size;
+      final s = size;
+      WidgetsBinding.instance.addPostFrameCallback((_) => onSize(s));
+    }
+  }
+}
+
+/// Страница iOS: содержимое прокручивается под строку состояния и прозрачную шапку; когда под шапкой есть текст —
+/// за ней размытая полоса цвета фона (эффект края прокрутки iOS 26). У страницы вкладки — крупный заголовок 34 pt:
+/// уезжает вверх вместе со списком, а в шапке проявляется обычный заголовок 17 pt по центру
+class _IosPageFrame extends StatefulWidget {
+  const _IosPageFrame({required this.pal, required this.under, required this.root, required this.title, this.subtitle, this.actions = const [], this.bar, required this.body});
+  final Palette pal;
+  final bool under, root;
+  final String title;
+  final String? subtitle;
+  final List<Widget> actions;
+  final Widget? bar; // шапка обычной страницы; у страницы вкладки — строится здесь
+  final Widget Function(double top, bool under) body;
+  @override
+  State<_IosPageFrame> createState() => _IosPageFrameState();
+}
+
+class _IosPageFrameState extends State<_IosPageFrame> {
+  double _bar = 58, _large = 0, _off = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    final status = MediaQuery.paddingOf(context).top;
+    final large = widget.root ? (_large > 0 ? _large : 48.0) : 0.0;
+    final top = status + _bar + large;
+    final off = widget.under ? _off : 0.0;
+    // полоса за шапкой — только когда под ней уже есть текст
+    final covered = widget.under && off > large + 1;
+    final inline = widget.root ? ((off - large * 0.55) / (large * 0.45)).clamp(0.0, 1.0) : 1.0;
+    final bg = iosGroupedBg(pal, false);
+    final bar = widget.bar ??
+        Padding(
+          padding: EdgeInsets.fromLTRB(iosEdge, 18, iosEdge, 8),
+          child: SizedBox(
+            height: 44,
+            child: Row(children: [
+              const SizedBox(width: 48),
+              Expanded(
+                child: Opacity(
+                  opacity: inline,
+                  child: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w600, color: pal.text)),
+                ),
+              ),
+              SizedBox(width: 48, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: widget.actions)),
+            ]),
+          ),
+        );
+    return NotificationListener<ScrollUpdateNotification>(
+      onNotification: (n) {
+        if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+          final v = n.metrics.pixels.clamp(0.0, 4000.0);
+          if ((v - _off).abs() > 0.5 && (v < large + 80 || _off < large + 80)) setState(() => _off = v);
+        }
+        return false;
+      },
+      child: Stack(children: [
+        Positioned.fill(child: MediaQuery.removePadding(context: context, removeTop: true, child: widget.body(top, widget.under))),
+        // крупный заголовок страницы вкладки — едет вместе со списком и уходит под шапку
+        if (widget.root)
+          Positioned(
+            left: iosEdge,
+            right: iosEdge,
+            top: status + _bar - off,
+            child: IgnorePointer(
+              child: _SizeReport(
+                onSize: (s) {
+                  if (mounted && (s.height - _large).abs() > 0.5) setState(() => _large = s.height);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 34, height: 41 / 34, fontWeight: FontWeight.w700, letterSpacing: iosTracking(34), color: pal.text)),
+                    if (widget.subtitle != null) Text(widget.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, height: 20 / 15, color: pal.muted)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        // эффект края прокрутки: размытие и фон под строкой состояния и шапкой, снизу — мягкий переход
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: status + _bar + 14,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: covered ? 1 : 0,
+              child: ShaderMask(
+                shaderCallback: (r) => LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Color(0xffffffff), Color(0xffffffff), Color(0x00ffffff)],
+                  stops: [0, (r.height - 14) / r.height, 1],
+                ).createShader(r),
+                blendMode: BlendMode.dstIn,
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: ColoredBox(color: bg.withValues(alpha: 0.72)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: status,
+          child: _SizeReport(
+            onSize: (s) {
+              if (mounted && (s.height - _bar).abs() > 0.5) setState(() => _bar = s.height);
+            },
+            child: widget.bar == null ? bar : Padding(padding: const EdgeInsets.only(top: 14), child: bar),
           ),
         ),
       ]),
@@ -803,7 +999,7 @@ class IconBtn extends ConsumerWidget {
         type: MaterialType.transparency,
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(onTap: onTap, child: Icon(ico(icon), size: size ?? (subtle ? 18 : 22), color: color ?? (on ? pal.accent : subtle ? pal.muted : pal.text))),
+        child: InkWell(onTap: onTap, child: AIcon(ico(icon), size: size ?? (subtle ? 18 : 22), color: color ?? (on ? pal.accent : subtle ? pal.muted : pal.text))),
       ),
     );
     return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
@@ -838,7 +1034,7 @@ class AobButton extends ConsumerWidget {
       BtnKind.normal => ios ? (iosFill(pal), pal.accent, Colors.transparent) : (pal.bg, pal.text, pal.line),
     };
     final content = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-      if (icon != null) ...[Icon(ico(icon), size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
+      if (icon != null) ...[AIcon(ico(icon), size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
       Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)))),
     ]);
     if (ios) {
@@ -847,7 +1043,7 @@ class AobButton extends ConsumerWidget {
       final minH = small ? 28.0 : (wide ? 50.0 : 34.0);
       const pill = BorderRadius.all(Radius.circular(100));
       final child = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-        if (icon != null) ...[Icon(ico(icon), size: small ? 15 : 17), const SizedBox(width: 6)],
+        if (icon != null) ...[AIcon(ico(icon), size: small ? 15 : 17), const SizedBox(width: 6)],
         Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]);
       final btn = switch (kind) {
@@ -913,7 +1109,7 @@ class AobChip extends ConsumerWidget {
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: compact ? 30 : 0),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (icon != null) ...[Icon(ico(icon), size: 14, color: fg), const SizedBox(width: 5)],
+                  if (icon != null) ...[AIcon(ico(icon), size: 14, color: fg), const SizedBox(width: 5)],
                   // на 1 px выше: строчные без выносных элементов визуально садятся ниже середины
                   Transform.translate(offset: const Offset(0, -1), child: Text(label, style: TextStyle(fontSize: compact ? 13.5 : 13.8, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg))),
                   if (count != null) ...[
@@ -961,7 +1157,7 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(color: mix(pal.accent, 0.12, pal.bg), borderRadius: BorderRadius.circular(11)),
-                child: Icon(ico(icon), size: 20, color: pal.accent),
+                child: AIcon(ico(icon), size: 20, color: pal.accent),
               ),
           const SizedBox(width: 14),
           Expanded(
@@ -970,7 +1166,7 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
               if (sub != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub!, style: TextStyle(fontSize: 12.5, color: pal.muted))),
             ]),
           ),
-          trailing ?? Icon(ico(LucideIcons.chevronRight), size: 18, color: pal.muted),
+          trailing ?? AIcon(ico(LucideIcons.chevronRight), size: 18, color: pal.muted),
         ]),
       ),
     ));
@@ -1075,7 +1271,7 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
             : Padding(
                 padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
                 child: Row(children: [
-                  Icon(ico(icon), size: ios ? 22 : 20, color: color ?? pal.accent),
+                  AIcon(ico(icon), size: ios ? 22 : 20, color: color ?? pal.accent),
                   const SizedBox(width: 12),
                   Expanded(child: Text(label, style: TextStyle(fontSize: ios ? 16.5 : 15.7, color: color ?? pal.text))),
                   ?extra,
@@ -1182,7 +1378,8 @@ class SwitchRow extends ConsumerWidget implements IosGroupRow, IosFooterRow {
       return iosTile(
         title: Row(children: [Flexible(child: Text(label)), if (hint != null && !IosInCard.of(context)) Hint(hint!)]),
         trailing: iosSwitch(pal, value, onChanged, label: label),
-        onTap: () => onChanged(!value),
+        // iPhone: строку переключают только самим переключателем (нажатие и свайп — его, без задержки)
+        onTap: nativeGlass ? null : () => onChanged(!value),
       );
     }
     return InkWell(
@@ -1629,7 +1826,7 @@ class RoundFab extends ConsumerWidget {
           border: Border.all(color: pal.line),
           boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 14, offset: Offset(0, 4))],
         ),
-        child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: Icon(ico(icon), size: 22, color: pal.text))),
+        child: Material(type: MaterialType.transparency, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: onTap, child: AIcon(ico(icon), size: 22, color: pal.text))),
       ),
     );
   }
@@ -1660,7 +1857,7 @@ class Hint extends ConsumerWidget {
         boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 10))],
       ),
       textStyle: TextStyle(fontSize: 13.4, height: 1.45, color: pal.barText),
-      child: SizedBox(width: 26, height: 24, child: Icon(ico(LucideIcons.circleAlert), size: 15, color: pal.muted)),
+      child: SizedBox(width: 26, height: 24, child: AIcon(ico(LucideIcons.circleAlert), size: 15, color: pal.muted)),
     );
   }
 }
@@ -1717,7 +1914,7 @@ class _SpinnerState extends ConsumerState<Spinner> with SingleTickerProviderStat
   Widget build(BuildContext context) =>
       iosStyleOf(ref)
           ? SizedBox(width: widget.size, height: widget.size, child: CupertinoActivityIndicator(radius: widget.size / 2.2, color: widget.color))
-          : RotationTransition(turns: _c, child: Icon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color ?? paletteOf(ref).muted));
+          : RotationTransition(turns: _c, child: AIcon(ico(LucideIcons.loaderCircle), size: widget.size, color: widget.color ?? paletteOf(ref).muted));
 }
 
 /// Уведомление (.toast): тёмная «таблетка» цвета панели инструментов над нижним краем; с действием — кнопка справа

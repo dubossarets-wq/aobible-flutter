@@ -22,6 +22,7 @@ import 'colors.dart';
 import 'fonts.dart';
 import 'intl_data.dart' show langDisplayNames;
 import 'sheet.dart';
+import '../../ui/glass.dart' show nativeGlass;
 
 Future<void> openAppearance(BuildContext context, {String? block}) => showAppSheet(context, (_) => AppearanceSheet(block: block));
 
@@ -404,7 +405,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 240),
                       opacity: s.get<String>('fontFamily') == e.key ? 1 : 0,
-                      child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: s.get<String>('fontFamily') == e.key ? 1 : 0.6, child: Icon(ico(LucideIcons.check), size: 20, color: pal.accent)),
+                      child: AnimatedScale(duration: const Duration(milliseconds: 240), curve: Curves.fastOutSlowIn, scale: s.get<String>('fontFamily') == e.key ? 1 : 0.6, child: AIcon(ico(LucideIcons.check), size: 20, color: pal.accent)),
                     ),
                   ),
                 ]),
@@ -582,7 +583,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     Widget label(IconData icon, String text, Color color) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(ico(icon), size: 22, color: color),
+            AIcon(ico(icon), size: 22, color: color),
             const SizedBox(height: 4),
             Text(text, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.2, height: 1.15, color: color)),
           ]),
@@ -710,7 +711,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       Column(children: [
         for (final (i, m) in sorted.indexed)
           (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: i == 0, last: i == sorted.length - 1, child: w) : bleed)(InkWell(
-            onTap: () => _toggleInline(list, inline, m, !isOn(m)),
+            onTap: nativeGlass ? null : () => _toggleInline(list, inline, m, !isOn(m)),
             child: Container(
               padding: iosUiNow ? EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 11, 16, 11),
               decoration: iosUiNow ? null : BoxDecoration(border: Border(top: i == 0 ? BorderSide(color: pal.line) : BorderSide.none, bottom: BorderSide(color: pal.line))),
@@ -1024,7 +1025,7 @@ class _ColorPick extends ConsumerWidget {
                         switchInCurve: Curves.fastOutSlowIn,
                         switchOutCurve: Curves.fastOutSlowIn,
                         transitionBuilder: (w, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: w)),
-                        child: on ? Icon(ico(LucideIcons.check), key: const ValueKey('on'), size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : KeyedSubtree(key: const ValueKey('off'), child: child ?? const SizedBox.shrink()),
+                        child: on ? AIcon(ico(LucideIcons.check), key: const ValueKey('on'), size: 18, color: isLight(c) ? const Color(0xFF1d1c1a) : Colors.white) : KeyedSubtree(key: const ValueKey('off'), child: child ?? const SizedBox.shrink()),
                       ),
               ),
             ),
@@ -1042,7 +1043,7 @@ class _ColorPick extends ConsumerWidget {
         child: Wrap(spacing: 0, runSpacing: 0, children: [
           dot(base, !changed, tip: t('Как в теме'), onTap: onReset),
           for (final e in list) dot(parseHex(e.$1)!, changed && curHex == e.$1, tip: t(e.$2), onTap: () => onChanged(parseHex(e.$1)!)),
-          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), dashed: true, child: Icon(ico(LucideIcons.pipette), size: 18, color: pal.text), onTap: () async {
+          dot(custom ? cur : Colors.transparent, custom, tip: t('Свой цвет'), dashed: true, child: AIcon(ico(LucideIcons.pipette), size: 18, color: pal.text), onTap: () async {
             final c = await pickColor(context, cur);
             if (c != null) onChanged(c);
           }),

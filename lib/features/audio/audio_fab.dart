@@ -52,7 +52,7 @@ class ListenFab extends ConsumerWidget {
                   type: MaterialType.transparency,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
-                  child: InkWell(onTap: () => openAudioFrom(context, ref, pane), child: Icon(ico(LucideIcons.headphones), size: 20, color: pal.accent)),
+                  child: InkWell(onTap: () => openAudioFrom(context, ref, pane), child: AIcon(ico(LucideIcons.headphones), size: 20, color: pal.accent)),
                 ),
               ),
             ),
