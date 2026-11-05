@@ -75,7 +75,7 @@ class _Memo {
 _Memo? _memo;
 
 Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope}) =>
-    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search');
+    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search', underKeyboard: true);
 
 class SearchSheet extends ConsumerStatefulWidget {
   const SearchSheet({super.key, required this.pane, this.query, this.scope});
@@ -434,6 +434,50 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
     final count = hits == null ? 0 : (hits.length < _shown ? hits.length : _shown);
     final more = hits != null && hits.length > _shown;
+    Widget results() => SliverList.builder(
+          itemCount: 1 + count + (more ? 1 : 0),
+          itemBuilder: (context, i) {
+            if (i == 0) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: top);
+            if (i == count + 1) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: AobButton(
+                  label: t('Показать ещё ({n})', {'n': '${hits!.length - _shown}'}),
+                  wide: true,
+                  onTap: () {
+                    setState(() => _shown += _page);
+                    if (_memo != null && _memo!.key == _shownKey) _memo!.shown = _shown;
+                  },
+                ),
+              );
+            }
+            final mod = multi ? ModuleStore.instance.get(_hitMods[i - 1]) : null;
+            return _resultRow(pal, textStyle, hits![i - 1], mod, re);
+          },
+        );
+    // Стиль iPhone: строка ввода — внизу, как в «Сообщениях»: капсула над клавиатурой (или над нижним меню);
+    // выбор области, переключатели и найденное — над ней
+    if (iosStyleOf(ref)) {
+      return AobSheet(
+        title: t('Поиск'),
+        subtitle: m == null ? null : (multi ? '${t('Во всех модулях')} · ${targets.length}' : '${m.name} · ${m.title}'),
+        scroll: false,
+        padding: EdgeInsets.zero,
+        child: Builder(builder: (bc) {
+          final bottom = MediaQuery.paddingOf(bc).bottom;
+          return Column(children: [
+            Expanded(
+              child: CustomScrollView(
+                controller: _scroll,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), sliver: results())],
+              ),
+            ),
+            Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
+          ]);
+        }),
+      );
+    }
     return AobSheet(
       title: t('Поиск'),
       subtitle: m == null ? null : (multi ? '${t('Во всех модулях')} · ${targets.length}' : '${m.name} · ${m.title}'),
@@ -489,7 +533,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           decoration: ios
-              ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(10))
+              ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(height / 2), border: Border.all(color: pal.line, width: 0.5))
               : BoxDecoration(
                   color: pal.bg,
                   borderRadius: BorderRadius.circular(kRadius * 0.75),

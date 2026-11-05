@@ -166,6 +166,9 @@ Future<T?> showAobSheet<T>(
   double initial = 0.92,
   bool page = false,
   String? tab, // вкладка этого окна (plans, search, saved, more): подсвечивается, если окно открыто не с неё
+  // в стиле iPhone окно не укорачивается над клавиатурой, а уходит под неё; её высота приходит внутрь нижним
+  // отступом (строка ввода поиска встаёт над клавиатурой, скруглённые углы клавиатуры — на фоне окна)
+  bool underKeyboard = false,
 }) {
   final nested = topRoute(context) is PopupRoute;
   // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
@@ -181,6 +184,16 @@ Future<T?> showAobSheet<T>(
           final cap = page || nested ? box.maxHeight : box.maxHeight - barH - 5;
           final want = math.min(box.maxHeight * (page || nested ? 1 : initial), cap);
           final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
+          if (underKeyboard && kb > 0 && ProviderScope.containerOf(c, listen: false).read(settingsProvider).get<bool>('iosStyle')) {
+            final mq = MediaQuery.of(c).removeViewInsets(removeBottom: true);
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                height: want,
+                child: MediaQuery(data: mq.copyWith(padding: mq.padding.copyWith(bottom: kb)), child: builder(c)),
+              ),
+            );
+          }
           return Padding(
             padding: EdgeInsets.only(bottom: kb),
             // окно уже поднято над клавиатурой — внутрь её высоту не передаём: иначе Scaffold внутри окна ужимал бы
@@ -363,7 +376,8 @@ class AobSheet extends ConsumerWidget {
               ]),
       ),
       ...actions,
-      Padding(padding: const EdgeInsets.only(left: 7, right: 4), child: close),
+      // справа — пустое место той же ширины, что у «назад», чтобы название было ровно по центру
+      SizedBox(width: 44, child: Align(alignment: Alignment.centerRight, child: close)),
     ]);
   }
 
@@ -381,15 +395,16 @@ class AobSheet extends ConsumerWidget {
     final ios = iosStyleOf(ref);
     final sheet = MediaQuery(
       data: mq.copyWith(textScaler: scale == 1 ? system : TextScaler.linear(system.scale(1) * scale)),
-      child: _sheet(context, pal, body, back, ios),
+      child: IosElevated(elevated: !_Nested.of(context), child: _sheet(context, pal, body, back, ios)),
     );
     // окно снизу (не вложенное): список уже у верха — потянули вниз дальше, и окно уезжает за пальцем и закрывается
     return _Nested.of(context) ? sheet : _PullToClose(child: sheet);
   }
 
   Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back, bool ios) {
+    final nested = _Nested.of(context);
     return Material(
-      color: pal.panel,
+      color: ios ? iosGroupedBg(pal, !nested) : pal.panel,
       // окно на весь экран — без скругления; стиль iPhone — скругление листа iOS
       borderRadius: _Nested.of(context) ? BorderRadius.zero : BorderRadius.vertical(top: Radius.circular(ios ? 22 : kRadius + 6)),
       clipBehavior: Clip.antiAlias,
@@ -405,7 +420,7 @@ class AobSheet extends ConsumerWidget {
         Container(
           // стрелка «назад», заголовок и крестик — на одной линии: одинаковые отступы сверху и снизу, у текста —
           // без невидимых полей над первой и под последней строкой (иначе его середина ниже середины значков)
-          padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
+          padding: ios ? const EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8) : EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
           constraints: const BoxConstraints(minHeight: 44),
           decoration: ios ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: ios ? _iosHeader(context, pal, back) : Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -729,7 +744,7 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 52),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 9, 14, 9),
+              padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
               child: Row(children: [
                 leading ?? IosIconSquare(icon),
                 const SizedBox(width: 14),
@@ -778,7 +793,7 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
             ? ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 52),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 9, 14, 9),
+                  padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
                   child: Row(children: [
                     IosIconSquare(this.icon, color: color),
                     const SizedBox(width: 14),
@@ -846,7 +861,7 @@ class AobSwitch extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     // стиль iPhone: системный переключатель iOS (зелёный)
-    if (iosStyleOf(ref)) return CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreen);
+    if (iosStyleOf(ref)) return CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal));
     return GestureDetector(
       onTap: onChanged == null ? null : () => onChanged!(!value),
       child: AnimatedContainer(
@@ -895,7 +910,7 @@ class SwitchRow extends ConsumerWidget implements IosGroupRow {
             padding: const EdgeInsets.fromLTRB(16, 8, 14, 8),
             child: Row(children: [
               Expanded(child: Row(children: [Flexible(child: Text(label, style: TextStyle(fontSize: 17, color: pal.text))), if (hint != null) Hint(hint!)])),
-              CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreen),
+              CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal)),
             ]),
           ),
         ),

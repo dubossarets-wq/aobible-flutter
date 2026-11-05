@@ -126,8 +126,9 @@ class Settings {
 }
 
 /// Системные цвета iOS (стиль iPhone): фон, label, secondaryLabel, systemBlue, фон групп, разделитель
-final iosLight = Palette('iOS', bg: _c(0xffffff), text: _c(0x000000), muted: _c(0x8a8a8e), accent: _c(0x007aff), panel: _c(0xf2f2f7), onAccent: _c(0xffffff), bar: _c(0xffffff), barText: _c(0x000000), line: _c(0xc6c6c8), hl: _c(0xffe79a), verseNum: _c(0x8a8a8e));
-final iosDark = Palette('iOS тёмная', dark: true, bg: _c(0x000000), text: _c(0xffffff), muted: _c(0x8d8d93), accent: _c(0x0a84ff), panel: _c(0x1c1c1e), onAccent: _c(0xffffff), bar: _c(0x000000), barText: _c(0xffffff), line: _c(0x38383a), hl: _c(0x5b4a1c), verseNum: _c(0x8d8d93));
+// (значения — как у UIKit / CupertinoColors: secondaryLabel 3C3C43 60 % / EBEBF5 60 %, separator 3C3C43 29 % / 545458 60 %)
+final iosLight = Palette('iOS', bg: _c(0xffffff), text: _c(0x000000), muted: const Color(0x993c3c43), accent: _c(0x007aff), panel: _c(0xf2f2f7), onAccent: _c(0xffffff), bar: _c(0xffffff), barText: _c(0x000000), line: const Color(0x4a3c3c43), hl: _c(0xffe79a), verseNum: const Color(0x993c3c43));
+final iosDark = Palette('iOS тёмная', dark: true, bg: _c(0x000000), text: _c(0xffffff), muted: const Color(0x99ebebf5), accent: _c(0x0a84ff), panel: _c(0x1c1c1e), onAccent: _c(0xffffff), bar: _c(0x000000), barText: _c(0xffffff), line: const Color(0x99545458), hl: _c(0x5b4a1c), verseNum: const Color(0x99ebebf5));
 
 late SharedPreferences prefs;
 

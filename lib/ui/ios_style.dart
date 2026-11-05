@@ -24,8 +24,26 @@ Color iosFill(Palette p) => p.dark ? const Color(0x3d767680) : const Color(0x1f7
 /// у меню снизу — такой же, как по бокам
 const iosEdge = 20.0;
 
-/// Системный зелёный — включённый переключатель
+/// Системный зелёный — включённый переключатель (UIKit systemGreen: светлая / тёмная)
 const iosGreen = Color(0xff34c759);
+const iosGreenDark = Color(0xff30d158);
+Color iosGreenOf(Palette p) => p.dark ? iosGreenDark : iosGreen;
+
+/// Уровень, как в UIKit: окно поверх текста — «приподнятое» (в тёмной: фон #1C1C1E, карточки #2C2C2E),
+/// страница на весь экран — базовое (фон #000000, карточки #1C1C1E); в светлой — всегда #F2F2F7 и белые карточки
+class IosElevated extends InheritedWidget {
+  const IosElevated({super.key, required this.elevated, required super.child});
+  final bool elevated;
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IosElevated>()?.elevated ?? true;
+  @override
+  bool updateShouldNotify(IosElevated old) => old.elevated != elevated;
+}
+
+/// Фон карточки группы по уровню (secondarySystemGroupedBackground)
+Color iosCardAt(Palette p, bool elevated) => !p.dark ? const Color(0xffffffff) : (elevated ? const Color(0xff2c2c2e) : const Color(0xff1c1c1e));
+
+/// Фон окна по уровню (systemGroupedBackground)
+Color iosGroupedBg(Palette p, bool elevated) => !p.dark ? const Color(0xfff2f2f7) : (elevated ? const Color(0xff1c1c1e) : const Color(0xff000000));
 
 /// Значок из набора Apple вместо нашего (если есть похожий), иначе — тот же
 IconData iosIcon(IconData i) => _map[i] ?? i;
@@ -157,11 +175,11 @@ class IosSection extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: EdgeInsets.symmetric(horizontal: margin),
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: iosCard(pal), borderRadius: BorderRadius.circular(26)),
+        decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(26)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < rows.length; i++) ...[
             rows[i],
-            if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i]), child: Container(height: 0.5, color: pal.line)),
+            if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i], right: 16), child: Container(height: 0.5, color: pal.line)),
           ],
         ]),
       );
@@ -182,7 +200,7 @@ class IosIconSquare extends StatelessWidget {
 }
 
 /// Стрелка «›» справа у строки (серая, как в iOS)
-Color iosChevron(Palette p) => p.dark ? const Color(0xff5a5a5f) : const Color(0xffc4c4c7);
+Color iosChevron(Palette p) => p.dark ? const Color(0x4debebf5) : const Color(0x4d3c3c43);
 
 /// Цвет квадрата значка — по смыслу пункта (системные цвета iOS), прочие — синие
 Color iosIconColor(IconData i) => _colors[i] ?? const Color(0xff007aff);
