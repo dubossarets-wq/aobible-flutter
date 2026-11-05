@@ -221,7 +221,13 @@ Future<T?> showAobSheet<T>(
       ? Navigator.of(context).push<T>(IosPageRoute<T>(
           requestFocus: requestFocus,
           instant: iosTabSwitch,
-          builder: (c) => SafeArea(bottom: false, child: Material(type: MaterialType.transparency, child: body(c))),
+          // под строкой состояния — тот же системный фон, что у страницы (иначе там видно чёрное окно)
+          builder: (c) => Consumer(
+            builder: (c, ref, _) => ColoredBox(
+              color: iosGroupedBg(paletteOf(ref), false),
+              child: SafeArea(bottom: false, child: Material(type: MaterialType.transparency, child: body(c))),
+            ),
+          ),
         ))
       : nested
       // окно поверх окна (подменю: «Ещё» → «Настройки») — на весь экран, въезжает справа и уезжает вправо
@@ -353,6 +359,12 @@ class _SwipeBackState extends State<_SwipeBack> {
     final back = v > 1.0 || (v > -1.0 && c.value < 0.5);
     if (back) {
       nav.pop();
+      // доводка, как у системного жеста iOS: быстро и с замедлением у края; время — по оставшемуся пути
+      // (не больше 0,35 с, при быстром смахивании — короче), а не полные 0,5 с закрытия ровным ходом
+      if (c.isAnimating) {
+        final ms = (c.value * (v > 1.0 ? 240 : 350)).round().clamp(90, 350);
+        c.animateBack(0.0, duration: Duration(milliseconds: ms), curve: Curves.easeOutCubic);
+      }
     } else {
       c.animateTo(1.0, duration: const Duration(milliseconds: 250), curve: Curves.fastLinearToSlowEaseIn);
     }

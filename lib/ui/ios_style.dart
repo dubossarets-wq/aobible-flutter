@@ -386,7 +386,7 @@ Color iosChevron(Palette p) => sysColor(CupertinoColors.tertiaryLabel, dark: p.d
 Color iosIconColor(IconData i) => _colors[i] ?? const Color(0xff007aff);
 
 const _orange = Color(0xffff9500), _red = Color(0xffff3b30), _pink = Color(0xffff2d55), _green = Color(0xff34c759);
-const _blue = Color(0xff007aff), _indigo = Color(0xff5856d6), _purple = Color(0xffaf52de), _gray = Color(0xff8e8e93), _teal = Color(0xff30b0c7);
+const _blue = Color(0xff007aff), _indigo = Color(0xff5856d6), _purple = Color(0xffaf52de), _gray = Color(0xff8e8e93), _teal = Color(0xff30b0c7), _cyan = Color(0xff32ade6);
 
 final Map<IconData, Color> _colors = {
   LucideIcons.bookmark: _orange,
@@ -417,7 +417,13 @@ final Map<IconData, Color> _colors = {
   LucideIcons.languages: _blue,
   LucideIcons.hardDrive: _gray,
   LucideIcons.refreshCw: _green,
-  LucideIcons.type: _blue,
+  // «Оформление»: разные системные цвета, как разделы «Настроек» iPhone
+  LucideIcons.type: _gray,
+  LucideIcons.hash: _orange,
+  LucideIcons.image: _cyan,
+  LucideIcons.panelTop: _indigo,
+  LucideIcons.messageSquareText: _green,
+  LucideIcons.ellipsisVertical: _indigo,
   LucideIcons.download: _blue,
   LucideIcons.trash2: _red,
 };
