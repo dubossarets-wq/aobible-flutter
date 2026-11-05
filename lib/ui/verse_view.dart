@@ -149,6 +149,11 @@ class _VR {
 }
 
 // Часть блока: стихи подряд до строки действий под стихом (строка действий разрывает абзац, как в вебе)
+// Есть ли в отрезке стихи — отдельной функцией без встраивания: проверка «seg != null && seg.vrs…» внутри цикла
+// сборки стихов попадала под ошибку компилятора Dart (см. _assemble)
+@pragma('vm:never-inline')
+bool _segHasVerses(_Seg? s) => s != null && s.vrs.isNotEmpty;
+
 class _Seg {
   _Seg(this.key);
   final GlobalKey key;
@@ -490,20 +495,34 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
       if (book && cont) add(WidgetSpan(child: SizedBox(width: fs * 1.4)));
     }
 
+    // Неизменные в цикле значения — заранее, до цикла, без проверок «x != null && x.поле» внутри него: компилятор
+    // Dart 3.13 (Flutter 3.47) выносит такое чтение поля из цикла раньше самой проверки (dart-lang/sdk#63413) —
+    // в стеке остаётся мусор, и сборщик мусора падает (на iPhone с iOS 27 — вылет при запуске)
+    final psPane = ps?.pane ?? -1;
+    final psRef = ps?.ref;
+    final psFrom = ps?.from;
+    final psTo = ps?.to;
+    final markQuery = mark?.query;
+    final markCh = mark?.ref.chapter ?? -1;
+    final markV = mark?.ref.verse ?? -1;
+    final awPane = aw?.pane ?? -1;
+    final awRef = aw?.ref;
+    final awToken = aw?.token ?? -1;
+
     for (var k = 0; k < verses.length; k++) {
       final it = verses[k];
       final vref = VerseRef(v.book, it.chapter, it.verse);
       final decors = [for (final d in Hub.verseDecorators) d(context, ref, v.pane, v.moduleId, it, v.book)].whereType<VerseDecor>().toList();
       // перед стихом (введение к книге или главе) — отдельный блок: сплошной текст перед ним разрываем
       final above = decors.map((d) => d.above).whereType<Widget>().toList();
-      if (above.isNotEmpty && seg != null && seg!.vrs.isNotEmpty) {
+      if (above.isNotEmpty && _segHasVerses(seg)) {
         seg!.span = TextSpan(children: ch);
         seg = null;
       }
       if (seg == null) open();
       final cur = seg!;
       if (above.isNotEmpty) cur.before = [for (final w in above) Padding(padding: EdgeInsets.only(bottom: fs * s.d('verseSpacing')), child: w)];
-      final partOn = ps != null && ps.pane == v.pane && ps.ref == vref;
+      final partOn = psPane == v.pane && psRef == vref;
       final selected = (selKey.isNotEmpty && selKey[k] == '1') || partOn;
       final vr = _VR(it, at);
       cur.vrs.add(vr);
@@ -588,19 +607,19 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
           if (r != null) cur.plates.add(_Plate(r.$1, r.$2, _love.withValues(alpha: 0.2), r: 6, inflate: 2, unify: true));
         }
       }
-      final pf = partOn ? ps.from : null;
-      final pt = partOn ? ps.to : null;
+      final pf = partOn ? psFrom : null;
+      final pt = partOn ? psTo : null;
       if (pf != null) {
         final r = range(pf, pt ?? pf);
         if (r != null) cur.plates.add(_Plate(r.$1, r.$2, pal.accent.withValues(alpha: 0.24), r: 6, inflate: 2, unify: true));
       }
-      if (mark != null && mark.query != null && mark.ref.chapter == it.chapter && mark.ref.verse == it.verse) {
-        for (final wi in highlightWords(it, mark.query!)) {
+      if (markQuery != null && markCh == it.chapter && markV == it.verse) {
+        for (final wi in highlightWords(it, markQuery)) {
           if (wi < vr.words.length) cur.plates.add(_Plate(vr.words[wi].$1, vr.words[wi].$2, pal.hl, kind: 2));
         }
       }
-      if (aw != null && aw.pane == v.pane && aw.ref == vref && aw.token < vr.words.length) {
-        final w = vr.words[aw.token];
+      if (awPane == v.pane && awRef == vref && awToken >= 0 && awToken < vr.words.length) {
+        final w = vr.words[awToken];
         cur.plates.add(_Plate(w.$1, w.$2, pal.accent.withValues(alpha: 0.26), inflate: 2));
       }
       if (_flashVerse == it.verse && _flash.isAnimating) {
@@ -608,7 +627,7 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
       }
 
       // Под стихом: выбор части стиха (PartInline) вместо строки действий выделения
-      final below = partOn ? <Widget>[_PartInline(pane: v.pane, ps: ps, item: it, book: v.book)] : decors.map((d) => d.below).whereType<Widget>().toList();
+      final below = partOn ? <Widget>[_PartInline(pane: v.pane, ps: ps!, item: it, book: v.book)] : decors.map((d) => d.below).whereType<Widget>().toList();
       if (below.isNotEmpty) {
         cur.after = [
           for (final w in below) Padding(padding: EdgeInsets.only(bottom: partOn ? 0 : fs * s.d('verseSpacing')), child: w),

@@ -362,10 +362,11 @@ class StudyData {
     if (hit != null) return hit as Map<int, int>;
     final m = <int, int>{};
     for (final mod in illustrationModules()) {
-      for (final row in _store.db(mod.id).select('SELECT chapter, verse, json FROM illus WHERE book = ?', [book])) {
+      // число картинок считает сам SQLite: разбор JSON каждой строки во время сборки стихов занимал память
+      // и запускал сборку мусора посреди отрисовки
+      for (final row in _store.db(mod.id).select('SELECT chapter, verse, json_array_length(json) AS n FROM illus WHERE book = ?', [book])) {
         final k = (row['chapter'] as int) * 1000 + (row['verse'] as int);
-        final n = (jsonDecode(row['json'] as String) as List).length;
-        m[k] = ((m[k] ?? 0) + n).clamp(0, _maxIllus);
+        m[k] = ((m[k] ?? 0) + ((row['n'] as int?) ?? 0)).clamp(0, _maxIllus);
       }
     }
     return _bookCache[key] = m;

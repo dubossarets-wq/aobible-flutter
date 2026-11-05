@@ -65,6 +65,8 @@ void main() {
     expect(StudyData.commentaryIndex('Gen')[1002], isNotNull);
     expect(StudyData.commentaryFor(const VerseRef('Gen', 1, 2)).first.items.first.text, isNotEmpty);
     expect(StudyData.illustrationsFor(const VerseRef('Gen', 1, 3)).first['img'], isNotNull);
+    // число картинок у стиха считает SQLite (json_array_length), не больше двух
+    expect(StudyData.illustrationCounts('Gen')[1003], inInclusiveRange(1, 2));
 
     // Подстрочник
     sw = Stopwatch()..start();
