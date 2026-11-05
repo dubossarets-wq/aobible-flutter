@@ -202,7 +202,7 @@ class _Split extends ConsumerWidget {
         final w = cols || i == n - 1 ? children[i] : MediaQuery.removePadding(context: context, removeBottom: true, child: children[i]);
         kids.add(slot(w, usable / n + (i == n - 1 ? inset : 0)));
         // стиль iPhone: непрозрачный системный серый — полупрозрачный разделитель iOS на чёрном почти не виден
-        final line = iosStyleOf(ref) ? sysColor(CupertinoColors.systemGray4, dark: pal.dark) : pal.line;
+        final line = iosStyleOf(ref) ? sysColor(CupertinoColors.systemGrey4, dark: pal.dark) : pal.line;
         if (i < n - 1) kids.add(cols ? SizedBox(width: thick, child: ColoredBox(color: line)) : SizedBox(height: thick, child: ColoredBox(color: line)));
       }
       return cols ? Row(children: kids) : Column(children: kids);
