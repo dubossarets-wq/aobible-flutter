@@ -451,3 +451,126 @@ TextTheme iosTextTheme(TextTheme base) {
     labelLarge: f(base.labelLarge), labelMedium: f(base.labelMedium), labelSmall: f(base.labelSmall),
   );
 }
+
+// --- Смахивание строки, как в iOS 26 («Заметки», «Напоминания») ------------------------------------------------
+
+/// Кнопка за строкой: цветная капсула со знаком, подпись под ней
+class IosSwipeAction {
+  const IosSwipeAction({required this.icon, required this.label, required this.color, required this.onTap, this.destructive = false});
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final bool destructive; // смахивание до конца — сразу это действие (удаление)
+}
+
+/// Строка смахивается влево и открывает кнопки-капсулы с подписями; дальше половины ширины — выполняется
+/// последнее (разрушающее) действие; нажатие по открытой строке или смахивание вправо — закрывает
+class IosSwipe extends StatefulWidget {
+  const IosSwipe({super.key, required this.child, required this.actions, required this.pal});
+  final Widget child;
+  final List<IosSwipeAction> actions;
+  final Palette pal;
+  @override
+  State<IosSwipe> createState() => _IosSwipeState();
+}
+
+class _IosSwipeState extends State<IosSwipe> with SingleTickerProviderStateMixin {
+  static const _btn = 74.0, _gap = 8.0;
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 260), lowerBound: -4000, upperBound: 0, value: 0);
+  double get _open => widget.actions.length * (_btn + _gap) + _gap;
+  double _w = 400;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _to(double x) => _c.animateTo(x, curve: Curves.easeOutCubic);
+
+  void _end(DragEndDetails d) {
+    final x = _c.value, v = d.primaryVelocity ?? 0;
+    final last = widget.actions.isEmpty ? null : widget.actions.last;
+    if (last != null && last.destructive && (x < -_w * 0.6 || (v < -1800 && x < -_open))) {
+      _c.animateTo(-_w, curve: Curves.easeOut).then((_) => last.onTap());
+      return;
+    }
+    _to(v < -300 || (v <= 300 && x < -_open / 2) ? -_open : 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) {
+        _w = c.maxWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragUpdate: (d) => _c.value = (_c.value + d.primaryDelta!).clamp(-_w, 0.0),
+          onHorizontalDragEnd: _end,
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, child) {
+              final x = _c.value;
+              final shown = (-x / _open).clamp(0.0, 1.0);
+              return Stack(children: [
+                // кнопки справа: проявляются по мере смахивания
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Opacity(
+                      opacity: shown,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: _gap),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          for (final a in widget.actions)
+                            Padding(
+                              padding: const EdgeInsets.only(left: _gap),
+                              child: Semantics(
+                                button: true,
+                                label: a.label,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    _to(0);
+                                    a.onTap();
+                                  },
+                                  child: SizedBox(
+                                    width: _btn,
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      Container(
+                                        width: _btn,
+                                        height: 40,
+                                        decoration: BoxDecoration(color: a.color, borderRadius: BorderRadius.circular(20)),
+                                        child: Icon(a.icon, size: 20, color: const Color(0xffffffff)),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(a.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: widget.pal.muted)),
+                                    ]),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(x, 0),
+                  child: x < 0
+                      // открытая строка — отдельной скруглённой плашкой (как в «Заметках»); нажатие закрывает её
+                      ? GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _to(0),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: sysColor(CupertinoColors.tertiarySystemGroupedBackground, dark: widget.pal.dark), borderRadius: BorderRadius.circular(iosRadius * 0.8)),
+                            child: AbsorbPointer(child: child),
+                          ),
+                        )
+                      : child,
+                ),
+              ]);
+            },
+            child: widget.child,
+          ),
+        );
+      });
+}

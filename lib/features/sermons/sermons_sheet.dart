@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph, RenderObject;
 import 'package:flutter/services.dart';
@@ -178,7 +179,20 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
   }
 
   // стиль iPhone: строки — частями карточки группы
-  Widget _row(Palette pal, Sermon s, {bool first = false, bool last = false}) => (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: first, last: last, indent: iosRowTextLeft - 12, child: w) : bleed)(Dismissible(
+  Widget _row(Palette pal, Sermon s, {bool first = false, bool last = false}) => iosUiNow
+      // стиль iPhone: смахивание как в iOS 26 — капсула «Удалить» с подписью
+      ? IosCardItem(
+          pal: pal,
+          first: first,
+          last: last,
+          indent: iosRowTextLeft - 12,
+          child: IosSwipe(
+            pal: pal,
+            actions: [IosSwipeAction(icon: CupertinoIcons.trash, label: t('Удалить'), color: sysColor(CupertinoColors.systemRed, dark: pal.dark), onTap: () => _remove(s), destructive: true)],
+            child: SermonRow(pal: pal, sermon: s, inCard: true, onTap: () => setState(() => _openId = '${s['id']}')),
+          ),
+        )
+      : bleed(Dismissible(
         key: ValueKey('${s['id']}'),
         direction: DismissDirection.endToStart,
         onDismissed: (_) => _remove(s),

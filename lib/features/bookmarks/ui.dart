@@ -3,10 +3,12 @@
 // Окна — showAobSheet/AobSheet из kit.dart, кнопки — AobButton, значки — Lucide.
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/i18n.dart';
+import '../../core/settings.dart' show Palette, sysColor;
 import '../../ui/kit.dart';
 import '../../ui/ios_style.dart';
 
@@ -175,6 +177,19 @@ class AobListRow extends ConsumerWidget {
     // строка — от края до края окна (bleed поверх полей 16), и подсветка, и линия, и красная полоса; отступ 20 — у содержимого.
     // Стиль iPhone: строка — часть карточки группы, удаление — смахиванием (без значка корзины в строке)
     final ios = iosStyleOf(ref);
+    // стиль iPhone: смахивание как в iOS 26 — капсула «Удалить» с подписью
+    if (ios) {
+      return IosCardItem(
+        pal: pal,
+        first: first,
+        last: last,
+        child: IosSwipe(
+          pal: pal,
+          actions: [IosSwipeAction(icon: CupertinoIcons.trash, label: actionText ?? t('Удалить'), color: sysColor(CupertinoColors.systemRed, dark: pal.dark), onTap: onDelete, destructive: true)],
+          child: _body(pal, metaText, ios),
+        ),
+      );
+    }
     final row = Dismissible(
       key: ValueKey(id),
       direction: DismissDirection.endToStart,
@@ -191,7 +206,12 @@ class AobListRow extends ConsumerWidget {
           ]),
         ),
       ),
-      child: Material(
+      child: _body(pal, metaText, ios),
+    );
+    return bleed(row);
+  }
+
+  Widget _body(Palette pal, Widget? metaText, bool ios) => Material(
         color: ios ? Colors.transparent : pal.panel,
         child: InkWell(
           onTap: onTap,
@@ -219,10 +239,7 @@ class AobListRow extends ConsumerWidget {
           ]),
         ),
         ),
-      ),
-    );
-    return ios ? IosCardItem(pal: pal, first: first, last: last, child: row) : bleed(row);
-  }
+      );
 }
 
 // --- Закрашенные значки: в Lucide для Flutter нет «заливки», а в веб-версии сердце/папка закрашены -------------

@@ -78,7 +78,7 @@ void main() {
         await tester.tap(find.text('Ещё').last);
         await wait(10);
         final f = find.text(row);
-        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byType(Scrollable).last);
+        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).last);
         await wait(4);
         await tester.tap(f.first, warnIfMissed: false);
       }
@@ -94,7 +94,7 @@ void main() {
         await fromMore(page);
         await wait(10);
         final f = find.text(row);
-        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byType(Scrollable).last);
+        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).last);
         await wait(4);
         await tester.tap(f.first, warnIfMissed: false);
       }
@@ -114,6 +114,11 @@ void main() {
       await step('12-whatsnew', () => fromMore('Что нового'));
       await step('13-bookmarks', () => fromMore('Закладки и заметки'));
       await step('14-sermons', () => fromMore('Проповеди'));
+      await step('14b-sermons-swipe', () async {
+        await fromMore('Проповеди');
+        await wait(10);
+        await tester.drag(find.textContaining('изменена').first, const Offset(-140, 0));
+      });
       await step('15-plans', () => fromMore('Планы чтения'));
       await step('16-maps', () => fromMore('Карты'));
       await step('17-report', () => fromMore('Сообщить о проблеме'));
