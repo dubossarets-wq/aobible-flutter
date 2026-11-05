@@ -1661,6 +1661,35 @@ class AobTabs<T> extends ConsumerWidget {
       return flex != null ? Expanded(flex: flex, child: w) : w;
     }
 
+    // стиль iPhone: до четырёх вкладок — системный сегментный переключатель; больше — ряд капсул (как фильтры в
+    // «Музыке»): подчёркнутых вкладок в iOS нет
+    if (iosStyleOf(ref)) {
+      String name((T, String, int?) x) => x.$3 == null ? x.$2 : '${x.$2} ${x.$3}';
+      if (tabs.length <= 4) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<int>(
+              groupValue: tabs.indexWhere((x) => x.$1 == value),
+              onValueChanged: (i) {
+                if (i != null && i >= 0) onChanged(tabs[i].$1);
+              },
+              children: {
+                for (final (i, x) in tabs.indexed)
+                  i: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(name(x), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: pal.text))),
+              },
+            ),
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 8),
+        child: FadeRow(gap: 8, padding: const EdgeInsets.symmetric(horizontal: iosEdge), children: [
+          for (final x in tabs) AobChip(label: x.$2, count: x.$3, on: x.$1 == value, onTap: () => onChanged(x.$1)),
+        ]),
+      );
+    }
     final bar = LayoutBuilder(builder: (context, box) {
       final widths = [for (final x in tabs) _textWidth('${x.$2}${x.$3 != null ? ' ${x.$3}' : ''}', label, scale) + 24];
       final need = widths.fold<double>(0, (a, w) => a + w);

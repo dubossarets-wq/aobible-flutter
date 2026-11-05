@@ -3,6 +3,7 @@
 // («Источник каталога»), включение и выключение небиблейских модулей (переключатель и свайп).
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoButton, CupertinoButtonSize;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +13,7 @@ import '../hub.dart';
 import '../maps/maps_sheet.dart' show openMapsSheet;
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import 'colors.dart';
 import 'intl_data.dart';
@@ -435,13 +437,24 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             // группа: подзаголовок (мелко, серо, 20 от края окна) и строки от края до края, как другие списки
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+                padding: iosStyleOf(ref) ? const EdgeInsets.fromLTRB(4 + iosRowIconLeft, 10, 4, 6) : const EdgeInsets.fromLTRB(4, 4, 4, 2),
                 child: Text.rich(TextSpan(children: [
-                  TextSpan(text: t(g.$2)),
+                  TextSpan(text: iosStyleOf(ref) ? t(g.$2).toUpperCase() : t(g.$2)),
                   TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400)),
-                ]), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
+                ]), style: iosStyleOf(ref) ? TextStyle(fontSize: 12.5, letterSpacing: 0.3, color: pal.muted) : TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
               ),
               // длинный раздел (сотни переводов каталога) — сначала первые 60 строк, остальные — «Показать ещё»
+              // стиль iPhone: строки группы — в одной скруглённой карточке
+              if (iosStyleOf(ref))
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: iosEdge - 16),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(26)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    for (final (i, m) in g.$3.take(_more[g.$1] ?? 60).indexed) _row(m, s, pal, last: i == g.$3.length - 1 || i == (_more[g.$1] ?? 60) - 1),
+                  ]),
+                )
+              else
               for (final (i, m) in g.$3.take(_more[g.$1] ?? 60).indexed) _row(m, s, pal, last: i == g.$3.length - 1),
               if (g.$3.length > (_more[g.$1] ?? 60))
                 Padding(
@@ -508,7 +521,12 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
     }
     // «Перейти» у установленного перевода, комментария, карт — рядом со звездой или переключателем
     final go = installed != null && busy == null && _goTypes.contains(installed.type) && installed.features['helper'] != true
-        ? Padding(padding: const EdgeInsets.only(right: 4), child: ModPill(pal: pal, outline: true, label: t('Перейти'), tip: t('Перейти к {name}', {'name': m.name}), onTap: () => _go(installed)))
+        ? Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: iosStyleOf(ref)
+                ? CupertinoButton.tinted(sizeStyle: CupertinoButtonSize.small, onPressed: () => _go(installed), child: Text(t('Перейти')))
+                : ModPill(pal: pal, outline: true, label: t('Перейти'), tip: t('Перейти к {name}', {'name': m.name}), onTap: () => _go(installed)),
+          )
         : null;
     // полное название — если оно не повторяет короткое; ниже мелко язык и размер для скачивания
     final title = m.title.isNotEmpty && m.title != m.name ? m.title : null;
@@ -522,8 +540,13 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
         });
     final off = _tab == 'installed' && installed != null && installed.type != 'bible' && !ModuleStore.instance.isEnabled(installed.id);
     // строка от края до края окна (подсветка и линия), отступ содержимого 20 — как PrefRow
-    return Opacity(opacity: off ? 0.72 : 1, child: bleed(Container(
-      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line))),
+    final ios = iosStyleOf(ref);
+    Widget edge(Widget w) => ios ? w : bleed(w);
+    return Opacity(opacity: off ? 0.72 : 1, child: edge(Container(
+      decoration: ios
+          ? null
+          : BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line))),
+      foregroundDecoration: ios && !last ? BoxDecoration(border: Border(bottom: BorderSide(color: pal.line, width: 0.5))) : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         InkWell(
           onTap: toggle,
