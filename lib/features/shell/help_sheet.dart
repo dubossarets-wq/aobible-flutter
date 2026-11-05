@@ -54,6 +54,21 @@ class _HelpSheetState extends ConsumerState<HelpSheet> {
           Expanded(child: Text(t('Выберите тему — покажем, куда нажимать.'), style: TextStyle(fontSize: 14.25, height: 1.45, color: pal.text))),
         ]),
         AobInput(controller: _search, icon: null, hint: t('Например: проповедь, слушать, шрифт'), onChanged: (v) => setState(() => _q = v)),
+        // стиль iPhone: группа — системный заголовок и строки одной карточкой (как «Настройки» iPhone)
+        if (iosUiNow)
+          for (final g in groups) ...[
+            GroupTitle(t(g)),
+            for (final (i, x) in list.where((x) => x.group == g).indexed.toList())
+              PrefRow(
+                icon: x.icon,
+                title: t(x.title),
+                sub: plural('{n} шаг|{n} шага|{n} шагов', x.steps(phone).length),
+                onTap: () => _start(x.id),
+                last: i == list.where((y) => y.group == g).length - 1,
+              ),
+            const IosBreak(),
+          ]
+        else
         // .nav-group: заголовок h4 (бледный) и список строк-переходов
         for (final g in groups)
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

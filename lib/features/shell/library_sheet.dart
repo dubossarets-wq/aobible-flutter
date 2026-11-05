@@ -449,7 +449,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: iosEdge - 16),
                   clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(26)),
+                  decoration: iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     for (final (i, m) in g.$3.take(_more[g.$1] ?? 60).indexed) _row(m, s, pal, last: i == g.$3.length - 1 || i == (_more[g.$1] ?? 60) - 1),
                   ]),

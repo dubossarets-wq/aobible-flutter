@@ -133,11 +133,9 @@ class Sample extends StatelessWidget {
     // .preview-card: рамка line, скругление 12, фон страницы; .pv-bar 46 (в закреплённом образце), .pv-body 10 16 12
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: pal.bg,
-        border: Border.all(color: pal.line, width: s.get<bool>('iosStyle') ? 0.5 : 1),
-        borderRadius: BorderRadius.circular(s.get<bool>('iosStyle') ? iosRadius : kRadius),
-      ),
+      decoration: s.get<bool>('iosStyle')
+          ? iosShape(pal.bg, BorderRadius.circular(iosRadius), side: BorderSide(color: pal.line, width: 0.5))
+          : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (bar)
           Container(
@@ -245,14 +243,18 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                     ? Sample(s: s, live: true, bar: _live == 'bar' || _live == 'barText', head: _live == 'heading', sn: _live == 'strong', short: true)
                     // образец обрезан по высоте 180 — по той же скруглённой рамке (иначе низ срезан прямо, без углов и линии)
                     : Container(
-                        foregroundDecoration: BoxDecoration(
-                          border: Border.all(color: effectivePalette(s).line, width: iosStyleOf(ref) ? 0.5 : 1),
-                          borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : kRadius),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : kRadius),
-                          child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
-                        ),
+                        foregroundDecoration: iosStyleOf(ref)
+                            ? ShapeDecoration(shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius), side: BorderSide(color: effectivePalette(s).line, width: 0.5)))
+                            : BoxDecoration(border: Border.all(color: effectivePalette(s).line), borderRadius: BorderRadius.circular(kRadius)),
+                        child: iosStyleOf(ref)
+                            ? ClipRSuperellipse(
+                                borderRadius: BorderRadius.circular(iosRadius),
+                                child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(kRadius),
+                                child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
+                              ),
                       ),
       ),
       children: children,
@@ -371,7 +373,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         clipBehavior: Clip.antiAlias,
         // стиль iPhone: карточка группы (системная заливка и скругление, без рамки)
         decoration: iosUiNow
-            ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+            ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius))
             : BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
         child: Column(children: [
           for (final (i, e) in defs.indexed) ...[
@@ -911,7 +913,7 @@ class _ViewTile extends ConsumerWidget {
           constraints: const BoxConstraints(minHeight: 84),
           padding: const EdgeInsets.all(12),
           decoration: iosStyleOf(ref)
-              ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+              ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius))
               : BoxDecoration(
                   color: pal.bg,
                   border: Border.all(color: on ? pal.accent : pal.line),

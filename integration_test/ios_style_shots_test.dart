@@ -111,6 +111,7 @@ void main() {
       }
       await step('05b-more-low', () => low(() => tester.tap(find.text('Ещё').last)));
       await step('11-about', () => fromMore('О приложении'));
+      await step('19-help', () => fromMore('Инструкция'));
       await step('12-whatsnew', () => fromMore('Что нового'));
       await step('13-bookmarks', () => fromMore('Закладки и заметки'));
       await step('14-sermons', () => fromMore('Проповеди'));

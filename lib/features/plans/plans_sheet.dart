@@ -1024,7 +1024,7 @@ class _ActivePlanState extends State<_ActivePlan> {
             Container(
               // стиль iPhone: вложенный список — системной заливкой без рамки, скругление — по карточке (меньше на её поле)
               decoration: iosUiNow
-                  ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(iosRadius - 12))
+                  ? iosShape(iosFill(pal), BorderRadius.circular(iosRadius - 12))
                   : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
               clipBehavior: Clip.antiAlias,
               child: Column(children: [

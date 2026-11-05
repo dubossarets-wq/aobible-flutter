@@ -223,6 +223,11 @@ const iosBlockPadding = EdgeInsets.fromLTRB(iosRowIconLeft, 10, iosRowRight, 6);
 /// Скругление карточки группы — как у списков «Настроек» в iOS 26
 const iosRadius = 26.0;
 
+/// Скругление Apple: непрерывная кривая (суперэллипс, как у значков и карточек iOS) — угол плавно переходит
+/// в сторону, без излома, как у обычной дуги окружности
+ShapeDecoration iosShape(Color color, BorderRadius radius, {BorderSide side = BorderSide.none}) =>
+    ShapeDecoration(color: color, shape: RoundedSuperellipseBorder(borderRadius: radius, side: side));
+
 /// Промежуток между разделами (карточками) — как в «Настройках» iPhone
 const iosSectionGap = 35.0;
 
@@ -310,7 +315,7 @@ class IosSection extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: EdgeInsets.symmetric(horizontal: margin),
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius)),
+        decoration: iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < rows.length; i++) ...[
             IosInCard(child: rows[i]),
@@ -334,9 +339,9 @@ class IosCardItem extends StatelessWidget {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: margin),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: iosCardAt(pal, IosElevated.of(context)),
-        borderRadius: BorderRadius.only(topLeft: first ? r : Radius.zero, topRight: first ? r : Radius.zero, bottomLeft: last ? r : Radius.zero, bottomRight: last ? r : Radius.zero),
+      decoration: iosShape(
+        iosCardAt(pal, IosElevated.of(context)),
+        BorderRadius.only(topLeft: first ? r : Radius.zero, topRight: first ? r : Radius.zero, bottomLeft: last ? r : Radius.zero, bottomRight: last ? r : Radius.zero),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         child,
@@ -355,7 +360,7 @@ class IosIconSquare extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: iosRowIcon,
         height: iosRowIcon,
-        decoration: BoxDecoration(color: color ?? iosIconColor(icon), borderRadius: BorderRadius.circular(6.5)),
+        decoration: iosShape(color ?? iosIconColor(icon), BorderRadius.circular(6.5)),
         child: Icon(iosIcon(icon), size: 17, color: const Color(0xffffffff)),
       );
 }
@@ -567,7 +572,7 @@ class _IosSwipeState extends State<IosSwipe> with SingleTickerProviderStateMixin
                           behavior: HitTestBehavior.opaque,
                           onTap: () => _to(0),
                           child: DecoratedBox(
-                            decoration: BoxDecoration(color: sysColor(CupertinoColors.tertiarySystemGroupedBackground, dark: widget.pal.dark), borderRadius: BorderRadius.circular(iosRadius * 0.8)),
+                            decoration: iosShape(sysColor(CupertinoColors.tertiarySystemGroupedBackground, dark: widget.pal.dark), BorderRadius.circular(iosRadius * 0.8)),
                             child: AbsorbPointer(child: child),
                           ),
                         )

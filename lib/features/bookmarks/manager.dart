@@ -521,7 +521,8 @@ class _ContinueCardState extends State<_ContinueCard> {
         duration: const Duration(milliseconds: 120),
         child: Material(
           color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : mix(pal.accent, 0.1, pal.panel),
-          borderRadius: BorderRadius.circular(iosUiNow ? iosRadius : 16),
+          // стиль iPhone: скругление Apple (суперэллипс)
+          shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: widget.onTap,

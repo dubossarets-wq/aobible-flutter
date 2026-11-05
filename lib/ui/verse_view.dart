@@ -537,7 +537,8 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
         add(WidgetSpan(
           alignment: s.get<String>('verseNumPos') == 'inline' ? PlaceholderAlignment.middle : PlaceholderAlignment.top,
           child: Padding(
-            padding: EdgeInsets.only(right: fs * 0.2),
+            // «По стихам»: у первой строки стиха — лёгкий отступ слева перед номером (как в веб-версии: .vnum)
+            padding: EdgeInsets.only(left: cont ? 0 : fs * 0.4, right: fs * 0.2),
             child: Text('${it.verse}', style: TextStyle(fontSize: fs * s.d('verseNumSize'), color: pal.verseNum, height: 1)),
           ),
         ));

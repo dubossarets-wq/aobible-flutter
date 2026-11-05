@@ -513,7 +513,7 @@ class Card2 extends ConsumerWidget {
       padding: ios ? const EdgeInsets.fromLTRB(iosRowIconLeft, 12, iosRowRight, 14) : const EdgeInsets.fromLTRB(14, 12, 14, 14),
       // стиль iPhone: карточка группы — системная заливка и скругление, без рамки
       decoration: ios
-          ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+          ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius))
           : BoxDecoration(color: cardFill(pal), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // раскрывающийся блок (Reveal) сам несёт зазор сверху — свёрнутый не оставляет пустого места

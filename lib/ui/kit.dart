@@ -583,7 +583,12 @@ class AobSheet extends ConsumerWidget {
     return Material(
       color: ios ? iosGroupedBg(pal, !nested) : pal.panel,
       // окно на весь экран — без скругления; стиль iPhone — скругление листа iOS
-      borderRadius: _Nested.of(context) ? BorderRadius.zero : BorderRadius.vertical(top: Radius.circular(ios ? 22 : kRadius + 6)),
+      // стиль iPhone: верх листа — скруглением Apple (суперэллипс)
+      shape: _Nested.of(context)
+          ? null
+          : ios
+              ? const RoundedSuperellipseBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22)))
+              : RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 6))),
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         // полоска — только у окна, которое можно потянуть; у окна на весь экран — просто отступ сверху
