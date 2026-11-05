@@ -121,6 +121,14 @@ void main() {
     }
   }
 
+  // строка ниже края окна (список ленивый) — прокрутить до неё
+  Future<void> reveal(WidgetTester tester, String text) async {
+    if (find.text(text).evaluate().isEmpty) {
+      await tester.dragUntilVisible(find.text(text), find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical).last, const Offset(0, -150));
+      await tester.pumpAndSettle();
+    }
+  }
+
   Future<void> tapText(WidgetTester tester, String text, {bool last = false}) async {
     final f = last ? find.text(text).last : find.text(text).first;
     if (find.text(text).evaluate().isEmpty) {
@@ -152,6 +160,7 @@ void main() {
       testWidgets('Оформление → Фон: готовое фото, своё фото, «Картинку видно», «Размытие», без фона', (tester) async {
         final c = await start(tester, look, (ctx, r) => openAppearance(ctx));
         Settings s() => c.read(settingsProvider);
+        await reveal(tester, 'Без фона');
         expect(find.text('Без фона'), findsOneWidget); // подпись строки подраздела
         await tapText(tester, 'Фон', last: true);
         expect(find.byTooltip('Назад'), findsOneWidget);
@@ -206,6 +215,7 @@ void main() {
         expect(s().j['bgImage'], 0);
         expect(find.text('Картинку видно'), findsNothing);
         await back(tester);
+        await reveal(tester, 'Без фона');
         expect(find.text('Без фона'), findsOneWidget);
       });
 
@@ -231,6 +241,7 @@ void main() {
       testWidgets('Оформление → Комментарии: размер текста и какие видны после стиха', (tester) async {
         final c = await start(tester, look, (ctx, r) => openAppearance(ctx));
         Settings s() => c.read(settingsProvider);
+        await reveal(tester, '2 из 2');
         expect(find.text('2 из 2'), findsOneWidget);
         await tapText(tester, 'Комментарии', last: true);
         expect(find.text('Так выглядит текст комментария.'), findsOneWidget);
@@ -251,6 +262,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('24 px'), findsOneWidget);
         await back(tester);
+        await reveal(tester, '2 из 2');
         expect(find.text('2 из 2'), findsOneWidget);
         // сброс оформления возвращает «все комментарии»
         await tester.dragUntilVisible(find.text('Сбросить оформление'), find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical).last, const Offset(0, -200));
@@ -652,6 +664,7 @@ void main() {
     await tester.runAsync(() => UserBg.save(Uint8List.fromList(png)));
     c.read(settingsProvider.notifier).set({'bgImage': 7, 'bgPhoto': 'p1', 'bgVeil': 40, 'bgBlur': 9});
     await tester.pumpAndSettle();
+    await reveal(tester, 'С картинкой');
     expect(find.text('С картинкой'), findsOneWidget);
     await tester.dragUntilVisible(find.text('Сбросить оформление'), find.byWidgetPredicate((w) => w is Scrollable && w.axis == Axis.vertical).last, const Offset(0, -200));
     await tester.ensureVisible(find.text('Сбросить оформление'));
