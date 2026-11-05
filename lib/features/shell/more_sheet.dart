@@ -11,6 +11,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../bookmarks/marks.dart' show marksProvider;
 import '../hub.dart';
@@ -149,8 +150,9 @@ class MoreSheet extends ConsumerWidget {
         sepOwn = true;
       }
       // .more-list .menu-item: отступы 12 сверху и снизу (в MenuRow — 10, остальное добавляет Padding)
+      // стиль iPhone: строки вплотную, между ними — тонкая линия (её рисует MenuRow)
       children.add(Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: EdgeInsets.symmetric(vertical: iosStyleOf(ref) ? 0 : 2),
         child: e.sub == null
             ? MenuRow(
                 flat: true,
@@ -175,14 +177,16 @@ class _Row2 extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = effectivePalette(ref.watch(settingsProvider));
+    final ios = iosStyleOf(ref);
     return Material(
-      type: MaterialType.transparency,
+      type: ios ? MaterialType.canvas : MaterialType.transparency,
+      color: ios ? iosCard(pal) : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: ios ? 11 : 10),
           child: Row(children: [
-            Icon(entry.icon, size: 20, color: pal.accent),
+            Icon(ios ? iosIcon(entry.icon) : entry.icon, size: ios ? 22 : 20, color: pal.accent),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

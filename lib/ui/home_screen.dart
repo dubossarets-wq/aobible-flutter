@@ -21,6 +21,7 @@ import '../features/shell/intl_data.dart' show langDisplayNames;
 import '../features/shell/library_sheet.dart' show ModBusy, ModPill, fmtSize, langChips;
 import '../features/shell/sheet.dart' show loadCatalog;
 import 'glass.dart';
+import 'ios_style.dart';
 import 'kit.dart';
 import 'navigator_sheet.dart';
 import 'reader_pane.dart';
@@ -229,6 +230,7 @@ class _Pane extends ConsumerWidget {
     final inter = mod?.features['interlinear'] == true;
     final fg = pal.barText;
     final chipBg = mix(fg, 0.14, pal.bar);
+    final ios = iosStyleOf(ref); // стиль iPhone: значки Apple цвета акцента, как кнопки панели навигации iOS
     Widget tbIcon(IconData icon, String tip, VoidCallback? onTap, {bool dot = false}) => Opacity(
           opacity: onTap == null ? 0.35 : 1,
           child: SizedBox(
@@ -240,7 +242,7 @@ class _Pane extends ConsumerWidget {
                   type: MaterialType.transparency,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
-                  child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: Icon(icon, size: 22, color: fg))),
+                  child: InkWell(onTap: onTap, child: Tooltip(message: tip, child: Icon(ios ? iosIcon(icon) : icon, size: 22, color: ios ? pal.accent : fg))),
                 ),
               ),
               if (dot) Positioned(top: 7, right: 6, child: IgnorePointer(child: _UpdateDot(ring: pal.bar))),
@@ -1095,7 +1097,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
                                             height: 26,
                                             width: 54,
                                             child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
-                                              Icon(icons[id], size: 22, color: id == activeId ? pal.tabbarText : Color.lerp(pal.tabbar, pal.tabbarText, 0.64)),
+                                              Icon(iosStyleOf(ref) ? iosIcon(icons[id]!) : icons[id], size: 22, color: id == activeId ? pal.tabbarText : Color.lerp(pal.tabbar, pal.tabbarText, 0.64)),
                                               if (id == 'more' && upd) Positioned(top: 2, right: 12, child: _UpdateDot(ring: pal.tabbar)),
                                             ]),
                                           ),

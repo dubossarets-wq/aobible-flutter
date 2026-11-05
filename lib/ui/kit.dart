@@ -3,6 +3,7 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/i18n.dart';
 import 'glass.dart';
+import 'ios_style.dart';
 import '../core/settings.dart';
 
 export 'package:lucide_icons_flutter/lucide_icons.dart' show LucideIcons;
@@ -312,6 +314,37 @@ class AobSheet extends ConsumerWidget {
   final bool scroll; // false — child сам прокручивается (списки)
   final EdgeInsets padding;
 
+  // Шапка листа iOS: «назад» слева, название по центру (полужирное 17), справа — серый круглый крестик
+  Widget _iosHeader(BuildContext context, Palette pal, VoidCallback? back) {
+    final close = Semantics(
+      button: true,
+      label: t('Закрыть'),
+      child: GestureDetector(
+        onTap: onClose ?? () => closeAllSheets(context),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(color: iosFill(pal), shape: BoxShape.circle),
+          child: Icon(CupertinoIcons.xmark, size: 14, color: pal.muted),
+        ),
+      ),
+    );
+    return Row(children: [
+      SizedBox(width: 44, child: back != null ? IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back, color: pal.accent) : null),
+      Expanded(
+        child: titleWidget != null
+            ? Semantics(label: title, child: Center(child: titleWidget))
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w600, color: pal.text)),
+                if (subtitle != null)
+                  Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.25, color: pal.muted)),
+              ]),
+      ),
+      ...actions,
+      Padding(padding: const EdgeInsets.only(left: 7, right: 4), child: close),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
@@ -323,18 +356,20 @@ class AobSheet extends ConsumerWidget {
     final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
     final mq = MediaQuery.of(context);
     final system = MediaQueryData.fromView(View.of(context)).textScaler;
+    final ios = iosStyleOf(ref);
     final sheet = MediaQuery(
       data: mq.copyWith(textScaler: scale == 1 ? system : TextScaler.linear(system.scale(1) * scale)),
-      child: _sheet(context, pal, body, back),
+      child: _sheet(context, pal, body, back, ios),
     );
     // окно снизу (не вложенное): список уже у верха — потянули вниз дальше, и окно уезжает за пальцем и закрывается
     return _Nested.of(context) ? sheet : _PullToClose(child: sheet);
   }
 
-  Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back) {
+  Widget _sheet(BuildContext context, Palette pal, Widget body, VoidCallback? back, bool ios) {
     return Material(
       color: pal.panel,
-      borderRadius: _Nested.of(context) ? BorderRadius.zero : const BorderRadius.vertical(top: Radius.circular(kRadius + 6)), // окно на весь экран — без скругления
+      // окно на весь экран — без скругления; стиль iPhone — скругление листа iOS
+      borderRadius: _Nested.of(context) ? BorderRadius.zero : BorderRadius.vertical(top: Radius.circular(ios ? 22 : kRadius + 6)),
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
         // полоска — только у окна, которое можно потянуть; у окна на весь экран — просто отступ сверху
@@ -350,8 +385,8 @@ class AobSheet extends ConsumerWidget {
           // без невидимых полей над первой и под последней строкой (иначе его середина ниже середины значков)
           padding: EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
           constraints: const BoxConstraints(minHeight: 44),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          decoration: ios ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+          child: ios ? _iosHeader(context, pal, back) : Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             if (back != null) IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back),
             if (titleWidget != null) Expanded(child: Semantics(label: title, child: Align(alignment: Alignment.centerLeft, child: titleWidget))) else
             Expanded(
@@ -495,6 +530,8 @@ class IconBtn extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final ios = iosStyleOf(ref);
+    final icon = ios ? iosIcon(this.icon) : this.icon;
     final d = subtle ? 32.0 : 38.0;
     final btn = SizedBox(
       width: d,
@@ -527,12 +564,15 @@ class AobButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final ios = iosStyleOf(ref);
+    final icon = ios && this.icon != null ? iosIcon(this.icon!) : this.icon;
     final wide = this.wide || (block && isPhone(context));
+    // стиль iPhone: кнопки-капсулы iOS 26 без рамки — главная залита акцентом, обычная — серой заливкой
     final (bg, fg, border) = switch (kind) {
       BtnKind.primary => (pal.accent, pal.onAccent, pal.accent),
-      BtnKind.danger => (const Color(0xffc93a3a), Colors.white, const Color(0xffc93a3a)),
-      BtnKind.ghost => (Colors.transparent, pal.text, Colors.transparent),
-      BtnKind.normal => (pal.bg, pal.text, pal.line),
+      BtnKind.danger => ios ? (iosFill(pal), const Color(0xffff3b30), Colors.transparent) : (const Color(0xffc93a3a), Colors.white, const Color(0xffc93a3a)),
+      BtnKind.ghost => (Colors.transparent, ios ? pal.accent : pal.text, Colors.transparent),
+      BtnKind.normal => ios ? (iosFill(pal), pal.accent, Colors.transparent) : (pal.bg, pal.text, pal.line),
     };
     final content = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
       if (icon != null) ...[Icon(icon, size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
@@ -542,11 +582,16 @@ class AobButton extends ConsumerWidget {
       opacity: onTap == null ? 0.5 : 1,
       child: Material(
         color: bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: border)),
+        shape: ios ? StadiumBorder(side: BorderSide(color: border)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: border)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(padding: small ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6) : const EdgeInsets.symmetric(horizontal: 14, vertical: 9), child: content),
+          child: Padding(
+            padding: small
+                ? EdgeInsets.symmetric(horizontal: ios ? 12 : 10, vertical: 6)
+                : EdgeInsets.symmetric(horizontal: ios ? 18 : 14, vertical: ios ? 11 : 9),
+            child: content,
+          ),
         ),
       ),
     );
@@ -567,6 +612,8 @@ class AobChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final ios = iosStyleOf(ref);
+    final icon = ios && this.icon != null ? iosIcon(this.icon!) : this.icon;
     // выбор — плавно: фон, рамка и надпись перетекают в цвет акцента
     return TweenAnimationBuilder<double>(
       tween: Tween(end: on ? 1.0 : 0.0),
@@ -576,8 +623,8 @@ class AobChip extends ConsumerWidget {
         final fg = Color.lerp(ghost ? pal.muted : pal.text, pal.onAccent, v)!;
         return Material(
           animationDuration: Duration.zero,
-          color: Color.lerp(ghost ? pal.accent.withValues(alpha: 0) : pal.bg, pal.accent, v),
-          shape: StadiumBorder(side: BorderSide(color: Color.lerp(pal.line, pal.accent, v)!)),
+          color: Color.lerp(ghost ? pal.accent.withValues(alpha: 0) : (ios ? iosFill(pal) : pal.bg), pal.accent, v),
+          shape: StadiumBorder(side: ios ? BorderSide.none : BorderSide(color: Color.lerp(pal.line, pal.accent, v)!)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
@@ -620,6 +667,7 @@ class PrefRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    if (iosStyleOf(ref)) return _ios(pal);
     // как список переводов: подсветка нажатия и линии — от края до края окна, отступы — у содержимого
     return _bleed(InkWell(
       onTap: onTap,
@@ -646,6 +694,43 @@ class PrefRow extends ConsumerWidget {
       ),
     ));
   }
+
+  // Стиль iPhone — как строка «Настроек» iPhone: белая строка на сером фоне, значок белым в квадрате цвета
+  // акцента, линия-разделитель — от начала текста, справа — серая стрелка
+  Widget _ios(Palette pal) => _bleed(Material(
+        color: iosCard(pal),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Row(children: [
+              leading ??
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(7)),
+                    child: Icon(iosIcon(icon), size: 18, color: Colors.white),
+                  ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(0, 11, 16, 11),
+                  decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line, width: 0.5))),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(title, style: TextStyle(fontSize: 16.5, color: pal.text)),
+                        if (sub != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(sub!, style: TextStyle(fontSize: 13, color: pal.muted))),
+                      ]),
+                    ),
+                    trailing ?? Icon(CupertinoIcons.chevron_forward, size: 16, color: mix(pal.muted, 0.7, iosCard(pal))),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ));
 }
 
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
@@ -661,21 +746,44 @@ class MenuRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final ios = iosStyleOf(ref);
+    final icon = ios ? iosIcon(this.icon) : this.icon;
     return Material(
-      type: MaterialType.transparency,
+      // стиль iPhone: строки меню в окне — белые на сером фоне, как в «Настройках» iPhone
+      type: ios && flat ? MaterialType.canvas : MaterialType.transparency,
+      color: ios && flat ? iosCard(pal) : null,
       borderRadius: flat ? null : BorderRadius.circular(kRadius * 0.6),
       clipBehavior: flat ? Clip.none : Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
-          child: Row(children: [
-            Icon(icon, size: 20, color: color ?? pal.accent),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label, style: TextStyle(fontSize: 15.7, color: color ?? pal.text))),
-            ?extra,
-          ]),
-        ),
+        child: ios && flat
+            // стиль iPhone: строка 46, линия снизу — от начала текста до правого края
+            ? Padding(
+                padding: const EdgeInsets.only(left: 20),
+                child: Row(children: [
+                  Icon(icon, size: 22, color: color ?? pal.accent),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(0, 12, 20, 12),
+                      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line, width: 0.5))),
+                      child: Row(children: [
+                        Expanded(child: Text(label, style: TextStyle(fontSize: 16.5, color: color ?? pal.text))),
+                        ?extra,
+                      ]),
+                    ),
+                  ),
+                ]),
+              )
+            : Padding(
+                padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
+                child: Row(children: [
+                  Icon(icon, size: ios ? 22 : 20, color: color ?? pal.accent),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(label, style: TextStyle(fontSize: ios ? 16.5 : 15.7, color: color ?? pal.text))),
+                  ?extra,
+                ]),
+              ),
       ),
     );
   }
@@ -685,7 +793,11 @@ class MenuSep extends ConsumerWidget {
   const MenuSep({super.key, this.full = false});
   final bool full; // от края до края окна
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
+  Widget build(BuildContext context, WidgetRef ref) {
+    // стиль iPhone: между группами в окне — промежуток цвета фона групп, во всплывающем меню — тонкая линия
+    if (iosStyleOf(ref)) return full ? const SizedBox(height: 22) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
+    return Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
+  }
 }
 
 /// Подзаголовок группы (h4 в окнах веб-версии)
@@ -696,11 +808,14 @@ class GroupTitle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final ios = iosStyleOf(ref);
     return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 6),
+      // стиль iPhone: подзаголовок группы прописными, мелко и серым, как в «Настройках» iPhone
+      padding: ios ? const EdgeInsets.only(top: 14, bottom: 6, left: 4) : const EdgeInsets.only(top: 6, bottom: 6),
       child: Row(children: [
         if (dot != null) ...[Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
-        Text(text, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: pal.muted)),
+        Text(ios ? text.toUpperCase() : text,
+            style: ios ? TextStyle(fontSize: 12.5, letterSpacing: 0.3, color: pal.muted) : TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: pal.muted)),
       ]),
     );
   }
@@ -717,6 +832,8 @@ class AobSwitch extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    // стиль iPhone: системный переключатель iOS (зелёный)
+    if (iosStyleOf(ref)) return CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreen);
     return GestureDetector(
       onTap: onChanged == null ? null : () => onChanged!(!value),
       child: AnimatedContainer(
@@ -760,7 +877,7 @@ class SwitchRow extends ConsumerWidget {
         child: Row(children: [
           Expanded(
             child: Row(children: [
-              Flexible(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
+              Flexible(child: Text(label, style: iosStyleOf(ref) ? TextStyle(fontSize: 16.5, color: pal.text) : TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: pal.text))),
               if (hint != null) Hint(hint!),
             ]),
           ),
@@ -1129,6 +1246,7 @@ class RoundFab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    final icon = iosStyleOf(ref) ? iosIcon(this.icon) : this.icon;
     if (glass && nativeGlass) return GlassFab(icon: icon, onTap: onTap, label: tooltip, tint: pal.text);
     return Tooltip(
       message: tooltip ?? '',

@@ -95,6 +95,7 @@ class Settings {
     'uiFontSize': 15.0, // px — меню, окна, кнопки
     'barHeight': 46.0, // px — верхняя панель: капсула 36 и по 5 сверху и снизу (как у панели подстрочника)
     'animations': true,
+    'iosStyle': false, // «Стиль iPhone» (ios_style.dart)
     'focusMode': false,
     'bookMode': false,
     'continuousVerses': false,
@@ -110,9 +111,15 @@ class Settings {
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
   /// Тема со своими цветами поверх (настройка colorOverrides) — для читалки, окон и MaterialApp
   Palette get palette => paletteWith(basePalette, (j['colorOverrides'] as Map?)?.cast<String, dynamic>() ?? const {});
-  Palette get basePalette => themes[resolveTheme(get<String>('theme'), systemDark.value)] ?? themes['light']!;
+  Palette get basePalette => get<bool>('iosStyle')
+      ? (systemDark.value ? iosDark : iosLight) // стиль iPhone: системные цвета iOS, светлые или тёмные — как в системе
+      : themes[resolveTheme(get<String>('theme'), systemDark.value)] ?? themes['light']!;
   Settings copyWith(Map<String, dynamic> patch) => Settings({...j, ...patch});
 }
+
+/// Системные цвета iOS (стиль iPhone): фон, label, secondaryLabel, systemBlue, фон групп, разделитель
+final iosLight = Palette('iOS', bg: _c(0xffffff), text: _c(0x000000), muted: _c(0x8a8a8e), accent: _c(0x007aff), panel: _c(0xf2f2f7), onAccent: _c(0xffffff), bar: _c(0xffffff), barText: _c(0x000000), line: _c(0xc6c6c8), hl: _c(0xffe79a), verseNum: _c(0x8a8a8e));
+final iosDark = Palette('iOS тёмная', dark: true, bg: _c(0x000000), text: _c(0xffffff), muted: _c(0x8d8d93), accent: _c(0x0a84ff), panel: _c(0x1c1c1e), onAccent: _c(0xffffff), bar: _c(0x000000), barText: _c(0xffffff), line: _c(0x38383a), hl: _c(0x5b4a1c), verseNum: _c(0x8d8d93));
 
 late SharedPreferences prefs;
 

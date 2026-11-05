@@ -1,6 +1,7 @@
 // Оформление (AppearanceSettings.jsx): сверху живой образец текста, под ним тема, размер, вид текста;
 // ниже подразделы — шрифт, номера и заголовки, цвета, кнопки и панели; внизу — сброс. Всё применяется сразу.
 // Подразделы «Фон» (картинка под текстом) и «Комментарии» (размер текста, какие видны после стиха) — тоже здесь.
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' show PathMetric;
 
@@ -261,6 +262,14 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       'comments': _commentsSub(s),
     };
     return [
+      // Стиль iPhone — только на iPhone и iPad: системные цвета, окна, переключатели и значки iOS
+      if (Platform.isIOS)
+        SwitchRow(
+          label: t('Стиль iPhone'),
+          hint: t('Цвета, окна, переключатели, кнопки и значки — как в системе iPhone; светлый или тёмный — как в iPhone. Тема ниже действует, когда стиль выключен.'),
+          value: s.get<bool>('iosStyle'),
+          onChanged: (v) => set({'iosStyle': v}),
+        ),
       _field(t('Тема'), pal, 6, [
         // .theme-strip: поля -16 (до краёв окна) и отступ 12; плитки 66, зазор 2
         LayoutBuilder(
