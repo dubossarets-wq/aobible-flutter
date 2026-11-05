@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchController, CNTabBarSearchItem;
+import 'package:flutter/cupertino.dart' show CupertinoColors;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
@@ -200,7 +201,9 @@ class _Split extends ConsumerWidget {
         // верхние панели (разделение по строкам) не доходят до проигрывателя — нижний запас нужен только последней
         final w = cols || i == n - 1 ? children[i] : MediaQuery.removePadding(context: context, removeBottom: true, child: children[i]);
         kids.add(slot(w, usable / n + (i == n - 1 ? inset : 0)));
-        if (i < n - 1) kids.add(cols ? SizedBox(width: thick, child: ColoredBox(color: pal.line)) : SizedBox(height: thick, child: ColoredBox(color: pal.line)));
+        // стиль iPhone: непрозрачный системный серый — полупрозрачный разделитель iOS на чёрном почти не виден
+        final line = iosStyleOf(ref) ? sysColor(CupertinoColors.systemGray4, dark: pal.dark) : pal.line;
+        if (i < n - 1) kids.add(cols ? SizedBox(width: thick, child: ColoredBox(color: line)) : SizedBox(height: thick, child: ColoredBox(color: line)));
       }
       return cols ? Row(children: kids) : Column(children: kids);
     });
