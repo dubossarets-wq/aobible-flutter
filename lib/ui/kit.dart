@@ -1465,10 +1465,12 @@ class _AobInputState extends ConsumerState<AobInput> {
       onTap: _focus.requestFocus, // нажатие на поля рамки — тоже в поле
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        height: w.height,
+        // стиль iPhone (iOS 26, как «Имя устройства»): высота строки 52, заливка карточки, скругление Apple,
+        // на одной линии с карточками групп (20 от края экрана)
+        height: ios ? iosRowHeight : w.height,
+        margin: ios ? const EdgeInsets.symmetric(horizontal: iosEdge - 16) : null,
         decoration: ios
-            // стиль iPhone: как поле поиска iOS — серая заливка, скругление 10, без рамки
-            ? BoxDecoration(color: iosFill(pal), borderRadius: BorderRadius.circular(10))
+            ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRowHeight / 2))
             : BoxDecoration(
                 color: pal.bg,
                 borderRadius: BorderRadius.circular(kRadius * 0.75),
@@ -1476,16 +1478,16 @@ class _AobInputState extends ConsumerState<AobInput> {
                 boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
               ),
         child: Row(children: [
-          if (w.icon != null) ...[SizedBox(width: ios ? 8 : 12), Icon(ios ? iosIcon(w.icon!) : w.icon, size: ios ? 17 : 18, color: pal.muted)],
+          if (w.icon != null) ...[SizedBox(width: ios ? 16 : 12), Icon(ios ? iosIcon(w.icon!) : w.icon, size: ios ? 18 : 18, color: pal.muted)],
           Expanded(
             child: BareField(
               controller: w.controller,
               focusNode: _focus,
               hint: w.hint,
               style: style,
-              hintColor: pal.muted,
+              hintColor: ios ? sysColor(CupertinoColors.placeholderText, dark: pal.dark) : pal.muted,
               cursorColor: pal.accent,
-              padding: EdgeInsets.only(left: w.icon != null ? 8 : 12, right: 4),
+              padding: EdgeInsets.only(left: w.icon != null ? 8 : (ios ? 20 : 12), right: 4),
               autofocus: w.autofocus,
               autocorrect: w.autocorrect,
               textAlign: w.textAlign,
@@ -1502,8 +1504,25 @@ class _AobInputState extends ConsumerState<AobInput> {
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: w.controller,
               builder: (context, v, _) => v.text.isEmpty
-                  ? const SizedBox(width: 8)
-                  : Padding(
+                  ? SizedBox(width: ios ? 20 : 8)
+                  : ios
+                      // стиль iPhone: системный серый кружок с крестиком
+                      ? Semantics(
+                          button: true,
+                          label: t('Очистить'),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              w.controller.clear();
+                              w.onChanged?.call('');
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 12, 18, 12),
+                              child: Icon(CupertinoIcons.xmark_circle_fill, size: 19, color: sysColor(CupertinoColors.tertiaryLabel, dark: pal.dark)),
+                            ),
+                          ),
+                        )
+                      : Padding(
                       padding: const EdgeInsets.only(right: 3),
                       child: IconBtn(
                         icon: LucideIcons.x,
