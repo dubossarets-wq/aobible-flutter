@@ -1,7 +1,7 @@
 // «Стиль iPhone» (настройка iosStyle, включается в «Оформлении» на iPhone): системные цвета iOS, окна-листы,
 // строки как в «Настройках» iPhone, переключатели и кнопки iOS, значки из набора Apple (Cupertino Icons).
 // Выключен — всё как обычно. Цвета — палитры iosLight / iosDark (settings.dart), остальное — общие элементы kit.dart.
-import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons;
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons, CupertinoListTile;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -178,7 +178,7 @@ class IosSection extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < rows.length; i++) ...[
             rows[i],
-            if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i], right: 16), child: Container(height: 0.5, color: pal.line)),
+            if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i], right: iosRowRight), child: Container(height: 0.5, color: pal.line)),
           ],
         ]),
       );
@@ -191,12 +191,31 @@ class IosIconSquare extends StatelessWidget {
   final Color? color;
   @override
   Widget build(BuildContext context) => Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(color: color ?? iosIconColor(icon), borderRadius: BorderRadius.circular(7.5)),
-        child: Icon(iosIcon(icon), size: 18, color: const Color(0xffffffff)),
+        width: iosRowIcon,
+        height: iosRowIcon,
+        decoration: BoxDecoration(color: color ?? iosIconColor(icon), borderRadius: BorderRadius.circular(6.5)),
+        child: Icon(iosIcon(icon), size: 17, color: const Color(0xffffffff)),
       );
 }
+
+/// Размеры строки списка, как в «Настройках» iPhone: значок 28 в 18 от края карточки, текст — в 60, высота 52,
+/// «›» и конец линии — в 20 от правого края
+const iosRowIconLeft = 18.0, iosRowIcon = 28.0, iosRowTextLeft = 60.0, iosRowRight = 20.0, iosRowHeight = 52.0;
+
+/// Строка списка стиля iPhone: системная CupertinoListTile с размерами «Настроек» iPhone
+Widget iosTile({Widget? leading, required Widget title, Widget? additionalInfo, Widget? trailing, VoidCallback? onTap}) => ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: iosRowHeight),
+      child: CupertinoListTile(
+        padding: EdgeInsetsDirectional.only(start: leading == null ? iosRowIconLeft + 2 : iosRowIconLeft, end: iosRowRight, top: 8, bottom: 8),
+        leading: leading,
+        leadingSize: iosRowIcon,
+        leadingToTitle: iosRowTextLeft - iosRowIconLeft - iosRowIcon,
+        title: title,
+        additionalInfo: additionalInfo,
+        trailing: trailing,
+        onTap: onTap,
+      ),
+    );
 
 /// Стрелка «›» справа у строки (серая, как в iOS)
 Color iosChevron(Palette p) => sysColor(CupertinoColors.tertiaryLabel, dark: p.dark);

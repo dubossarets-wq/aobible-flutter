@@ -276,6 +276,82 @@ void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) 
 /// Страница окна на весь экран в стиле iPhone (системный переход iOS со свайпом назад) — тоже «окно»
 class IosPageRoute<T> extends CupertinoPageRoute<T> {
   IosPageRoute({required super.builder, super.requestFocus});
+
+  // Назад — свайпом вправо с любого места страницы (как в iOS 26), а не только от левого края
+  @override
+  Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) =>
+      _SwipeBack(route: this, child: super.buildTransitions(context, animation, secondaryAnimation, child));
+
+  AnimationController? get _swipe => controller;
+}
+
+/// Свайп назад с любого места страницы: страница едет за пальцем; отпустили дальше середины или быстрым движением
+/// вправо — закрывается, иначе возвращается. Горизонтальная прокрутка внутри страницы (ряды плашек) — у неё
+class _SwipeBack extends StatefulWidget {
+  const _SwipeBack({required this.route, required this.child});
+  final IosPageRoute<dynamic> route;
+  final Widget child;
+  @override
+  State<_SwipeBack> createState() => _SwipeBackState();
+}
+
+class _SwipeBackState extends State<_SwipeBack> {
+  bool _active = false;
+
+  bool get _can => widget.route.isCurrent && !widget.route.isFirst && !widget.route.navigator!.userGestureInProgress;
+
+  void _update(DragUpdateDetails d) {
+    final c = widget.route._swipe;
+    if (c == null) return;
+    final w = context.size?.width ?? 1;
+    if (!_active) {
+      // начинаем только движением вправо
+      if ((d.primaryDelta ?? 0) <= 0 || !_can) return;
+      _active = true;
+      widget.route.navigator!.didStartUserGesture();
+    }
+    c.value = (c.value - (d.primaryDelta ?? 0) / w).clamp(0.0, 1.0);
+  }
+
+  void _end(DragEndDetails d) {
+    if (!_active) return;
+    _active = false;
+    final c = widget.route._swipe!;
+    final nav = widget.route.navigator!;
+    final v = d.velocity.pixelsPerSecond.dx / (context.size?.width ?? 1);
+    final back = v > 1.0 || (v > -1.0 && c.value < 0.5);
+    if (back) {
+      nav.pop();
+    } else {
+      c.animateTo(1.0, duration: const Duration(milliseconds: 250), curve: Curves.fastLinearToSlowEaseIn);
+    }
+    if (c.isAnimating) {
+      void done(AnimationStatus s) {
+        if (s == AnimationStatus.completed || s == AnimationStatus.dismissed) {
+          nav.didStopUserGesture();
+          c.removeStatusListener(done);
+        }
+      }
+
+      c.addStatusListener(done);
+    } else {
+      nav.didStopUserGesture();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: _update,
+        onHorizontalDragEnd: _end,
+        onHorizontalDragCancel: () {
+          if (!_active) return;
+          _active = false;
+          widget.route._swipe?.animateTo(1.0, duration: const Duration(milliseconds: 200));
+          widget.route.navigator?.didStopUserGesture();
+        },
+        child: widget.child,
+      );
 }
 
 /// Окно (нижнее окно, меню, страница окна в стиле iPhone) — не экран чтения
@@ -794,13 +870,12 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
   }
 
   @override
-  double get iosIndent => 66; // линия под строкой — от начала текста (поле 20 + значок 30 + 16, как у CupertinoListTile)
+  double get iosIndent => iosRowTextLeft; // линия под строкой — от начала текста
 
   // Стиль iPhone — системная строка списка iOS (CupertinoListTile): значок в цветном квадрате, название, справа —
   // значение серым и системная «›»; подписи под названием нет (как в «Настройках» iPhone)
-  Widget _ios(Palette pal) => CupertinoListTile(
-        leading: leading == null ? IosIconSquare(icon) : SizedBox(width: 30, height: 30, child: FittedBox(child: leading)),
-        leadingSize: 30,
+  Widget _ios(Palette pal) => iosTile(
+        leading: leading == null ? IosIconSquare(icon) : SizedBox(width: iosRowIcon, height: iosRowIcon, child: FittedBox(child: leading)),
         title: Text(title),
         additionalInfo: value == null ? null : Text(value!),
         trailing: trailing ?? const CupertinoListTileChevron(),
@@ -814,7 +889,7 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
   final bool flat; // в окне — от края до края, без скругления (меню «Ещё»); во всплывающем меню — со скруглением
   final bool last; // последняя строка группы (линии в стиле iPhone рисует карточка группы)
   @override
-  double get iosIndent => 66;
+  double get iosIndent => iosRowTextLeft; // линия под строкой — от начала текста
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -836,9 +911,8 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
         child: ios && flat
             // стиль iPhone: системная строка списка iOS (CupertinoListTile) — значок в цветном квадрате, название,
             // справа значение серым и системная «›»
-            ? CupertinoListTile(
+            ? iosTile(
                 leading: IosIconSquare(this.icon, color: color),
-                leadingSize: 30,
                 title: Text(label, style: color == null ? null : TextStyle(color: color)),
                 additionalInfo: extra,
                 trailing: const CupertinoListTileChevron(),
@@ -864,7 +938,7 @@ class MenuSep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // стиль iPhone: между группами в окне — промежуток цвета фона групп, во всплывающем меню — тонкая линия
-    if (iosStyleOf(ref)) return full ? const SizedBox(height: 30) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
+    if (iosStyleOf(ref)) return full ? const SizedBox(height: 36) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
     return Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
   }
 }
@@ -937,13 +1011,13 @@ class SwitchRow extends ConsumerWidget implements IosGroupRow {
   final bool value;
   final ValueChanged<bool> onChanged;
   @override
-  double get iosIndent => 20;
+  double get iosIndent => iosRowIconLeft + 2;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     // стиль iPhone: системная строка списка iOS с системным переключателем
     if (iosStyleOf(ref)) {
-      return CupertinoListTile(
+      return iosTile(
         title: Row(children: [Flexible(child: Text(label)), if (hint != null) Hint(hint!)]),
         trailing: CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal)),
         onTap: () => onChanged(!value),
