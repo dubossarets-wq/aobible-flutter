@@ -3,14 +3,14 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoActionSheet, CupertinoActionSheetAction, showCupertinoModalPopup, CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/i18n.dart';
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNButton, CNButtonConfig, CNButtonStyle, CNSymbol;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNActionSheet, CNActionSheetAction, CNButton, CNButtonConfig, CNButtonStyle, CNSwitch, CNSymbol;
 
 import 'glass.dart';
 import 'ios_style.dart';
@@ -286,6 +286,15 @@ void dropAllSheets(BuildContext context) {
   }
 }
 
+/// Страница открыта вкладкой нижнего меню (корневая страница раздела, как «Настройки» или «Папки» в iPhone)
+class IosTabRoot extends InheritedWidget {
+  const IosTabRoot({super.key, required this.root, required super.child});
+  final bool root;
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IosTabRoot>()?.root ?? false;
+  @override
+  bool updateShouldNotify(IosTabRoot old) => old.root != root;
+}
+
 /// Страница окна на весь экран в стиле iPhone (системный переход iOS со свайпом назад) — тоже «окно»
 class IosPageRoute<T> extends CupertinoPageRoute<T> {
   IosPageRoute({required super.builder, super.requestFocus, this.instant = false});
@@ -294,6 +303,10 @@ class IosPageRoute<T> extends CupertinoPageRoute<T> {
   final bool instant;
   @override
   Duration get transitionDuration => instant ? Duration.zero : super.transitionDuration;
+
+  // страница вкладки (открыта нижним меню) — корневая: крупный заголовок, без «назад» и «закрыть»
+  @override
+  Widget buildContent(BuildContext context) => IosTabRoot(root: instant, child: super.buildContent(context));
 
   // Назад — свайпом вправо с любого места страницы (как в iOS 26), а не только от левого края
   @override
@@ -450,6 +463,18 @@ class AobSheet extends ConsumerWidget {
 
   // Шапка листа iOS: «назад» слева, название по центру (полужирное 17), справа — серый круглый крестик
   Widget _iosHeader(BuildContext context, Palette pal, VoidCallback? back) {
+    // корневая страница вкладки: сверху справа — только свои кнопки, ниже — крупный заголовок слева (34, жирный),
+    // под ним — серая подпись (как «172 заметки» в «Заметках»)
+    if (IosTabRoot.of(context) && titleWidget == null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        if (actions.isNotEmpty) Row(mainAxisAlignment: MainAxisAlignment.end, children: actions) else const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 34, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: iosTracking(34), color: pal.text)),
+        ),
+        if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, height: 1.3, color: pal.muted)),
+      ]);
+    }
     if (nativeGlass) {
       Widget glass(String symbol, String label, VoidCallback onTap) => SizedBox(
             width: 44,
@@ -937,24 +962,16 @@ class IosActionRow extends ConsumerWidget implements IosGroupRow {
 }
 
 /// Системное подтверждение iOS снизу экрана (CupertinoActionSheet): красное действие и «Отменить»
-Future<void> iosConfirm(BuildContext context, {required String action, String? message, required VoidCallback onConfirm}) =>
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (c) => CupertinoActionSheet(
-        message: message == null ? null : Text(message),
-        actions: [
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () {
-              Navigator.pop(c);
-              onConfirm();
-            },
-            child: Text(action),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(isDefaultAction: true, onPressed: () => Navigator.pop(c), child: Text(t('Отмена'))),
-      ),
-    );
+Future<void> iosConfirm(BuildContext context, {required String action, String? message, required VoidCallback onConfirm}) async {
+  // на iPhone — настоящий UIAlertController (стекло iOS 26), на других — его повтор на Flutter
+  final ok = await CNActionSheet.show<bool>(
+    context: context,
+    message: message,
+    cancelLabel: t('Отменить'),
+    actions: [CNActionSheetAction<bool>(label: action, value: true, isDestructive: true)],
+  );
+  if (ok == true) onConfirm();
+}
 
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
 class MenuRow extends ConsumerWidget implements IosGroupRow {
@@ -1027,11 +1044,11 @@ class GroupTitle extends ConsumerWidget {
     final ios = iosStyleOf(ref);
     return Padding(
       // стиль iPhone: подзаголовок группы прописными, мелко и серым, как в «Настройках» iPhone
-      padding: ios ? const EdgeInsets.only(top: 14, bottom: 2) : const EdgeInsets.only(top: 6, bottom: 6),
+      padding: ios ? const EdgeInsets.only(top: 14, bottom: 0) : const EdgeInsets.only(top: 6, bottom: 6),
       child: Row(children: [
         if (dot != null) ...[Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
-        Text(ios ? text.toUpperCase() : text,
-            style: ios ? TextStyle(fontSize: 12.5, letterSpacing: 0.3, color: pal.muted) : TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: pal.muted)),
+        // iOS 26: заголовок группы — обычными буквами, полужирный, серый (как «Яркость» в «Экран и яркость»)
+        Flexible(child: Text(text, style: ios ? TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: pal.muted))),
       ]),
     );
   }
@@ -1049,7 +1066,7 @@ class AobSwitch extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     // стиль iPhone: системный переключатель iOS (зелёный)
-    if (iosStyleOf(ref)) return CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal));
+    if (iosStyleOf(ref)) return iosSwitch(pal, value, onChanged);
     return GestureDetector(
       onTap: onChanged == null ? null : () => onChanged!(!value),
       child: AnimatedContainer(
@@ -1077,7 +1094,12 @@ class AobSwitch extends ConsumerWidget {
 }
 
 /// Строка с подписью и переключателем (.switch-field)
-class SwitchRow extends ConsumerWidget implements IosGroupRow {
+/// Системный переключатель: на iPhone (iOS 26) — настоящий UISwitch, иначе — CupertinoSwitch
+Widget iosSwitch(Palette pal, bool value, ValueChanged<bool>? onChanged, {String? label}) => nativeGlass
+    ? CNSwitch(value: value, onChanged: onChanged ?? (_) {}, enabled: onChanged != null, color: iosGreenOf(pal), autoHideOnModal: false, semanticLabel: label)
+    : CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal));
+
+class SwitchRow extends ConsumerWidget implements IosGroupRow, IosFooterRow {
   const SwitchRow({super.key, required this.label, required this.value, required this.onChanged, this.hint});
   final String label;
   final String? hint;
@@ -1085,14 +1107,17 @@ class SwitchRow extends ConsumerWidget implements IosGroupRow {
   final ValueChanged<bool> onChanged;
   @override
   double get iosIndent => iosRowIconLeft + 2;
+  // стиль iPhone: пояснение — серым текстом под карточкой (вместо значка «i»)
+  @override
+  String? get iosFooter => hint;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     // стиль iPhone: системная строка списка iOS с системным переключателем
     if (iosStyleOf(ref)) {
       return iosTile(
-        title: Row(children: [Flexible(child: Text(label)), if (hint != null) Hint(hint!)]),
-        trailing: CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal)),
+        title: Row(children: [Flexible(child: Text(label)), if (hint != null && !IosInCard.of(context)) Hint(hint!)]),
+        trailing: iosSwitch(pal, value, onChanged, label: label),
         onTap: () => onChanged(!value),
       );
     }

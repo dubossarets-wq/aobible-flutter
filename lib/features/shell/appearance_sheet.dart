@@ -356,7 +356,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
   /// .field: подпись и под ней содержимое
   // стиль iPhone: подпись — системным заголовком группы (прописными, серым, на линии текста строк)
   Widget _field(String text, Palette pal, double gap, List<Widget> body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (iosStyleOf(ref)) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(text)) else Text(text, style: fieldLabel(pal, bold: true)),
+        if (iosStyleOf(ref)) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(text)) else Text(text, style: fieldLabel(pal, bold: true)),
         SizedBox(height: iosStyleOf(ref) ? 4 : gap),
         ...body,
       ]);
@@ -688,7 +688,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       ]),
       // как показывать: текстом под стихом (свёрнут до двух строк) или прежней меткой после стиха
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(t('Как показывать'))) else Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Как показывать'))) else Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 8),
         Segmented<String>(
           options: [('below', t('Под стихом')), ('tag', t('Меткой после стиха'))],
@@ -697,10 +697,10 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
       ]),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(t('Комментарии в тексте'))) else Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Комментарии в тексте'))) else Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 4),
         Padding(
-          padding: EdgeInsets.only(left: iosUiNow ? iosRowIconLeft : 0, right: iosUiNow ? iosRowRight : 0),
+          padding: EdgeInsets.only(left: iosUiNow ? iosHeaderLeft : 0, right: iosUiNow ? iosHeaderLeft : 0),
           child: Text(t('Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».'), style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4)),
         ),
       ]),

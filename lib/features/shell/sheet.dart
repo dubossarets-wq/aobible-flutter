@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSlider;
 import 'package:flutter/cupertino.dart' show CupertinoButton, CupertinoIcons, CupertinoSlider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/ios_style.dart';
+import '../../ui/glass.dart' show nativeGlass;
 import '../../ui/kit.dart';
 import '../hub.dart';
 import '../plans/net_cache.dart' show siteJson;
@@ -318,7 +320,7 @@ class SegRow<T> extends ConsumerWidget {
 /// Ползунок с кнопками «меньше / больше» по краям и понятным значением словами (.ap-range).
 /// Пока ползунок тянут, значение двигается сразу, а в настройки уходит не чаще раза в 180 мс и при отпускании:
 /// каждое изменение перекладывает весь текст под окном.
-class RangeRow extends ConsumerStatefulWidget implements IosGroupBlock {
+class RangeRow extends ConsumerStatefulWidget implements IosGroupBlock, IosHeaderRow {
   const RangeRow({super.key, required this.label, required this.value, required this.min, required this.max, required this.step, required this.onChanged, required this.word, this.big = false, this.hint, this.buttons = true});
   final String label;
   final String? hint;
@@ -330,6 +332,9 @@ class RangeRow extends ConsumerStatefulWidget implements IosGroupBlock {
 
   @override
   double get iosIndent => iosRowIconLeft;
+  // стиль iPhone: подпись — заголовком над карточкой ползунка («Яркость» в «Экран и яркость»)
+  @override
+  String? get iosHeader => label;
 
   @override
   ConsumerState<RangeRow> createState() => _RangeRowState();
@@ -410,19 +415,39 @@ class _RangeRowState extends ConsumerState<RangeRow> {
             ),
           ),
         );
+    // в карточке группы iOS подпись уже стоит заголовком над карточкой — внутри только ползунок со знаками по краям
+    final inCard = iosStyleOf(ref) && IosInCard.of(context);
+    final divs = math.max(1, ((w.max - w.min) / w.step).round());
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(child: Text(w.label, style: fieldLabel(pal, bold: true))),
-        Text(w.word(_v), style: TextStyle(fontSize: 14.7, color: pal.muted)),
-      ]),
-      if (w.hint != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(w.hint!, style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4))),
-      const SizedBox(height: 4),
+      if (!inCard) ...[
+        Row(children: [
+          Expanded(child: Text(w.label, style: fieldLabel(pal, bold: true))),
+          Text(w.word(_v), style: TextStyle(fontSize: 14.7, color: pal.muted)),
+        ]),
+        if (w.hint != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(w.hint!, style: TextStyle(fontSize: 13.1, color: pal.muted, height: 1.4))),
+        const SizedBox(height: 4),
+      ],
       Row(children: [
         if (w.buttons) ...[
           step(LucideIcons.minus, t('{label}: меньше', {'label': w.label}), -w.step, _v > w.min),
           const SizedBox(width: 8),
         ],
-        if (iosStyleOf(ref))
+        if (iosStyleOf(ref) && nativeGlass)
+          // iPhone (iOS 26): настоящий UISlider; немного делений — точками, как «Крупный текст»
+          Expanded(
+            child: CNSlider(
+              value: _v.clamp(w.min, w.max),
+              min: w.min,
+              max: w.max,
+              step: w.step,
+              numberOfTicks: divs <= 12 ? divs + 1 : null,
+              color: pal.accent,
+              autoHideOnModal: false,
+              semanticLabel: w.label,
+              onChanged: (x) => _change(x),
+            ),
+          )
+        else if (iosStyleOf(ref))
           // стиль iPhone: системный ползунок iOS
           Expanded(
             child: SizedBox(
@@ -497,7 +522,7 @@ class Card2 extends ConsumerWidget {
     );
     if (!ios || title == null) return card;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(padding: const EdgeInsets.only(left: iosRowIconLeft, bottom: 6), child: GroupTitle(title!)),
+      Padding(padding: const EdgeInsets.only(left: iosHeaderLeft, bottom: 6), child: GroupTitle(title!)),
       card,
     ]);
   }

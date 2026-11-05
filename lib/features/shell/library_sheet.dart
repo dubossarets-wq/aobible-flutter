@@ -437,11 +437,11 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             // группа: подзаголовок (мелко, серо, 20 от края окна) и строки от края до края, как другие списки
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Padding(
-                padding: iosStyleOf(ref) ? const EdgeInsets.fromLTRB(4 + iosRowIconLeft, 10, 4, 6) : const EdgeInsets.fromLTRB(4, 4, 4, 2),
+                padding: iosStyleOf(ref) ? const EdgeInsets.fromLTRB(4 + iosHeaderLeft, 14, 4, 8) : const EdgeInsets.fromLTRB(4, 4, 4, 2),
                 child: Text.rich(TextSpan(children: [
-                  TextSpan(text: iosStyleOf(ref) ? t(g.$2).toUpperCase() : t(g.$2)),
-                  TextSpan(text: '  ${g.$3.length}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400)),
-                ]), style: iosStyleOf(ref) ? TextStyle(fontSize: 12.5, letterSpacing: 0.3, color: pal.muted) : TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
+                  TextSpan(text: t(g.$2)),
+                  TextSpan(text: '  ${g.$3.length}', style: TextStyle(fontSize: iosStyleOf(ref) ? 15 : 11.5, fontWeight: FontWeight.w400)),
+                ]), style: iosStyleOf(ref) ? TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: pal.muted)),
               ),
               // длинный раздел (сотни переводов каталога) — сначала первые 60 строк, остальные — «Показать ещё»
               // стиль iPhone: строки группы — в одной скруглённой карточке

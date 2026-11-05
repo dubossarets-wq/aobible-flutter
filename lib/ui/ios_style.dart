@@ -180,6 +180,40 @@ abstract interface class IosGroupRow {
   double get iosIndent;
 }
 
+/// Строка с пояснением под карточкой (как серый текст под «True Tone» в «Экран и яркость»)
+abstract interface class IosFooterRow {
+  String? get iosFooter;
+}
+
+/// Строка, у которой подпись — заголовком над своей карточкой (ползунок: «Яркость» над карточкой с ползунком)
+abstract interface class IosHeaderRow {
+  String? get iosHeader;
+}
+
+/// Строка стоит внутри карточки группы (её подпись уже показана заголовком над карточкой)
+class IosInCard extends InheritedWidget {
+  const IosInCard({super.key, required super.child});
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<IosInCard>() != null;
+  @override
+  bool updateShouldNotify(IosInCard old) => false;
+}
+
+/// Отступ заголовка и пояснения группы от края карточки — по линии текста строк без значка (20, как в iOS 26)
+const iosHeaderLeft = 20.0;
+
+/// Пояснение под карточкой: серый текст, как в «Настройках» iPhone
+class IosFooter extends StatelessWidget {
+  const IosFooter(this.text, {super.key, required this.pal, this.margin = 0});
+  final String text;
+  final Palette pal;
+  final double margin;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.fromLTRB(margin + iosHeaderLeft, 0, margin + iosHeaderLeft, 0),
+        child: Text(text, style: TextStyle(fontSize: 14, height: 1.3, color: pal.muted)),
+      );
+}
+
 /// Блок группы со своими полями внутри карточки (ползунок «Размер текста» и т. п.), а не строка CupertinoListTile
 abstract interface class IosGroupBlock implements IosGroupRow {}
 
@@ -223,7 +257,16 @@ List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad, {doubl
   for (final w in children) {
     final r = rowOf(w);
     if (r != null) {
+      // подпись ползунка — заголовком над его карточкой, сам ползунок — отдельной карточкой
+      final header = r is IosHeaderRow ? (r as IosHeaderRow).iosHeader : null;
+      if (header != null) {
+        flush();
+        out.add((GroupTitle(header), 1));
+      }
       run.add((w, r));
+      final footer = r is IosFooterRow ? (r as IosFooterRow).iosFooter : null;
+      if (header != null || footer != null) flush();
+      if (footer != null) out.add((IosFooter(footer, pal: pal, margin: m), 3));
     } else {
       flush();
       // разделитель групп (MenuSep во всю ширину) — тоже разрыв: промежуток между карточками ставится здесь
@@ -241,12 +284,15 @@ List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad, {doubl
     final next = i + 1 < out.length ? out[i + 1].$2 : -1;
     var top = 0.0;
     if (i > 0) {
-      if (k == 1) top = extra - 14;
-      if (k == 2 && prev != 1) top = extra;
-      if (k == 0 && prev == 2) top = extra;
+      // после пояснения промежуток меньше (у пояснения свой воздух снизу), как в iOS
+      final base = prev == 3 ? extra - 10 : extra;
+      if (k == 1) top = base - 14;
+      if (k == 2 && prev != 1) top = base;
+      if (k == 0 && (prev == 2 || prev == 3)) top = base;
+      if (k == 3) top = 0;
     }
     // подзаголовок прямо над карточкой — на линии текста её строк, как в «Настройках» iPhone
-    final left = k == 1 && next == 2 ? m + iosRowIconLeft : 0.0;
+    final left = k == 1 && next == 2 ? m + iosHeaderLeft : 0.0;
     res.add(top <= 0 && left == 0 ? w : Padding(padding: EdgeInsets.only(left: left, top: top.clamp(0.0, iosSectionGap)), child: w));
   }
   return res;
@@ -267,7 +313,7 @@ class IosSection extends StatelessWidget {
         decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < rows.length; i++) ...[
-            rows[i],
+            IosInCard(child: rows[i]),
             if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i], right: iosRowRight), child: Container(height: 0.5, color: pal.line)),
           ],
         ]),
