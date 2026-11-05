@@ -400,7 +400,9 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
         RangeRow(label: t('Межстрочный интервал'), value: s.d('lineHeight'), min: 1.1, max: 2.2, step: 0.05, onChanged: (v) => set({'lineHeight': v}), word: _lhW),
         RangeRow(label: t('Расстояние между стихами'), value: s.d('verseSpacing'), min: 0, max: 1.6, step: 0.05, onChanged: (v) => set({'verseSpacing': v}), word: _gapW),
-        RangeRow(label: t('Ширина текста'), hint: t('Заметно на широком экране'), value: s.d('textWidth'), min: 24, max: 80, step: 1, onChanged: (v) => set({'textWidth': v}), word: _widthW),
+        // ширина строки ограничивает текст только на широком экране — на телефоне не показываем (поля — «Поля по бокам»)
+        if (MediaQuery.sizeOf(context).width >= 600)
+          RangeRow(label: t('Ширина текста'), hint: t('Заметно на широком экране'), value: s.d('textWidth'), min: 24, max: 80, step: 1, onChanged: (v) => set({'textWidth': v}), word: _widthW),
         SegRow<String>(
           label: t('Выравнивание'),
           value: s.get<String>('textAlign'),
@@ -1050,7 +1052,7 @@ class _ColorLine extends ConsumerWidget {
 }
 
 /// Выбор своего цвета: оттенок, насыщенность, яркость
-Future<Color?> pickColor(BuildContext context, Color initial) => showAobSheet<Color>(context, initial: 0.6, builder: (_) => _PickColor(initial: initial));
+Future<Color?> pickColor(BuildContext context, Color initial) => showAobSheet<Color>(context, initial: 0.6, builder: (_) => _PickColor(initial: initial), scripture: true);
 
 class _PickColor extends ConsumerStatefulWidget {
   const _PickColor({required this.initial});

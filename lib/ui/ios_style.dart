@@ -1,7 +1,7 @@
 // «Стиль iPhone» (настройка iosStyle, включается в «Оформлении» на iPhone): системные цвета iOS, окна-листы,
 // строки как в «Настройках» iPhone, переключатели и кнопки iOS, значки из набора Apple (Cupertino Icons).
 // Выключен — всё как обычно. Цвета — палитры iosLight / iosDark (settings.dart), остальное — общие элементы kit.dart.
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -14,11 +14,11 @@ bool iosStyleOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.get
 /// Палитра стиля iPhone — для элементов без доступа к настройкам (им передают только палитру)
 bool iosPal(Palette p) => p.label == 'iOS' || p.label == 'iOS тёмная';
 
-/// Фон строк поверх серого фона групп (secondarySystemGroupedBackground)
-Color iosCard(Palette p) => p.dark ? const Color(0xff2c2c2e) : const Color(0xffffffff);
+/// Фон строк поверх серого фона групп (secondarySystemGroupedBackground, приподнятый)
+Color iosCard(Palette p) => sysColor(CupertinoColors.secondarySystemGroupedBackground, dark: p.dark, elevated: true);
 
 /// Заливка кнопок и плашек без рамки (tertiarySystemFill)
-Color iosFill(Palette p) => p.dark ? const Color(0x3d767680) : const Color(0x1f767680);
+Color iosFill(Palette p) => sysColor(CupertinoColors.tertiarySystemFill, dark: p.dark);
 
 /// Общий отступ от краёв экрана в стиле iPhone: шапка, текст, круглые кнопки и нижнее меню — на одной линии,
 /// у меню снизу — такой же, как по бокам
@@ -26,8 +26,7 @@ const iosEdge = 20.0;
 
 /// Системный зелёный — включённый переключатель (UIKit systemGreen: светлая / тёмная)
 const iosGreen = Color(0xff34c759);
-const iosGreenDark = Color(0xff30d158);
-Color iosGreenOf(Palette p) => p.dark ? iosGreenDark : iosGreen;
+Color iosGreenOf(Palette p) => sysColor(CupertinoColors.systemGreen, dark: p.dark);
 
 /// Уровень, как в UIKit: окно поверх текста — «приподнятое» (в тёмной: фон #1C1C1E, карточки #2C2C2E),
 /// страница на весь экран — базовое (фон #000000, карточки #1C1C1E); в светлой — всегда #F2F2F7 и белые карточки
@@ -40,10 +39,10 @@ class IosElevated extends InheritedWidget {
 }
 
 /// Фон карточки группы по уровню (secondarySystemGroupedBackground)
-Color iosCardAt(Palette p, bool elevated) => !p.dark ? const Color(0xffffffff) : (elevated ? const Color(0xff2c2c2e) : const Color(0xff1c1c1e));
+Color iosCardAt(Palette p, bool elevated) => sysColor(CupertinoColors.secondarySystemGroupedBackground, dark: p.dark, elevated: elevated);
 
 /// Фон окна по уровню (systemGroupedBackground)
-Color iosGroupedBg(Palette p, bool elevated) => !p.dark ? const Color(0xfff2f2f7) : (elevated ? const Color(0xff1c1c1e) : const Color(0xff000000));
+Color iosGroupedBg(Palette p, bool elevated) => sysColor(CupertinoColors.systemGroupedBackground, dark: p.dark, elevated: elevated);
 
 /// Значок из набора Apple вместо нашего (если есть похожий), иначе — тот же
 IconData iosIcon(IconData i) => _map[i] ?? i;
@@ -200,7 +199,7 @@ class IosIconSquare extends StatelessWidget {
 }
 
 /// Стрелка «›» справа у строки (серая, как в iOS)
-Color iosChevron(Palette p) => p.dark ? const Color(0x4debebf5) : const Color(0x4d3c3c43);
+Color iosChevron(Palette p) => sysColor(CupertinoColors.tertiaryLabel, dark: p.dark);
 
 /// Цвет квадрата значка — по смыслу пункта (системные цвета iOS), прочие — синие
 Color iosIconColor(IconData i) => _colors[i] ?? const Color(0xff007aff);

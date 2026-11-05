@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoSlider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -404,6 +405,23 @@ class _RangeRowState extends ConsumerState<RangeRow> {
           step(LucideIcons.minus, t('{label}: меньше', {'label': w.label}), -w.step, _v > w.min),
           const SizedBox(width: 8),
         ],
+        if (iosStyleOf(ref))
+          // стиль iPhone: системный ползунок iOS
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: CupertinoSlider(
+                value: _v.clamp(w.min, w.max),
+                min: w.min,
+                max: w.max,
+                divisions: math.max(1, ((w.max - w.min) / w.step).round()),
+                activeColor: pal.accent,
+                onChanged: (x) => _change(x),
+                onChangeEnd: (x) => _change(x, now: true),
+              ),
+            ),
+          )
+        else
         Expanded(
           child: SliderTheme(
             data: SliderThemeData(

@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoDynamicColor;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -110,7 +111,11 @@ class Settings {
     'menu': <String, dynamic>{'help': true, 'lastBookmark': true, 'sermons': true, 'plans': true, 'listen': true, 'maps': true, 'focus': false, 'book': false, 'split': true},
   };
 
-  T get<T>(String k) => (j[k] ?? (k == 'iosStyle' ? _iosDefault : defaults[k])) as T;
+  T get<T>(String k) {
+    // стиль iPhone: «Уменьшение движения» в системе выключает анимации и здесь
+    if (k == 'animations' && systemReduceMotion.value && (j['iosStyle'] ?? _iosDefault) == true) return false as T;
+    return (j[k] ?? (k == 'iosStyle' ? _iosDefault : defaults[k])) as T;
+  }
   // стиль iPhone по умолчанию — на iPhone и iPad (выключить — в «Оформлении»)
   static final bool _iosDefault = !kIsWeb && Platform.isIOS;
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
@@ -126,9 +131,36 @@ class Settings {
 }
 
 /// Системные цвета iOS (стиль iPhone): фон, label, secondaryLabel, systemBlue, фон групп, разделитель
-// (значения — как у UIKit / CupertinoColors: secondaryLabel 3C3C43 60 % / EBEBF5 60 %, separator 3C3C43 29 % / 545458 60 %)
-final iosLight = Palette('iOS', bg: _c(0xffffff), text: _c(0x000000), muted: const Color(0x993c3c43), accent: _c(0x007aff), panel: _c(0xf2f2f7), onAccent: _c(0xffffff), bar: _c(0xffffff), barText: _c(0x000000), line: const Color(0x4a3c3c43), hl: _c(0xffe79a), verseNum: const Color(0x993c3c43));
-final iosDark = Palette('iOS тёмная', dark: true, bg: _c(0x000000), text: _c(0xffffff), muted: const Color(0x99ebebf5), accent: _c(0x0a84ff), panel: _c(0x1c1c1e), onAccent: _c(0xffffff), bar: _c(0x000000), barText: _c(0xffffff), line: const Color(0x99545458), hl: _c(0x5b4a1c), verseNum: const Color(0x99ebebf5));
+// Цвета — системные цвета UIKit (CupertinoColors) для светлой / тёмной темы iPhone и для «Повышения контраста»
+// (Универсальный доступ → Дисплей и размер текста); ничего своего: systemBackground, label, secondaryLabel,
+// systemBlue, systemGroupedBackground (приподнятый — для окон), separator
+Color sysColor(CupertinoDynamicColor c, {required bool dark, bool elevated = false}) {
+  final hc = systemContrast.value;
+  if (dark) return elevated ? (hc ? c.darkHighContrastElevatedColor : c.darkElevatedColor) : (hc ? c.darkHighContrastColor : c.darkColor);
+  return elevated ? (hc ? c.highContrastElevatedColor : c.elevatedColor) : (hc ? c.highContrastColor : c.color);
+}
+
+Palette _iosPalette(bool dark) => Palette(dark ? 'iOS тёмная' : 'iOS',
+    dark: dark,
+    bg: sysColor(CupertinoColors.systemBackground, dark: dark),
+    text: sysColor(CupertinoColors.label, dark: dark),
+    muted: sysColor(CupertinoColors.secondaryLabel, dark: dark),
+    accent: sysColor(CupertinoColors.systemBlue, dark: dark),
+    panel: sysColor(CupertinoColors.systemGroupedBackground, dark: dark, elevated: true),
+    onAccent: const Color(0xffffffff),
+    bar: sysColor(CupertinoColors.systemBackground, dark: dark),
+    barText: sysColor(CupertinoColors.label, dark: dark),
+    line: sysColor(CupertinoColors.separator, dark: dark),
+    hl: dark ? _c(0x5b4a1c) : _c(0xffe79a), // выделение стиха — своё (у UIKit такого цвета нет)
+    verseNum: sysColor(CupertinoColors.secondaryLabel, dark: dark));
+Palette get iosLight => _iosPalette(false);
+Palette get iosDark => _iosPalette(true);
+
+/// «Повышение контраста» на iPhone (ставит главное окно из настроек системы)
+final systemContrast = ValueNotifier<bool>(false);
+
+/// «Уменьшение движения» на iPhone: в стиле iPhone анимации приложения выключаются
+final systemReduceMotion = ValueNotifier<bool>(false);
 
 late SharedPreferences prefs;
 
@@ -185,6 +217,12 @@ class SettingsNotifier extends Notifier<Settings> {
     void onSystem() => state = Settings(state.j);
     systemDark.addListener(onSystem);
     ref.onDispose(() => systemDark.removeListener(onSystem));
+    systemContrast.addListener(onSystem);
+    systemReduceMotion.addListener(onSystem);
+    ref.onDispose(() {
+      systemContrast.removeListener(onSystem);
+      systemReduceMotion.removeListener(onSystem);
+    });
     var j = <String, dynamic>{};
     try {
       if (raw != null) j = migrateSettings((jsonDecode(raw) as Map).cast<String, dynamic>());

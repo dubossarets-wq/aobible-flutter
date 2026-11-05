@@ -77,6 +77,15 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
   @override
   void didChangePlatformBrightness() => systemDark.value = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
 
+  // «Повышение контраста» и «Уменьшение движения» из настроек iPhone (Универсальный доступ)
+  @override
+  void didChangeAccessibilityFeatures() => _readAccessibility();
+  static void _readAccessibility() {
+    final f = WidgetsBinding.instance.platformDispatcher.accessibilityFeatures;
+    systemContrast.value = f.highContrast;
+    systemReduceMotion.value = f.reduceMotion || f.disableAnimations;
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -88,6 +97,7 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     systemDark.value = WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    _readAccessibility();
     // Тихая проверка обновления (Google Play): на «Ещё» загорается точка
     if (Platform.isAndroid) {
       InAppUpdate.checkForUpdate().then((i) => updateAvailable.value = i.updateAvailability == UpdateAvailability.updateAvailable, onError: (_) {});

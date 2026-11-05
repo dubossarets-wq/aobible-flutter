@@ -36,3 +36,24 @@ class GlassFab extends StatelessWidget {
         ),
       );
 }
+
+// --- Системный поиск iOS 26 (вкладка поиска в нижнем меню) ---------------------------------------------
+// Круглая стеклянная кнопка справа в меню раскрывается в системное поле поиска; его текст — сюда, окно поиска
+// ищет по нему (своего поля у окна тогда нет). Окно закрыли — поле сворачивается, свернули поле — окно закрывается
+
+/// Текст системного поля поиска
+final nativeSearchQuery = ValueNotifier<String>('');
+
+/// Нажали «Найти» на клавиатуре (счётчик нажатий)
+final nativeSearchSubmits = ValueNotifier<int>(0);
+
+/// Поле поиска раскрыто
+final nativeSearchActive = ValueNotifier<bool>(false);
+
+/// Раскрыть / свернуть поле (ставит нижнее меню) и задать в нём текст
+void Function()? nativeSearchActivate;
+void Function()? nativeSearchDeactivate;
+void Function(String text)? nativeSearchSetText;
+
+/// Закрыть окно поиска (ставит открытое окно поиска)
+void Function()? nativeSearchPageClose;

@@ -3,13 +3,15 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoIcons, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/i18n.dart';
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNButton, CNButtonConfig, CNButtonStyle, CNSymbol;
+
 import 'glass.dart';
 import 'ios_style.dart';
 import '../core/settings.dart';
@@ -169,8 +171,12 @@ Future<T?> showAobSheet<T>(
   // в стиле iPhone окно не укорачивается над клавиатурой, а уходит под неё; её высота приходит внутрь нижним
   // отступом (строка ввода поиска встаёт над клавиатурой, скруглённые углы клавиатуры — на фоне окна)
   bool underKeyboard = false,
+  // окно к тексту (выбор перевода, «Перейти», выбор цвета): в стиле iPhone остаётся листом снизу;
+  // остальные окна в стиле iPhone — на весь экран, с «назад» и «закрыть»
+  bool scripture = false,
 }) {
-  final nested = topRoute(context) is PopupRoute;
+  final iosFull = !scripture && ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
+  final nested = topRoute(context) is PopupRoute || iosFull;
   // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
   Widget body(BuildContext c) => _Nested(
         nested: nested,
@@ -331,6 +337,27 @@ class AobSheet extends ConsumerWidget {
 
   // Шапка листа iOS: «назад» слева, название по центру (полужирное 17), справа — серый круглый крестик
   Widget _iosHeader(BuildContext context, Palette pal, VoidCallback? back) {
+    if (nativeGlass) {
+      Widget glass(String symbol, String label, VoidCallback onTap) => SizedBox(
+            width: 44,
+            height: 44,
+            child: CNButton.icon(icon: CNSymbol(symbol), onPressed: onTap, semanticLabel: label, autoHideOnModal: false, config: const CNButtonConfig(style: CNButtonStyle.glass)),
+          );
+      return Row(children: [
+        SizedBox(width: 48, child: back == null ? null : Align(alignment: Alignment.centerLeft, child: glass('chevron.backward', t('Назад'), back))),
+        Expanded(
+          child: titleWidget != null
+              ? Semantics(label: title, child: Center(child: titleWidget))
+              : Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w600, color: pal.text)),
+                  if (subtitle != null)
+                    Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.25, color: pal.muted)),
+                ]),
+        ),
+        ...actions,
+        SizedBox(width: 48, child: Align(alignment: Alignment.centerRight, child: glass('xmark', t('Закрыть'), onClose ?? () => closeAllSheets(context)))),
+      ]);
+    }
     final close = Semantics(
       button: true,
       label: t('Закрыть'),
@@ -615,6 +642,20 @@ class AobButton extends ConsumerWidget {
       if (icon != null) ...[Icon(icon, size: small ? 14 : 16, color: fg), const SizedBox(width: 6)],
       Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)))),
     ]);
+    if (ios) {
+      final size = small ? CupertinoButtonSize.small : CupertinoButtonSize.medium;
+      final child = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+        if (icon != null) ...[Icon(icon, size: small ? 15 : 17), const SizedBox(width: 6)],
+        Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+      ]);
+      final btn = switch (kind) {
+        BtnKind.primary => CupertinoButton.filled(sizeStyle: size, onPressed: onTap, child: child),
+        BtnKind.danger => CupertinoButton.tinted(sizeStyle: size, color: CupertinoColors.systemRed, onPressed: onTap, child: child),
+        BtnKind.ghost => CupertinoButton(sizeStyle: size, onPressed: onTap, child: child),
+        BtnKind.normal => CupertinoButton.tinted(sizeStyle: size, onPressed: onTap, child: child),
+      };
+      return wide ? SizedBox(width: double.infinity, child: btn) : btn;
+    }
     return Opacity(
       opacity: onTap == null ? 0.5 : 1,
       child: Material(
@@ -964,6 +1005,22 @@ class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
     final scale = MediaQuery.textScalerOf(context);
     // запас строки — поровну сверху и снизу: надпись ровно посередине плашки
     final ios = iosStyleOf(ref);
+    // стиль iPhone: системный переключатель-сегменты iOS (до пяти вариантов — они помещаются в строку)
+    if (ios && options.length <= 5) {
+      return SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<int>(
+          groupValue: options.indexWhere((o) => o.$1 == widget.value),
+          onValueChanged: (i) {
+            if (i != null && i >= 0) widget.onChanged(options[i].$1);
+          },
+          children: {
+            for (var i = 0; i < options.length; i++)
+              i: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(options[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: pal.text))),
+          },
+        ),
+      );
+    }
     TextStyle style(bool on) => TextStyle(fontSize: ios ? 13.5 : 14.08, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: on ? FontWeight.w600 : (ios ? FontWeight.w500 : FontWeight.w400), color: on && !ios ? pal.accent : pal.text);
     return Container(
       padding: EdgeInsets.all(ios ? 2 : 3),

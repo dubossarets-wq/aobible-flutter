@@ -4,7 +4,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchController, CNTabBarSearchItem;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
@@ -368,7 +368,7 @@ class _Pane extends ConsumerWidget {
     final top = (box != null && box.hasSize ? box.localToGlobal(Offset.zero).dy : mq.padding.top) + barH;
     final avail = mq.size.height - mq.padding.top;
     final initial = ((mq.size.height - top - 5) / avail).clamp(0.4, 0.95).toDouble(); // до панели, зазор 5 px
-    showAobSheet(context, initial: initial, builder: (c) => _ModulePicker(pane: index, outer: context));
+    showAobSheet(context, initial: initial, builder: (c) => _ModulePicker(pane: index, outer: context), scripture: true);
   }
 }
 
@@ -952,6 +952,24 @@ class _TabBarState extends ConsumerState<_TabBar> {
   static const _ids = ['plans', 'search', 'bible', 'saved', 'more'];
   int? _hover; // плашка идёт за пальцем
   Route<dynamic>? _bound; // окно, открытое с вкладки
+  // системный поиск iOS 26 в меню: окно поиска раскрывает и сворачивает поле, задаёт в нём текст
+  final _search = CNTabBarSearchController();
+
+  @override
+  void initState() {
+    super.initState();
+    nativeSearchActivate = _search.activateSearch;
+    nativeSearchDeactivate = _search.deactivateSearch;
+    nativeSearchSetText = (s) => _search.text = s;
+  }
+
+  @override
+  void dispose() {
+    nativeSearchActivate = nativeSearchDeactivate = null;
+    nativeSearchSetText = null;
+    _search.dispose();
+    super.dispose();
+  }
 
   // Вкладки лежат выше навигатора: окна открываем и закрываем через контекст самого навигатора
   BuildContext get _nav => Hub.navigatorKey.currentContext ?? context;
@@ -1008,6 +1026,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
     // iOS 26: системная панель вкладок (Liquid Glass) — значки SF Symbols, выбранная вкладка — цветом акцента.
     // Над окнами остаётся видимой, как и наша (autoHideOnModal: false)
     if (nativeGlass) {
+      const ids = ['plans', 'bible', 'saved', 'more'];
       // высоту панель берёт свою (системную), снизу — только отступ под полосу «домой»
       return Padding(
         padding: const EdgeInsets.fromLTRB(iosEdge - _nativeTabSide, 0, iosEdge - _nativeTabSide, iosEdge - _nativeTabBottom),
@@ -1019,18 +1038,36 @@ class _TabBarState extends ConsumerState<_TabBar> {
             builder: (context, activeId, _) => CNTabBar(
               items: [
                 CNTabBarItem(label: labels['plans'], icon: const CNSymbol('calendar')),
-                CNTabBarItem(label: labels['search'], icon: const CNSymbol('magnifyingglass')),
                 CNTabBarItem(label: labels['bible'], icon: const CNSymbol('book'), activeIcon: const CNSymbol('book.fill')),
                 CNTabBarItem(label: labels['saved'], icon: const CNSymbol('heart'), activeIcon: const CNSymbol('heart.fill')),
                 CNTabBarItem(label: labels['more'], icon: const CNSymbol('line.3.horizontal')),
               ],
-              currentIndex: _ids.indexOf(activeId).clamp(0, _ids.length - 1),
+              // поиск — системная вкладка iOS 26: круглая кнопка справа, раскрывается в поле поиска
+              searchItem: CNTabBarSearchItem(
+                label: labels['search']!,
+                placeholder: t('Слово, Ин 3:16 или G26'),
+                onSearchChanged: (q) => nativeSearchQuery.value = q,
+                onSearchSubmit: (q) {
+                  nativeSearchQuery.value = q;
+                  nativeSearchSubmits.value++;
+                },
+                onSearchActiveChanged: (on) {
+                  nativeSearchActive.value = on;
+                  if (on && tabActive.value != 'search') {
+                    _open('search');
+                  } else if (!on) {
+                    nativeSearchPageClose?.call();
+                  }
+                },
+              ),
+              searchController: _search,
+              currentIndex: ids.indexOf(activeId).clamp(0, ids.length - 1),
               tint: pal.accent,
               iconSize: 19,
               autoHideOnModal: false,
               autoHideOnPageTransition: false,
               onTap: (i) {
-                _open(_ids[i]);
+                _open(ids[i]);
                 // окно не открылось (например, «Скоро») — выбранной остаётся прежняя вкладка
                 setState(() {});
               },
@@ -1149,10 +1186,15 @@ class TabBarOverlay extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: tabBarSuppress,
       builder: (context, suppressed, _) => ValueListenableBuilder<bool>(
+      valueListenable: nativeSearchActive,
+      builder: (context, _, _) => ValueListenableBuilder<bool>(
       valueListenable: homeMounted,
       builder: (context, mounted, _) {
         // с клавиатурой вкладки прячутся (окно поднимается над ней); поверх — полноэкранная страница (проигрыватель)
-        final show = mounted && suppressed == 0 && mq.viewInsets.bottom == 0;
+        final kb = mq.viewInsets.bottom;
+        // системный поиск iOS 26 раскрыт: меню (с полем поиска) не прячется под клавиатуру, а встаёт над ней
+        final searching = nativeGlass && nativeSearchActive.value;
+        final show = mounted && suppressed == 0 && (kb == 0 || searching);
         final inset = show ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
@@ -1161,7 +1203,7 @@ class TabBarOverlay extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: searching && kb > 0 ? kb - 12 : 0,
               // на широком экране капсула не растягивается: по центру, не шире 544 (как на большом телефоне)
               child: _FocusHide(
                 down: true,
@@ -1179,6 +1221,7 @@ class TabBarOverlay extends StatelessWidget {
           ),
         ]);
       },
+    ),
     ),
     );
   }

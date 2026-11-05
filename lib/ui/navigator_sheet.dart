@@ -15,7 +15,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import 'kit.dart';
 
-Future<void> openNavigator(BuildContext context, int pane) => showAobSheet(context, builder: (_) => NavigatorSheet(pane: pane));
+Future<void> openNavigator(BuildContext context, int pane) => showAobSheet(context, builder: (_) => NavigatorSheet(pane: pane), scripture: true);
 
 // Разделы Библии с цветами (src/core/bookCategories.js); «Неканонические» стоят после малых пророков
 const _categories = <(String, int, List<String>)>[

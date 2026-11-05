@@ -17,6 +17,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import '../features/hub.dart';
 import '../features/shell/fonts.dart' show readerTextStyle;
+import 'glass.dart';
 import 'ios_style.dart';
 import 'kit.dart';
 
@@ -125,6 +126,19 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         warmSearch(m.id);
       }
     });
+    // системный поиск iOS 26: запрос приходит из поля в нижнем меню; окно раскрывает поле и задаёт в нём текст
+    if (nativeGlass && iosStyleOn) {
+      nativeSearchPageClose = () {
+        if (mounted) Navigator.of(context).maybePop();
+      };
+      nativeSearchQuery.addListener(_fromNative);
+      nativeSearchSubmits.addListener(_submitNative);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        nativeSearchSetText?.call(_q.text);
+        nativeSearchActivate?.call();
+      });
+    }
     final restored = _memo != null && _memo!.key == _keyOf(_q.text.trim()) ? _memo : null;
     if (restored != null) {
       _hits = restored.hits;
@@ -143,12 +157,31 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     });
     // На телефоне при восстановленных результатах клавиатуру не открываем — она закрыла бы список
     Future.delayed(const Duration(milliseconds: 220), () {
-      if (mounted && restored == null) _focus.requestFocus();
+      if (mounted && restored == null && !(nativeGlass && iosStyleOn)) _focus.requestFocus();
     });
+  }
+
+  bool get iosStyleOn => ref.read(settingsProvider).get<bool>('iosStyle');
+
+  void _fromNative() {
+    if (!mounted || _q.text == nativeSearchQuery.value) return;
+    _q.text = nativeSearchQuery.value;
+    setState(() {});
+    _schedule();
+  }
+
+  void _submitNative() {
+    if (mounted) _submit();
   }
 
   @override
   void dispose() {
+    nativeSearchQuery.removeListener(_fromNative);
+    nativeSearchSubmits.removeListener(_submitNative);
+    if (nativeSearchPageClose != null && nativeGlass) {
+      nativeSearchPageClose = null;
+      nativeSearchDeactivate?.call(); // окно закрыли — поле в меню сворачивается
+    }
     _gen++;
     final q = _q.text.trim();
     prefs.setString('searchQuery', _q.text);
@@ -473,7 +506,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                 slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), sliver: results())],
               ),
             ),
-            Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
+            if (!nativeGlass) Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
+            if (nativeGlass) SizedBox(height: bottom),
           ]);
         }),
       );
