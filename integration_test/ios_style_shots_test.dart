@@ -74,6 +74,14 @@ void main() {
       await step('03-plans', () => tester.tap(find.text('Планы').last));
       await step('04-saved', () => tester.tap(find.text('Закладки').last));
       await step('05-more', () => tester.tap(find.text('Ещё').last));
+      // крупный заголовок: на полпути и уже в шапке; полоса края прокрутки
+      for (final (n, dy) in [('05b-more-half', -50.0), ('05b-more-half2', -66.0), ('05c-more-up', -260.0)]) {
+        await step(n, () async {
+          await tester.tap(find.text('Ещё').last);
+          await wait(10);
+          await tester.drag(find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).last, Offset(0, dy));
+        });
+      }
       Future<void> fromMore(String row) async {
         await tester.tap(find.text('Ещё').last);
         await wait(10);
@@ -85,6 +93,11 @@ void main() {
 
       await step('06-settings', () => fromMore('Настройки'));
       await step('07-appearance', () => fromMore('Оформление'));
+      await step('06b-settings-up', () async {
+        await fromMore('Настройки');
+        await wait(10);
+        await tester.drag(find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).last, const Offset(0, -300));
+      });
       await step('07b-appearance-low', () async {
         await fromMore('Оформление');
         await wait(10);

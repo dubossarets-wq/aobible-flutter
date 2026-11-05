@@ -648,7 +648,7 @@ class AobSheet extends ConsumerWidget {
           actions: actions,
           bar: root
               ? null
-              : Container(padding: EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8), constraints: const BoxConstraints(minHeight: 44), child: _iosHeader(context, pal, back)),
+              : Container(padding: EdgeInsets.symmetric(horizontal: iosEdge), constraints: const BoxConstraints(minHeight: 44), child: _iosHeader(context, pal, back)),
           body: (top, under) => tabInsetBuilder(
             context,
             (inset) => scroll
@@ -770,7 +770,7 @@ class _RenderSizeReport extends RenderProxyBox {
 
 /// Страница iOS: содержимое прокручивается под строку состояния и прозрачную шапку; когда под шапкой есть текст —
 /// за ней размытая полоса цвета фона (эффект края прокрутки iOS 26). У страницы вкладки — крупный заголовок 34 pt:
-/// уезжает вверх вместе со списком, а в шапке проявляется обычный заголовок 17 pt по центру
+/// при прокрутке уменьшается до 17 pt и переезжает в центр шапки
 class _IosPageFrame extends StatefulWidget {
   const _IosPageFrame({required this.pal, required this.under, required this.root, required this.title, this.subtitle, this.actions = const [], this.bar, required this.body});
   final Palette pal;
@@ -785,89 +785,112 @@ class _IosPageFrame extends StatefulWidget {
 }
 
 class _IosPageFrameState extends State<_IosPageFrame> {
-  double _bar = 58, _large = 0, _off = 0;
+  // шапка как в iOS (по замеру «Настроек» iPhone): ряд 44 pt сразу под строкой состояния, полоса фона заканчивается
+  // на 7 pt ниже ряда
+  static const _row = 44.0, _below = 7.0;
+  double _bar = _row + _below, _off = 0;
 
   @override
   Widget build(BuildContext context) {
     final pal = widget.pal;
-    final status = MediaQuery.paddingOf(context).top;
-    final large = widget.root ? (_large > 0 ? _large : 48.0) : 0.0;
+    final mq = MediaQuery.of(context);
+    final status = mq.padding.top;
+    final width = mq.size.width;
+    final base = DefaultTextStyle.of(context).style;
+    final largeStyle = base.merge(TextStyle(fontSize: 34, height: 41 / 34, fontWeight: FontWeight.w700, letterSpacing: iosTracking(34), color: pal.text));
+    final subStyle = base.merge(TextStyle(fontSize: 15, height: 20 / 15, color: pal.muted));
+    // размеры крупного заголовка (и подписи под ним) — заранее, чтобы вести его в шапку
+    double tw = 0, th = 0, sh = 0;
+    if (widget.root) {
+      final maxW = math.max(0.0, width - 2 * iosEdge);
+      final scaler = MediaQuery.textScalerOf(context);
+      final dir = Directionality.of(context);
+      final tp = TextPainter(text: TextSpan(text: widget.title, style: largeStyle), textDirection: dir, maxLines: 1, ellipsis: '\u2026', textScaler: scaler)..layout(maxWidth: maxW);
+      tw = math.min(maxW, tp.width.ceilToDouble());
+      th = tp.height;
+      tp.dispose();
+      if (widget.subtitle != null) {
+        final sp = TextPainter(text: TextSpan(text: widget.subtitle, style: subStyle), textDirection: dir, maxLines: 1, ellipsis: '\u2026', textScaler: scaler)..layout(maxWidth: maxW);
+        sh = sp.height;
+        sp.dispose();
+      }
+    }
+    final large = widget.root ? th + sh + 6 : 0.0;
     final top = status + _bar + large;
     final off = widget.under ? _off : 0.0;
     // полоса за шапкой — только когда под ней уже есть текст
     final covered = widget.under && off > large + 1;
-    final inline = widget.root ? ((off - large * 0.55) / (large * 0.45)).clamp(0.0, 1.0) : 1.0;
     final bg = iosGroupedBg(pal, false);
+    // полоса как в iOS: ровная, почти непрозрачная (за ней лишь угадывается размытый текст), снизу — тонкая линия
+    final band = Color.lerp(bg, const Color(0xffffffff), pal.dark ? 0.035 : 0.6)!.withValues(alpha: pal.dark ? 0.96 : 0.94);
+    final sep = sysColor(CupertinoColors.separator, dark: pal.dark);
     final bar = widget.bar ??
-        Padding(
-          padding: EdgeInsets.fromLTRB(iosEdge, 18, iosEdge, 8),
-          child: SizedBox(
-            height: 44,
-            child: Row(children: [
-              const SizedBox(width: 48),
-              Expanded(
-                child: Opacity(
-                  opacity: inline,
-                  child: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w600, color: pal.text)),
-                ),
-              ),
-              SizedBox(width: 48, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: widget.actions)),
-            ]),
+        SizedBox(
+          height: _row,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: iosEdge),
+            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: widget.actions),
           ),
         );
+    // крупный заголовок страницы вкладки: при прокрутке плавно уменьшается (34 → 17 pt) и переезжает в центр
+    // шапки, на место обычного заголовка; при оттягивании списка вниз — едет вниз вместе с ним
+    Widget? title;
+    if (widget.root) {
+      final p = large > 0 ? (off / large).clamp(0.0, 1.0) : 1.0;
+      final pull = off < 0 ? -off : 0.0;
+      final k = 1 - p * (1 - 17 / 34);
+      final c = Offset.lerp(Offset(iosEdge + tw / 2, status + _bar + th / 2 + pull), Offset(width / 2, status + _row / 2), p)!;
+      title = Positioned(
+        left: c.dx - tw * k / 2,
+        top: c.dy - th * k / 2,
+        child: IgnorePointer(
+          child: Transform.scale(
+            scale: k,
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: tw, height: th, child: Text(widget.title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: largeStyle)),
+          ),
+        ),
+      );
+    }
     return NotificationListener<ScrollUpdateNotification>(
       onNotification: (n) {
         if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
-          final v = n.metrics.pixels.clamp(0.0, 4000.0);
+          final v = n.metrics.pixels.clamp(-400.0, 4000.0);
           if ((v - _off).abs() > 0.5 && (v < large + 80 || _off < large + 80)) setState(() => _off = v);
         }
         return false;
       },
       child: Stack(children: [
         Positioned.fill(child: MediaQuery.removePadding(context: context, removeTop: true, child: widget.body(top, widget.under))),
-        // крупный заголовок страницы вкладки — едет вместе со списком и уходит под шапку
-        if (widget.root)
+        // подпись под крупным заголовком — едет вместе со списком и тает
+        if (widget.root && widget.subtitle != null)
           Positioned(
             left: iosEdge,
             right: iosEdge,
-            top: status + _bar - off,
+            top: status + _bar + th - off,
             child: IgnorePointer(
-              child: _SizeReport(
-                onSize: (s) {
-                  if (mounted && (s.height - _large).abs() > 0.5) setState(() => _large = s.height);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                    Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 34, height: 41 / 34, fontWeight: FontWeight.w700, letterSpacing: iosTracking(34), color: pal.text)),
-                    if (widget.subtitle != null) Text(widget.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, height: 20 / 15, color: pal.muted)),
-                  ]),
-                ),
+              child: Opacity(
+                opacity: (1 - (off / math.max(1.0, large)) * 2).clamp(0.0, 1.0),
+                child: Text(widget.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: subStyle),
               ),
             ),
           ),
-        // эффект края прокрутки: размытие и фон под строкой состояния и шапкой, снизу — мягкий переход
+        // эффект края прокрутки: ровная полоса под строкой состояния и шапкой — до её нижнего края, без перехода
         Positioned(
           left: 0,
           right: 0,
           top: 0,
-          height: status + _bar + 14,
+          height: status + _bar,
           child: IgnorePointer(
             child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 180),
+              duration: const Duration(milliseconds: 150),
               opacity: covered ? 1 : 0,
-              child: ShaderMask(
-                shaderCallback: (r) => LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: const [Color(0xffffffff), Color(0xffffffff), Color(0x00ffffff)],
-                  stops: [0, (r.height - 14) / r.height, 1],
-                ).createShader(r),
-                blendMode: BlendMode.dstIn,
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: ColoredBox(color: bg.withValues(alpha: 0.72)),
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: band, border: Border(bottom: BorderSide(color: sep, width: 1 / mq.devicePixelRatio))),
+                    child: const SizedBox.expand(),
                   ),
                 ),
               ),
@@ -882,9 +905,10 @@ class _IosPageFrameState extends State<_IosPageFrame> {
             onSize: (s) {
               if (mounted && (s.height - _bar).abs() > 0.5) setState(() => _bar = s.height);
             },
-            child: widget.bar == null ? bar : Padding(padding: const EdgeInsets.only(top: 14), child: bar),
+            child: Padding(padding: const EdgeInsets.only(bottom: _below), child: bar),
           ),
         ),
+        ?title,
       ]),
     );
   }
