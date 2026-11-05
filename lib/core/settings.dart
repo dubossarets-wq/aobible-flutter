@@ -113,7 +113,8 @@ class Settings {
 
   T get<T>(String k) {
     // стиль iPhone: «Уменьшение движения» в системе выключает анимации и здесь
-    if (k == 'animations' && systemReduceMotion.value && (j['iosStyle'] ?? _iosDefault) == true) return false as T;
+    if (k == 'animations' && systemReduceMotion.value && (_iosDefault || j['iosStyle'] == true)) return false as T;
+    if (k == 'iosStyle' && _iosDefault) return true as T; // на iPhone — всегда
     return (j[k] ?? (k == 'iosStyle' ? _iosDefault : defaults[k])) as T;
   }
   // стиль iPhone по умолчанию — на iPhone и iPad (выключить — в «Оформлении»)

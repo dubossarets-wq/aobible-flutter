@@ -146,7 +146,8 @@ class Sample extends StatelessWidget {
             ]),
           ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          // поля по бокам — как в читалке (Оформление → «Поля по бокам»)
+          padding: EdgeInsets.fromLTRB(s.d('textMargin') >= 0 ? s.d('textMargin') : (s.get<bool>('iosStyle') ? 20 : 16), 10, s.d('textMargin') >= 0 ? s.d('textMargin') : (s.get<bool>('iosStyle') ? 20 : 16), 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (head && !noText && (live || s.get<bool>('showHeadings')))
               Padding(padding: EdgeInsets.only(bottom: fs * 0.4), child: Text(t('Сотворение неба и земли'), style: readerTextStyle(s, size: fs * s.d('headingSize'), weight: 650).copyWith(color: headingColor(s), height: 1.3))),
@@ -262,14 +263,6 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       'comments': _commentsSub(s),
     };
     return [
-      // Стиль iPhone — только на iPhone и iPad: системные цвета, окна, переключатели и значки iOS
-      if (Platform.isIOS)
-        SwitchRow(
-          label: t('Стиль iPhone'),
-          hint: t('Окна, списки, переключатели, кнопки и значки — как в системе iPhone. Темы «Системная», «Светлая» и «Тёмная» — в цветах iPhone, остальные — со своими цветами.'),
-          value: s.get<bool>('iosStyle'),
-          onChanged: (v) => set({'iosStyle': v}),
-        ),
       _field(t('Тема'), pal, 6, [
         // .theme-strip: поля -16 (до краёв окна) и отступ 12; плитки 66, зазор 2
         LayoutBuilder(

@@ -954,12 +954,18 @@ class _TabBarState extends ConsumerState<_TabBar> {
   Route<dynamic>? _bound; // окно, открытое с вкладки
   // системный поиск iOS 26 в меню: окно поиска раскрывает и сворачивает поле, задаёт в нём текст
   final _search = CNTabBarSearchController();
+  int _tabKey = 0;
 
   @override
   void initState() {
     super.initState();
     nativeSearchActivate = _search.activateSearch;
-    nativeSearchDeactivate = _search.deactivateSearch;
+    // свернуть поле: пакет сам меню не перерисовывает — панель создаётся заново (уже свёрнутой)
+    nativeSearchDeactivate = () {
+      if (!mounted || !nativeSearchActive.value) return;
+      nativeSearchActive.value = false;
+      setState(() => _tabKey++);
+    };
     nativeSearchSetText = (s) => _search.text = s;
   }
 
@@ -996,13 +1002,13 @@ class _TabBarState extends ConsumerState<_TabBar> {
     if (nav.canPop()) nav.popUntil((r) => r.isFirst);
     if (id == 'bible' || tabActive.value == id) return closeAllSheets(_nav);
     // нажали вкладку при открытых окнах: сперва закрываем их все, потом открываем раздел
-    if (sheetsOpen.value > 0 || topRoute(_nav) is PopupRoute) closeAllSheets(_nav);
+    if (sheetsOpen.value > 0 || isSheetRoute(topRoute(_nav))) closeAllSheets(_nav);
     final before = topRoute(_nav);
     _run(id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final after = topRoute(_nav);
-      if (after == before || after is! PopupRoute) return;
+      if (after == null || after == before || !isSheetRoute(after)) return;
       _bound = after;
       tabActive.value = id;
       after.popped.whenComplete(() {
@@ -1036,6 +1042,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
           child: ValueListenableBuilder<String>(
             valueListenable: tabActive,
             builder: (context, activeId, _) => CNTabBar(
+              key: ValueKey(_tabKey),
               items: [
                 CNTabBarItem(label: labels['plans'], icon: const CNSymbol('calendar')),
                 CNTabBarItem(label: labels['bible'], icon: const CNSymbol('book'), activeIcon: const CNSymbol('book.fill')),

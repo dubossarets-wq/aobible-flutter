@@ -76,7 +76,8 @@ class _Memo {
 _Memo? _memo;
 
 Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope}) =>
-    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search', underKeyboard: true);
+    // открыто системной вкладкой поиска iOS 26 — окно не забирает фокус у её поля (иначе клавиатура не открывается)
+    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope), tab: 'search', underKeyboard: true, requestFocus: !nativeSearchActive.value);
 
 class SearchSheet extends ConsumerStatefulWidget {
   const SearchSheet({super.key, required this.pane, this.query, this.scope});
@@ -133,11 +134,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       };
       nativeSearchQuery.addListener(_fromNative);
       nativeSearchSubmits.addListener(_submitNative);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        nativeSearchSetText?.call(_q.text);
-        nativeSearchActivate?.call();
-      });
+      _native = nativeSearchActive.value;
     }
     final restored = _memo != null && _memo!.key == _keyOf(_q.text.trim()) ? _memo : null;
     if (restored != null) {
@@ -157,11 +154,13 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     });
     // На телефоне при восстановленных результатах клавиатуру не открываем — она закрыла бы список
     Future.delayed(const Duration(milliseconds: 220), () {
-      if (mounted && restored == null && !(nativeGlass && iosStyleOn)) _focus.requestFocus();
+      if (mounted && restored == null && !_native) _focus.requestFocus();
     });
   }
 
   bool get iosStyleOn => ref.read(settingsProvider).get<bool>('iosStyle');
+  // запрос идёт из системного поля поиска в нижнем меню (окно открыто его вкладкой)
+  bool _native = false;
 
   void _fromNative() {
     if (!mounted || _q.text == nativeSearchQuery.value) return;
@@ -506,8 +505,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
                 slivers: [SliverPadding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), sliver: results())],
               ),
             ),
-            if (!nativeGlass) Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
-            if (nativeGlass) SizedBox(height: bottom),
+            if (!_native) Padding(padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8 + bottom), child: _form(pal, height: 44)),
+            if (_native) SizedBox(height: bottom),
           ]);
         }),
       );

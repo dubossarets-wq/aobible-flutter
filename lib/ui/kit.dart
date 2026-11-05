@@ -3,7 +3,7 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoSlidingSegmentedControl, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTile, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -174,9 +174,12 @@ Future<T?> showAobSheet<T>(
   // окно к тексту (выбор перевода, «Перейти», выбор цвета): в стиле iPhone остаётся листом снизу;
   // остальные окна в стиле iPhone — на весь экран, с «назад» и «закрыть»
   bool scripture = false,
+  // false — окно не забирает фокус (поиск: фокус остаётся у системного поля поиска в нижнем меню)
+  bool requestFocus = true,
 }) {
-  final iosFull = !scripture && ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
-  final nested = topRoute(context) is PopupRoute || iosFull;
+  final ios = ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
+  final iosFull = !scripture && ios;
+  final nested = isSheetRoute(topRoute(context)) || iosFull;
   // Окно поднимается над клавиатурой: поле ввода (заметка, поиск) не прячется под ней
   Widget body(BuildContext c) => _Nested(
         nested: nested,
@@ -212,9 +215,17 @@ Future<T?> showAobSheet<T>(
           );
         }),
       );
-  final Future<T?> f = nested
+  final Future<T?> f = nested && ios
+      // стиль iPhone: страница на весь экран — системный переход iOS (въезжает справа, предыдущая сдвигается,
+      // свайп от левого края — назад)
+      ? Navigator.of(context).push<T>(IosPageRoute<T>(
+          requestFocus: requestFocus,
+          builder: (c) => SafeArea(bottom: false, child: Material(type: MaterialType.transparency, child: body(c))),
+        ))
+      : nested
       // окно поверх окна (подменю: «Ещё» → «Настройки») — на весь экран, въезжает справа и уезжает вправо
       ? showGeneralDialog<T>(
+          requestFocus: requestFocus,
           context: context,
           barrierDismissible: false,
           barrierColor: Colors.black.withValues(alpha: 0.12),
@@ -260,7 +271,15 @@ Route<dynamic>? topRoute(BuildContext context) {
 /// Переход к месту в Библии: закрываются все окна и страницы поверх читалки (и «Ещё», из которого открыли окно)
 void closeToReader(BuildContext context) => Navigator.of(context).popUntil((r) => r.isFirst);
 
-void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) => r is! PopupRoute);
+void closeAllSheets(BuildContext context) => Navigator.of(context).popUntil((r) => !isSheetRoute(r));
+
+/// Страница окна на весь экран в стиле iPhone (системный переход iOS со свайпом назад) — тоже «окно»
+class IosPageRoute<T> extends CupertinoPageRoute<T> {
+  IosPageRoute({required super.builder, super.requestFocus});
+}
+
+/// Окно (нижнее окно, меню, страница окна в стиле iPhone) — не экран чтения
+bool isSheetRoute(Route<dynamic>? r) => r is PopupRoute || r is IosPageRoute;
 
 /// Высота нижних вкладок вместе с отступами (0 — вкладок нет: широкий экран, первая загрузка).
 /// Вкладки лежат поверх окон (.tabbar поверх .sheet), поэтому внизу окон — отступ такой высоты
@@ -283,7 +302,7 @@ class SheetObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is PopupRoute && _open.add(route)) _sync();
+    if (isSheetRoute(route) && _open.add(route)) _sync();
   }
 
   @override
@@ -301,7 +320,7 @@ class SheetObserver extends NavigatorObserver {
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     _open.remove(oldRoute);
-    if (newRoute is PopupRoute) _open.add(newRoute);
+    if (isSheetRoute(newRoute)) _open.add(newRoute!);
     _sync();
   }
 }
@@ -733,10 +752,11 @@ class AobChip extends ConsumerWidget {
 
 /// .pref-row: значок в цветном квадрате 38×38 (скругление 11), заголовок, подпись, стрелка; линия снизу
 class PrefRow extends ConsumerWidget implements IosGroupRow {
-  const PrefRow({super.key, required this.icon, required this.title, this.sub, required this.onTap, this.trailing, this.last = false, this.leading});
+  const PrefRow({super.key, required this.icon, required this.title, this.sub, required this.onTap, this.trailing, this.last = false, this.leading, this.value});
   final IconData icon;
   final String title;
   final String? sub;
+  final String? value; // значение строки (язык «Русский»): в стиле iPhone — серым справа, вместо подписи
   final VoidCallback? onTap;
   final Widget? trailing;
   final Widget? leading; // вместо значка (флаг языка)
@@ -774,32 +794,17 @@ class PrefRow extends ConsumerWidget implements IosGroupRow {
   }
 
   @override
-  double get iosIndent => 60; // линия под строкой — от начала текста (16 + значок 30 + 14)
+  double get iosIndent => 66; // линия под строкой — от начала текста (поле 20 + значок 30 + 16, как у CupertinoListTile)
 
-  // Стиль iPhone — как строка «Настроек» iPhone: цветной квадрат со значком, название 17, подпись серым,
-  // справа — серая «›»; фон и линии рисует карточка группы (IosSection)
-  Widget _ios(Palette pal) => Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 52),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
-              child: Row(children: [
-                leading ?? IosIconSquare(icon),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                    Text(title, style: TextStyle(fontSize: 17, color: pal.text)),
-                    if (sub != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(sub!, style: TextStyle(fontSize: 13.5, color: pal.muted))),
-                  ]),
-                ),
-                trailing ?? Icon(CupertinoIcons.chevron_forward, size: 15, color: iosChevron(pal)),
-              ]),
-            ),
-          ),
-        ),
+  // Стиль iPhone — системная строка списка iOS (CupertinoListTile): значок в цветном квадрате, название, справа —
+  // значение серым и системная «›»; подписи под названием нет (как в «Настройках» iPhone)
+  Widget _ios(Palette pal) => CupertinoListTile(
+        leading: leading == null ? IosIconSquare(icon) : SizedBox(width: 30, height: 30, child: FittedBox(child: leading)),
+        leadingSize: 30,
+        title: Text(title),
+        additionalInfo: value == null ? null : Text(value!),
+        trailing: trailing ?? const CupertinoListTileChevron(),
+        onTap: onTap,
       );
 }
 
@@ -809,7 +814,7 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
   final bool flat; // в окне — от края до края, без скругления (меню «Ещё»); во всплывающем меню — со скруглением
   final bool last; // последняя строка группы (линии в стиле iPhone рисует карточка группы)
   @override
-  double get iosIndent => 60;
+  double get iosIndent => 66;
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -829,20 +834,15 @@ class MenuRow extends ConsumerWidget implements IosGroupRow {
       child: InkWell(
         onTap: onTap,
         child: ios && flat
-            // стиль iPhone: как строка «Настроек» — цветной квадрат со значком, название 17, справа — значение
-            // серым или «›»; фон и линии рисует карточка группы (IosSection)
-            ? ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 52),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
-                  child: Row(children: [
-                    IosIconSquare(this.icon, color: color),
-                    const SizedBox(width: 14),
-                    Expanded(child: Text(label, style: TextStyle(fontSize: 17, color: color ?? pal.text))),
-                    if (extra != null) ...[extra!, const SizedBox(width: 6)],
-                    Icon(CupertinoIcons.chevron_forward, size: 15, color: iosChevron(pal)),
-                  ]),
-                ),
+            // стиль iPhone: системная строка списка iOS (CupertinoListTile) — значок в цветном квадрате, название,
+            // справа значение серым и системная «›»
+            ? CupertinoListTile(
+                leading: IosIconSquare(this.icon, color: color),
+                leadingSize: 30,
+                title: Text(label, style: color == null ? null : TextStyle(color: color)),
+                additionalInfo: extra,
+                trailing: const CupertinoListTileChevron(),
+                onTap: onTap,
               )
             : Padding(
                 padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
@@ -864,7 +864,7 @@ class MenuSep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // стиль iPhone: между группами в окне — промежуток цвета фона групп, во всплывающем меню — тонкая линия
-    if (iosStyleOf(ref)) return full ? const SizedBox(height: 10) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
+    if (iosStyleOf(ref)) return full ? const SizedBox(height: 30) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
     return Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
   }
 }
@@ -937,24 +937,16 @@ class SwitchRow extends ConsumerWidget implements IosGroupRow {
   final bool value;
   final ValueChanged<bool> onChanged;
   @override
-  double get iosIndent => 16;
+  double get iosIndent => 20;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
-    // стиль iPhone: строка карточки — название 17 и системный переключатель, высота 52
+    // стиль iPhone: системная строка списка iOS с системным переключателем
     if (iosStyleOf(ref)) {
-      return InkWell(
+      return CupertinoListTile(
+        title: Row(children: [Flexible(child: Text(label)), if (hint != null) Hint(hint!)]),
+        trailing: CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal)),
         onTap: () => onChanged(!value),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 52),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 14, 8),
-            child: Row(children: [
-              Expanded(child: Row(children: [Flexible(child: Text(label, style: TextStyle(fontSize: 17, color: pal.text))), if (hint != null) Hint(hint!)])),
-              CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal)),
-            ]),
-          ),
-        ),
       );
     }
     return InkWell(

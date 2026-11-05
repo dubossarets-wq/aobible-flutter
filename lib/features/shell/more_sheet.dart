@@ -2,6 +2,7 @@
 // плюс свои: переключатели из меню, Оформление, Настройки, Инструкция, Сообщить о проблеме, Что нового, О приложении.
 // Действие закрывает лист; переключатели («Режим чтения» и т. п.) — нет. Окна оболочки открываются поверх «Ещё»,
 // крестик возвращает обратно.
+import 'package:flutter/cupertino.dart' show CupertinoListTile, CupertinoListTileChevron;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -182,11 +183,21 @@ class _Row2 extends ConsumerWidget implements IosGroupRow {
   final _Entry entry;
   final VoidCallback onTap;
   @override
-  double get iosIndent => 60;
+  double get iosIndent => 66;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = effectivePalette(ref.watch(settingsProvider));
     final ios = iosStyleOf(ref);
+    if (ios) {
+      return CupertinoListTile(
+        leading: IosIconSquare(entry.icon),
+        leadingSize: 30,
+        title: Text(entry.label),
+        additionalInfo: Text(entry.sub!, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const CupertinoListTileChevron(),
+        onTap: onTap,
+      );
+    }
     return Material(
       type: MaterialType.transparency,
       child: InkWell(

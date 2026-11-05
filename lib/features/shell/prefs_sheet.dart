@@ -174,6 +174,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
                 ),
                 title: t('Язык'),
                 sub: lang.name + (currentLang == 'ru' || currentLang == 'en' ? '' : ' · Language'),
+                value: lang.name,
                 onTap: () => setState(() => _page = 'lang'),
                 last: last,
               ),
