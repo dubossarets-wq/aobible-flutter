@@ -4,7 +4,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoSlider;
+import 'package:flutter/cupertino.dart' show CupertinoButton, CupertinoIcons, CupertinoSlider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +63,7 @@ class AppSheet extends ConsumerWidget {
     final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
     final mq = MediaQuery.of(context);
     // стиль iPhone: подряд идущие строки — в общие скруглённые карточки, как в «Настройках» iPhone
-    final children = iosStyleOf(ref) ? iosGroup(this.children, pal, padding.left) : this.children;
+    final children = iosStyleOf(ref) ? iosGroup(this.children, pal, padding.left, gap: gap) : this.children;
     return MediaQuery(
       data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(1) * scale)),
       child: AobSheet(
@@ -317,7 +317,7 @@ class SegRow<T> extends ConsumerWidget {
 /// Ползунок с кнопками «меньше / больше» по краям и понятным значением словами (.ap-range).
 /// Пока ползунок тянут, значение двигается сразу, а в настройки уходит не чаще раза в 180 мс и при отпускании:
 /// каждое изменение перекладывает весь текст под окном.
-class RangeRow extends ConsumerStatefulWidget {
+class RangeRow extends ConsumerStatefulWidget implements IosGroupBlock {
   const RangeRow({super.key, required this.label, required this.value, required this.min, required this.max, required this.step, required this.onChanged, required this.word, this.big = false, this.hint, this.buttons = true});
   final String label;
   final String? hint;
@@ -326,6 +326,9 @@ class RangeRow extends ConsumerStatefulWidget {
   final String Function(double) word;
   final bool big; // кнопки «А» вместо «−/+»
   final bool buttons; // кнопки «меньше / больше» по краям (в приветствии их нет)
+
+  @override
+  double get iosIndent => iosRowIconLeft;
 
   @override
   ConsumerState<RangeRow> createState() => _RangeRowState();
@@ -366,7 +369,20 @@ class _RangeRowState extends ConsumerState<RangeRow> {
     final pal = paletteOf(ref);
     final w = widget;
     // .ap-step: круг 44 с рамкой, фон страницы; «A» — маленькая и большая буквы
-    Widget step(IconData icon, String tip, double delta, bool enabled) => Tooltip(
+    Widget step(IconData icon, String tip, double delta, bool enabled) => iosStyleOf(ref)
+        ? Semantics(
+            label: tip,
+            button: true,
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(32, 44),
+              onPressed: enabled ? () => _change(_v + delta, now: true) : null,
+              child: w.big
+                  ? Text('A', style: TextStyle(fontSize: delta < 0 ? 13 : 22, color: pal.text))
+                  : Icon(delta < 0 ? CupertinoIcons.minus : CupertinoIcons.plus, size: 18, color: pal.muted),
+            ),
+          )
+        : Tooltip(
           message: tip,
           child: Opacity(
             opacity: enabled ? 1 : 0.4,
@@ -466,9 +482,13 @@ class Card2 extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     final all = [if (title != null) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
+    final ios = iosStyleOf(ref);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(color: cardFill(pal), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      padding: ios ? const EdgeInsets.fromLTRB(iosRowIconLeft, 12, iosRowRight, 14) : const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      // стиль iPhone: карточка группы — системная заливка и скругление, без рамки
+      decoration: ios
+          ? BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius))
+          : BoxDecoration(color: cardFill(pal), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // раскрывающийся блок (Reveal) сам несёт зазор сверху — свёрнутый не оставляет пустого места
         for (var i = 0; i < all.length; i++) ...[if (i > 0 && all[i] is! Reveal) const SizedBox(height: 14), all[i]],
@@ -494,7 +514,17 @@ class _ConfirmButtonState extends State<ConfirmButton> {
   bool _armed = false;
   @override
   Widget build(BuildContext context) {
-    if (!_armed) return AobButton(label: widget.label, icon: widget.icon, small: widget.small, block: widget.block, onTap: () => setState(() => _armed = true));
+    // стиль iPhone: подтверждение — системным листом действий снизу, а не кнопками на месте
+    final ios = ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
+    if (!_armed) {
+      return AobButton(
+        label: widget.label,
+        icon: widget.icon,
+        small: widget.small,
+        block: widget.block,
+        onTap: ios ? () => iosConfirm(context, action: widget.confirmText, onConfirm: widget.onConfirm) : () => setState(() => _armed = true),
+      );
+    }
     if (widget.block && isPhone(context)) {
       return Row(children: [
         Expanded(

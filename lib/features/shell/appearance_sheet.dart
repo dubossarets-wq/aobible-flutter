@@ -1,7 +1,6 @@
 // Оформление (AppearanceSettings.jsx): сверху живой образец текста, под ним тема, размер, вид текста;
 // ниже подразделы — шрифт, номера и заголовки, цвета, кнопки и панели; внизу — сброс. Всё применяется сразу.
 // Подразделы «Фон» (картинка под текстом) и «Комментарии» (размер текста, какие видны после стиха) — тоже здесь.
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' show PathMetric;
 
@@ -13,6 +12,7 @@ import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../bookmarks/marks.dart' show hlColors, marksProvider;
 import '../plans/net_cache.dart' show SiteImage;
@@ -132,7 +132,11 @@ class Sample extends StatelessWidget {
     // .preview-card: рамка line, скругление 12, фон страницы; .pv-bar 46 (в закреплённом образце), .pv-body 10 16 12
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      decoration: BoxDecoration(
+        color: pal.bg,
+        border: Border.all(color: pal.line, width: s.get<bool>('iosStyle') ? 0.5 : 1),
+        borderRadius: BorderRadius.circular(s.get<bool>('iosStyle') ? iosRadius : kRadius),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (bar)
           Container(
@@ -240,9 +244,12 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                     ? Sample(s: s, live: true, bar: _live == 'bar' || _live == 'barText', head: _live == 'heading', sn: _live == 'strong', short: true)
                     // образец обрезан по высоте 180 — по той же скруглённой рамке (иначе низ срезан прямо, без углов и линии)
                     : Container(
-                        foregroundDecoration: BoxDecoration(border: Border.all(color: effectivePalette(s).line), borderRadius: BorderRadius.circular(kRadius)),
+                        foregroundDecoration: BoxDecoration(
+                          border: Border.all(color: effectivePalette(s).line, width: iosStyleOf(ref) ? 0.5 : 1),
+                          borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : kRadius),
+                        ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(kRadius),
+                          borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : kRadius),
                           child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 180), child: SingleChildScrollView(physics: const NeverScrollableScrollPhysics(), child: Sample(s: s, head: true))),
                         ),
                       ),
@@ -310,6 +317,19 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           ],
         ]),
       ]),
+      // стиль iPhone: разделы — одной карточкой, «Сбросить оформление» — отдельной строкой, как «Выключить»
+      if (iosStyleOf(ref)) ...[
+        for (final (i, b) in _shown.indexed) PrefRow(icon: b.$2, title: t(b.$3), sub: subs[b.$1], onTap: () => setState(() => _block = b.$1), last: i == _shown.length - 1),
+        const IosBreak(),
+        IosActionRow(
+          title: t('Сбросить оформление'),
+          onTap: () => iosConfirm(context, action: t('Да, сбросить'), onConfirm: () {
+            set({for (final k in _lookKeys) k: Settings.defaults.containsKey(k) ? Settings.defaults[k] : _lookDefaults[k]});
+            UserBg.clear();
+            toast(context, t('Оформление сброшено'));
+          }),
+        ),
+      ] else ...[
       // .ap-list: линия сверху, строки не ниже 60; линия — от края до края окна, как у самих строк
       Column(children: [
         bleed(Container(height: 1, color: pal.line)),
@@ -328,13 +348,15 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           },
         ),
       ),
+      ],
     ];
   }
 
   /// .field: подпись и под ней содержимое
+  // стиль iPhone: подпись — системным заголовком группы (прописными, серым, на линии текста строк)
   Widget _field(String text, Palette pal, double gap, List<Widget> body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(text, style: fieldLabel(pal, bold: true)),
-        SizedBox(height: gap),
+        if (iosStyleOf(ref)) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: GroupTitle(text)) else Text(text, style: fieldLabel(pal, bold: true)),
+        SizedBox(height: iosStyleOf(ref) ? 4 : gap),
         ...body,
       ]);
 
@@ -878,8 +900,8 @@ class _ViewTile extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: pal.bg,
-            border: Border.all(color: on ? pal.accent : pal.line),
-            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: on ? pal.accent : pal.line, width: iosStyleOf(ref) && !on ? 0.5 : 1),
+            borderRadius: BorderRadius.circular(iosStyleOf(ref) ? iosRadius : 12),
             boxShadow: [BoxShadow(color: on ? pal.accent : pal.accent.withValues(alpha: 0), spreadRadius: on ? 2 : 0)],
           ),
           child: LayoutBuilder(

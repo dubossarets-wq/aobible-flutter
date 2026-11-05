@@ -3,7 +3,7 @@
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTile, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
+import 'package:flutter/cupertino.dart' show CupertinoActionSheet, CupertinoActionSheetAction, showCupertinoModalPopup, CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTile, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -917,6 +917,44 @@ class IosNavRow extends StatelessWidget implements IosGroupRow {
         onTap: onTap,
       );
 }
+
+/// Строка-действие стиля iPhone, как «Выключить» в «Настройках»: только название цветом акцента (или красным)
+class IosActionRow extends ConsumerWidget implements IosGroupRow {
+  const IosActionRow({super.key, required this.title, required this.onTap, this.destructive = false});
+  final String title;
+  final VoidCallback onTap;
+  final bool destructive;
+  @override
+  double get iosIndent => iosRowIconLeft + 2;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    return iosTile(
+      title: Text(title, style: TextStyle(color: destructive ? sysColor(CupertinoColors.systemRed, dark: pal.dark) : pal.accent)),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Системное подтверждение iOS снизу экрана (CupertinoActionSheet): красное действие и «Отменить»
+Future<void> iosConfirm(BuildContext context, {required String action, String? message, required VoidCallback onConfirm}) =>
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (c) => CupertinoActionSheet(
+        message: message == null ? null : Text(message),
+        actions: [
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(c);
+              onConfirm();
+            },
+            child: Text(action),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(isDefaultAction: true, onPressed: () => Navigator.pop(c), child: Text(t('Отмена'))),
+      ),
+    );
 
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
 class MenuRow extends ConsumerWidget implements IosGroupRow {

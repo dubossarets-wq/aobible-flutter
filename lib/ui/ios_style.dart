@@ -2,12 +2,13 @@
 // строки как в «Настройках» iPhone, переключатели и кнопки iOS, значки из набора Apple (Cupertino Icons).
 // Выключен — всё как обычно. Цвета — палитры iosLight / iosDark (settings.dart), остальное — общие элементы kit.dart.
 import 'package:flutter/cupertino.dart' show CupertinoColors, CupertinoIcons, CupertinoListTile;
+import 'package:flutter/material.dart' show TextTheme;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/settings.dart';
-import 'kit.dart' show GroupTitle;
+import 'kit.dart' show GroupTitle, MenuSep;
 
 /// Включён ли стиль iPhone (виджет перестраивается при переключении)
 bool iosStyleOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
@@ -138,18 +139,43 @@ abstract interface class IosGroupRow {
   double get iosIndent;
 }
 
+/// Блок группы со своими полями внутри карточки (ползунок «Размер текста» и т. п.), а не строка CupertinoListTile
+abstract interface class IosGroupBlock implements IosGroupRow {}
+
+/// Поля блока внутри карточки: как у строк — 18 слева и 20 справа
+const iosBlockPadding = EdgeInsets.fromLTRB(iosRowIconLeft, 10, iosRowRight, 6);
+
+/// Скругление карточки группы — как у списков «Настроек» в iOS 26
+const iosRadius = 26.0;
+
+/// Промежуток между разделами (карточками) — как в «Настройках» iPhone
+const iosSectionGap = 35.0;
+
+/// Разрыв: строки до и после него — в разных карточках (например, «Сбросить» отдельно, как «Выключить» в iPhone)
+class IosBreak extends StatelessWidget {
+  const IosBreak({super.key});
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
 /// Подряд идущие строки — в одну белую скруглённую карточку с отступом iosEdge от краёв окна
-/// (sidePad — поля самого списка: карточка добавляет к ним недостающее). Остальное — как было
-List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad) {
+/// (sidePad — поля самого списка: карточка добавляет к ним недостающее; gap — промежуток списка между
+/// элементами: до iosSectionGap между разделами добавляется недостающее). Остальное — как было
+List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad, {double gap = 12}) {
   IosGroupRow? rowOf(Widget w) => w is IosGroupRow ? w as IosGroupRow : (w is Padding && w.child is IosGroupRow ? w.child! as IosGroupRow : null);
-  final out = <Widget>[];
+  final m = (iosEdge - sidePad).clamp(0.0, iosEdge);
+  final extra = (iosSectionGap - gap).clamp(0.0, iosSectionGap);
+  // 0 — прочее, 1 — подзаголовок, 2 — карточка
+  final out = <(Widget, int)>[];
   var run = <(Widget, IosGroupRow)>[];
   void flush() {
     if (run.isEmpty) return;
-    final m = (iosEdge - sidePad).clamp(0.0, iosEdge);
-    // подзаголовок прямо над карточкой — на линии текста её строк, как в «Настройках» iPhone
-    if (out.isNotEmpty && out.last is GroupTitle) out[out.length - 1] = Padding(padding: EdgeInsets.only(left: m + iosRowIconLeft), child: out.last);
-    out.add(IosSection(rows: [for (final (w, _) in run) w is Padding ? w.child! : w], indents: [for (final (_, r) in run) r.iosIndent], pal: pal, margin: (iosEdge - sidePad).clamp(0.0, iosEdge)));
+    Widget body(Widget w, IosGroupRow r) {
+      final c = w is Padding ? w.child! : w;
+      return r is IosGroupBlock ? Padding(padding: iosBlockPadding, child: c) : c;
+    }
+
+    out.add((IosSection(rows: [for (final (w, r) in run) body(w, r)], indents: [for (final (_, r) in run) r.iosIndent], pal: pal, margin: m), 2));
     run = [];
   }
 
@@ -159,14 +185,33 @@ List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad) {
       run.add((w, r));
     } else {
       flush();
-      out.add(w);
+      // разделитель групп (MenuSep во всю ширину) — тоже разрыв: промежуток между карточками ставится здесь
+      if (w is! IosBreak && !(w is MenuSep && w.full)) out.add((w, w is GroupTitle ? 1 : 0));
     }
   }
   flush();
-  return out;
+
+  // промежутки как в iPhone: перед подзаголовком и карточкой — увеличенный (у подзаголовка 14 сверху уже есть),
+  // между подзаголовком и его карточкой — обычный, после карточки — тоже увеличенный
+  final res = <Widget>[];
+  for (var i = 0; i < out.length; i++) {
+    final (w, k) = out[i];
+    final prev = i > 0 ? out[i - 1].$2 : -1;
+    final next = i + 1 < out.length ? out[i + 1].$2 : -1;
+    var top = 0.0;
+    if (i > 0) {
+      if (k == 1) top = extra - 14;
+      if (k == 2 && prev != 1) top = extra;
+      if (k == 0 && prev == 2) top = extra;
+    }
+    // подзаголовок прямо над карточкой — на линии текста её строк, как в «Настройках» iPhone
+    final left = k == 1 && next == 2 ? m + iosRowIconLeft : 0.0;
+    res.add(top <= 0 && left == 0 ? w : Padding(padding: EdgeInsets.only(left: left, top: top.clamp(0.0, iosSectionGap)), child: w));
+  }
+  return res;
 }
 
-/// Карточка группы: белая (в тёмной — графитовая), скругление 26, линии между строками — от начала текста
+/// Карточка группы: белая (в тёмной — графитовая), системное скругление, линии между строками — от начала текста
 class IosSection extends StatelessWidget {
   const IosSection({super.key, required this.rows, required this.indents, required this.pal, this.margin = 0});
   final List<Widget> rows;
@@ -178,7 +223,7 @@ class IosSection extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: EdgeInsets.symmetric(horizontal: margin),
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(26)),
+        decoration: BoxDecoration(color: iosCardAt(pal, IosElevated.of(context)), borderRadius: BorderRadius.circular(iosRadius)),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           for (var i = 0; i < rows.length; i++) ...[
             rows[i],
@@ -263,3 +308,33 @@ final Map<IconData, Color> _colors = {
   LucideIcons.download: _blue,
   LucideIcons.trash2: _red,
 };
+
+// --- Системный шрифт iOS ------------------------------------------------------------------------------------
+
+/// Межбуквенный интервал системного шрифта iOS (SF Pro) по размеру — таблица трекинга Apple (Human Interface
+/// Guidelines → Typography): мелкий текст чуть разрежен, 13–20 pt сжат, крупные заголовки — снова свободнее
+double iosTracking(double size) {
+  final t = <double, double>{11: 0.06, 12: 0, 13: -0.08, 14: -0.15, 15: -0.23, 16: -0.31, 17: -0.43, 18: -0.44, 19: -0.45, 20: -0.45, 22: -0.26, 24: 0.07, 28: 0.38, 34: 0.40};
+  final keys = t.keys.toList();
+  if (size <= keys.first) return t[keys.first]!;
+  if (size >= keys.last) return t[keys.last]!;
+  for (var i = 1; i < keys.length; i++) {
+    if (size <= keys[i]) {
+      final a = keys[i - 1], b = keys[i];
+      return t[a]! + (t[b]! - t[a]!) * (size - a) / (b - a);
+    }
+  }
+  return 0;
+}
+
+/// Тема текста для iPhone: системный шрифт и системный трекинг вместо интервалов Material (+0,25…+0,5)
+TextTheme iosTextTheme(TextTheme base) {
+  TextStyle? f(TextStyle? s) => s?.copyWith(letterSpacing: iosTracking(s.fontSize ?? 17));
+  return base.copyWith(
+    displayLarge: f(base.displayLarge), displayMedium: f(base.displayMedium), displaySmall: f(base.displaySmall),
+    headlineLarge: f(base.headlineLarge), headlineMedium: f(base.headlineMedium), headlineSmall: f(base.headlineSmall),
+    titleLarge: f(base.titleLarge), titleMedium: f(base.titleMedium), titleSmall: f(base.titleSmall),
+    bodyLarge: f(base.bodyLarge), bodyMedium: f(base.bodyMedium), bodySmall: f(base.bodySmall),
+    labelLarge: f(base.labelLarge), labelMedium: f(base.labelMedium), labelSmall: f(base.labelSmall),
+  );
+}

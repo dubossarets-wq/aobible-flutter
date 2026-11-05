@@ -26,6 +26,7 @@ void main() {
     }
     final c = ProviderScope.containerOf(tester.element(find.byType(ReaderPane).first));
     final was = c.read(settingsProvider).get<bool>('iosStyle');
+    final theme = c.read(settingsProvider).get<String>('theme');
     Future<void> wait([int n = 8]) async {
       for (var i = 0; i < n; i++) {
         await tester.pump(const Duration(milliseconds: 150));
@@ -60,7 +61,7 @@ void main() {
     }
 
     try {
-      c.read(settingsProvider.notifier).set({'iosStyle': true});
+      c.read(settingsProvider.notifier).set({'iosStyle': true, if (dark) 'theme': 'dark'});
       systemDark.value = dark;
       await wait();
       await shot('01-reader');
@@ -72,19 +73,24 @@ void main() {
         await tester.tap(find.text('Ещё').last);
         await wait(10);
         final f = find.text(row);
-        await tester.ensureVisible(f.first);
+        await tester.scrollUntilVisible(f.first, 200, scrollable: find.byType(Scrollable).last);
         await wait(4);
         await tester.tap(f.first, warnIfMissed: false);
       }
 
       await step('06-settings', () => fromMore('Настройки'));
       await step('07-appearance', () => fromMore('Оформление'));
+      await step('07b-appearance-low', () async {
+        await fromMore('Оформление');
+        await wait(10);
+        await tester.drag(find.byType(Scrollable).last, const Offset(0, -600));
+      });
       await step('08-library', () => fromMore('Библиотека модулей'));
       // капсула первой панели: слева — перевод, справа — место
       await step('09-goto', () => tester.tapAt(const Offset(130, 22)));
       await step('10-module', () => tester.tapAt(const Offset(42, 22)));
     } finally {
-      c.read(settingsProvider.notifier).set({'iosStyle': was});
+      c.read(settingsProvider.notifier).set({'iosStyle': was, 'theme': theme});
       systemDark.value = false;
       await wait(4);
     }

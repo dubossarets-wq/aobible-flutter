@@ -5,6 +5,7 @@
 // функции из Hub должны жить дольше неё.
 import 'dart:math' as math;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNButtonStyle, CNPopupMenuButton, CNPopupMenuItem, CNSymbol;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/glass.dart' show nativeGlass;
 import '../../ui/kit.dart';
 import '../hub.dart';
 import '../shell/tour_targets.dart' show tourKey;
@@ -160,6 +162,39 @@ class _SelectionBar extends ConsumerWidget {
         lucide(bm ? LucideIcons.bookmarkCheck : LucideIcons.bookmark, 21, bm ? t('Убрать закладку') : t('Закладка: продолжить отсюда'), toggleBm, on: bm),
         // «Копировать» — значком на панели (раньше — в меню «⋯»)
         lucide(LucideIcons.copy, 20, t('Копировать'), copy),
+        // iPhone (iOS 26): системное выпадающее меню UIKit (UIMenu) со значками SF Symbols
+        if (nativeGlass)
+          Builder(builder: (_) {
+            final acts = <(String, String, VoidCallback)>[
+              if (Hub.openInterlinear != null) (t('Подстрочник'), 'character.textbox', () => Hub.openInterlinear!(c, r, first, moduleId)),
+              if (Hub.openVerseGuide != null) (t('Всё о стихе'), 'safari', () => Hub.openVerseGuide!(c, r, pane, first, moduleId)),
+              if (Hub.addToSermon != null) (t('В проповедь'), 'doc.text', () => Hub.addToSermon!(c, r, refs, moduleId)),
+              (t('В подборку…'), 'folder.badge.plus', () => showCollectSheet(c, refs, moduleId)),
+              (fav ? t('Убрать из любимых') : t('В любимые'), fav ? 'heart.slash' : 'heart', toggleFav),
+              if (Hub.compareTranslations != null) (t('Сравнить переводы'), 'books.vertical', () => Hub.compareTranslations!(c, r, refs, moduleId)),
+              if (refs.length == 1 && Hub.openXrefs != null) (t('Параллельные места'), 'link', () => Hub.openXrefs!(c, r, pane, first)),
+              if (Hub.listenFrom != null) (t('Слушать отсюда'), 'headphones', () => Hub.listenFrom!(c, r, pane, first)),
+              if (Hub.openVerseImage != null) (t('Картинка со стихом'), 'photo', () => Hub.openVerseImage!(c, r, refs, moduleId)),
+              (t('Поделиться'), 'square.and.arrow.up', share),
+            ];
+            return SizedBox(
+              key: pane == 0 ? tourKey('sel-more') : null,
+              width: 44,
+              height: 44,
+              child: CNPopupMenuButton.icon(
+                buttonIcon: const CNSymbol('ellipsis'),
+                semanticLabel: t('Ещё действия'),
+                buttonStyle: CNButtonStyle.plain,
+                autoHideOnModal: false,
+                items: [for (final a in acts) CNPopupMenuItem(label: a.$1, icon: CNSymbol(a.$2))],
+                onSelected: (i) {
+                  acts[i].$3();
+                  doneLater();
+                },
+              ),
+            );
+          })
+        else
         PopupMenuButton<VoidCallback>(
           key: pane == 0 ? tourKey('sel-more') : null, // цель инструкции
           tooltip: t('Ещё действия'),
