@@ -272,7 +272,7 @@ class _Pane extends ConsumerWidget {
               boxShadow: mod?.features['interlinear'] == true && ilBar ? null : [BoxShadow(color: pal.line, offset: const Offset(0, 1)), const BoxShadow(color: Color(0x0D000000), offset: Offset(0, 4), blurRadius: 14)],
             ),
             // стиль iPhone: капсула и значки — на общей линии iosEdge (у значка 22 в кнопке 40 — поле 9)
-            padding: ios ? const EdgeInsets.only(left: iosEdge, right: iosEdge - 9) : const EdgeInsets.only(left: 8, right: 4),
+            padding: ios ? EdgeInsets.only(left: iosEdge, right: iosEdge - 9) : const EdgeInsets.only(left: 8, right: 4),
             child: Row(children: [
               // Перевод и место — одна капсула: слева короткое имя перевода (мельче, приглушённо), тонкий разделитель,
               // справа место — полное название книги («Бытие 1:1»), длинное или не помещается — сокращение; у каждой
@@ -567,14 +567,14 @@ class _ModulePickerState extends ConsumerState<_ModulePicker> {
             ])
               if (items.isNotEmpty) ...[
                 Container(
-                  decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
+                  decoration: iosUiNow ? null : BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
                   child: Text.rich(
                     TextSpan(children: [
-                      TextSpan(text: title.toUpperCase()),
-                      TextSpan(text: '  ${items.length}', style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0)),
+                      TextSpan(text: iosUiNow ? title : title.toUpperCase()),
+                      TextSpan(text: '  ${items.length}', style: TextStyle(fontWeight: iosUiNow ? FontWeight.w400 : FontWeight.w600, letterSpacing: 0)),
                     ]),
-                    style: TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: pal.muted),
+                    style: iosUiNow ? TextStyle(fontSize: 17, height: 22 / 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 11.8, fontWeight: FontWeight.w700, letterSpacing: 0.7, color: pal.muted),
                   ),
                 ),
                 if (note != null) Padding(padding: const EdgeInsets.fromLTRB(20, 2, 20, 6), child: Text(note, style: TextStyle(fontSize: 12.75, height: 1.4, color: pal.muted))),
@@ -1052,7 +1052,7 @@ class _TabBarState extends ConsumerState<_TabBar> {
       const ids = ['plans', 'bible', 'saved', 'more'];
       // высоту панель берёт свою (системную), снизу — только отступ под полосу «домой»
       return Padding(
-        padding: const EdgeInsets.fromLTRB(iosEdge - _nativeTabSide, 0, iosEdge - _nativeTabSide, iosEdge - _nativeTabBottom),
+        padding: EdgeInsets.fromLTRB(iosEdge - _nativeTabSide, 0, iosEdge - _nativeTabSide, iosEdge - _nativeTabBottom),
         child: Align(
           alignment: Alignment.bottomCenter,
           heightFactor: 1,

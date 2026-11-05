@@ -2,6 +2,7 @@
 // Окно выезжает снизу, высота меняется перетаскиванием шапки (половина → до верхней панели → почти весь экран),
 // закрывается свайпом вниз, крестиком или нажатием на фон. «Назад» — к окну, из которого открыли (оно лежит под этим).
 import 'package:flutter/gestures.dart';
+import 'package:flutter/cupertino.dart' show CupertinoColors;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,6 +114,7 @@ class SheetScaffold extends ConsumerWidget {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final frame = context.findAncestorStateOfType<_FrameState>();
     final vh = MediaQuery.of(context).size.height;
+    final ios = iosStyleOf(ref);
     // Шапка — как у AobSheet из kit.dart (BottomSheet.jsx), но с перетаскиванием высоты и общим закрытием окон
     final drag = GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -121,6 +123,11 @@ class SheetScaffold extends ConsumerWidget {
       onVerticalDragEnd: (d) => frame?.dragEnd(d.velocity.pixelsPerSecond.dy, context),
       onVerticalDragCancel: () => frame?.dragEnd(0, context),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // стиль iPhone: системная ручка и шапка листа (UI Kit Apple)
+        if (ios) ...[
+          iosGrabber(pal),
+          iosNavHeader(context, pal, title: title, subtitle: subtitle, back: onBack, close: onClose ?? () => closeAllSheets(context), actions: headerExtra),
+        ] else ...[
         Padding(
           padding: const EdgeInsets.only(top: 7, bottom: 1), // как у AobSheet: шапка ниже
           child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
@@ -155,19 +162,23 @@ class SheetScaffold extends ConsumerWidget {
             IconBtn(icon: LucideIcons.x, onTap: onClose ?? () => closeAllSheets(context), tooltip: t('Закрыть')),
           ]),
         ),
+        ],
       ]),
     );
     return Material(
-      color: pal.panel,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadius + 6)),
+      // стиль iPhone: системный фон листа, скругление Apple 38 (UI Kit Apple, Sheet - iPhone)
+      color: ios ? iosGroupedBg(pal, true) : pal.panel,
+      shape: ios
+          ? const RoundedSuperellipseBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(38)))
+          : const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 6))),
       clipBehavior: Clip.antiAlias,
       child: DefaultTextStyle.merge(
-        style: TextStyle(color: pal.text, fontSize: 15),
+        style: TextStyle(color: pal.text, fontSize: ios ? 17 : 15),
         child: Column(children: [
           drag,
           // вкладки лежат поверх окна: внизу тела (или под нижней панелью) — отступ под них
           Expanded(child: tabInsetBuilder(context, (inset) => footer != null ? body : MediaQuery(data: MediaQuery.of(context).copyWith(padding: MediaQuery.paddingOf(context).copyWith(bottom: MediaQuery.paddingOf(context).bottom + inset)), child: body))),
-          if (footer != null) Container(padding: const EdgeInsets.fromLTRB(16, 10, 16, 10), decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))), child: footer),
+          if (footer != null) Container(padding: const EdgeInsets.fromLTRB(16, 10, 16, 10), decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line, width: ios ? 0.5 : 1))), child: footer),
           if (footer != null) tabInsetBuilder(context, (inset) => SizedBox(height: inset)),
         ]),
       ),
@@ -228,10 +239,10 @@ class Empty extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Column(children: [
-        Icon(ico(icon), size: iosUiNow ? 48 : 28, color: pal.muted),
+        Icon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
         SizedBox(height: iosUiNow ? 14 : 8),
-        Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: pal.text) : TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
-        if (child != null) ...[SizedBox(height: iosUiNow ? 6 : 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: iosUiNow ? 17 : 14.4, height: iosUiNow ? 1.3 : 1.45), child: child!)],
+        Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: pal.text) : TextStyle(fontWeight: FontWeight.w600, color: pal.text)),
+        if (child != null) ...[SizedBox(height: iosUiNow ? 6 : 8), DefaultTextStyle.merge(textAlign: TextAlign.center, style: TextStyle(color: pal.muted, fontSize: iosUiNow ? 22 : 14.4, fontWeight: iosUiNow ? FontWeight.w500 : null, height: iosUiNow ? 1.2 : 1.45), child: child!)],
       ]),
     );
   }
@@ -245,6 +256,8 @@ class H4 extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = _pal(ref);
+    // стиль iPhone: как заголовок группы (UI Kit Apple, Header: 17 pt полужирный серый), без значка
+    if (iosUiNow) return Padding(padding: EdgeInsets.only(left: iosHeaderLeft - 16 + 4, bottom: 2), child: Text(text, style: TextStyle(fontSize: 17, height: 22 / 17, fontWeight: FontWeight.w600, color: pal.muted)));
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(children: [
@@ -302,6 +315,10 @@ class TabsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = _pal(ref);
+    if (iosUiNow) {
+      if (!sub && labels.length <= 4) return Segmented<int>(options: [for (var i = 0; i < labels.length; i++) (i, labels[i])], value: index, onChanged: onTap);
+      return FadeRow(gap: 8, children: [for (var i = 0; i < labels.length; i++) AobChip(label: labels[i], on: i == index, onTap: () => onTap(i))]);
+    }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Container(
@@ -360,9 +377,11 @@ class WarnBox extends ConsumerWidget {
     final pal = _pal(ref);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+      decoration: iosUiNow
+          ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6))
+          : BoxDecoration(color: tint(const Color(0xFFD99A2B), pal.panel, 0.15), borderRadius: BorderRadius.circular(kRadius * 0.75)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (icon) Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 16, color: const Color(0xFFC0841F))),
+        if (icon) Padding(padding: const EdgeInsets.only(top: 2), child: Icon(ico(LucideIcons.triangleAlert), size: 16, color: iosUiNow ? sysColor(CupertinoColors.systemOrange, dark: pal.dark) : const Color(0xFFC0841F))),
         if (icon) const SizedBox(width: 8),
         Expanded(child: DefaultTextStyle.merge(style: const TextStyle(fontSize: 14.1, height: 1.45), child: child)),
       ]),
@@ -378,8 +397,8 @@ class SourceNote extends ConsumerWidget {
     final pal = _pal(ref);
     return Container(
       padding: const EdgeInsets.only(top: 8),
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line))),
-      child: Text(text, style: TextStyle(color: pal.muted, fontSize: 12.8)),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: pal.line, width: iosUiNow ? 0.5 : 1))),
+      child: Text(text, style: iosUiNow ? TextStyle(color: pal.muted, fontSize: 13, height: 18 / 13, letterSpacing: -0.08) : TextStyle(color: pal.muted, fontSize: 12.8)),
     );
   }
 }
@@ -405,7 +424,7 @@ class LinkButton extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Text(label, style: TextStyle(color: pal.accent, decoration: TextDecoration.underline, decorationColor: pal.accent)),
+      child: Text(label, style: TextStyle(color: pal.accent, decoration: iosUiNow ? TextDecoration.none : TextDecoration.underline, decorationColor: pal.accent)),
     );
   }
 }
@@ -447,7 +466,7 @@ class _LinkSpansState extends ConsumerState<LinkSpans> {
           else
             TextSpan(
               text: text,
-              style: TextStyle(color: pal.accent, decoration: TextDecoration.underline, decorationColor: pal.accent),
+              style: TextStyle(color: pal.accent, decoration: iosUiNow ? TextDecoration.none : TextDecoration.underline, decorationColor: pal.accent),
               recognizer: (TapGestureRecognizer()..onTap = tap).also(_rec.add),
             ),
       ]),
@@ -523,7 +542,9 @@ class QuoteBox extends ConsumerWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
+      decoration: iosUiNow
+          ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6))
+          : BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
       // .xref-source / .guide-card: шрифт читалки (--font-text)
       child: Text(text, style: readerTextStyle(ref.watch(settingsProvider), size: 15, weight: 400).copyWith(height: 1.5)),
     );

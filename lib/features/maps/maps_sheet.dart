@@ -323,7 +323,7 @@ class _Viewer extends StatelessWidget {
       // .map-view: рамка line, скругление, фон bg
       Container(
         height: MediaQuery.sizeOf(context).height * 0.5,
-        decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+        decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
         clipBehavior: Clip.antiAlias,
         child: FutureBuilder<Uint8List>(
           future: _image(m.image),

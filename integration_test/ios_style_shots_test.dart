@@ -125,6 +125,12 @@ void main() {
       await step('17-report', () => fromMore('Сообщить о проблеме'));
       // выделение стиха: нажатие на текст первой панели
       await step('18-selection', () => tester.tapAt(const Offset(200, 260)));
+      await step('20-dictionary', () async {
+        await tester.tapAt(const Offset(200, 260));
+        await wait(8);
+        await tester.tap(find.textContaining('Стронг').first, warnIfMissed: false);
+      });
+      await step('21-commentary', () => tester.tap(find.text('Лопухин').first, warnIfMissed: false));
       await step('08-library', () => fromMore('Библиотека модулей'));
       // капсула первой панели: слева — перевод, справа — место
       await step('09-goto', () => tester.tapAt(const Offset(130, 22)));

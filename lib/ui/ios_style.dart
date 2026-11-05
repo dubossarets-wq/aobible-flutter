@@ -22,9 +22,13 @@ Color iosCard(Palette p) => sysColor(CupertinoColors.secondarySystemGroupedBackg
 /// Заливка кнопок и плашек без рамки (tertiarySystemFill)
 Color iosFill(Palette p) => sysColor(CupertinoColors.tertiarySystemFill, dark: p.dark);
 
-/// Общий отступ от краёв экрана в стиле iPhone: шапка, текст, круглые кнопки и нижнее меню — на одной линии,
-/// у меню снизу — такой же, как по бокам
-const iosEdge = 20.0;
+/// Узкий iPhone (короткая сторона экрана меньше 414 pt): системные поля UIKit — 16; на больших (Plus, Pro Max) — 20.
+/// Ставит главное окно по размеру экрана при запуске
+bool iosCompact = false;
+
+/// Общий отступ от краёв экрана в стиле iPhone (поля системы): шапка, текст, карточки, круглые кнопки и нижнее
+/// меню — на одной линии, у меню снизу — такой же, как по бокам
+double get iosEdge => iosCompact ? 16 : 20;
 
 /// Системный зелёный — включённый переключатель (UIKit systemGreen: светлая / тёмная)
 const iosGreen = Color(0xff34c759);
@@ -199,7 +203,7 @@ class IosInCard extends InheritedWidget {
 }
 
 /// Отступ заголовка и пояснения группы от края карточки — по линии текста строк без значка (20, как в iOS 26)
-const iosHeaderLeft = 20.0;
+double get iosHeaderLeft => iosEdge;
 
 /// Пояснение под карточкой: серый текст, как в «Настройках» iPhone
 class IosFooter extends StatelessWidget {
@@ -209,8 +213,9 @@ class IosFooter extends StatelessWidget {
   final double margin;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(margin + iosHeaderLeft, 0, margin + iosHeaderLeft, 0),
-        child: Text(text, style: TextStyle(fontSize: 14, height: 1.3, color: pal.muted)),
+        // UI Kit Apple (Grouped Table Footer): 13 pt, строка 18, трекинг −0,08, снизу 6
+        padding: EdgeInsets.fromLTRB(margin + iosHeaderLeft, 0, margin + iosHeaderLeft, 6),
+        child: Text(text, style: TextStyle(fontSize: 13, height: 18 / 13, letterSpacing: -0.08, color: pal.muted)),
       );
 }
 
@@ -218,7 +223,7 @@ class IosFooter extends StatelessWidget {
 abstract interface class IosGroupBlock implements IosGroupRow {}
 
 /// Поля блока внутри карточки: как у строк — 18 слева и 20 справа
-const iosBlockPadding = EdgeInsets.fromLTRB(iosRowIconLeft, 10, iosRowRight, 6);
+EdgeInsets get iosBlockPadding => EdgeInsets.fromLTRB(iosRowIconLeft, 10, iosRowRight, 6);
 
 /// Скругление карточки группы — как у списков «Настроек» в iOS 26
 const iosRadius = 26.0;
@@ -328,11 +333,15 @@ class IosSection extends StatelessWidget {
 /// Строка длинного списка (строится по ходу прокрутки) как часть карточки группы iOS: у первой — скруглён верх,
 /// у последней — низ; между строками — тонкая линия от начала текста
 class IosCardItem extends StatelessWidget {
-  const IosCardItem({super.key, required this.child, required this.pal, this.first = false, this.last = false, this.indent = iosRowIconLeft, this.margin = iosEdge - 16});
+  const IosCardItem({super.key, required this.child, required this.pal, this.first = false, this.last = false, double? indent, double? margin})
+      : _indent = indent,
+        _margin = margin;
   final Widget child;
   final Palette pal;
   final bool first, last;
-  final double indent, margin;
+  final double? _indent, _margin;
+  double get indent => _indent ?? iosRowIconLeft;
+  double get margin => _margin ?? (iosEdge - 16).clamp(0.0, iosEdge);
   @override
   Widget build(BuildContext context) {
     const r = Radius.circular(iosRadius);
@@ -367,7 +376,10 @@ class IosIconSquare extends StatelessWidget {
 
 /// Размеры строки списка, как в «Настройках» iPhone: значок 28 в 18 от края карточки, текст — в 60, высота 52,
 /// «›» и конец линии — в 20 от правого края
-const iosRowIconLeft = 18.0, iosRowIcon = 28.0, iosRowTextLeft = 60.0, iosRowRight = 20.0, iosRowHeight = 52.0;
+// поля внутри карточки — как у системы: на узком iPhone 16 (значок тоже в 16), на большом 20 (значок в 18)
+double get iosRowIconLeft => iosCompact ? 16 : 18;
+double get iosRowRight => iosEdge;
+const iosRowIcon = 28.0, iosRowTextLeft = 60.0, iosRowHeight = 52.0;
 
 /// Строка списка стиля iPhone: системная CupertinoListTile с размерами «Настроек» iPhone
 Widget iosTile({Widget? leading, required Widget title, Widget? additionalInfo, Widget? trailing, VoidCallback? onTap}) => ConstrainedBox(
@@ -487,7 +499,8 @@ class IosSwipe extends StatefulWidget {
 }
 
 class _IosSwipeState extends State<IosSwipe> with SingleTickerProviderStateMixin {
-  static const _btn = 74.0, _gap = 8.0;
+  // UI Kit Apple: капсула 60×38, знак 17, под ней через 5 — подпись 13 pt Medium серым
+  static const _btn = 60.0, _gap = 8.0;
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 260), lowerBound: -4000, upperBound: 0, value: 0);
   double get _open => widget.actions.length * (_btn + _gap) + _gap;
   double _w = 400;
@@ -548,12 +561,12 @@ class _IosSwipeState extends State<IosSwipe> with SingleTickerProviderStateMixin
                                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                                       Container(
                                         width: _btn,
-                                        height: 40,
-                                        decoration: BoxDecoration(color: a.color, borderRadius: BorderRadius.circular(20)),
-                                        child: Icon(a.icon, size: 20, color: const Color(0xffffffff)),
+                                        height: 38,
+                                        decoration: BoxDecoration(color: a.color, borderRadius: BorderRadius.circular(19)),
+                                        child: Icon(a.icon, size: 17, color: const Color(0xffffffff)),
                                       ),
-                                      const SizedBox(height: 3),
-                                      Text(a.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: widget.pal.muted)),
+                                      const SizedBox(height: 5),
+                                      Text(a.label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, height: 15 / 13, fontWeight: FontWeight.w500, color: widget.pal.muted)),
                                     ]),
                                   ),
                                 ),

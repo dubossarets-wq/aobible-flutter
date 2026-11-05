@@ -510,7 +510,7 @@ class Card2 extends ConsumerWidget {
     final ios = iosStyleOf(ref);
     final all = [if (title != null && !ios) Text(title!, style: TextStyle(fontSize: 16.3, fontWeight: FontWeight.w700, color: pal.text)), ...children];
     final card = Container(
-      padding: ios ? const EdgeInsets.fromLTRB(iosRowIconLeft, 12, iosRowRight, 14) : const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: ios ? EdgeInsets.fromLTRB(iosRowIconLeft, 12, iosRowRight, 14) : const EdgeInsets.fromLTRB(14, 12, 14, 14),
       // стиль iPhone: карточка группы — системная заливка и скругление, без рамки
       decoration: ios
           ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius))
@@ -522,7 +522,7 @@ class Card2 extends ConsumerWidget {
     );
     if (!ios || title == null) return card;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(padding: const EdgeInsets.only(left: iosHeaderLeft, bottom: 6), child: GroupTitle(title!)),
+      Padding(padding: EdgeInsets.only(left: iosHeaderLeft, bottom: 6), child: GroupTitle(title!)),
       card,
     ]);
   }

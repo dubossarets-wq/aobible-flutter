@@ -170,7 +170,7 @@ class _SermonsSheetState extends ConsumerState<SermonsSheet> {
               child: Row(children: [
                 Icon(ico(LucideIcons.layers), size: 14, color: pal.muted),
                 const SizedBox(width: 6),
-                Expanded(child: Text(name.toUpperCase(), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: pal.muted))),
+                Expanded(child: Text(iosUiNow ? name : name.toUpperCase(), style: iosUiNow ? TextStyle(fontSize: 17, height: 22 / 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: pal.muted))),
               ]),
             ),
           for (final (i, s) in items.indexed) _row(pal, s, first: i == 0, last: i == items.length - 1),
@@ -377,7 +377,7 @@ class SermonRow extends StatelessWidget {
         onTap: enabled ? onTap : null,
         child: Container(
           // строка стоит от края до края окна (bleed у списка) — отступы у содержимого
-          padding: inCard ? const EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          padding: inCard ? EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 12, 20, 12),
           decoration: inCard ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             Icon(ico(LucideIcons.scrollText), size: 18, color: pal.accent),

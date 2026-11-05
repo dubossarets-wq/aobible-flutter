@@ -306,7 +306,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
         // план и сколько дней; нажатие раскрывает строку на месте: описание, «до …» и «Начать»
         if (_index != null)
           Container(
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
+            decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal))),
             clipBehavior: Clip.antiAlias,
             child: Column(children: [
               for (final (i, m) in _index!.indexed)
@@ -339,7 +339,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       // лёгкая подложка цвета акцента — карточка отделяется от окна
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)), // чистая нейтральная подложка — белые плитки на ней видны
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal))), // чистая нейтральная подложка — белые плитки на ней видны
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Container(
@@ -662,7 +662,7 @@ class _DaysStepper extends StatelessWidget {
     final divider = Container(width: 1, height: 28, color: pal.line);
     return Container(
       height: 56,
-      decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: plateEdge(pal))),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: plateEdge(pal)))),
       clipBehavior: Clip.antiAlias,
       child: Material(
         type: MaterialType.transparency,
@@ -909,7 +909,7 @@ class _ActivePlanState extends State<_ActivePlan> {
       return Container(
         // без своего нижнего отступа: промежуток между блоками окна — общий, 12
         padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg),
+        decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: pal.bg)),
         child: Row(children: [
           Expanded(child: Text(t('${p['name']}'), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text))),
           ConfirmIcon(icon: LucideIcons.trash2, size: 15, confirmText: t('Удалить'), tooltip: t('Удалить план'), onConfirm: widget.onRemove),
@@ -933,7 +933,7 @@ class _ActivePlanState extends State<_ActivePlan> {
     return Container(
       // без своего нижнего отступа: промежуток между блоками окна — общий, 12
       // фон — как у остальных блоков окна
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal))),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(
@@ -1025,7 +1025,7 @@ class _ActivePlanState extends State<_ActivePlan> {
               // стиль iPhone: вложенный список — системной заливкой без рамки, скругление — по карточке (меньше на её поле)
               decoration: iosUiNow
                   ? iosShape(iosFill(pal), BorderRadius.circular(iosRadius - 12))
-                  : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
+                  : (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line))),
               clipBehavior: Clip.antiAlias,
               child: Column(children: [
                 for (final (i, r) in rs.indexed)
@@ -1198,7 +1198,7 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
     final pal = widget.pal;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: pal.line))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
           _timeBtn(x, 'time', x.every > 0 ? t('С') : t('Время')),
@@ -1297,7 +1297,7 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
     final pal = widget.pal;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: pal.line), color: cardFill(pal))),
       child: Column(children: [
         // .switch-field: подпись с «!» (пояснение по нажатию) и переключатель, отступ 2
         GestureDetector(

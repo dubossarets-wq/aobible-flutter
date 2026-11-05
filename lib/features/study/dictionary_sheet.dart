@@ -407,7 +407,7 @@ class StrongEntry extends ConsumerWidget {
       // Шапка: слово оригинала крупно, под ним одной строкой — транслитерация, номер, язык; ниже — форма в этом стихе
       Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-        decoration: BoxDecoration(color: tint(pal.accent, pal.panel, 0.07), borderRadius: BorderRadius.circular(18)),
+        decoration: iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: tint(pal.accent, pal.panel, 0.07), borderRadius: BorderRadius.circular(18)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (lemma != null && lemma.isNotEmpty) ...[
             Align(
@@ -476,10 +476,11 @@ class SecTitle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
+    final ios = iosUiNow;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text.rich(TextSpan(style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: pal.muted), children: [
-        TextSpan(text: text.toUpperCase()),
+      child: Text.rich(TextSpan(style: ios ? TextStyle(fontSize: 17, height: 22 / 17, fontWeight: FontWeight.w600, color: pal.muted) : TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: pal.muted), children: [
+        TextSpan(text: ios ? text : text.toUpperCase()),
         if (extra != null) TextSpan(text: ' · $extra', style: const TextStyle(fontWeight: FontWeight.w500, letterSpacing: 0)),
       ])),
     );
@@ -632,7 +633,7 @@ class _WordStatsBlockState extends ConsumerState<WordStatsBlock> {
     Widget tile(int n, String word) => Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: tint(pal.muted, pal.panel, 0.08), borderRadius: BorderRadius.circular(14)),
+            decoration: iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.7)) : BoxDecoration(color: tint(pal.muted, pal.panel, 0.08), borderRadius: BorderRadius.circular(14)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$n', style: TextStyle(fontSize: 20.8, fontWeight: FontWeight.w700, height: 1.2, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()])),
               Text(word, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.8, color: pal.muted)),

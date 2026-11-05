@@ -179,7 +179,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+            decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75))),
             child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Text(moduleSample, style: mono.copyWith(fontSize: 12.5, height: 1.45, color: pal.text))),
           ),
           Align(
@@ -206,7 +206,7 @@ class _ImportTabState extends ConsumerState<ImportTab> {
     final exists = m != null && store.get(m['id'] as String) != null;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Icon(ico(LucideIcons.fileJson), size: 18, color: pal.accent),

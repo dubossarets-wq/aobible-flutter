@@ -44,7 +44,7 @@ void showNoteSheet(BuildContext context, List<VerseRef> refs, String? moduleId, 
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: mix(pal.accent, 0.06, pal.panel), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
+              decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6)) : BoxDecoration(color: mix(pal.accent, 0.06, pal.panel), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6))),
               child: Text(verse, style: font.copyWith(fontSize: 15, height: 1.5, color: pal.text)),
             ),
           TextField(

@@ -129,9 +129,10 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     });
     // системный поиск iOS 26: запрос приходит из поля в нижнем меню; окно раскрывает поле и задаёт в нём текст
     if (nativeGlass && iosStyleOn) {
-      nativeSearchPageClose = () {
+      _closeNative = () {
         if (mounted) Navigator.of(context).maybePop();
       };
+      nativeSearchPageClose = _closeNative;
       nativeSearchQuery.addListener(_fromNative);
       nativeSearchSubmits.addListener(_submitNative);
       _native = nativeSearchActive.value;
@@ -159,6 +160,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   }
 
   bool get iosStyleOn => ref.read(settingsProvider).get<bool>('iosStyle');
+  // своё «закрыть окно» для системного поиска: закрывающееся старое окно не трогает новое
+  VoidCallback? _closeNative;
   // запрос идёт из системного поля поиска в нижнем меню (окно открыто его вкладкой)
   bool _native = false;
 
@@ -177,9 +180,11 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   void dispose() {
     nativeSearchQuery.removeListener(_fromNative);
     nativeSearchSubmits.removeListener(_submitNative);
-    if (nativeSearchPageClose != null && nativeGlass) {
+    // окно закрыли — поле в меню сворачивается; только если это окно — нынешнее окно поиска (старое окно,
+    // убранное уже после открытия нового, не сворачивает поле нового)
+    if (_closeNative != null && identical(nativeSearchPageClose, _closeNative) && nativeGlass) {
       nativeSearchPageClose = null;
-      nativeSearchDeactivate?.call(); // окно закрыли — поле в меню сворачивается
+      nativeSearchDeactivate?.call();
     }
     _gen++;
     final q = _q.text.trim();

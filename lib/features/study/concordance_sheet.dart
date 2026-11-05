@@ -11,6 +11,7 @@ import 'interlinear.dart';
 import 'lexicon.dart';
 import 'sheet.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 const _page = 40;
 const _inlinePage = 200;
@@ -150,7 +151,7 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
     if (widget.inline) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         filterBlock,
-        for (final r in shown) _Row(r: r.$1, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen),
+        for (final (k, r) in shown.indexed) _Row(r: r.$1, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen, first: k == 0, last: k == shown.length - 1),
         if (more) Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _inlinePage))),
       ]);
     }
@@ -163,14 +164,15 @@ class _StrongPlacesState extends ConsumerState<StrongPlaces> {
           return Padding(padding: const EdgeInsets.only(top: 12), child: BigButton(t('Показать ещё ({n})', {'n': '${list.length - _shown}'}), onTap: () => setState(() => _shown += _page)));
         }
         final r = shown[i - 1].$1;
-        return _Row(r: r, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen);
+        return _Row(r: r, num: widget.num, moduleId: st.moduleId, onOpen: widget.onOpen, first: i == 1, last: i == shown.length);
       },
     ));
   }
 }
 
 class _Row extends ConsumerWidget {
-  const _Row({required this.r, required this.num, required this.moduleId, required this.onOpen});
+  const _Row({required this.r, required this.num, required this.moduleId, required this.onOpen, this.first = false, this.last = false});
+  final bool first, last;
   final VerseRef r;
   final String num;
   final String moduleId;
@@ -180,12 +182,13 @@ class _Row extends ConsumerWidget {
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final raw = StudyData.verse(moduleId, r) ?? '';
     // строка — от края до края окна (и в окне, и в карточке поиска — поля там тоже 16), отступ 20 — у содержимого
-    return bleed(InkWell(
+    // стиль iPhone: строки — частями карточки группы
+    return (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: first, last: last, indent: iosHeaderLeft, child: w) : bleed)(InkWell(
       onTap: () => onOpen(r),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+        padding: iosUiNow ? EdgeInsets.fromLTRB(iosHeaderLeft, 10, iosHeaderLeft, 10) : const EdgeInsets.fromLTRB(20, 10, 20, 10),
+        decoration: iosUiNow ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(fmtRef(r), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.6, color: pal.accent)),
           const SizedBox(height: 3),
@@ -253,7 +256,7 @@ class _StrongSearchCardState extends ConsumerState<StrongSearchCard> {
     final head = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      decoration: iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${t('Номер Стронга')} ${widget.num}', style: TextStyle(fontSize: 13.44, fontWeight: FontWeight.w700, color: pal.accent)),
         if (lemma != null && lemma.isNotEmpty) ...[

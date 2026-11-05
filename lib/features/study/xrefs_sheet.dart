@@ -12,6 +12,7 @@ import '../../core/panes.dart' show panesProvider;
 import 'dictionary_sheet.dart';
 import 'sheet.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 Future<void> openXrefs(BuildContext context, {required int pane, required String moduleId, required VerseRef at}) =>
     showSheet(context, XrefsSheet(pane: pane, moduleId: moduleId, at: at));
@@ -79,12 +80,13 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
           final tx = _texts[it.osis] ??= StudyData.textForRef(widget.moduleId, it.ref);
           final (parts, truncated) = tx;
           // строка — от края до края окна, отступ 20 — у содержимого
-          return bleed(InkWell(
+          // стиль iPhone: строки — частями карточки группы
+          return (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: i == 1, last: i == refs.length, indent: iosHeaderLeft, child: w) : bleed)(InkWell(
             onTap: () => openRefBelow(context, ref, widget.pane, it.ref.start),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+              padding: iosUiNow ? EdgeInsets.fromLTRB(iosHeaderLeft, 11, iosHeaderLeft, 11) : const EdgeInsets.fromLTRB(20, 11, 20, 11),
+              decoration: iosUiNow ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(fmtOsis(it.ref, full: true), style: TextStyle(fontWeight: FontWeight.w700, color: pal.accent, fontSize: 14.7)),
                 const SizedBox(height: 3),

@@ -164,7 +164,7 @@ class Sample extends StatelessWidget {
                   Flexible(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(color: pal.panel, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+                      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(t('Окно или карточка'), style: TextStyle(color: pal.text, fontSize: 15)),
                         const SizedBox(height: 2),
@@ -358,7 +358,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
   /// .field: подпись и под ней содержимое
   // стиль iPhone: подпись — системным заголовком группы (прописными, серым, на линии текста строк)
   Widget _field(String text, Palette pal, double gap, List<Widget> body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (iosStyleOf(ref)) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(text)) else Text(text, style: fieldLabel(pal, bold: true)),
+        if (iosStyleOf(ref)) Padding(padding: EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(text)) else Text(text, style: fieldLabel(pal, bold: true)),
         SizedBox(height: iosStyleOf(ref) ? 4 : gap),
         ...body,
       ]);
@@ -384,7 +384,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                 duration: const Duration(milliseconds: 240),
                 curve: Curves.fastOutSlowIn,
                 constraints: const BoxConstraints(minHeight: 62),
-                padding: iosUiNow ? const EdgeInsets.fromLTRB(iosRowIconLeft, 9, iosRowRight, 9) : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                padding: iosUiNow ? EdgeInsets.fromLTRB(iosRowIconLeft, 9, iosRowRight, 9) : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: iosUiNow
                     ? null
                     : BoxDecoration(
@@ -411,7 +411,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
               ),
             ),
             // стиль iPhone: линия между строками — от начала текста, тонкая
-            if (iosUiNow && i < defs.length - 1) Padding(padding: const EdgeInsets.only(left: iosRowIconLeft), child: Container(height: 0.5, color: pal.line)),
+            if (iosUiNow && i < defs.length - 1) Padding(padding: EdgeInsets.only(left: iosRowIconLeft), child: Container(height: 0.5, color: pal.line)),
           ],
         ]),
       ),
@@ -454,7 +454,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
     // .ap-mini: рамка, фон страницы, шрифт текста, интервал 1.5
     Widget mini(List<InlineSpan> spans, {int lines = 2}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+          decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75))),
           child: Text.rich(TextSpan(children: spans), maxLines: lines, overflow: TextOverflow.ellipsis, style: readerTextStyle(s, size: fs).copyWith(color: pal.text, height: 1.5)),
         );
     // Текст с номерами Стронга (бледнее, пока выключены)
@@ -498,7 +498,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         SwitchField(bold: true, big: true, label: t('Заголовки разделов'), value: s.get<bool>('showHeadings'), onChanged: (v) => set({'showHeadings': v})),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75)),
+          decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.75))),
           child: Opacity(
             opacity: s.get<bool>('showHeadings') ? 1 : 0.4,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -572,7 +572,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
                 aspectRatio: 1,
                 child: Container(
                   clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(color: fill ?? pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(12)),
+                  decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: fill ?? pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(12))),
                   child: child,
                 ),
               ),
@@ -690,7 +690,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       ]),
       // как показывать: текстом под стихом (свёрнут до двух строк) или прежней меткой после стиха
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Как показывать'))) else Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Как показывать'))) else Text(t('Как показывать'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 8),
         Segmented<String>(
           options: [('below', t('Под стихом')), ('tag', t('Меткой после стиха'))],
@@ -699,7 +699,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
       ]),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (iosUiNow) Padding(padding: const EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Комментарии в тексте'))) else Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
+        if (iosUiNow) Padding(padding: EdgeInsets.only(left: iosHeaderLeft), child: GroupTitle(t('Комментарии в тексте'))) else Text(t('Комментарии в тексте'), style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: pal.muted)),
         const SizedBox(height: 4),
         Padding(
           padding: EdgeInsets.only(left: iosUiNow ? iosHeaderLeft : 0, right: iosUiNow ? iosHeaderLeft : 0),
@@ -712,7 +712,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
           (iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: i == 0, last: i == sorted.length - 1, child: w) : bleed)(InkWell(
             onTap: () => _toggleInline(list, inline, m, !isOn(m)),
             child: Container(
-              padding: iosUiNow ? const EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 11, 16, 11),
+              padding: iosUiNow ? EdgeInsets.fromLTRB(iosRowIconLeft, 11, iosRowRight, 11) : const EdgeInsets.fromLTRB(20, 11, 16, 11),
               decoration: iosUiNow ? null : BoxDecoration(border: Border(top: i == 0 ? BorderSide(color: pal.line) : BorderSide.none, bottom: BorderSide(color: pal.line))),
               child: Row(children: [
                 Expanded(
@@ -1151,7 +1151,7 @@ class _BgPreview extends ConsumerWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       constraints: const BoxConstraints(minHeight: 132),
-      decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
       child: Stack(children: [
         const Positioned.fill(child: ReaderBackground()),
         Padding(

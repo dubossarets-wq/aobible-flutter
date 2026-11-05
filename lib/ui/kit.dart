@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/i18n.dart';
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNActionSheet, CNActionSheetAction, CNButton, CNButtonConfig, CNButtonStyle, CNSwitch, CNSymbol;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNActionSheet, CNActionSheetAction, CNButton, CNButtonConfig, CNButtonStyle, CNSegmentedControl, CNSwitch, CNSymbol;
 
 import 'glass.dart';
 import 'ios_style.dart';
@@ -292,6 +292,45 @@ void dropAllSheets(BuildContext context) {
   }
 }
 
+/// Шапка листа стиля iPhone (UI Kit Apple, Toolbar - Top): слева «назад», по центру заголовок 17 pt полужирный
+/// (и серая подпись), справа «закрыть»; на iOS 26+ — системные стеклянные кнопки
+Widget iosNavHeader(BuildContext context, Palette pal, {required String title, String? subtitle, VoidCallback? back, required VoidCallback close, List<Widget> actions = const []}) {
+  Widget btn(String symbol, IconData icon, double size, String label, VoidCallback onTap) => nativeGlass
+      ? SizedBox(
+          width: 44,
+          height: 44,
+          child: CNButton.icon(icon: CNSymbol(symbol), onPressed: onTap, semanticLabel: label, autoHideOnModal: false, config: const CNButtonConfig(style: CNButtonStyle.glass)),
+        )
+      : Semantics(
+          button: true,
+          label: label,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(width: 36, height: 36, decoration: BoxDecoration(color: iosFill(pal), shape: BoxShape.circle), child: Icon(icon, size: size, color: pal.text)),
+          ),
+        );
+  return Padding(
+    padding: EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8),
+    child: Row(children: [
+      SizedBox(width: 48, child: back == null ? null : Align(alignment: Alignment.centerLeft, child: btn('chevron.backward', CupertinoIcons.chevron_back, 19, t('Назад'), back))),
+      Expanded(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w600, color: pal.text)),
+          if (subtitle != null) Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, height: 1.25, color: pal.muted)),
+        ]),
+      ),
+      ...actions,
+      SizedBox(width: 48, child: Align(alignment: Alignment.centerRight, child: btn('xmark', CupertinoIcons.xmark, 16, t('Закрыть'), close))),
+    ]),
+  );
+}
+
+/// Полоска-ручка листа (UI Kit Apple, Grabber): 36×5, системный серый
+Widget iosGrabber(Palette pal) => Padding(
+      padding: const EdgeInsets.only(top: 5, bottom: 3),
+      child: Container(width: 36, height: 5, decoration: BoxDecoration(color: sysColor(CupertinoColors.tertiaryLabel, dark: pal.dark), borderRadius: BorderRadius.circular(2.5))),
+    );
+
 /// Страница открыта вкладкой нижнего меню (корневая страница раздела, как «Настройки» или «Папки» в iPhone)
 class IosTabRoot extends InheritedWidget {
   const IosTabRoot({super.key, required this.root, required super.child});
@@ -427,13 +466,15 @@ class SheetObserver extends NavigatorObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
-    FocusManager.instance.primaryFocus?.unfocus(); // окно закрыли — клавиатура уходит вместе с ним
+    // окно закрыли — клавиатура уходит вместе с ним; но не когда пишут в системном поиске нижнего меню: фокус
+    // там, а не в окне (иначе смена вкладки сворачивала поиск и закрывала только что открытое окно поиска)
+    if (!nativeSearchActive.value) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
-    FocusManager.instance.primaryFocus?.unfocus();
+    if (!nativeSearchActive.value) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -587,7 +628,7 @@ class AobSheet extends ConsumerWidget {
       shape: _Nested.of(context)
           ? null
           : ios
-              ? const RoundedSuperellipseBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22)))
+              ? const RoundedSuperellipseBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(38)))
               : RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 6))),
       clipBehavior: Clip.antiAlias,
       child: Column(children: [
@@ -595,14 +636,17 @@ class AobSheet extends ConsumerWidget {
         if (_Nested.of(context))
           const SizedBox(height: 14)
         else
-          Padding(
-            padding: const EdgeInsets.only(top: 7, bottom: 1), // полоска ближе к заголовку — шапка ниже
-            child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
-          ),
+          ios
+              // стиль iPhone: системная ручка листа (UI Kit Apple, Grabber)
+              ? iosGrabber(pal)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 7, bottom: 1), // полоска ближе к заголовку — шапка ниже
+                  child: Container(width: 40, height: 5, decoration: BoxDecoration(color: mix(pal.muted, 0.45, pal.panel), borderRadius: BorderRadius.circular(3))),
+                ),
         Container(
           // стрелка «назад», заголовок и крестик — на одной линии: одинаковые отступы сверху и снизу, у текста —
           // без невидимых полей над первой и под последней строкой (иначе его середина ниже середины значков)
-          padding: ios ? const EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8) : EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
+          padding: ios ? EdgeInsets.fromLTRB(iosEdge, 4, iosEdge, 8) : EdgeInsets.fromLTRB(back != null ? 6 : 16, 2, 10, 6),
           constraints: const BoxConstraints(minHeight: 44),
           decoration: ios ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: ios ? _iosHeader(context, pal, back) : Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -798,16 +842,19 @@ class AobButton extends ConsumerWidget {
       Flexible(child: Transform.translate(offset: const Offset(0, -1), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: small ? 13.8 : 15.2, fontWeight: FontWeight.w500, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: fg)))),
     ]);
     if (ios) {
-      final size = small ? CupertinoButtonSize.small : CupertinoButtonSize.medium;
+      // UI Kit Apple (Buttons): капсулы высотой 28 (мелкая), 34 (обычная), 50 (крупная — на всю ширину)
+      final size = small ? CupertinoButtonSize.small : (wide ? CupertinoButtonSize.large : CupertinoButtonSize.medium);
+      final minH = small ? 28.0 : (wide ? 50.0 : 34.0);
+      const pill = BorderRadius.all(Radius.circular(100));
       final child = Row(mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
         if (icon != null) ...[Icon(ico(icon), size: small ? 15 : 17), const SizedBox(width: 6)],
         Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]);
       final btn = switch (kind) {
-        BtnKind.primary => CupertinoButton.filled(sizeStyle: size, onPressed: onTap, child: child),
-        BtnKind.danger => CupertinoButton.tinted(sizeStyle: size, color: CupertinoColors.systemRed, onPressed: onTap, child: child),
-        BtnKind.ghost => CupertinoButton(sizeStyle: size, onPressed: onTap, child: child),
-        BtnKind.normal => CupertinoButton.tinted(sizeStyle: size, onPressed: onTap, child: child),
+        BtnKind.primary => CupertinoButton.filled(sizeStyle: size, minimumSize: Size(minH, minH), borderRadius: pill, onPressed: onTap, child: child),
+        BtnKind.danger => CupertinoButton.tinted(sizeStyle: size, minimumSize: Size(minH, minH), borderRadius: pill, color: CupertinoColors.systemRed, onPressed: onTap, child: child),
+        BtnKind.ghost => CupertinoButton(sizeStyle: size, minimumSize: Size(minH, minH), borderRadius: pill, onPressed: onTap, child: child),
+        BtnKind.normal => CupertinoButton.tinted(sizeStyle: size, minimumSize: Size(minH, minH), borderRadius: pill, onPressed: onTap, child: child),
       };
       return wide ? SizedBox(width: double.infinity, child: btn) : btn;
     }
@@ -1187,6 +1234,21 @@ class _SegmentedState<T> extends ConsumerState<Segmented<T>> {
     // запас строки — поровну сверху и снизу: надпись ровно посередине плашки
     final ios = iosStyleOf(ref);
     // стиль iPhone: системный переключатель-сегменты iOS (до пяти вариантов — они помещаются в строку)
+    if (ios && options.length <= 5 && nativeGlass) {
+      // iPhone: системный UISegmentedControl — капсула 32 pt, как в UI Kit Apple
+      return SizedBox(
+        width: double.infinity,
+        child: CNSegmentedControl(
+          labels: [for (final o in options) o.$2],
+          selectedIndex: options.indexWhere((o) => o.$1 == widget.value),
+          onValueChanged: (i) {
+            if (i >= 0 && i < options.length) widget.onChanged(options[i].$1);
+          },
+          height: 32,
+          autoHideOnModal: false,
+        ),
+      );
+    }
     if (ios && options.length <= 5) {
       return SizedBox(
         width: double.infinity,
@@ -1468,7 +1530,7 @@ class _AobInputState extends ConsumerState<AobInput> {
         // стиль iPhone (iOS 26, как «Имя устройства»): высота строки 52, заливка карточки, скругление Apple,
         // на одной линии с карточками групп (20 от края экрана)
         height: ios ? iosRowHeight : w.height,
-        margin: ios ? const EdgeInsets.symmetric(horizontal: iosEdge - 16) : null,
+        margin: ios ? EdgeInsets.symmetric(horizontal: iosEdge - 16) : null,
         decoration: ios
             ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRowHeight / 2))
             : BoxDecoration(
@@ -1766,7 +1828,7 @@ class AobTabs<T> extends ConsumerWidget {
       String name((T, String, int?) x) => x.$3 == null ? x.$2 : '${x.$2} ${x.$3}';
       if (tabs.length <= 4) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8),
+          padding: EdgeInsets.fromLTRB(iosEdge, 6, iosEdge, 8),
           child: SizedBox(
             width: double.infinity,
             child: CupertinoSlidingSegmentedControl<int>(
@@ -1784,7 +1846,7 @@ class AobTabs<T> extends ConsumerWidget {
       }
       return Padding(
         padding: const EdgeInsets.only(top: 6, bottom: 8),
-        child: FadeRow(gap: 8, padding: const EdgeInsets.symmetric(horizontal: iosEdge), children: [
+        child: FadeRow(gap: 8, padding: EdgeInsets.symmetric(horizontal: iosEdge), children: [
           for (final x in tabs) AobChip(label: x.$2, count: x.$3, on: x.$1 == value, onTap: () => onChanged(x.$1)),
         ]),
       );

@@ -437,7 +437,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
             // группа: подзаголовок (мелко, серо, 20 от края окна) и строки от края до края, как другие списки
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Padding(
-                padding: iosStyleOf(ref) ? const EdgeInsets.fromLTRB(4 + iosHeaderLeft, 14, 4, 8) : const EdgeInsets.fromLTRB(4, 4, 4, 2),
+                padding: iosStyleOf(ref) ? EdgeInsets.fromLTRB(4 + iosHeaderLeft, 14, 4, 8) : const EdgeInsets.fromLTRB(4, 4, 4, 2),
                 child: Text.rich(TextSpan(children: [
                   TextSpan(text: t(g.$2)),
                   TextSpan(text: '  ${g.$3.length}', style: TextStyle(fontSize: iosStyleOf(ref) ? 15 : 11.5, fontWeight: FontWeight.w400)),
@@ -447,7 +447,7 @@ class _LibrarySheetState extends ConsumerState<LibrarySheet> {
               // стиль iPhone: строки группы — в одной скруглённой карточке
               if (iosStyleOf(ref))
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: iosEdge - 16),
+                  margin: EdgeInsets.symmetric(horizontal: iosEdge - 16),
                   clipBehavior: Clip.antiAlias,
                   decoration: iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

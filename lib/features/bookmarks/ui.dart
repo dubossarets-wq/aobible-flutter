@@ -127,12 +127,12 @@ class EmptyState extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(ico(icon), size: iosUiNow ? 48 : 28, color: pal.muted),
+          Icon(ico(icon), size: iosUiNow ? 41 : 28, color: pal.muted),
           SizedBox(height: iosUiNow ? 14 : 8),
-          Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: pal.text) : TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)),
+          Text(title, textAlign: TextAlign.center, style: iosUiNow ? TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: pal.text) : TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: pal.text)),
           if (text != null) ...[
             SizedBox(height: iosUiNow ? 6 : 8),
-            ConstrainedBox(constraints: const BoxConstraints(maxWidth: 290), child: Text(text!, textAlign: TextAlign.center, style: TextStyle(fontSize: iosUiNow ? 17 : 14.4, height: iosUiNow ? 1.3 : 1.45, color: pal.muted))),
+            ConstrainedBox(constraints: const BoxConstraints(maxWidth: 290), child: Text(text!, textAlign: TextAlign.center, style: TextStyle(fontSize: iosUiNow ? 22 : 14.4, fontWeight: iosUiNow ? FontWeight.w500 : null, height: iosUiNow ? 1.2 : 1.45, color: pal.muted))),
           ],
         ]),
       ),
@@ -217,7 +217,7 @@ class AobListRow extends ConsumerWidget {
           onTap: onTap,
           child: Container(
           // справа 12: у кнопки 32 значок 16 — его край приходится на 20
-          padding: ios ? const EdgeInsets.only(left: iosRowIconLeft, right: iosRowRight) : const EdgeInsets.only(left: 20, right: 12),
+          padding: ios ? EdgeInsets.only(left: iosRowIconLeft, right: iosRowRight) : const EdgeInsets.only(left: 20, right: 12),
           decoration: ios ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Row(children: [
             Expanded(

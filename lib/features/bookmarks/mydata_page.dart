@@ -107,7 +107,7 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
                 width: double.infinity,
                 margin: const EdgeInsets.only(top: 14),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+                decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(
                     d['at'] != null
@@ -136,7 +136,7 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
                 width: double.infinity,
                 margin: const EdgeInsets.only(top: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius)),
+                decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.bg, border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(fmtDate(b.at, year: true), style: TextStyle(fontWeight: FontWeight.w700, color: pal.text, fontFeatures: const [FontFeature.tabularFigures()])),
                   const SizedBox(height: 6),

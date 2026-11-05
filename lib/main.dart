@@ -21,7 +21,7 @@ import 'features/hub.dart';
 import 'ui/bootstrap_screen.dart';
 import 'ui/home_screen.dart';
 import 'ui/keyboard_emu.dart';
-import 'ui/ios_style.dart' show iosTextTheme, iosUiNow;
+import 'ui/ios_style.dart' show iosCompact, iosTextTheme, iosUiNow;
 import 'ui/kit.dart' show SheetObserver;
 
 Future<void> main() async {
@@ -132,6 +132,8 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
       theme: () {
         final base = ThemeData(colorScheme: scheme, scaffoldBackgroundColor: pal.bg, useMaterial3: true);
         iosUiNow = ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
+        // поля системы зависят от ширины телефона (узкий — 16, большой — 20)
+        iosCompact = MediaQueryData.fromView(View.of(context)).size.shortestSide < 414;
         return iosUiNow ? base.copyWith(textTheme: iosTextTheme(base.textTheme)) : base;
       }(),
       // Строка состояния и нижняя системная панель — цвета темы. Через AnnotatedRegion: MaterialApp сам ставит

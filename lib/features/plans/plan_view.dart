@@ -319,7 +319,7 @@ class _PlanViewState extends ConsumerState<PlanView> {
                 _K.note => Container(
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+                    decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line))),
                     child: Text(t('В переводе {module} нет книги «{book}». Выберите другой перевод вверху.', {'module': _moduleName, 'book': Books.instance.meta(e.book).name}), style: TextStyle(color: pal.muted, fontSize: 14.4)),
                   ),
                 _K.end => _end(pal, plan, e.r, flags, firstLeft),
@@ -379,7 +379,7 @@ class _PlanViewState extends ConsumerState<PlanView> {
     return Container(
       margin: const EdgeInsets.only(top: 18, bottom: 26),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+      decoration: (iosUiNow ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: pal.panel, borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (flags[i])
           Row(children: [

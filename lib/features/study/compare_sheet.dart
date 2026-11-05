@@ -17,6 +17,7 @@ import '../hub.dart';
 import 'interlinear.dart';
 import 'sheet.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 /// pick — «Читать параллельно» (CompareSheet pick): то же окно с заголовком «Читать параллельно», ниже; pane — откуда открыли
 Future<void> openCompare(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId, {bool pick = false, int? pane}) {
@@ -263,9 +264,10 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         }
         // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом;
         // линия — от края до края окна, отступ 20 — у содержимого (справа 11: значок 20 в кнопке 38 — на 20 от края)
-        cmpItems.add(bleed(Container(
-          padding: EdgeInsets.fromLTRB(20, b == shown.first ? 2 : 12, 11, 12),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+        // стиль iPhone: переводы — частями карточки группы
+        cmpItems.add((iosUiNow ? (Widget w) => IosCardItem(pal: pal, first: b == shown.first, last: b == shown.last, indent: iosHeaderLeft, child: w) : bleed)(Container(
+          padding: iosUiNow ? EdgeInsets.fromLTRB(iosHeaderLeft, 10, 11, 12) : EdgeInsets.fromLTRB(20, b == shown.first ? 2 : 12, 11, 12),
+          decoration: iosUiNow ? null : BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 36),
