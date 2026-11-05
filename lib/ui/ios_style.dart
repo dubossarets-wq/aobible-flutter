@@ -11,6 +11,9 @@ import '../core/settings.dart';
 /// Включён ли стиль iPhone (виджет перестраивается при переключении)
 bool iosStyleOf(WidgetRef ref) => ref.watch(settingsProvider.select((s) => s.get<bool>('iosStyle')));
 
+/// Палитра стиля iPhone — для элементов без доступа к настройкам (им передают только палитру)
+bool iosPal(Palette p) => p.label == 'iOS' || p.label == 'iOS тёмная';
+
 /// Фон строк поверх серого фона групп (secondarySystemGroupedBackground)
 Color iosCard(Palette p) => p.dark ? const Color(0xff2c2c2e) : const Color(0xffffffff);
 
@@ -107,4 +110,116 @@ final Map<IconData, IconData> _map = {
   LucideIcons.textQuote: CupertinoIcons.text_quote,
   LucideIcons.pipette: CupertinoIcons.eyedropper,
   LucideIcons.hand: CupertinoIcons.hand_raised,
+};
+
+// --- Группы строк, как в «Настройках» iPhone -----------------------------------------------------------
+
+/// Строка, которая в стиле iPhone собирается в общую карточку с соседними (PrefRow, MenuRow, SwitchRow…);
+/// iosIndent — откуда начинается линия-разделитель под строкой (от начала текста)
+abstract interface class IosGroupRow {
+  double get iosIndent;
+}
+
+/// Подряд идущие строки — в одну белую скруглённую карточку с отступом iosEdge от краёв окна
+/// (sidePad — поля самого списка: карточка добавляет к ним недостающее). Остальное — как было
+List<Widget> iosGroup(List<Widget> children, Palette pal, double sidePad) {
+  IosGroupRow? rowOf(Widget w) => w is IosGroupRow ? w as IosGroupRow : (w is Padding && w.child is IosGroupRow ? w.child! as IosGroupRow : null);
+  final out = <Widget>[];
+  var run = <(Widget, IosGroupRow)>[];
+  void flush() {
+    if (run.isEmpty) return;
+    out.add(IosSection(rows: [for (final (w, _) in run) w is Padding ? w.child! : w], indents: [for (final (_, r) in run) r.iosIndent], pal: pal, margin: (iosEdge - sidePad).clamp(0.0, iosEdge)));
+    run = [];
+  }
+
+  for (final w in children) {
+    final r = rowOf(w);
+    if (r != null) {
+      run.add((w, r));
+    } else {
+      flush();
+      out.add(w);
+    }
+  }
+  flush();
+  return out;
+}
+
+/// Карточка группы: белая (в тёмной — графитовая), скругление 26, линии между строками — от начала текста
+class IosSection extends StatelessWidget {
+  const IosSection({super.key, required this.rows, required this.indents, required this.pal, this.margin = 0});
+  final List<Widget> rows;
+  final List<double> indents;
+  final Palette pal;
+  final double margin;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: EdgeInsets.symmetric(horizontal: margin),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(color: iosCard(pal), borderRadius: BorderRadius.circular(26)),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            rows[i],
+            if (i < rows.length - 1) Padding(padding: EdgeInsets.only(left: indents[i]), child: Container(height: 0.5, color: pal.line)),
+          ],
+        ]),
+      );
+}
+
+/// Значок строки, как в «Настройках» iPhone: белый знак в цветном скруглённом квадрате 30×30
+class IosIconSquare extends StatelessWidget {
+  const IosIconSquare(this.icon, {super.key, this.color});
+  final IconData icon;
+  final Color? color;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(color: color ?? iosIconColor(icon), borderRadius: BorderRadius.circular(7.5)),
+        child: Icon(iosIcon(icon), size: 18, color: const Color(0xffffffff)),
+      );
+}
+
+/// Стрелка «›» справа у строки (серая, как в iOS)
+Color iosChevron(Palette p) => p.dark ? const Color(0xff5a5a5f) : const Color(0xffc4c4c7);
+
+/// Цвет квадрата значка — по смыслу пункта (системные цвета iOS), прочие — синие
+Color iosIconColor(IconData i) => _colors[i] ?? const Color(0xff007aff);
+
+const _orange = Color(0xffff9500), _red = Color(0xffff3b30), _pink = Color(0xffff2d55), _green = Color(0xff34c759);
+const _blue = Color(0xff007aff), _indigo = Color(0xff5856d6), _purple = Color(0xffaf52de), _gray = Color(0xff8e8e93), _teal = Color(0xff30b0c7);
+
+final Map<IconData, Color> _colors = {
+  LucideIcons.bookmark: _orange,
+  LucideIcons.bookmarkCheck: _orange,
+  LucideIcons.heart: _pink,
+  LucideIcons.scrollText: _indigo,
+  LucideIcons.calendarCheck: _red,
+  LucideIcons.headphones: _pink,
+  LucideIcons.map: _green,
+  LucideIcons.mapPin: _green,
+  LucideIcons.link: _blue,
+  LucideIcons.link2: _blue,
+  LucideIcons.rows2: _indigo,
+  LucideIcons.columns2: _indigo,
+  LucideIcons.library: _teal,
+  LucideIcons.palette: _purple,
+  LucideIcons.settings: _gray,
+  LucideIcons.bookOpen: _blue,
+  LucideIcons.bookOpenText: _blue,
+  LucideIcons.bookOpenCheck: _blue,
+  LucideIcons.info: _gray,
+  LucideIcons.messageSquareWarning: _red,
+  LucideIcons.sparkles: _orange,
+  LucideIcons.circlePlay: _green,
+  LucideIcons.eye: _indigo,
+  LucideIcons.eyeOff: _indigo,
+  LucideIcons.globe: _blue,
+  LucideIcons.languages: _blue,
+  LucideIcons.hardDrive: _gray,
+  LucideIcons.refreshCw: _green,
+  LucideIcons.type: _blue,
+  LucideIcons.download: _blue,
+  LucideIcons.trash2: _red,
 };

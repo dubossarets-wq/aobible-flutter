@@ -36,7 +36,7 @@ const _bars = <(String, String)>[
 
 // Всё, что относится к оформлению: «Сбросить оформление» возвращает только это
 const _lookKeys = [
-  'theme', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'verseSpacing', 'textWidth', 'textAlign', 'showVerseNumbers', 'chapterTitleSize',
+  'theme', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'verseSpacing', 'textWidth', 'textMargin', 'textAlign', 'showVerseNumbers', 'chapterTitleSize',
   'showStrongs', 'showHeadings', 'showXrefButtons', 'showIllustrations', 'continuousVerses', 'bookMode', 'colorOverrides', 'strongSize', 'strongPos',
   'verseNumPos', 'headingSize', 'uiFontSize', 'barHeight', 'animations', 'focusMode', 'splitLayout', 'commentaryFontSize',
   'bgImage', 'bgPhoto', 'bgVeil', 'bgBlur', 'inlineCommentaries',
@@ -266,7 +266,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
       if (Platform.isIOS)
         SwitchRow(
           label: t('Стиль iPhone'),
-          hint: t('Цвета, окна, переключатели, кнопки и значки — как в системе iPhone; светлый или тёмный — как в iPhone. Тема ниже действует, когда стиль выключен.'),
+          hint: t('Окна, списки, переключатели, кнопки и значки — как в системе iPhone. Темы «Системная», «Светлая» и «Тёмная» — в цветах iPhone, остальные — со своими цветами.'),
           value: s.get<bool>('iosStyle'),
           onChanged: (v) => set({'iosStyle': v}),
         ),
@@ -292,6 +292,16 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         ),
       ]),
       RangeRow(label: t('Размер текста'), big: true, value: s.d('fontSize'), min: 13, max: 40, step: 1, onChanged: (v) => set({'fontSize': v}), word: (v) => '${v.round()} px'),
+      // поля текста по бокам экрана (по умолчанию — 20 в стиле iPhone, иначе 16)
+      RangeRow(
+        label: t('Поля по бокам'),
+        value: s.d('textMargin') >= 0 ? s.d('textMargin') : (s.get<bool>('iosStyle') ? 20 : 16),
+        min: 0,
+        max: 48,
+        step: 2,
+        onChanged: (v) => set({'textMargin': v}),
+        word: (v) => '${v.round()} px',
+      ),
       _field(t('Вид текста'), pal, 8, [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           for (final (i, k) in const ['verses', 'flow', 'book'].indexed) ...[

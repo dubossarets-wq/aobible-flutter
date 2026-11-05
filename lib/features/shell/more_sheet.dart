@@ -139,7 +139,13 @@ class MoreSheet extends ConsumerWidget {
 
     final children = <Widget>[];
     var sepOther = false, sepOwn = false;
-    for (final (_, e) in sorted) {
+    // перед каким пунктом начинается новая группа — у пункта перед ним (последнего в группе) нет линии снизу
+    bool startsGroup(_Entry e, bool other, bool own) => (!other && e.keep && e.order >= 500 && e.order < 900) || (!own && e.order >= 900);
+    final list = [for (final (_, e) in sorted) e];
+    for (final (k, e) in list.indexed) {
+      final o = sepOther || (e.keep && e.order >= 500 && e.order < 900);
+      final w = sepOwn || e.order >= 900;
+      final lastInGroup = k == list.length - 1 || startsGroup(list[k + 1], o, w);
       // Линии между группами (как menu-sep в moreItems.jsx): перед переключателями и перед своими пунктами
       if (!sepOther && e.keep && e.order >= 500 && e.order < 900 && children.isNotEmpty) {
         children.add(const MenuSep(full: true));
@@ -156,6 +162,7 @@ class MoreSheet extends ConsumerWidget {
         child: e.sub == null
             ? MenuRow(
                 flat: true,
+                last: lastInGroup,
                 icon: e.icon,
                 label: e.label,
                 extra: e.extra == null ? null : Text(e.extra!, style: TextStyle(color: pal.muted, fontSize: 13.4)),
@@ -170,23 +177,25 @@ class MoreSheet extends ConsumerWidget {
 }
 
 /// Пункт с подписью под названием (.menu-item-2): «К последней закладке» и место закладки
-class _Row2 extends ConsumerWidget {
+class _Row2 extends ConsumerWidget implements IosGroupRow {
   const _Row2({required this.entry, required this.onTap});
   final _Entry entry;
   final VoidCallback onTap;
+  @override
+  double get iosIndent => 60;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = effectivePalette(ref.watch(settingsProvider));
     final ios = iosStyleOf(ref);
     return Material(
-      type: ios ? MaterialType.canvas : MaterialType.transparency,
-      color: ios ? iosCard(pal) : null,
+      type: MaterialType.transparency,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: ios ? 11 : 10),
+          padding: ios ? const EdgeInsets.fromLTRB(16, 9, 14, 9) : const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(children: [
-            Icon(ios ? iosIcon(entry.icon) : entry.icon, size: ios ? 22 : 20, color: pal.accent),
+            if (ios) IosIconSquare(entry.icon) else Icon(entry.icon, size: 20, color: pal.accent),
+            if (ios) const SizedBox(width: 2),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

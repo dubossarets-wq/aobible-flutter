@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
 import '../plans/net_cache.dart' show siteJson;
@@ -60,6 +61,8 @@ class AppSheet extends ConsumerWidget {
     final pal = paletteOf(ref);
     final scale = ref.watch(settingsProvider.select((s) => s.d('uiFontSize'))) / 15;
     final mq = MediaQuery.of(context);
+    // стиль iPhone: подряд идущие строки — в общие скруглённые карточки, как в «Настройках» iPhone
+    final children = iosStyleOf(ref) ? iosGroup(this.children, pal, padding.left) : this.children;
     return MediaQuery(
       data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(1) * scale)),
       child: AobSheet(

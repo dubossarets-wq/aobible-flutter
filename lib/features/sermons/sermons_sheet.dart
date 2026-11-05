@@ -17,6 +17,7 @@ import '../../core/markup.dart';
 import '../../core/modules.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart' show iosCard, iosPal;
 import '../../ui/part_plate.dart';
 import '../hub.dart';
 import '../shell/fonts.dart' show readerTextStyle;
@@ -791,11 +792,12 @@ class _Inserter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ios = iosPal(pal); // стиль iPhone: капсулы без обводки, надпись цвета акцента
     Widget btn(String label, String tip, VoidCallback f) => Tooltip(
           message: tip,
           child: Material(
-            color: pal.bg,
-            shape: StadiumBorder(side: BorderSide(color: pal.line)),
+            color: ios ? iosCard(pal) : pal.bg,
+            shape: StadiumBorder(side: ios ? BorderSide.none : BorderSide(color: pal.line)),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: f,
@@ -806,7 +808,7 @@ class _Inserter extends StatelessWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(LucideIcons.plus, size: 14, color: pal.accent),
                   const SizedBox(width: 4),
-                  Text(label, style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.muted)),
+                  Text(label, style: TextStyle(fontSize: ios ? 14 : 13.4, fontWeight: FontWeight.w600, color: ios ? pal.accent : pal.muted)),
                 ]),
               ),
             ),
@@ -1029,7 +1031,11 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
       Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       // лёгкий фон, как у карточек планов; заметка для себя — ещё приглушённее
-      decoration: BoxDecoration(color: note ? mix(pal.muted, 0.07, sermonCardBg(pal)) : sermonCardBg(pal), borderRadius: BorderRadius.circular(kRadius), border: Border.all(color: pal.line)),
+      decoration: BoxDecoration(
+        color: note ? mix(pal.muted, 0.07, sermonCardBg(pal)) : sermonCardBg(pal),
+        borderRadius: BorderRadius.circular(iosPal(pal) ? 12 : kRadius),
+        border: iosPal(pal) ? null : Border.all(color: pal.line), // стиль iPhone: карточка без обводки, как группа строк iOS
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (verse) ...[
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1862,4 +1868,4 @@ class _VersePickerState extends ConsumerState<VersePicker> {
 }
 
 /// Фон блока проповеди — лёгкий, как у карточек планов.
-Color sermonCardBg(Palette pal) => mix(pal.text, 0.04, pal.panel);
+Color sermonCardBg(Palette pal) => iosPal(pal) ? iosCard(pal) : mix(pal.text, 0.04, pal.panel);

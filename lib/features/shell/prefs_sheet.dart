@@ -9,6 +9,7 @@ import 'package:in_app_update/in_app_update.dart';
 
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
+import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
 import 'about_sheet.dart';
@@ -210,7 +211,10 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
                 ),
           (last) => PrefRow(icon: LucideIcons.info, title: t('О приложении'), sub: t('Переводы, словари, авторы'), onTap: () => openAbout(context), last: last),
         ];
-        body = [Column(children: [for (var i = 0; i < rows.length; i++) rows[i](i == rows.length - 1)])];
+        // стиль iPhone — одной скруглённой карточкой, как в «Настройках» iPhone
+        body = iosStyleOf(ref)
+            ? iosGroup([for (var i = 0; i < rows.length; i++) rows[i](i == rows.length - 1)], pal, 16)
+            : [Column(children: [for (var i = 0; i < rows.length; i++) rows[i](i == rows.length - 1)])];
     }
     final key = ValueKey(_page ?? '');
     // переход в подменю и обратно — слайдом: вглубь новая страница въезжает справа, прежняя уходит влево; назад — наоборот

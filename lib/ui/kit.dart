@@ -270,11 +270,13 @@ class SheetObserver extends NavigatorObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
+    FocusManager.instance.primaryFocus?.unfocus(); // окно закрыли — клавиатура уходит вместе с ним
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (_open.remove(route)) _sync();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -322,15 +324,35 @@ class AobSheet extends ConsumerWidget {
       child: GestureDetector(
         onTap: onClose ?? () => closeAllSheets(context),
         child: Container(
-          width: 30,
-          height: 30,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(color: iosFill(pal), shape: BoxShape.circle),
-          child: Icon(CupertinoIcons.xmark, size: 14, color: pal.muted),
+          child: Icon(CupertinoIcons.xmark, size: 16, color: pal.text),
         ),
       ),
     );
     return Row(children: [
-      SizedBox(width: 44, child: back != null ? IconBtn(icon: LucideIcons.chevronLeft, tooltip: t('Назад'), onTap: back, color: pal.accent) : null),
+      SizedBox(
+        width: 44,
+        child: back == null
+            ? null
+            : Align(
+                alignment: Alignment.centerLeft,
+                child: Semantics(
+                  button: true,
+                  label: t('Назад'),
+                  child: GestureDetector(
+                    onTap: back,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(color: iosFill(pal), shape: BoxShape.circle),
+                      child: Icon(CupertinoIcons.chevron_back, size: 19, color: pal.text),
+                    ),
+                  ),
+                ),
+              ),
+      ),
       Expanded(
         child: titleWidget != null
             ? Semantics(label: title, child: Center(child: titleWidget))
@@ -654,7 +676,7 @@ class AobChip extends ConsumerWidget {
 // --- Строки ---------------------------------------------------------------------------------------------
 
 /// .pref-row: значок в цветном квадрате 38×38 (скругление 11), заголовок, подпись, стрелка; линия снизу
-class PrefRow extends ConsumerWidget {
+class PrefRow extends ConsumerWidget implements IosGroupRow {
   const PrefRow({super.key, required this.icon, required this.title, this.sub, required this.onTap, this.trailing, this.last = false, this.leading});
   final IconData icon;
   final String title;
@@ -695,48 +717,43 @@ class PrefRow extends ConsumerWidget {
     ));
   }
 
-  // Стиль iPhone — как строка «Настроек» iPhone: белая строка на сером фоне, значок белым в квадрате цвета
-  // акцента, линия-разделитель — от начала текста, справа — серая стрелка
-  Widget _ios(Palette pal) => _bleed(Material(
-        color: iosCard(pal),
+  @override
+  double get iosIndent => 60; // линия под строкой — от начала текста (16 + значок 30 + 14)
+
+  // Стиль iPhone — как строка «Настроек» iPhone: цветной квадрат со значком, название 17, подпись серым,
+  // справа — серая «›»; фон и линии рисует карточка группы (IosSection)
+  Widget _ios(Palette pal) => Material(
+        type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: Row(children: [
-              leading ??
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(7)),
-                    child: Icon(iosIcon(icon), size: 18, color: Colors.white),
-                  ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(0, 11, 16, 11),
-                  decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: pal.line, width: 0.5))),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(title, style: TextStyle(fontSize: 16.5, color: pal.text)),
-                        if (sub != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(sub!, style: TextStyle(fontSize: 13, color: pal.muted))),
-                      ]),
-                    ),
-                    trailing ?? Icon(CupertinoIcons.chevron_forward, size: 16, color: mix(pal.muted, 0.7, iosCard(pal))),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 9, 14, 9),
+              child: Row(children: [
+                leading ?? IosIconSquare(icon),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(title, style: TextStyle(fontSize: 17, color: pal.text)),
+                    if (sub != null) Padding(padding: const EdgeInsets.only(top: 1), child: Text(sub!, style: TextStyle(fontSize: 13.5, color: pal.muted))),
                   ]),
                 ),
-              ),
-            ]),
+                trailing ?? Icon(CupertinoIcons.chevron_forward, size: 15, color: iosChevron(pal)),
+              ]),
+            ),
           ),
         ),
-      ));
+      );
 }
 
 /// .menu-item: значок цвета акцента, подпись, справа — дополнение (вкл/выкл, «новая»)
-class MenuRow extends ConsumerWidget {
-  const MenuRow({super.key, required this.icon, required this.label, required this.onTap, this.extra, this.color, this.flat = false});
+class MenuRow extends ConsumerWidget implements IosGroupRow {
+  const MenuRow({super.key, required this.icon, required this.label, required this.onTap, this.extra, this.color, this.flat = false, this.last = false});
   final bool flat; // в окне — от края до края, без скругления (меню «Ещё»); во всплывающем меню — со скруглением
+  final bool last; // последняя строка группы (линии в стиле iPhone рисует карточка группы)
+  @override
+  double get iosIndent => 60;
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -750,30 +767,26 @@ class MenuRow extends ConsumerWidget {
     final icon = ios ? iosIcon(this.icon) : this.icon;
     return Material(
       // стиль iPhone: строки меню в окне — белые на сером фоне, как в «Настройках» iPhone
-      type: ios && flat ? MaterialType.canvas : MaterialType.transparency,
-      color: ios && flat ? iosCard(pal) : null,
+      type: MaterialType.transparency,
       borderRadius: flat ? null : BorderRadius.circular(kRadius * 0.6),
       clipBehavior: flat ? Clip.none : Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: ios && flat
-            // стиль iPhone: строка 46, линия снизу — от начала текста до правого края
-            ? Padding(
-                padding: const EdgeInsets.only(left: 20),
-                child: Row(children: [
-                  Icon(icon, size: 22, color: color ?? pal.accent),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(0, 12, 20, 12),
-                      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line, width: 0.5))),
-                      child: Row(children: [
-                        Expanded(child: Text(label, style: TextStyle(fontSize: 16.5, color: color ?? pal.text))),
-                        ?extra,
-                      ]),
-                    ),
-                  ),
-                ]),
+            // стиль iPhone: как строка «Настроек» — цветной квадрат со значком, название 17, справа — значение
+            // серым или «›»; фон и линии рисует карточка группы (IosSection)
+            ? ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 52),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 9, 14, 9),
+                  child: Row(children: [
+                    IosIconSquare(this.icon, color: color),
+                    const SizedBox(width: 14),
+                    Expanded(child: Text(label, style: TextStyle(fontSize: 17, color: color ?? pal.text))),
+                    if (extra != null) ...[extra!, const SizedBox(width: 6)],
+                    Icon(CupertinoIcons.chevron_forward, size: 15, color: iosChevron(pal)),
+                  ]),
+                ),
               )
             : Padding(
                 padding: EdgeInsets.symmetric(horizontal: flat ? 20 : 12, vertical: 10),
@@ -795,7 +808,7 @@ class MenuSep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // стиль iPhone: между группами в окне — промежуток цвета фона групп, во всплывающем меню — тонкая линия
-    if (iosStyleOf(ref)) return full ? const SizedBox(height: 22) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
+    if (iosStyleOf(ref)) return full ? const SizedBox(height: 10) : Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: paletteOf(ref).line);
     return Container(height: 1, margin: EdgeInsets.symmetric(horizontal: full ? 0 : 8, vertical: 4), color: paletteOf(ref).line);
   }
 }
@@ -811,7 +824,7 @@ class GroupTitle extends ConsumerWidget {
     final ios = iosStyleOf(ref);
     return Padding(
       // стиль iPhone: подзаголовок группы прописными, мелко и серым, как в «Настройках» iPhone
-      padding: ios ? const EdgeInsets.only(top: 14, bottom: 6, left: 4) : const EdgeInsets.only(top: 6, bottom: 6),
+      padding: ios ? const EdgeInsets.only(top: 14, bottom: 2, left: 20) : const EdgeInsets.only(top: 6, bottom: 6),
       child: Row(children: [
         if (dot != null) ...[Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)), const SizedBox(width: 6)],
         Text(ios ? text.toUpperCase() : text,
@@ -861,15 +874,33 @@ class AobSwitch extends ConsumerWidget {
 }
 
 /// Строка с подписью и переключателем (.switch-field)
-class SwitchRow extends ConsumerWidget {
+class SwitchRow extends ConsumerWidget implements IosGroupRow {
   const SwitchRow({super.key, required this.label, required this.value, required this.onChanged, this.hint});
   final String label;
   final String? hint;
   final bool value;
   final ValueChanged<bool> onChanged;
   @override
+  double get iosIndent => 16;
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
+    // стиль iPhone: строка карточки — название 17 и системный переключатель, высота 52
+    if (iosStyleOf(ref)) {
+      return InkWell(
+        onTap: () => onChanged(!value),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 14, 8),
+            child: Row(children: [
+              Expanded(child: Row(children: [Flexible(child: Text(label, style: TextStyle(fontSize: 17, color: pal.text))), if (hint != null) Hint(hint!)])),
+              CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreen),
+            ]),
+          ),
+        ),
+      );
+    }
     return InkWell(
       onTap: () => onChanged(!value),
       child: Padding(

@@ -98,6 +98,7 @@ class Settings {
     'barHeight': 46.0, // px — верхняя панель: капсула 36 и по 5 сверху и снизу (как у панели подстрочника)
     'animations': true,
     'iosStyle': false, // «Стиль iPhone» (ios_style.dart)
+    'textMargin': -1.0, // поля текста по бокам, px; -1 — как принято (20 в стиле iPhone, иначе 16)
     'focusMode': false,
     'bookMode': false,
     'continuousVerses': false,
@@ -115,9 +116,12 @@ class Settings {
   double d(String k) => ((j[k] ?? defaults[k]) as num).toDouble();
   /// Тема со своими цветами поверх (настройка colorOverrides) — для читалки, окон и MaterialApp
   Palette get palette => paletteWith(basePalette, (j['colorOverrides'] as Map?)?.cast<String, dynamic>() ?? const {});
-  Palette get basePalette => get<bool>('iosStyle')
-      ? (systemDark.value ? iosDark : iosLight) // стиль iPhone: системные цвета iOS, светлые или тёмные — как в системе
-      : themes[resolveTheme(get<String>('theme'), systemDark.value)] ?? themes['light']!;
+  Palette get basePalette {
+    final id = resolveTheme(get<String>('theme'), systemDark.value);
+    // стиль iPhone: «Системная», «Светлая» и «Тёмная» — в системных цветах iOS; остальные темы — свои цвета
+    if (get<bool>('iosStyle') && (id == 'light' || id == 'dark')) return id == 'dark' ? iosDark : iosLight;
+    return themes[id] ?? themes['light']!;
+  }
   Settings copyWith(Map<String, dynamic> patch) => Settings({...j, ...patch});
 }
 

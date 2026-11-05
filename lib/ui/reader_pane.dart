@@ -707,6 +707,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   }
 
   void _down(PointerDownEvent e) {
+    // касание текста прячет клавиатуру, если она осталась от поля ввода (на iPhone её иначе не закрыть)
+    if (FocusManager.instance.primaryFocus?.context != null && ModalRoute.of(context)?.isCurrent != false) FocusManager.instance.primaryFocus?.unfocus();
     SyncHub.driver = widget.index;
     _dropHighlight();
     _pointers[e.pointer] = e.position;
@@ -927,6 +929,9 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final rtl = mod?.language == 'he';
 
     final ios = iosStyleOf(ref);
+    // поля текста по бокам: своя настройка (Оформление → «Поля по бокам») или как принято
+    final userMargin = ref.watch(settingsProvider.select((s) => s.d('textMargin')));
+    final margin = userMargin >= 0 ? userMargin : (ios ? iosEdge : 16.0);
     final list = ScrollablePositionedList.builder(
       key: ValueKey('${book.module}|${book.book}|$_listKey'),
       itemCount: _rows.length + 1,
@@ -936,7 +941,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       itemPositionsListener: _positions,
       physics: _pinching ? const NeverScrollableScrollPhysics() : null,
       // стиль iPhone: текст — на общей линии iosEdge с шапкой, кнопками и меню
-      padding: EdgeInsets.fromLTRB(ios ? iosEdge : 16, 6, ios ? iosEdge : 16, 0),
+      padding: EdgeInsets.fromLTRB(margin, 6, margin, 0),
       itemBuilder: (context, i) {
         if (i == _rows.length) {
           // перевод по сети: дальше есть главы, которых ещё нет — подгружаем следующую, как только конец ленты виден

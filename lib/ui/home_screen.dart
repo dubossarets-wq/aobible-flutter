@@ -36,9 +36,10 @@ final homeMounted = ValueNotifier<bool>(false);
 /// Высота вкладок: 4 + капсула 64 + 12 + системный отступ снизу
 double tabBarHeight(BuildContext context) => nativeGlass ? iosEdge + _nativeTabCapsule : 80 + MediaQuery.paddingOf(context).bottom;
 
-// Системная панель вкладок iOS 26: капсула высотой ~45 точек, вокруг неё в своей рамке — поля ~18 по бокам
-// и ~17 снизу (измерено по снимку с iPhone). Свои отступы — так, чтобы сама капсула была в iosEdge от краёв и низа
-const _nativeTabCapsule = 46.0, _nativeTabSide = 18.0, _nativeTabBottom = 17.0;
+// Системная панель вкладок iOS 26: капсула высотой ~57 точек, вокруг неё в своей рамке — поля ~18 по бокам
+// и ~17 снизу (измерено по снимкам с iPhone). Свои отступы — так, чтобы сама капсула была в iosEdge от краёв и низа;
+// стрелки глав и «Слушать» встают над капсулой (их отступ считается от tabBarHeight)
+const _nativeTabCapsule = 58.0, _nativeTabSide = 18.0, _nativeTabBottom = 17.0;
 
 // Короткое название перевода для верхней панели — не длиннее 5 знаков (moduleShort.js).
 // Длинным названиям — общепринятые сокращения, остальным — первые 5 знаков первого слова.
