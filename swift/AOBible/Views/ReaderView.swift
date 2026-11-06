@@ -5,6 +5,7 @@ struct ReaderView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
     @AppStorage("panesStacked") private var stacked = true
+    @Environment(\.readerPalette) private var pal
     @State private var showModules = false
 
     var body: some View {
@@ -36,6 +37,7 @@ struct ReaderView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .background(pal.bg.ignoresSafeArea())
             .sheet(isPresented: $showModules) {
                 NavigationStack {
                     ModulesList(selected: panes.primaryBinding())
@@ -192,6 +194,14 @@ struct ChapterText: View {
     @AppStorage("showVerseNumbers") private var showNumbers = true
     @AppStorage("showStrongs") private var showStrongs = false
     @AppStorage("showXrefs") private var showXrefs = true
+    @AppStorage("fontFamily") private var fontFamily = "system"
+    @AppStorage("fontWeight") private var fontWeight = 400.0
+    @AppStorage("verseSpacing") private var verseSpacing = 0.55
+    @AppStorage("verseNumPos") private var verseNumPos = "sup"
+    @AppStorage("showHeadings") private var showHeadings = true
+    @AppStorage("continuousVerses") private var continuous = false
+    @AppStorage("textMargin") private var textMargin = 14.0
+    @Environment(\.readerPalette) private var pal
     @State private var selected: Set<Int> = []
     @State private var noteVerse: Int?
     @State private var noteText = ""
@@ -218,48 +228,61 @@ struct ChapterText: View {
         let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: fontSize * 0.55) {
-                    ForEach(verses) { v in
-                        VStack(alignment: .leading, spacing: 6) {
-                            if let h = heads[v.num] {
-                                Text(h)
-                                    .font(.headline)
-                                    .padding(.top, 8)
+                LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
+                    if continuous {
+                        // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
+                        ForEach(blocks(verses, heads)) { blk in
+                            VStack(alignment: .leading, spacing: 6) {
+                                if let h = blk.heading, showHeadings { headingText(h) }
+                                Text(continuousText(blk, xcounts))
+                                    .tint(pal.text)
+                                    .font(readerFont)
+                                    .foregroundStyle(pal.text)
+                                    .lineSpacing(fontSize * (lineHeight - 1))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            Text(attributed(v, xrefs: xcounts[v.num] ?? 0))
-                                // слова — ссылки: цвет не меняем (тот же, что у текста)
-                                .tint(.primary)
-                                .font(.system(size: fontSize, design: .serif))
-                                .lineSpacing(fontSize * (lineHeight - 1))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay(alignment: .topTrailing) {
-                                    HStack(spacing: 4) {
-                                        if marks.isFavorite(MarksStore.key(book, chapter, v.num)) {
-                                            Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red)
-                                        }
-                                        if marks.isBookmarked(book, chapter, v.num) {
-                                            Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                            .id(blk.id)
+                        }
+                    } else {
+                        ForEach(verses) { v in
+                            VStack(alignment: .leading, spacing: 6) {
+                                if showHeadings, let h = heads[v.num] { headingText(h) }
+                                Text(attributed(v, xrefs: xcounts[v.num] ?? 0, number: true, numberLink: false))
+                                    // слова — ссылки: цвет не меняем (тот же, что у текста)
+                                    .tint(pal.text)
+                                    .font(readerFont)
+                                    .foregroundStyle(pal.text)
+                                    .lineSpacing(fontSize * (lineHeight - 1))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .overlay(alignment: .topTrailing) {
+                                        HStack(spacing: 4) {
+                                            if marks.isFavorite(MarksStore.key(book, chapter, v.num)) {
+                                                Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red)
+                                            }
+                                            if marks.isBookmarked(book, chapter, v.num) {
+                                                Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                                            }
                                         }
                                     }
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture(count: 2) { marks.toggleFavorite(MarksStore.key(book, chapter, v.num)) }
-                                // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
-                                // долгим нажатием (нажатие на слово открывает словарь)
-                                .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
-                                .onLongPressGesture(minimumDuration: 0.4) {
-                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                    selected.insert(v.num)
-                                }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(count: 2) { marks.toggleFavorite(MarksStore.key(book, chapter, v.num)) }
+                                    // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
+                                    // долгим нажатием (нажатие на слово открывает словарь)
+                                    .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
+                                    .onLongPressGesture(minimumDuration: 0.4) {
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        selected.insert(v.num)
+                                    }
+                            }
+                            .id(v.num)
                         }
-                        .id(v.num)
                     }
                     if verses.isEmpty {
                         Text("В этом переводе нет такой главы.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(pal.muted)
                     }
                     // конец главы на экране и прошло достаточно времени — глава прочитана (записывается в историю
                     // и засчитывается в планы)
@@ -267,11 +290,12 @@ struct ChapterText: View {
                         .onAppear { startReading(count: verses.count) }
                         .onDisappear { readTask?.cancel() }
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .onAppear { scroll(proxy) }
-            .onChange(of: focus) { _, _ in scroll(proxy) }
+            .background(pal.bg)
+            .onAppear { scroll(proxy, verses, heads) }
+            .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
         }
         .id("\(module.id)|\(book)|\(chapter)")
         .simultaneousGesture(
@@ -323,6 +347,10 @@ struct ChapterText: View {
                 openWord(url)
                 return .handled
             }
+            if url.scheme == "aobverse", let v = Int(url.absoluteString.dropFirst("aobverse:".count)) {
+                toggle(v)
+                return .handled
+            }
             return .systemAction
         })
         .sheet(item: $strong) { r in
@@ -370,10 +398,14 @@ struct ChapterText: View {
         }
     }
 
-    private func scroll(_ proxy: ScrollViewProxy) {
+    private func scroll(_ proxy: ScrollViewProxy, _ verses: [Verse], _ heads: [Int: String]) {
         guard focus > 0 else { return }
+        var target = focus
+        if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == focus } }) {
+            target = blk.id
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation { proxy.scrollTo(focus, anchor: .top) }
+            withAnimation { proxy.scrollTo(target, anchor: .top) }
         }
     }
 
@@ -382,29 +414,82 @@ struct ChapterText: View {
     }
 
     private func background(_ n: Int) -> Color {
-        if selected.contains(n) { return Color.accentColor.opacity(0.22) }
+        if selected.contains(n) { return pal.accent.opacity(0.22) }
         if let c = marks.highlight(MarksStore.key(book, chapter, n)) {
             return highlightColors[min(c, highlightColors.count - 1)].opacity(0.35)
         }
-        if n == focus { return Color.yellow.opacity(0.3) }
+        if n == focus { return pal.hl }
         return Color.clear
     }
 
     private static let wordRe = try! NSRegularExpression(pattern: "[\\p{L}\\p{M}]+(?:[-’'][\\p{L}\\p{M}]+)*")
 
+    private var readerFont: Font {
+        ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight)
+    }
+
     private func piece(_ text: String, italic: Bool) -> AttributedString {
         var s = AttributedString(text)
-        if italic { s.font = .system(size: fontSize, design: .serif).italic() }
+        if italic { s.font = readerFont.italic() }
         return s
     }
 
-    private func attributed(_ v: Verse, xrefs: Int) -> AttributedString {
+    private func headingText(_ h: String) -> some View {
+        Text(h)
+            .font(ReadingFonts.font(fontFamily, size: fontSize * 0.92, weight: max(fontWeight, 600)))
+            .foregroundStyle(pal.text)
+            .padding(.top, 8)
+    }
+
+    private struct VerseBlock: Identifiable {
+        let id: Int
+        let heading: String?
+        let verses: [Verse]
+    }
+
+    /// Стихи сплошным текстом: новый блок начинается с заголовка раздела
+    private func blocks(_ verses: [Verse], _ heads: [Int: String]) -> [VerseBlock] {
+        var out: [VerseBlock] = []
+        var cur: [Verse] = []
+        var head: String? = nil
+        for v in verses {
+            if let h = heads[v.num], !cur.isEmpty {
+                out.append(VerseBlock(id: cur[0].num, heading: head, verses: cur))
+                cur = []
+                head = h
+            } else if let h = heads[v.num] {
+                head = h
+            }
+            cur.append(v)
+        }
+        if !cur.isEmpty { out.append(VerseBlock(id: cur[0].num, heading: head, verses: cur)) }
+        return out
+    }
+
+    private func continuousText(_ blk: VerseBlock, _ xcounts: [Int: Int]) -> AttributedString {
         var out = AttributedString()
-        if showNumbers {
+        for v in blk.verses {
+            var part = attributed(v, xrefs: xcounts[v.num] ?? 0, number: true, numberLink: true)
+            if let bgc = continuousBackground(v.num) { part.backgroundColor = bgc }
+            out += part
+            out += AttributedString(" ")
+        }
+        return out
+    }
+
+    private func continuousBackground(_ n: Int) -> Color? {
+        let c = background(n)
+        return c == Color.clear ? nil : c
+    }
+
+    private func attributed(_ v: Verse, xrefs: Int, number: Bool, numberLink: Bool) -> AttributedString {
+        var out = AttributedString()
+        if showNumbers && number {
             var n = AttributedString("\(v.num) ")
             n.font = .system(size: fontSize * 0.62, weight: .semibold)
-            n.baselineOffset = fontSize * 0.32
-            n.foregroundColor = Color.secondary
+            if verseNumPos == "sup" { n.baselineOffset = fontSize * 0.32 }
+            n.foregroundColor = pal.verseNum
+            if numberLink { n.link = URL(string: "aobverse:\(v.num)") }
             out += n
         }
         for (ti, t) in Markup.parse(v.text).enumerated() {
@@ -419,7 +504,7 @@ struct ChapterText: View {
                         var n = AttributedString(" " + key)
                         n.font = .system(size: fontSize * 0.55)
                         n.baselineOffset = fontSize * 0.3
-                        n.foregroundColor = Color.accentColor
+                        n.foregroundColor = pal.accent
                         n.link = URL(string: "aobstrong:" + key)
                         out += n
                     }
@@ -448,7 +533,7 @@ struct ChapterText: View {
             // число параллельных мест после стиха: нажатие открывает их список
             var n = AttributedString(" ⇅\(xrefs)")
             n.font = .system(size: fontSize * 0.62, weight: .medium)
-            n.foregroundColor = Color.accentColor
+            n.foregroundColor = pal.accent
             n.link = URL(string: "aobxref:\(v.num)")
             out += n
         }

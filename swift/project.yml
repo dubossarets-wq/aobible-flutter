@@ -35,4 +35,15 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         ITSAppUsesNonExemptEncryption: false
+        UIAppFonts:
+          - IBMPlexSans-Var.ttf
+          - Literata-Var.ttf
+          - Lora-Var.ttf
+          - NotoSerif-Var.ttf
+          - NotoSerifHebrew-Var.ttf
+          - PTSans-Bold.ttf
+          - PTSans-Regular.ttf
+          - PTSerif-Bold.ttf
+          - PTSerif-Italic.ttf
+          - PTSerif-Regular.ttf
         LSRequiresIPhoneOS: true

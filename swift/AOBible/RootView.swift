@@ -16,11 +16,7 @@ struct RootView: View {
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
-        switch theme {
-        case "light": return .light
-        case "dark", "ocean", "black": return .dark
-        default: return nil
-        }
+        AppThemes.scheme(theme)
     }
 
     /// Открыть место в чтении
@@ -68,6 +64,8 @@ struct RootView: View {
                 .preferredColorScheme(scheme)
         }
         .environment(\.openVerse, OpenVerse(run: open))
+        .environment(\.readerPalette, AppThemes.palette(theme))
+        .tint(theme == "system" ? nil : AppThemes.palette(theme).accent)
         .preferredColorScheme(scheme)
     }
 }
