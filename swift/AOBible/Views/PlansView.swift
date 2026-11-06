@@ -291,6 +291,7 @@ struct PlanCard: View {
     @EnvironmentObject private var plans: PlansStore
     @Environment(\.openVerse) private var openVerse
     let plan: Plan
+    @State private var showDay = false
 
     var body: some View {
         let today = PlanLogic.planToday(plan)
@@ -334,6 +335,14 @@ struct PlanCard: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            if today < total {
+                Button { showDay = true } label: {
+                    Label("Читать весь день", systemImage: "book")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .sheet(isPresented: $showDay) { PlanDayView(uid: plan.uid, day: today) }
             }
             NavigationLink {
                 PlanDetailView(uid: plan.uid)
