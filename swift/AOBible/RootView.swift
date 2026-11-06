@@ -56,7 +56,11 @@ struct RootView: View {
         .onChange(of: tab) { _, new in
             if new == .search {
                 tab = lastTab
-                showSearch = true
+                // страница поиска появляется сразу, без анимации выезда — как системная вкладка, и клавиатура
+                // не ждёт окончания анимации
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { showSearch = true }
             } else {
                 lastTab = new
             }

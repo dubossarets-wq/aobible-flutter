@@ -48,7 +48,8 @@ struct SearchPage: View {
     @AppStorage("readerBook") private var currentBook = "Gen"
     @AppStorage("searchWhole") private var whole = false
     @State private var scope: SearchScope = .all
-    @State private var searching = false
+    // поле поиска активно с самого начала: клавиатура выезжает вместе со страницей, без паузы
+    @State private var searching = true
     @State private var shown = 50
     @StateObject private var model = SearchModel()
 
@@ -156,7 +157,8 @@ struct SearchPage: View {
             }
         }
         .task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            // страховка: если система не активировала поле сама
+            try? await Task.sleep(nanoseconds: 120_000_000)
             searching = true
         }
         .onChange(of: query) { _, _ in rerun() }
