@@ -7,6 +7,10 @@ struct SearchHit: Identifiable {
     let chapter: Int
     let verse: Int
     let text: String
+    /// Перевод, в котором найдено (при поиске по нескольким)
+    var moduleId = ""
+    /// Один и тот же стих в разных переводах — разные результаты
+    var uid: String { "\(moduleId)|\(id)" }
 }
 
 /// Текст перевода, подготовленный для поиска: один раз читается из файла и хранится в памяти (~10 МБ),
