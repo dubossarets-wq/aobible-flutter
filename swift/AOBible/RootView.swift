@@ -8,7 +8,9 @@ enum AppTab: Hashable {
 
 struct RootView: View {
     @State private var tab: AppTab = .bible
+    @State private var lastTab: AppTab = .bible
     @State private var query = ""
+    @State private var showSearch = false
 
     var body: some View {
         TabView(selection: $tab) {
@@ -25,9 +27,21 @@ struct RootView: View {
                 MoreView()
             }
             Tab(value: AppTab.search, role: .search) {
-                SearchView(query: $query)
+                Color.clear
             }
         }
-        .searchable(text: $query, prompt: "Слово, Ин 3:16 или G26")
+        // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
+        // (слева всегда «назад», рядом системное поле поиска), а выбранной остаётся прежняя вкладка
+        .onChange(of: tab) { _, new in
+            if new == .search {
+                tab = lastTab
+                showSearch = true
+            } else {
+                lastTab = new
+            }
+        }
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchPage(query: $query) { showSearch = false }
+        }
     }
 }
