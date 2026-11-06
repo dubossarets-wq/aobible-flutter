@@ -7,8 +7,9 @@ enum AppTab: Hashable {
 }
 
 struct RootView: View {
-    @State private var tab: AppTab = .bible
-    @State private var lastTab: AppTab = .bible
+    // начальная вкладка (для проверки на симуляторе: -debugTab more|plans|saved|bible)
+    @State private var tab: AppTab = Self.startTab()
+    @State private var lastTab: AppTab = Self.startTab()
     @State private var query = ""
     @State private var showSearch = false
     @AppStorage("theme") private var theme = "system"
@@ -25,6 +26,15 @@ struct RootView: View {
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
         AppThemes.scheme(theme)
+    }
+
+    private static func startTab() -> AppTab {
+        switch UserDefaults.standard.string(forKey: "debugTab") {
+        case "more": return .more
+        case "plans": return .plans
+        case "saved": return .saved
+        default: return .bible
+        }
     }
 
     /// Открыть место в чтении
