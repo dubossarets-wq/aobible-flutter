@@ -294,7 +294,7 @@ enum Gzip {
 // MARK: - JSON модуля → SQLite (тот же формат, что у Flutter-версии)
 
 enum ModuleConverter {
-    static let studyTypes: Set<String> = ["dictionary", "commentary", "crossrefs"]
+    static let studyTypes: Set<String> = ["dictionary", "commentary", "crossrefs", "illustrations"]
 
     static func convert(json: Data, to target: URL, catalogVersion: String) throws {
         guard let j = (try JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ConvertError.format }
@@ -470,6 +470,15 @@ enum ModuleConverter {
             }
             try db.insert("INSERT INTO comm VALUES (?, ?, ?, ?, ?, ?)", rows)
             try db.exec("CREATE INDEX comm_ref ON comm(book, chapter, verse)")
+        case "illustrations":
+            try db.exec("CREATE TABLE illus(book TEXT, chapter INTEGER, verse INTEGER, json TEXT)")
+            var rows: [[Any]] = []
+            for (k, v) in entries {
+                guard let p = osisStart(k), let s = jsonString(v) else { continue }
+                rows.append([p.0, p.1, p.2, s])
+            }
+            try db.insert("INSERT INTO illus VALUES (?, ?, ?, ?)", rows)
+            try db.exec("CREATE INDEX illus_ref ON illus(book, chapter, verse)")
         default:
             // параллельные места
             try db.exec("CREATE TABLE xr(book TEXT, chapter INTEGER, verse INTEGER, n INTEGER, refs TEXT)")

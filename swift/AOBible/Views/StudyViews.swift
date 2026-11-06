@@ -225,6 +225,50 @@ struct XrefsSheet: View {
     }
 }
 
+/// Иллюстрации к стиху: листаются, у каждой — автор, год, лицензия и ссылка на страницу файла
+struct IllustrationsSheet: View {
+    @EnvironmentObject private var store: ModuleStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    let book: String
+    let chapter: Int
+    let verse: Int
+
+    var body: some View {
+        let items = store.illustrations(book: book, chapter: chapter, verse: verse)
+        NavigationStack {
+            TabView {
+                ForEach(items) { it in
+                    VStack(spacing: 10) {
+                        AsyncImage(url: URL(string: it.img)) { img in
+                            img.resizable().scaledToFit()
+                        } placeholder: {
+                            ProgressView()
+                        }
+                        .frame(maxHeight: .infinity)
+                        Text(it.title).font(.headline).multilineTextAlignment(.center)
+                        Text([it.author, it.year].filter { !$0.isEmpty }.joined(separator: ", ") + (it.license.isEmpty ? "" : " · \(it.license)"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if let u = URL(string: it.src), it.src.hasPrefix("http") {
+                            Button("Страница файла на Commons") { openURL(u) }
+                                .font(.footnote)
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .tabViewStyle(.page)
+            .navigationTitle("Иллюстрации")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
+            }
+        }
+        .presentationDetents([.large])
+    }
+}
+
 /// Поиск по словарям: номер Стронга (G26) или слово (по началу)
 struct DictionaryView: View {
     @EnvironmentObject private var store: ModuleStore

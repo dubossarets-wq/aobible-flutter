@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("showStrongs") private var showStrongs = false
     @AppStorage("syncScroll") private var syncScroll = true
     @AppStorage("showXrefs") private var showXrefs = true
+    @AppStorage("showIllustrations") private var showIllustrations = true
     @AppStorage("panesStacked") private var panesStacked = true
     @AppStorage("keepScreenOn") private var keepScreenOn = false
     @AppStorage("interfaceLanguage") private var interfaceLanguage = "ru"
@@ -33,6 +34,7 @@ struct SettingsView: View {
                 Toggle("Номера стихов", isOn: $showVerseNumbers)
                 Toggle("Номера Стронга", isOn: $showStrongs)
                 Toggle("Параллельные места после стиха", isOn: $showXrefs)
+                Toggle("Иллюстрации к стихам", isOn: $showIllustrations)
                 Toggle("Панели друг над другом", isOn: $panesStacked)
                 Toggle("Синхронная прокрутка панелей", isOn: $syncScroll)
             } header: {

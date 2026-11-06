@@ -42,6 +42,17 @@ struct DictHit: Identifiable {
     var id: String { module.id + "|" + key }
 }
 
+struct BibleIllustration: Identifiable, Hashable {
+    let img: String
+    let thumb: String
+    let title: String
+    let author: String
+    let year: String
+    let license: String
+    let src: String
+    var id: String { img }
+}
+
 struct CommentaryItem: Identifiable {
     let id = UUID()
     let module: InstalledModule
@@ -150,6 +161,40 @@ extension ModuleStore {
         var out: [Int: Int] = [:]
         for (c, n) in d.query("SELECT chapter, MAX(verse) FROM verses WHERE book = ? GROUP BY chapter", [book], { ($0.int(0), $0.int(1)) }) {
             out[c] = n
+        }
+        return out
+    }
+
+    /// Сколько иллюстраций у каждого стиха главы
+    func illustrationCounts(book: String, chapter: Int) -> [Int: Int] {
+        var out: [Int: Int] = [:]
+        for m in installed where m.type == "illustrations" {
+            guard let d = db(m.id) else { continue }
+            for (v, s) in d.query("SELECT verse, json FROM illus WHERE book = ? AND chapter = ?", [book, chapter], { ($0.int(0), $0.text(1)) }) {
+                if let data = s.data(using: .utf8), let list = (try? JSONSerialization.jsonObject(with: data)) as? [Any] {
+                    out[v, default: 0] += list.count
+                }
+            }
+        }
+        return out
+    }
+
+    /// Иллюстрации стиха
+    func illustrations(book: String, chapter: Int, verse: Int) -> [BibleIllustration] {
+        var out: [BibleIllustration] = []
+        for m in installed where m.type == "illustrations" {
+            guard let d = db(m.id) else { continue }
+            for s in d.query("SELECT json FROM illus WHERE book = ? AND chapter = ? AND verse = ?", [book, chapter, verse], { $0.text(0) }) {
+                guard let data = s.data(using: .utf8), let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { continue }
+                for x in list {
+                    guard let img = x["img"] as? String else { continue }
+                    out.append(BibleIllustration(
+                        img: img, thumb: x["thumb"] as? String ?? img, title: x["title"] as? String ?? "",
+                        author: x["author"] as? String ?? "", year: x["year"] as? String ?? "",
+                        license: x["license"] as? String ?? "", src: x["src"] as? String ?? ""
+                    ))
+                }
+            }
         }
         return out
     }

@@ -194,6 +194,7 @@ enum StudyPanel: Identifiable {
     case xrefs(Int)
     case compare(Int)
     case interlinear(Int)
+    case illustrations(Int)
 
     var id: String {
         switch self {
@@ -201,6 +202,7 @@ enum StudyPanel: Identifiable {
         case .xrefs(let v): return "x\(v)"
         case .compare(let v): return "v\(v)"
         case .interlinear(let v): return "i\(v)"
+        case .illustrations(let v): return "p\(v)"
         }
     }
 }
@@ -221,6 +223,7 @@ struct ChapterText: View {
     @AppStorage("showVerseNumbers") private var showNumbers = true
     @AppStorage("showStrongs") private var showStrongs = false
     @AppStorage("showXrefs") private var showXrefs = true
+    @AppStorage("showIllustrations") private var showIllus = true
     @AppStorage("fontFamily") private var fontFamily = "system"
     @AppStorage("fontWeight") private var fontWeight = 400.0
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
@@ -252,6 +255,7 @@ struct ChapterText: View {
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
         let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
+        let icounts = showIllus ? store.illustrationCounts(book: book, chapter: chapter) : [:]
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
@@ -260,7 +264,7 @@ struct ChapterText: View {
                         ForEach(blocks(verses, heads)) { blk in
                             VStack(alignment: .leading, spacing: 6) {
                                 if let h = blk.heading, showHeadings { headingText(h) }
-                                Text(continuousText(blk, xcounts))
+                                Text(continuousText(blk, xcounts, icounts))
                                     .tint(pal.text)
                                     .font(readerFont)
                                     .foregroundStyle(pal.text)
@@ -273,7 +277,7 @@ struct ChapterText: View {
                         ForEach(verses) { v in
                             VStack(alignment: .leading, spacing: 6) {
                                 if showHeadings, let h = heads[v.num] { headingText(h) }
-                                Text(attributed(v, xrefs: xcounts[v.num] ?? 0, number: true, numberLink: false))
+                                Text(attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: false))
                                     // слова — ссылки: цвет не меняем (тот же, что у текста)
                                     .tint(pal.text)
                                     .font(readerFont)
@@ -373,6 +377,10 @@ struct ChapterText: View {
                 openWord(url)
                 return .handled
             }
+            if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
+                panel = .illustrations(v)
+                return .handled
+            }
             if url.scheme == "aobverse", let v = Int(url.absoluteString.dropFirst("aobverse:".count)) {
                 toggle(v)
                 return .handled
@@ -400,6 +408,8 @@ struct ChapterText: View {
                 CompareSheet(book: book, chapter: chapter, verse: v)
             case .interlinear(let v):
                 InterlinearSheet(book: book, chapter: chapter, verse: v)
+            case .illustrations(let v):
+                IllustrationsSheet(book: book, chapter: chapter, verse: v)
             }
         }
     }
@@ -501,10 +511,10 @@ struct ChapterText: View {
         return out
     }
 
-    private func continuousText(_ blk: VerseBlock, _ xcounts: [Int: Int]) -> AttributedString {
+    private func continuousText(_ blk: VerseBlock, _ xcounts: [Int: Int], _ icounts: [Int: Int]) -> AttributedString {
         var out = AttributedString()
         for v in blk.verses {
-            var part = attributed(v, xrefs: xcounts[v.num] ?? 0, number: true, numberLink: true)
+            var part = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true)
             if let bgc = continuousBackground(v.num) { part.backgroundColor = bgc }
             out += part
             out += AttributedString(" ")
@@ -517,7 +527,7 @@ struct ChapterText: View {
         return c == Color.clear ? nil : c
     }
 
-    private func attributed(_ v: Verse, xrefs: Int, number: Bool, numberLink: Bool) -> AttributedString {
+    private func attributed(_ v: Verse, xrefs: Int, illus: Int, number: Bool, numberLink: Bool) -> AttributedString {
         var out = AttributedString()
         if showNumbers && number {
             var n = AttributedString("\(v.num) ")
@@ -570,6 +580,13 @@ struct ChapterText: View {
             n.font = .system(size: fontSize * 0.62, weight: .medium)
             n.foregroundColor = pal.accent
             n.link = URL(string: "aobxref:\(v.num)")
+            out += n
+        }
+        if illus > 0 {
+            // иллюстрации к стиху: нажатие открывает их
+            var n = AttributedString(" 🖼\(illus)")
+            n.font = .system(size: fontSize * 0.62, weight: .medium)
+            n.link = URL(string: "aobillus:\(v.num)")
             out += n
         }
         return out
