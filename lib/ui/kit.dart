@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator, CupertinoButton, CupertinoButtonSize, CupertinoColors, CupertinoIcons, CupertinoListTileChevron, CupertinoPageRoute, CupertinoSlidingSegmentedControl, CupertinoSwitch;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter/rendering.dart' show BoxHitTestResult, OverflowBoxFit, PipelineOwner, RenderProxyBox, ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -206,7 +207,7 @@ Future<T?> showAobSheet<T>(
               ),
             );
           }
-          return Padding(
+          final lifted = Padding(
             padding: EdgeInsets.only(bottom: kb),
             // окно уже поднято над клавиатурой — внутрь её высоту не передаём: иначе Scaffold внутри окна ужимал бы
             // содержимое второй раз, и между окном и клавиатурой просвечивало окно под ним
@@ -216,6 +217,19 @@ Future<T?> showAobSheet<T>(
               child: SizedBox(height: h, child: builder(c)),
             ),
           );
+          if (!ProviderScope.containerOf(c, listen: false).read(settingsProvider).get<bool>('iosStyle')) return lifted;
+          // стиль iPhone: под клавиатурой — тот же фон окна до самого низа экрана (как в iOS: окно уходит под
+          // клавиатуру, а не обрезается по её верхнему краю); подложка есть всегда — дерево не меняется
+          return Stack(alignment: Alignment.bottomCenter, children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: kb > 0 ? kb + 1 : 0,
+              child: Consumer(builder: (_, ref, _) => ColoredBox(color: paletteOf(ref).panel)),
+            ),
+            lifted,
+          ]);
         }),
       );
   final Future<T?> f = nested && ios
@@ -734,6 +748,15 @@ class AobSheet extends ConsumerWidget {
     );
   }
 }
+
+/// Убрать клавиатуру: снять фокус и скрыть её у системы (если поле ушло вместе с окном, одного снятия фокуса мало)
+void hideKeyboard() {
+  FocusManager.instance.primaryFocus?.unfocus();
+  SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+}
+
+/// В фокусе — поле ввода
+bool editingText() => FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
 
 /// Окно уходит под клавиатуру (underKeyboard): её высота — для строки ввода, что встаёт над ней
 class SheetKeyboard extends InheritedWidget {

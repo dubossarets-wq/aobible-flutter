@@ -353,16 +353,50 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     final focused = _focus.hasFocus;
     final bottomPad = 20 + _tabBottom;
 
+    // строка недавних книг: значок истории и капсулы
+    Widget recentRow() => SizedBox(
+          height: 30,
+          child: Row(children: [
+            // значок истории, затем недавние книги
+            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: AIcon(ico(LucideIcons.history), size: 16, color: muted))),
+            Expanded(
+              // маленькие капсулы (высота 28) с лёгкой заливкой — видно, что это кнопки, и места почти не занимают;
+              // текущая книга — цветом акцента
+              child: FadeRow(gap: 6, children: [
+                for (final b in recent)
+                  Material(
+                    color: b.id == at.book ? mix(pal.accent, 0.12, pal.panel) : fill,
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _openBook(b),
+                      child: Container(
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Align(
+                          widthFactor: 1,
+                          child: Text(b.name, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: b.id == at.book ? accentOnTint(pal) : pal.text)),
+                        ),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          ]),
+        );
+    // стиль iPhone: недавние — под переключателем заветов (сначала выбор завета, потом недавние и книги)
+    final recentBelow = iosUiNow && !bookMode && q.trim().isEmpty && recent.isNotEmpty && groups.length > 1;
     final top = <Widget>[
       // Строка ссылки (.bn-search): высота 50, скругление 15; в фокусе — рамка акцента и кольцо
       AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: 50,
         decoration: BoxDecoration(
-          color: focused ? pal.panel : fill,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: focused ? pal.accent : Colors.transparent),
-          boxShadow: focused ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
+          // стиль iPhone — капсула без рамки и кольца фокуса, как поле поиска iOS
+          color: focused && !iosUiNow ? pal.panel : fill,
+          borderRadius: BorderRadius.circular(iosUiNow ? 25 : 15),
+          border: Border.all(color: focused && !iosUiNow ? pal.accent : Colors.transparent),
+          boxShadow: focused && !iosUiNow ? [BoxShadow(color: pal.accent.withValues(alpha: 0.2), spreadRadius: 3)] : null,
         ),
         child: Row(children: [
           const SizedBox(width: 14),
@@ -414,7 +448,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           padding: const EdgeInsets.only(top: 14),
           child: Material(
             color: mix(pal.accent, 0.08, pal.panel),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: mix(pal.accent, 0.4, pal.line))),
+            shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: mix(pal.accent, 0.4, pal.line))),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () => _go(hit.ref),
@@ -432,40 +466,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
         ),
       if (bookMode && matches.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
       if (bookMode && matches.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: _grid(pal, fill, matches, at)),
-      if (!bookMode && q.trim().isEmpty && recent.isNotEmpty) ...[
-        // Недавние — одной строкой ссылками, без плашек: заметны меньше и места почти не занимают
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 30,
-          child: Row(children: [
-            // значок истории, затем недавние книги
-            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: AIcon(ico(LucideIcons.history), size: 16, color: muted))),
-            Expanded(
-              // маленькие капсулы (высота 28) с лёгкой заливкой — видно, что это кнопки, и места почти не занимают;
-              // текущая книга — цветом акцента
-              child: FadeRow(gap: 6, children: [
-                for (final b in recent)
-                  Material(
-                    color: b.id == at.book ? mix(pal.accent, 0.12, pal.panel) : fill,
-                    shape: const StadiumBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => _openBook(b),
-                      child: Container(
-                        height: 28,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Align(
-                          widthFactor: 1,
-                          child: Text(b.name, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: b.id == at.book ? accentOnTint(pal) : pal.text)),
-                        ),
-                      ),
-                    ),
-                  ),
-              ]),
-            ),
-          ]),
-        ),
-      ],
+      if (!bookMode && q.trim().isEmpty && recent.isNotEmpty && !recentBelow) ...[const SizedBox(height: 12), recentRow()],
     ];
 
     final showBooks = !bookMode && q.trim().isEmpty;
@@ -522,7 +523,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPad),
             sliver: SliverToBoxAdapter(
-              child: panels,
+              child: recentBelow ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [const SizedBox(height: 12), recentRow(), panels]) : panels,
             ),
           )
         else
@@ -588,7 +589,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Material(
           color: mix(pal.accent, 0.13, pal.panel),
-          borderRadius: BorderRadius.circular(15),
+          shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () => _go(VerseRef(b.id, ch, 1)),
@@ -648,7 +649,7 @@ class _Seg extends StatelessWidget {
     final label = {for (final x in _testaments) x.$1: x.$2};
     return Container(
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(iosUiNow ? 25 : 15)),
       child: LayoutBuilder(builder: (context, c) {
         final w = c.maxWidth / groups.length;
         return SizedBox(
@@ -660,7 +661,7 @@ class _Seg extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: pal.dark ? mix(pal.text, 0.14, pal.panel) : pal.panel,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(iosUiNow ? 22 : 12),
                   boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1)), BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2))],
                 ),
               ),
@@ -695,9 +696,16 @@ class _BookCell extends StatelessWidget {
   final Palette pal;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Material(
-        color: on ? mix(pal.accent, 0.14, pal.panel) : fill,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: on ? BorderSide(color: pal.accent, width: 1.5) : BorderSide.none),
+  // стиль iPhone: текущая книга — как выбранный элемент в iOS (выбранный день «Календаря», номер главы здесь же):
+  // сплошная заливка цветом акцента, белый текст, без рамки; углы — системное скругление
+  Widget build(BuildContext context) {
+    final ios = iosUiNow;
+    final fg = ios && on ? pal.onAccent : pal.text;
+    return Material(
+        color: on ? (ios ? pal.accent : mix(pal.accent, 0.14, pal.panel)) : fill,
+        shape: ios
+            ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(14))
+            : RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: on ? BorderSide(color: pal.accent, width: 1.5) : BorderSide.none),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -707,13 +715,14 @@ class _BookCell extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: Text(short, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 16.6, fontWeight: FontWeight.w700, height: 1.15, color: pal.text, letterSpacing: -0.17))),
-                if (dc) Transform.translate(offset: const Offset(1, -4), child: Text('*', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: pal.accent))),
+                Flexible(child: Text(short, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 16.6, fontWeight: FontWeight.w700, height: 1.15, color: fg, letterSpacing: -0.17))),
+                if (dc) Transform.translate(offset: const Offset(1, -4), child: Text('*', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ios && on ? fg : pal.accent))),
               ]),
               const SizedBox(height: 3),
-              Text(name, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: TextStyle(fontSize: 12.2, height: 1.25, color: on ? mix(pal.muted, 0.45, pal.text) : mix(pal.muted, 0.8, pal.text))),
+              Text(name, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: TextStyle(fontSize: 12.2, height: 1.25, color: ios && on ? fg.withValues(alpha: 0.8) : (on ? mix(pal.muted, 0.45, pal.text) : mix(pal.muted, 0.8, pal.text)))),
             ]),
           ),
         ),
       );
+  }
 }

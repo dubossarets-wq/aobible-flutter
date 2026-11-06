@@ -18,6 +18,7 @@ import 'interlinear.dart';
 import 'lexicon.dart';
 import 'sheet.dart';
 import 'study_data.dart';
+import '../../ui/ios_style.dart';
 
 Future<void> openVerseGuide(BuildContext context, WidgetRef ref, int pane, VerseRef at, String moduleId) =>
     showSheet(context, VerseGuideSheet(pane: pane, at: at, moduleId: moduleId), size: SheetSize.tall);
@@ -205,8 +206,8 @@ class _Card extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pal = paletteOf(ref);
     return Material(
-      color: pal.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line)),
+      color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : pal.bg,
+      shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -230,8 +231,8 @@ class _WordCard extends ConsumerWidget {
     final heb = w.num.startsWith('H');
     final meta = '${w.num}${w.xlit != null ? ' · ${w.xlit}' : ''}${w.def != null ? ' · ${w.def}' : ''}';
     return Material(
-      color: pal.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line)),
+      color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : pal.bg,
+      shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius * 0.75), side: BorderSide(color: pal.line)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

@@ -157,6 +157,13 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     if (mounted) _focus.requestFocus();
   }
 
+  // окно поиска уходит (смена вкладки, переход к найденному, свайп назад) — клавиатура уходит вместе с ним
+  @override
+  void deactivate() {
+    if (_focus.hasFocus) hideKeyboard();
+    super.deactivate();
+  }
+
   @override
   void dispose() {
     if (Hub.focusSearch == _focusField) Hub.focusSearch = null;
@@ -488,13 +495,24 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           return ValueListenableBuilder<double>(
             valueListenable: tabBarInset,
             builder: (_, tabs, _) {
-              final gap = kb > 0 ? kb + 8 : (tabs > 0 ? tabs + 10 : iosEdge);
+              // зазор до меню — такой же, как до клавиатуры (~10 pt; по снимкам с iPhone): верх системной капсулы меню
+              // на 8 pt выше её расчётной высоты
+              final gap = kb > 0 ? kb + 8 : (tabs > 0 ? tabs + (nativeGlass ? 18 : 6) : iosEdge);
               return Stack(children: [
                 Positioned.fill(
-                  child: CustomScrollView(
-                    controller: _scroll,
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    slivers: [SliverPadding(padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _iosFieldH + gap), sliver: results())],
+                  // касание или свайп по странице — клавиатура уходит, поле опускается к меню
+                  child: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (_) {
+                      if (_focus.hasFocus) _focus.unfocus();
+                    },
+                    child: CustomScrollView(
+                      controller: _scroll,
+                      // тянется и короткий список (иначе свайп по нему ничего не делал)
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      slivers: [SliverPadding(padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _iosFieldH + gap), sliver: results())],
+                    ),
                   ),
                 ),
                 Positioned(left: iosEdge, right: iosEdge, bottom: gap, child: _iosField(pal)),
@@ -656,8 +674,8 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     final r = _refHit!;
     final b = Books.instance.meta(r.ref.book);
     return Material(
-      color: mix(pal.accent, 0.07, pal.bg),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: mix(pal.accent, 0.45, pal.line))),
+      color: iosUiNow ? mix(pal.accent, 0.12, iosCardAt(pal, false)) : mix(pal.accent, 0.07, pal.bg),
+      shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: mix(pal.accent, 0.45, pal.line))),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _goRef(r.ref),
@@ -681,7 +699,46 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     );
   }
 
-  List<Widget> _historyList(Palette pal) => [
+  List<Widget> _historyList(Palette pal) => iosUiNow
+      // стиль iPhone — как недавние книги в «Перейти»: значок истории и запросы маленькими капсулами в одну строку
+      // (не поместившиеся уходят за край с затуханием); долгое нажатие убирает запрос из истории
+      ? [
+          SizedBox(
+            height: 30,
+            child: Row(children: [
+              Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: AIcon(ico(LucideIcons.history), size: 16, color: pal.muted))),
+              Expanded(
+                child: FadeRow(gap: 6, children: [
+                  for (final h in _history)
+                    Material(
+                      color: iosCardAt(pal, false),
+                      shape: const StadiumBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () {
+                          _setQuery(h);
+                          _remember(h);
+                        },
+                        onLongPress: () {
+                          HapticFeedback.selectionClick();
+                          _forget(h);
+                        },
+                        child: Container(
+                          height: 28,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Align(
+                            widthFactor: 1,
+                            child: Text(h, maxLines: 1, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: pal.text)),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
+            ]),
+          ),
+        ]
+      : [
         GroupTitle(t('Недавние')),
         // строки — от края до края окна (и красная полоса удаления), отступ 20 — у содержимого
         for (final h in _history)

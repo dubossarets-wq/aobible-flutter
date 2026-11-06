@@ -965,6 +965,8 @@ void _tabRun(WidgetRef ref, BuildContext nav, String id) {
 void openTab(WidgetRef ref, String id) {
   final ctx = Hub.navigatorKey.currentContext;
   if (ctx == null) return;
+  // смена вкладки — клавиатура уходит (поле осталось в прежнем окне)
+  hideKeyboard();
   final ios = ref.read(settingsProvider).get<bool>('iosStyle');
   // поверх может быть и страница (большой проигрыватель) — нажатие на вкладку закрывает и её
   final nav = Navigator.of(ctx);
@@ -1227,7 +1229,14 @@ class TabBarOverlay extends StatelessWidget {
         final inset = show && kb == 0 ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
-          child,
+          // клавиатура открыта, а поля ввода в фокусе нет (поле ушло вместе с окном) — касание где угодно её убирает
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) {
+              if (MediaQuery.viewInsetsOf(context).bottom > 0 && !editingText()) hideKeyboard();
+            },
+            child: child,
+          ),
           if (show)
             Positioned(
               left: 0,

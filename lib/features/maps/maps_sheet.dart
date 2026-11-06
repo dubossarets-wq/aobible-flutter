@@ -277,8 +277,8 @@ class _MapTile extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-        color: pal.bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
+        color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : pal.bg,
+        shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,

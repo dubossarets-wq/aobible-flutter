@@ -95,8 +95,9 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
     // Фон-градиент — слоем под фото внутри одной обрезки: фон у самой рамки просвечивал тонкой каймой по скруглённому краю
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: ClipRRect(
-      borderRadius: BorderRadius.circular(18),
+      // стиль iPhone — скругление карточек (системное, как у статистики и списка планов)
+      child: ClipPath(
+      clipper: ShapeBorderClipper(shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
       child: Stack(children: [
         Positioned.fill(
           child: DecoratedBox(

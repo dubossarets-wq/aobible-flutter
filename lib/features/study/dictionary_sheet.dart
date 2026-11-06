@@ -312,8 +312,8 @@ class _DictRow extends ConsumerWidget {
     final kind = StudyData.dictKind(r.module) == 'strongs' ? t('по номерам Стронга') : t('по словам');
     final desc = '${r.found.map((f) => f.label.isEmpty ? f.key : f.label).join(' · ')}${r.found.any((f) => f.match == 'stem') ? ' · ${t('по основе слова')}' : ''}';
     return Material(
-      color: pal.bg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
+      color: iosUiNow ? iosCardAt(pal, IosElevated.of(context)) : pal.bg,
+      shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius), side: BorderSide(color: pal.line)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

@@ -555,7 +555,7 @@ class _EditorState extends ConsumerState<_Editor> {
             Container(
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: mix(pal.accent, 0.08, pal.bg), borderRadius: BorderRadius.circular(kRadius)),
+              decoration: iosUiNow ? iosShape(mix(pal.accent, 0.1, iosCardAt(pal, false)), BorderRadius.circular(iosRadius)) : BoxDecoration(color: mix(pal.accent, 0.08, pal.bg), borderRadius: BorderRadius.circular(kRadius)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text.rich(TextSpan(children: [
                   TextSpan(text: '${t('Как добавить стих:')} ', style: const TextStyle(fontWeight: FontWeight.w700)),
