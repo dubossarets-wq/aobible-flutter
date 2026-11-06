@@ -123,6 +123,8 @@ struct SearchPage: View {
                                         .foregroundStyle(.primary)
                                 }
                             }
+                            // обычная строка списка: текст стиха — основным цветом (белым в тёмной теме), не цветом кнопки
+                            .buttonStyle(.plain)
                         }
                         if model.hits.count > shown {
                             Button("Показать ещё (\(model.hits.count - shown))") { shown += 50 }
@@ -137,8 +139,6 @@ struct SearchPage: View {
                 }
             }
             .scrollDismissesKeyboard(.immediately)
-            // касание в любом другом месте убирает клавиатуру (кнопки результатов при этом нажимаются как обычно)
-            .simultaneousGesture(TapGesture().onEnded { searching = false })
             .navigationTitle("Поиск")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, isPresented: $searching, prompt: "Слово, Ин 3:16 или G26")

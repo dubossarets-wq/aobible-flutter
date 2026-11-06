@@ -210,6 +210,7 @@ struct XrefsSheet: View {
                             Text(store.refText(module: module.id, r)).foregroundStyle(.primary)
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .navigationTitle("Параллельные места")

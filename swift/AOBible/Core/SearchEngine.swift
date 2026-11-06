@@ -78,6 +78,7 @@ enum SearchEngine {
     /// Текст результата с выделением найденного
     static func highlighted(_ plain: String, query: String, wholeWord: Bool) -> AttributedString {
         var attr = AttributedString(plain)
+        attr.foregroundColor = Color.primary
         guard let re = regex(for: query, wholeWord: wholeWord) else { return attr }
         let ns = plain as NSString
         for m in re.matches(in: plain, range: NSRange(location: 0, length: ns.length)) {

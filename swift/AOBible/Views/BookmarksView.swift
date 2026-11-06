@@ -101,6 +101,7 @@ struct BookmarksView: View {
                                     }
                                 }
                             }
+                            .buttonStyle(.plain)
                             .swipeActions {
                                 Button("Удалить", role: .destructive) { remove(p) }
                             }
