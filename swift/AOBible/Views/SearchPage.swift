@@ -44,8 +44,9 @@ struct SearchPage: View {
     let onClose: () -> Void
     let onOpen: (String, Int, Int) -> Void
 
-    @AppStorage("readerModule") private var moduleId = ""
-    @AppStorage("readerBook") private var currentBook = "Gen"
+    @EnvironmentObject private var panes: PanesStore
+    private var moduleId: String { panes.primaryModule }
+    private var currentBook: String { panes.panes.first?.book ?? "Gen" }
     @AppStorage("searchWhole") private var whole = false
     @State private var scope: SearchScope = .all
     // поле поиска активно с самого начала: клавиатура выезжает вместе со страницей, без паузы

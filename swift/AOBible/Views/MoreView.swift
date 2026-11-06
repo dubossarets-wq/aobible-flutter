@@ -52,10 +52,10 @@ struct MoreView: View {
     }
 
     private struct LibraryScreen: View {
-        @AppStorage("readerModule") private var moduleId = ""
+        @EnvironmentObject private var panes: PanesStore
 
         var body: some View {
-            ModulesList(selected: $moduleId)
+            ModulesList(selected: panes.primaryBinding())
                 .navigationTitle("Библиотека модулей")
                 .navigationBarTitleDisplayMode(.inline)
         }

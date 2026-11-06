@@ -13,6 +13,17 @@ struct MarksData: Codable {
     var highlights: [String: Int] = [:]
     var notes: [String: String] = [:]
     var bookmarks: [Bookmark] = []
+    var favorites: [String] = []
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        highlights = try c.decodeIfPresent([String: Int].self, forKey: .highlights) ?? [:]
+        notes = try c.decodeIfPresent([String: String].self, forKey: .notes) ?? [:]
+        bookmarks = try c.decodeIfPresent([Bookmark].self, forKey: .bookmarks) ?? []
+        favorites = try c.decodeIfPresent([String].self, forKey: .favorites) ?? []
+    }
 }
 
 /// Цвета подсветки
@@ -64,6 +75,19 @@ final class MarksStore: ObservableObject {
 
     func removeBookmark(_ b: Bookmark) {
         data.bookmarks.removeAll { $0.id == b.id }
+        save()
+    }
+
+    func isFavorite(_ key: String) -> Bool {
+        data.favorites.contains(key)
+    }
+
+    func toggleFavorite(_ key: String) {
+        if let i = data.favorites.firstIndex(of: key) {
+            data.favorites.remove(at: i)
+        } else {
+            data.favorites.insert(key, at: 0)
+        }
         save()
     }
 

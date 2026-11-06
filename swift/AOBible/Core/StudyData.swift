@@ -125,6 +125,35 @@ extension ModuleStore {
         return out
     }
 
+    /// Сколько параллельных мест у каждого стиха главы (для числа после стиха): из самого перевода и из модулей
+    func xrefCounts(module: String, book: String, chapter: Int) -> [Int: Int] {
+        var out: [Int: Int] = [:]
+        if let d = db(module) {
+            for (v, s) in d.query("SELECT verse, refs FROM xrefs WHERE book = ? AND chapter = ?", [book, chapter], { ($0.int(0), $0.text(1)) }) {
+                if let data = s.data(using: .utf8), let list = (try? JSONSerialization.jsonObject(with: data)) as? [Any] {
+                    out[v, default: 0] += list.count
+                }
+            }
+        }
+        for m in crossrefModules {
+            guard let d = db(m.id) else { continue }
+            for (v, n) in d.query("SELECT verse, n FROM xr WHERE book = ? AND chapter = ?", [book, chapter], { ($0.int(0), $0.int(1)) }) {
+                out[v, default: 0] += n
+            }
+        }
+        return out
+    }
+
+    /// Сколько стихов в каждой главе книги: глава → число стихов
+    func verseCounts(module: String, book: String) -> [Int: Int] {
+        guard let d = db(module) else { return [:] }
+        var out: [Int: Int] = [:]
+        for (c, n) in d.query("SELECT chapter, MAX(verse) FROM verses WHERE book = ? GROUP BY chapter", [book], { ($0.int(0), $0.int(1)) }) {
+            out[c] = n
+        }
+        return out
+    }
+
     /// Текст ссылки (до четырёх стихов диапазона)
     func refText(module: String, _ r: OsisRef) -> String {
         guard let endVerse = r.endVerse, (r.endChapter ?? r.chapter) == r.chapter, endVerse > r.verse else {

@@ -5,7 +5,8 @@ struct BookmarksView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var marks: MarksStore
     @Environment(\.openVerse) private var openVerse
-    @AppStorage("readerModule") private var moduleId = ""
+    @EnvironmentObject private var panes: PanesStore
+    private var moduleId: String { panes.primaryModule }
     @State private var kind = 0
 
     private struct Place: Identifiable {
@@ -47,6 +48,11 @@ struct BookmarksView: View {
                 guard let (b, c, v) = parts(k) else { return nil }
                 return Place(id: k, book: b, chapter: c, verse: v, note: text)
             }.sorted(by: order)
+        case 3:
+            return marks.data.favorites.compactMap { k in
+                guard let (b, c, v) = parts(k) else { return nil }
+                return Place(id: k, book: b, chapter: c, verse: v)
+            }
         default:
             return marks.data.highlights.compactMap { k, color in
                 guard let (b, c, v) = parts(k) else { return nil }
@@ -68,6 +74,7 @@ struct BookmarksView: View {
                         Text("Закладки").tag(0)
                         Text("Заметки").tag(1)
                         Text("Подсветка").tag(2)
+                        Text("Любимые").tag(3)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -75,9 +82,9 @@ struct BookmarksView: View {
                 if list.isEmpty {
                     Section {
                         ContentUnavailableView {
-                            Label(kind == 0 ? "Нет закладок" : (kind == 1 ? "Нет заметок" : "Нет подсветки"), systemImage: kind == 0 ? "heart" : (kind == 1 ? "note.text" : "highlighter"))
+                            Label(kind == 0 ? "Нет закладок" : (kind == 1 ? "Нет заметок" : (kind == 3 ? "Нет любимых стихов" : "Нет подсветки")), systemImage: kind == 0 ? "bookmark" : (kind == 1 ? "note.text" : (kind == 3 ? "heart" : "highlighter")))
                         } description: {
-                            Text("Нажмите на стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу.")
+                            Text("Нажмите на стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым.")
                         }
                     }
                 } else {
@@ -118,6 +125,7 @@ struct BookmarksView: View {
         switch kind {
         case 0: if let b = p.bookmark { marks.removeBookmark(b) }
         case 1: marks.setNote(key, "")
+        case 3: marks.toggleFavorite(key)
         default: marks.setHighlight(keys: [key], color: nil)
         }
     }

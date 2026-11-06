@@ -1,30 +1,16 @@
 import SwiftUI
 
-/// Чтение: глава выбранного перевода. Переход — по названию вверху, перевод — слева, соседние главы — стрелками
-/// или свайпом по тексту
+/// Чтение: одна или несколько панелей (до шести) — рядом или друг над другом, у каждой свой перевод, место и история
 struct ReaderView: View {
     @EnvironmentObject private var store: ModuleStore
-    @AppStorage("readerModule") private var moduleId = ""
-    @AppStorage("readerBook") private var bookId = "Gen"
-    @AppStorage("readerChapter") private var chapter = 1
-    @AppStorage("readerVerse") private var verse = 0
-    @State private var showGoto = false
+    @EnvironmentObject private var panes: PanesStore
+    @AppStorage("panesStacked") private var stacked = true
     @State private var showModules = false
-
-    private var module: InstalledModule? {
-        store.module(moduleId) ?? store.bibles.first
-    }
-
-    private var bookName: String {
-        module?.books.first { $0.id == bookId }?.name ?? Books.info(bookId)?.name ?? bookId
-    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if let m = module {
-                    ChapterText(module: m, book: bookId, chapter: chapter, focus: verse, onSwipe: step)
-                } else {
+                if panes.panes.isEmpty || store.bibles.isEmpty {
                     ContentUnavailableView {
                         Label("Нет переводов", systemImage: "book")
                     } description: {
@@ -33,37 +19,26 @@ struct ReaderView: View {
                         Button("Выбрать перевод") { showModules = true }
                             .buttonStyle(.borderedProminent)
                     }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(module?.name ?? "Перевод") { showModules = true }
-                }
-                ToolbarItem(placement: .principal) {
-                    Button("\(bookName) \(chapter)") { showGoto = true }
-                        .fontWeight(.semibold)
-                        .disabled(module == nil)
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { step(-1) } label: { Image(systemName: "chevron.left") }
-                        .disabled(module == nil)
-                    Button { step(1) } label: { Image(systemName: "chevron.right") }
-                        .disabled(module == nil)
-                }
-            }
-            .sheet(isPresented: $showGoto) {
-                if let m = module {
-                    GotoSheet(module: m) { b, c in
-                        bookId = b
-                        chapter = c
-                        verse = 0
+                } else if stacked || panes.panes.count == 1 {
+                    VStack(spacing: 0) {
+                        ForEach(panes.panes) { p in
+                            PaneView(paneID: p.id)
+                            if p.id != panes.panes.last?.id { Divider() }
+                        }
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        ForEach(panes.panes) { p in
+                            PaneView(paneID: p.id)
+                            if p.id != panes.panes.last?.id { Divider() }
+                        }
                     }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showModules) {
                 NavigationStack {
-                    ModulesList(selected: $moduleId)
+                    ModulesList(selected: panes.primaryBinding())
                         .navigationTitle("Переводы")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
@@ -74,38 +49,113 @@ struct ReaderView: View {
                 }
             }
             .onAppear {
-                if moduleId.isEmpty, let m = store.bibles.first { moduleId = m.id }
-                // текст перевода для поиска готовится сразу: к первому запросу он уже в памяти
-                if let m = module { SearchIndex.warm(path: m.path) }
+                panes.ensureStarted(store)
+                if let m = store.module(panes.primaryModule) { SearchIndex.warm(path: m.path) }
             }
-            .onChange(of: moduleId) { _, _ in
-                if let m = module { SearchIndex.warm(path: m.path) }
-                // в другом переводе может не быть этой книги — тогда первая
-                if let m = module, !m.books.contains(where: { $0.id == bookId }), let first = m.books.first {
-                    bookId = first.id
-                    chapter = 1
+            .onChange(of: store.installed) { _, _ in panes.ensureStarted(store) }
+        }
+    }
+}
+
+/// Одна панель: шапка (перевод, место, история, соседние главы, меню панели) и текст главы
+struct PaneView: View {
+    @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var panes: PanesStore
+    @AppStorage("panesStacked") private var stacked = true
+    let paneID: UUID
+    @State private var showGoto = false
+    @State private var showModules = false
+
+    private var pane: PaneState? {
+        panes.panes.first { $0.id == paneID }
+    }
+
+    var body: some View {
+        if let p = pane, let m = store.module(p.moduleId) {
+            VStack(spacing: 0) {
+                header(p, m)
+                ChapterText(module: m, pane: p)
+            }
+            .sheet(isPresented: $showGoto) {
+                GotoSheet(module: m, recents: panes.recentBooks()) { b, c, v in
+                    panes.go(paneID, b, c, v)
                 }
             }
+            .sheet(isPresented: $showModules) {
+                NavigationStack {
+                    ModulesList(selected: Binding(
+                        get: { p.moduleId },
+                        set: { panes.setModule(paneID, $0, store) }
+                    ))
+                    .navigationTitle("Перевод")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Готово") { showModules = false }
+                        }
+                    }
+                }
+            }
+        } else {
+            Color.clear
         }
     }
 
-    /// Соседняя глава; за последней главой книги — следующая книга
-    private func step(_ delta: Int) {
-        guard let m = module, let i = m.books.firstIndex(where: { $0.id == bookId }) else { return }
-        var c = chapter + delta
-        var b = i
-        if c < 1 {
-            guard b > 0 else { return }
-            b -= 1
-            c = m.books[b].chapters
-        } else if c > m.books[i].chapters {
-            guard b < m.books.count - 1 else { return }
-            b += 1
-            c = 1
+    private func bookName(_ p: PaneState, _ m: InstalledModule) -> String {
+        m.books.first { $0.id == p.book }?.short.replacingOccurrences(of: ".", with: "") ?? Books.info(p.book)?.short ?? p.book
+    }
+
+    private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
+        HStack(spacing: 8) {
+            Button { showModules = true } label: {
+                Text(m.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+            }
+            .buttonStyle(.glass)
+            Button { showGoto = true } label: {
+                HStack(spacing: 4) {
+                    Text("\(bookName(p, m)) \(p.chapter)").font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+            }
+            .buttonStyle(.glass)
+            Spacer(minLength: 4)
+            if panes.canBack(paneID) {
+                Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward") }
+                    .buttonStyle(.glass)
+                    .accessibilityLabel("Назад")
+            }
+            if panes.canForward(paneID) {
+                Button { panes.forward(paneID) } label: { Image(systemName: "arrow.uturn.forward") }
+                    .buttonStyle(.glass)
+                    .accessibilityLabel("Вперёд")
+            }
+            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left") }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Предыдущая глава")
+            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right") }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Следующая глава")
+            Menu {
+                if panes.panes.count < maxPanes {
+                    Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: {
+                        Label("Добавить панель", systemImage: "rectangle.split.2x1")
+                    }
+                }
+                if panes.panes.count > 1 {
+                    Button { stacked.toggle() } label: {
+                        Label(stacked ? "Панели рядом" : "Панели друг над другом", systemImage: "rectangle.split.1x2")
+                    }
+                    Button(role: .destructive) { panes.closePane(paneID) } label: {
+                        Label("Закрыть панель", systemImage: "xmark")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+            }
+            .buttonStyle(.glass)
         }
-        bookId = m.books[b].id
-        chapter = max(1, c)
-        verse = 0
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
     }
 }
 
@@ -117,39 +167,45 @@ struct StrongRequest: Identifiable {
 enum StudyPanel: Identifiable {
     case commentary(Int)
     case xrefs(Int)
+    case compare(Int)
 
     var id: String {
         switch self {
         case .commentary(let v): return "c\(v)"
         case .xrefs(let v): return "x\(v)"
+        case .compare(let v): return "v\(v)"
         }
     }
 }
 
-/// Текст главы: нажатие выбирает стих, внизу — панель действий (копировать, поделиться, подсветка, закладка, заметка)
+/// Текст главы: нажатие выбирает стих, двойное — делает любимым; внизу — панель действий
 struct ChapterText: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var marks: MarksStore
+    @EnvironmentObject private var panes: PanesStore
+    @EnvironmentObject private var plans: PlansStore
     let module: InstalledModule
-    let book: String
-    let chapter: Int
-    let focus: Int
-    let onSwipe: (Int) -> Void
+    let pane: PaneState
 
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("lineHeight") private var lineHeight = 1.45
     @AppStorage("showVerseNumbers") private var showNumbers = true
     @AppStorage("showStrongs") private var showStrongs = false
+    @AppStorage("showXrefs") private var showXrefs = true
     @State private var selected: Set<Int> = []
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var strong: StrongRequest?
     @State private var panel: StudyPanel?
-    @EnvironmentObject private var plans: PlansStore
     @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
+    @State private var pinchBase: Double?
 
     private let colorNames = ["Жёлтый", "Зелёный", "Синий", "Розовый", "Оранжевый"]
+
+    private var book: String { pane.book }
+    private var chapter: Int { pane.chapter }
+    private var focus: Int { pane.verse }
 
     private var bookName: String {
         module.books.first { $0.id == book }?.name ?? Books.info(book)?.name ?? book
@@ -158,6 +214,7 @@ struct ChapterText: View {
     var body: some View {
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
+        let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: fontSize * 0.55) {
@@ -168,7 +225,7 @@ struct ChapterText: View {
                                     .font(.headline)
                                     .padding(.top, 8)
                             }
-                            Text(attributed(v))
+                            Text(attributed(v, xrefs: xcounts[v.num] ?? 0))
                                 .font(.system(size: fontSize, design: .serif))
                                 .lineSpacing(fontSize * (lineHeight - 1))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,11 +233,17 @@ struct ChapterText: View {
                                 .padding(.vertical, 3)
                                 .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .overlay(alignment: .topTrailing) {
-                                    if marks.isBookmarked(book, chapter, v.num) {
-                                        Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                                    HStack(spacing: 4) {
+                                        if marks.isFavorite(MarksStore.key(book, chapter, v.num)) {
+                                            Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red)
+                                        }
+                                        if marks.isBookmarked(book, chapter, v.num) {
+                                            Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                                        }
                                     }
                                 }
                                 .contentShape(Rectangle())
+                                .onTapGesture(count: 2) { marks.toggleFavorite(MarksStore.key(book, chapter, v.num)) }
                                 .onTapGesture { toggle(v.num) }
                         }
                         .id(v.num)
@@ -205,9 +268,18 @@ struct ChapterText: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 50).onEnded { g in
                 if abs(g.translation.width) > abs(g.translation.height) * 2 {
-                    onSwipe(g.translation.width < 0 ? 1 : -1)
+                    panes.step(pane.id, g.translation.width < 0 ? 1 : -1, module: module)
                 }
             }
+        )
+        // два пальца: размер букв
+        .simultaneousGesture(
+            MagnifyGesture()
+                .onChanged { g in
+                    if pinchBase == nil { pinchBase = fontSize }
+                    fontSize = min(40, max(13, (pinchBase ?? fontSize) * g.magnification))
+                }
+                .onEnded { _ in pinchBase = nil }
         )
         .safeAreaInset(edge: .bottom) {
             if !selected.isEmpty {
@@ -234,6 +306,10 @@ struct ChapterText: View {
                 strong = StrongRequest(key: k)
                 return .handled
             }
+            if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
+                panel = .xrefs(v)
+                return .handled
+            }
             return .systemAction
         })
         .sheet(item: $strong) { r in
@@ -244,7 +320,11 @@ struct ChapterText: View {
             case .commentary(let v):
                 CommentarySheet(book: book, chapter: chapter, verse: v)
             case .xrefs(let v):
-                XrefsSheet(module: module, book: book, chapter: chapter, verse: v)
+                XrefsSheet(module: module, book: book, chapter: chapter, verse: v) { b, c, vv in
+                    panes.openSecond(from: pane.id, b, c, vv)
+                }
+            case .compare(let v):
+                CompareSheet(book: book, chapter: chapter, verse: v)
             }
         }
     }
@@ -294,7 +374,7 @@ struct ChapterText: View {
         return Color.clear
     }
 
-    private func attributed(_ v: Verse) -> AttributedString {
+    private func attributed(_ v: Verse, xrefs: Int) -> AttributedString {
         var out = AttributedString()
         if showNumbers {
             var n = AttributedString("\(v.num) ")
@@ -321,6 +401,14 @@ struct ChapterText: View {
                 }
             }
         }
+        if xrefs > 0 {
+            // число параллельных мест после стиха: нажатие открывает их список
+            var n = AttributedString(" ⇅\(xrefs)")
+            n.font = .system(size: fontSize * 0.62, weight: .medium)
+            n.foregroundColor = Color.accentColor
+            n.link = URL(string: "aobxref:\(v.num)")
+            out += n
+        }
         return out
     }
 
@@ -346,7 +434,8 @@ struct ChapterText: View {
     private func selectionBar(_ verses: [Verse]) -> some View {
         let first = selected.sorted().first ?? 1
         let bookmarked = marks.isBookmarked(book, chapter, first)
-        return HStack(spacing: 18) {
+        let favorite = marks.isFavorite(MarksStore.key(book, chapter, first))
+        return HStack(spacing: 20) {
             Button {
                 UIPasteboard.general.string = quote(verses)
                 selected = []
@@ -379,12 +468,26 @@ struct ChapterText: View {
                 noteVerse = first
             } label: { Image(systemName: "note.text") }
                 .accessibilityLabel("Заметка")
-            Button { panel = .commentary(first) } label: { Image(systemName: "text.book.closed") }
-                .accessibilityLabel("Толкования")
-            Button { panel = .xrefs(first) } label: { Image(systemName: "arrow.triangle.branch") }
-                .accessibilityLabel("Параллельные места")
-            Button { selected = [] } label: { Image(systemName: "xmark") }
-                .accessibilityLabel("Снять выделение")
+            Menu {
+                Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
+                Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
+                Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
+                Menu {
+                    ForEach(store.bibles) { m in
+                        Button(m.name + " — " + m.title) {
+                            panes.addPane(after: pane.id, moduleId: m.id)
+                            selected = []
+                        }
+                    }
+                } label: { Label("Перевод рядом", systemImage: "rectangle.split.2x1") }
+                    .disabled(panes.panes.count >= maxPanes)
+                Button {
+                    for k in keys() where marks.isFavorite(k) == favorite { marks.toggleFavorite(k) }
+                    selected = []
+                } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
+                Button { selected = [] } label: { Label("Снять выделение", systemImage: "xmark") }
+            } label: { Image(systemName: "ellipsis") }
+                .accessibilityLabel("Ещё")
         }
         .font(.title3)
         .padding(.horizontal, 24)
@@ -416,46 +519,152 @@ struct ChapterText: View {
     }
 }
 
-private struct BookSection: Identifiable {
-    let title: String
-    let books: [ModuleBook]
-    var id: String { title }
-}
-
-/// Переход: книги по разделам → номера глав
-struct GotoSheet: View {
-    let module: InstalledModule
-    let onPick: (String, Int) -> Void
+/// Сравнение: один и тот же стих во всех установленных переводах
+struct CompareSheet: View {
+    @EnvironmentObject private var store: ModuleStore
     @Environment(\.dismiss) private var dismiss
-
-    private var sections: [BookSection] {
-        let ot = module.books.filter { Books.info($0.id)?.t == "OT" }
-        let nt = module.books.filter { Books.info($0.id)?.t == "NT" }
-        let rest = module.books.filter { Books.info($0.id)?.t != "OT" && Books.info($0.id)?.t != "NT" }
-        var out: [BookSection] = []
-        if !ot.isEmpty { out.append(BookSection(title: "Ветхий Завет", books: ot)) }
-        if !nt.isEmpty { out.append(BookSection(title: "Новый Завет", books: nt)) }
-        if !rest.isEmpty { out.append(BookSection(title: "Другие книги", books: rest)) }
-        return out
-    }
+    let book: String
+    let chapter: Int
+    let verse: Int
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(sections) { sec in
-                    Section(sec.title) {
-                        ForEach(sec.books) { b in
-                            NavigationLink {
-                                ChapterGrid(book: b) { c in
-                                    onPick(b.id, c)
-                                    dismiss()
+                ForEach(store.bibles) { m in
+                    if let t = store.verseText(module: m.id, book: book, chapter: chapter, verse: verse) {
+                        Section {
+                            Text(t).font(.system(size: 18, design: .serif))
+                        } header: {
+                            Text("\(m.name) — \(m.title)")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Сравнить переводы")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - Навигатор
+
+private struct BookCategory {
+    let title: String
+    let color: Color
+    let ids: [String]
+}
+
+private let bookCategories: [BookCategory] = [
+    BookCategory(title: "Пятикнижие", color: Color(red: 0.69, green: 0.48, blue: 0.18), ids: ["Gen", "Exod", "Lev", "Num", "Deut"]),
+    BookCategory(title: "Исторические книги", color: Color(red: 0.42, green: 0.56, blue: 0.31), ids: ["Josh", "Judg", "Ruth", "1Sam", "2Sam", "1Kgs", "2Kgs", "1Chr", "2Chr", "Ezra", "Neh", "Esth"]),
+    BookCategory(title: "Поэтические книги", color: Color(red: 0.25, green: 0.5, blue: 0.65), ids: ["Job", "Ps", "Prov", "Eccl", "Song"]),
+    BookCategory(title: "Большие пророки", color: Color(red: 0.55, green: 0.29, blue: 0.49), ids: ["Isa", "Jer", "Lam", "Ezek", "Dan"]),
+    BookCategory(title: "Малые пророки", color: Color(red: 0.69, green: 0.41, blue: 0.56), ids: ["Hos", "Joel", "Amos", "Obad", "Jonah", "Mic", "Nah", "Hab", "Zeph", "Hag", "Zech", "Mal"]),
+    BookCategory(title: "Неканонические книги", color: Color(red: 0.54, green: 0.51, blue: 0.45), ids: ["PrMan", "1Esd", "Tob", "Jdt", "Wis", "Sir", "EpJer", "Bar", "1Macc", "2Macc", "3Macc", "2Esd"]),
+    BookCategory(title: "Евангелия", color: Color(red: 0.75, green: 0.33, blue: 0.23), ids: ["Matt", "Mark", "Luke", "John"]),
+    BookCategory(title: "Деяния и соборные послания", color: Color(red: 0.18, green: 0.56, blue: 0.51), ids: ["Acts", "Jas", "1Pet", "2Pet", "1John", "2John", "3John", "Jude"]),
+    BookCategory(title: "Послания апостола Павла", color: Color(red: 0.29, green: 0.41, blue: 0.68), ids: ["Rom", "1Cor", "2Cor", "Gal", "Eph", "Phil", "Col", "1Thess", "2Thess", "1Tim", "2Tim", "Titus", "Phlm", "Heb"]),
+    BookCategory(title: "Откровение", color: Color(red: 0.48, green: 0.33, blue: 0.66), ids: ["Rev"]),
+]
+
+private struct ChapterPick: Hashable {
+    let book: ModuleBook
+    let chapter: Int
+}
+
+/// Перейти: ссылка в поле, недавние книги, книги по разделам (цвет — раздел) → главы → стихи
+struct GotoSheet: View {
+    @EnvironmentObject private var store: ModuleStore
+    let module: InstalledModule
+    let recents: [String]
+    let onPick: (String, Int, Int) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var link = ""
+    @State private var linkError = false
+    @State private var path = NavigationPath()
+
+    private func book(_ id: String) -> ModuleBook? {
+        module.books.first { $0.id == id }
+    }
+
+    private func submitLink() {
+        guard let r = RefParser.parse(link), let b = book(r.book), r.chapter >= 1, r.chapter <= max(1, b.chapters) else {
+            linkError = true
+            return
+        }
+        onPick(r.book, r.chapter, r.verse)
+        dismiss()
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        TextField("Книга или ссылка: Ин 3:16", text: $link)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .submitLabel(.go)
+                            .onSubmit(submitLink)
+                            .onChange(of: link) { _, _ in linkError = false }
+                        Button(action: submitLink) {
+                            Image(systemName: "arrow.right.circle.fill").font(.title2)
+                        }
+                        .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.fill.tertiary, in: Capsule())
+                    if linkError {
+                        Text("Не нашёл такое место в этом переводе.").font(.footnote).foregroundStyle(.red)
+                    }
+
+                    let rec = recents.compactMap { book($0) }
+                    if !rec.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock").foregroundStyle(.secondary)
+                                ForEach(rec) { b in
+                                    Button { path.append(b) } label: {
+                                        Text(b.name).font(.subheadline.weight(.semibold))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .buttonBorderShape(.capsule)
                                 }
-                            } label: {
-                                Text(b.name)
+                            }
+                        }
+                    }
+
+                    ForEach(sections(), id: \.title) { sec in
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Circle().fill(sec.color).frame(width: 8, height: 8)
+                                Text(sec.title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                                ForEach(sec.books) { b in
+                                    Button { path.append(b) } label: {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(b.short.replacingOccurrences(of: ".", with: "")).font(.headline)
+                                            Text(b.name).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                                        .padding(.horizontal, 10)
+                                        .background(sec.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
                 }
+                .padding(16)
             }
             .navigationTitle("Перейти")
             .navigationBarTitleDisplayMode(.inline)
@@ -464,7 +673,35 @@ struct GotoSheet: View {
                     Button("Закрыть") { dismiss() }
                 }
             }
+            .navigationDestination(for: ModuleBook.self) { b in
+                ChapterGrid(book: b) { c in path.append(ChapterPick(book: b, chapter: c)) }
+            }
+            .navigationDestination(for: ChapterPick.self) { p in
+                VerseGrid(module: module, pick: p) { v in
+                    onPick(p.book.id, p.chapter, v)
+                    dismiss()
+                }
+            }
         }
+    }
+
+    private struct Section2 {
+        let title: String
+        let color: Color
+        let books: [ModuleBook]
+    }
+
+    private func sections() -> [Section2] {
+        var out: [Section2] = []
+        var used = Set<String>()
+        for c in bookCategories {
+            let list = c.ids.compactMap { book($0) }
+            list.forEach { used.insert($0.id) }
+            if !list.isEmpty { out.append(Section2(title: c.title, color: c.color, books: list)) }
+        }
+        let rest = module.books.filter { !used.contains($0.id) }
+        if !rest.isEmpty { out.append(Section2(title: "Другие книги", color: .gray, books: rest)) }
+        return out
     }
 }
 
@@ -488,6 +725,44 @@ struct ChapterGrid: View {
             .padding(16)
         }
         .navigationTitle(book.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Номера стихов главы; «Читать главу» — с начала
+private struct VerseGrid: View {
+    @EnvironmentObject private var store: ModuleStore
+    let module: InstalledModule
+    let pick: ChapterPick
+    let onPick: (Int) -> Void
+
+    var body: some View {
+        let counts = store.verseCounts(module: module.id, book: pick.book.id)
+        let n = counts[pick.chapter] ?? 0
+        ScrollView {
+            VStack(spacing: 14) {
+                Button { onPick(0) } label: {
+                    Label("Читать главу \(pick.chapter)", systemImage: "book")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                if n > 0 {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 10)], spacing: 10) {
+                        ForEach(1...n, id: \.self) { v in
+                            Button { onPick(v) } label: {
+                                Text("\(v)")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.primary)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .navigationTitle("\(pick.book.name) \(pick.chapter)")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

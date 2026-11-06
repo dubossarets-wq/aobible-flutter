@@ -168,12 +168,12 @@ struct CommentarySheet: View {
 /// Параллельные места стиха; нажатие открывает место в чтении
 struct XrefsSheet: View {
     @EnvironmentObject private var store: ModuleStore
-    @Environment(\.openVerse) private var openVerse
     @Environment(\.dismiss) private var dismiss
     let module: InstalledModule
     let book: String
     let chapter: Int
     let verse: Int
+    let onOpen: (String, Int, Int) -> Void
 
     private func label(_ r: OsisRef) -> String {
         let short = module.books.first { $0.id == r.book }?.short ?? Books.info(r.book)?.short ?? r.book
@@ -203,7 +203,7 @@ struct XrefsSheet: View {
                     let r = refs[i]
                     Button {
                         dismiss()
-                        openVerse(r.book, r.chapter, r.verse)
+                        onOpen(r.book, r.chapter, r.verse)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(label(r)).font(.subheadline.weight(.semibold)).foregroundStyle(.tint)

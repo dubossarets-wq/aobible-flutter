@@ -116,7 +116,8 @@ struct PlansView: View {
 struct VerseOfDayCard: View {
     @EnvironmentObject private var store: ModuleStore
     @Environment(\.openVerse) private var openVerse
-    @AppStorage("readerModule") private var moduleId = ""
+    @EnvironmentObject private var panes: PanesStore
+    private var moduleId: String { panes.primaryModule }
     @State private var verse: DayVerse?
     @State private var photo: URL?
 
@@ -378,7 +379,8 @@ struct CustomPlanView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var plans: PlansStore
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("readerModule") private var moduleId = ""
+    @EnvironmentObject private var panes: PanesStore
+    private var moduleId: String { panes.primaryModule }
     @State private var scope = "all"
     @State private var days = 365
 
