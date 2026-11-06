@@ -10,17 +10,6 @@ struct PlansView: View {
     }
 }
 
-/// Чтение — пока заглушка
-struct ReaderView: View {
-    var body: some View {
-        NavigationStack {
-            SoonView(title: "Библия", symbol: "book")
-                .navigationTitle("Библия")
-                .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}
-
 /// Закладки — пока заглушка
 struct BookmarksView: View {
     var body: some View {

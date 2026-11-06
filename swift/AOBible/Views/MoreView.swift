@@ -15,7 +15,11 @@ struct MoreView: View {
                 Section {
                     link("Синхронная прокрутка", "link", .blue)
                     link("Панели друг над другом", "rectangle.split.1x2.fill", Color(red: 0.35, green: 0.34, blue: 0.84))
-                    link("Библиотека модулей", "books.vertical.fill", .teal)
+                    NavigationLink {
+                        LibraryScreen()
+                    } label: {
+                        IconLabel(title: "Библиотека модулей", symbol: "books.vertical.fill", color: .teal)
+                    }
                 }
                 Section {
                     NavigationLink {
@@ -39,6 +43,16 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("Ещё")
+        }
+    }
+
+    private struct LibraryScreen: View {
+        @AppStorage("readerModule") private var moduleId = ""
+
+        var body: some View {
+            ModulesList(selected: $moduleId)
+                .navigationTitle("Библиотека модулей")
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 
