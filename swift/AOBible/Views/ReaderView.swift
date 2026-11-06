@@ -39,6 +39,17 @@ struct ReaderView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .background(pal.bg.ignoresSafeArea())
+            .safeAreaInset(edge: .top) {
+                if let s = store.starterStatus {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text(s).font(.footnote)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .glassEffect(.regular, in: Capsule())
+                }
+            }
             .alert("Аудио", isPresented: Binding(get: { audio.message != nil }, set: { if !$0 { audio.message = nil } })) {
                 Button("OK") {}
             } message: {
@@ -226,8 +237,6 @@ struct ChapterText: View {
     @State private var toast: String?
     @State private var pinchBase: Double?
 
-    private let colorNames = ["Жёлтый", "Зелёный", "Синий", "Розовый", "Оранжевый"]
-
     private var book: String { pane.book }
     private var chapter: Int { pane.chapter }
     private var focus: Int { pane.verse }
@@ -282,7 +291,7 @@ struct ChapterText: View {
                                         }
                                     }
                                     .contentShape(Rectangle())
-                                    .onTapGesture(count: 2) { marks.toggleFavorite(MarksStore.key(book, chapter, v.num)) }
+                                    .onTapGesture(count: 2) { marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text)) }
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
                                     .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
@@ -433,8 +442,8 @@ struct ChapterText: View {
         if audio.active, audio.moduleId == module.id, let c = audio.current, c.book == book, c.chapter == chapter, c.verse == n {
             return pal.accent.opacity(0.16)
         }
-        if let c = marks.highlight(MarksStore.key(book, chapter, n)) {
-            return highlightColors[min(c, highlightColors.count - 1)].opacity(0.35)
+        if let c = hlColor(marks.highlight(MarksStore.key(book, chapter, n))) {
+            return c.color.opacity(0.4)
         }
         if n == focus { return pal.hl }
         return Color.clear
@@ -616,11 +625,14 @@ struct ChapterText: View {
             ShareLink(item: quote(verses)) { Image(systemName: "square.and.arrow.up") }
                 .accessibilityLabel("Поделиться")
             Menu {
-                ForEach(0..<highlightColors.count, id: \.self) { i in
-                    Button(colorNames[i]) {
-                        marks.setHighlight(keys: keys(), color: i)
+                ForEach(hlColors) { c in
+                    Button {
+                        marks.setHighlight(keys: keys(), color: c.id)
                         selected = []
+                    } label: {
+                        Label(c.name, systemImage: "circle.fill")
                     }
+                    .tint(c.color)
                 }
                 Button("Убрать подсветку", role: .destructive) {
                     marks.setHighlight(keys: keys(), color: nil)
@@ -629,8 +641,8 @@ struct ChapterText: View {
             } label: { Image(systemName: "highlighter") }
                 .accessibilityLabel("Подсветка")
             Button {
-                for n in selected.sorted() where marks.isBookmarked(book, chapter, n) == bookmarked {
-                    marks.toggleBookmark(book, chapter, n)
+                for v in verses where selected.contains(v.num) && marks.isBookmarked(book, chapter, v.num) == bookmarked {
+                    marks.toggleBookmark(book, chapter, v.num, text: Markup.plain(v.text))
                 }
                 selected = []
             } label: { Image(systemName: bookmarked ? "bookmark.fill" : "bookmark") }
@@ -654,7 +666,9 @@ struct ChapterText: View {
                 } label: { Label("Перевод рядом", systemImage: "rectangle.split.2x1") }
                     .disabled(panes.panes.count >= maxPanes)
                 Button {
-                    for k in keys() where marks.isFavorite(k) == favorite { marks.toggleFavorite(k) }
+                    for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
+                        marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+                    }
                     selected = []
                 } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
                 Button {

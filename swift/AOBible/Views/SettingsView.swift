@@ -38,19 +38,3 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-
-struct AboutView: View {
-    var body: some View {
-        Form {
-            Section {
-                LabeledContent("Версия", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
-                LabeledContent("Сборка", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
-            }
-            Section {
-                Text("AO Bible — бесплатное некоммерческое приложение для чтения Библии.")
-            }
-        }
-        .navigationTitle("О приложении")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}

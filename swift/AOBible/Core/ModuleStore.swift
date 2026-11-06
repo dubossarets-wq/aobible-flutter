@@ -23,6 +23,9 @@ struct InstalledModule: Identifiable, Hashable {
     var dictionaryKind: String = "words"
     /// В тексте перевода есть номера Стронга (по описанию модуля)
     var strongs: Bool = false
+    var author: String = ""
+    var license: String = ""
+    var source: String = ""
 }
 
 struct CatalogEntry: Identifiable {
@@ -61,6 +64,8 @@ final class ModuleStore: ObservableObject {
     @Published var busy: [String: String] = [:]
     @Published var catalogLoading = false
     @Published var catalogError: String?
+    /// «Устанавливаю модули: 3 из 15» — пока идёт стартовая установка
+    @Published var starterStatus: String?
 
     let dir: URL
     private var opened: [String: SQLiteDB] = [:]
@@ -114,7 +119,10 @@ final class ModuleStore: ObservableObject {
                 books: books,
                 online: j["online"] != nil,
                 dictionaryKind: j["dictionaryKind"] as? String ?? "words",
-                strongs: ((j["features"] as? [String: Any])?["strongs"] as? Bool) == true
+                strongs: ((j["features"] as? [String: Any])?["strongs"] as? Bool) == true,
+                author: j["author"] as? String ?? "",
+                license: j["license"] as? String ?? "",
+                source: j["source"] as? String ?? ""
             ))
         }
         installed = list.sorted {

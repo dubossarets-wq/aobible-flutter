@@ -59,9 +59,26 @@ struct MoreView: View {
                     } label: {
                         IconLabel(title: "Настройки", symbol: "gearshape.fill", color: .gray)
                     }
-                    link("Инструкция", "book.fill", .blue)
-                    link("Сообщить о проблеме", "exclamationmark.bubble.fill", .red)
-                    link("Что нового", "sparkles", .orange)
+                    NavigationLink {
+                        MyDataView()
+                    } label: {
+                        IconLabel(title: "Мои данные", symbol: "externaldrive.fill", color: .gray)
+                    }
+                    NavigationLink {
+                        HelpView()
+                    } label: {
+                        IconLabel(title: "Инструкция", symbol: "book.fill", color: .blue)
+                    }
+                    NavigationLink {
+                        ReportView()
+                    } label: {
+                        IconLabel(title: "Сообщить о проблеме", symbol: "exclamationmark.bubble.fill", color: .red)
+                    }
+                    NavigationLink {
+                        NewsView()
+                    } label: {
+                        IconLabel(title: "Что нового", symbol: "sparkles", color: .orange)
+                    }
                     NavigationLink {
                         AboutView()
                     } label: {

@@ -78,6 +78,29 @@ final class PlansStore: ObservableObject {
         if let d = try? JSONEncoder().encode(log) { try? d.write(to: logURL, options: .atomic) }
     }
 
+    /// Файл «Мои данные»: планы и история чтения (строки JSON, как в localStorage веб-версии)
+    func exportEntries() -> [String: String] {
+        func js<T: Encodable>(_ v: T) -> String {
+            String(data: (try? JSONEncoder().encode(v)) ?? Data("null".utf8), encoding: .utf8) ?? "null"
+        }
+        return ["plans": js(plans), "readLog": js(log)]
+    }
+
+    func importEntries(_ d: [String: String]) {
+        if let s = d["plans"], let x = s.data(using: .utf8), let p = try? JSONDecoder().decode([Plan].self, from: x) {
+            plans = PlanLogic.applyNewYear(p)
+        } else {
+            plans = []
+        }
+        if let s = d["readLog"], let x = s.data(using: .utf8), let l = try? JSONDecoder().decode(ReadLogData.self, from: x) {
+            log = l
+        } else {
+            log = ReadLogData()
+        }
+        savePlans()
+        saveLog()
+    }
+
     func add(_ p: Plan) {
         plans.insert(p, at: 0)
         savePlans()

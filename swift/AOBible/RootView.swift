@@ -14,6 +14,13 @@ struct RootView: View {
     @AppStorage("theme") private var theme = "system"
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var audio: AudioEngine
+    @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var marks: MarksStore
+    @EnvironmentObject private var plans: PlansStore
+    @EnvironmentObject private var sermons: SermonStore
+    @AppStorage("welcomeSeen") private var welcomeSeen = false
+    @AppStorage("lastBuild") private var lastBuild = ""
+    @AppStorage("interfaceLanguage") private var lang = "ru"
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -48,6 +55,19 @@ struct RootView: View {
         }
         // мини-проигрыватель над нижним меню, пока идёт аудио
         .modifier(AudioAccessory(active: audio.active))
+        .sheet(isPresented: Binding(get: { !welcomeSeen }, set: { if !$0 { welcomeSeen = true } })) {
+            WelcomeSheet()
+        }
+        .task {
+            // перед обновлением приложения — копия данных (последние 5)
+            let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+            if !lastBuild.isEmpty, lastBuild != build {
+                UserData.snapshot("до обновления с версии \(lastBuild)", marks: marks, plans: plans, sermons: sermons)
+            }
+            lastBuild = build
+            // первый запуск: основной перевод, затем остальное в фоне
+            await Starter.run(store: store, lang: lang)
+        }
         // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
         // (слева всегда «назад», рядом системное поле поиска), а выбранной остаётся прежняя вкладка
         .onChange(of: tab) { _, new in

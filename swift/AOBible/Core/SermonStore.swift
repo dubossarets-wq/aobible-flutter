@@ -138,6 +138,19 @@ final class SermonStore: ObservableObject {
         if let d = try? JSONEncoder().encode(sermons) { try? d.write(to: url, options: .atomic) }
     }
 
+    func exportEntry() -> String {
+        String(data: (try? JSONEncoder().encode(sermons)) ?? Data("[]".utf8), encoding: .utf8) ?? "[]"
+    }
+
+    func importEntry(_ s: String?) {
+        if let s, let d = s.data(using: .utf8), let list = try? JSONDecoder().decode([Sermon].self, from: d) {
+            sermons = list
+        } else {
+            sermons = []
+        }
+        save()
+    }
+
     func get(_ id: String) -> Sermon? {
         sermons.first { $0.id == id }
     }

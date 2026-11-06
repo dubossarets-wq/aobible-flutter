@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Закладки, заметки и подсветка — список мест; нажатие открывает место в чтении
+/// Закладки, заметки, подсветка и любимые — списки мест; нажатие открывает место в чтении
 struct BookmarksView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var marks: MarksStore
-    @Environment(\.openVerse) private var openVerse
     @EnvironmentObject private var panes: PanesStore
-    private var moduleId: String { panes.primaryModule }
+    @Environment(\.openVerse) private var openVerse
     @State private var kind = 0
 
     private struct Place: Identifiable {
@@ -14,13 +13,13 @@ struct BookmarksView: View {
         let book: String
         let chapter: Int
         let verse: Int
-        var bookmark: Bookmark? = nil
+        var text: String? = nil
         var note: String? = nil
-        var color: Int? = nil
+        var color: String? = nil
     }
 
     private var module: InstalledModule? {
-        store.module(moduleId) ?? store.bibles.first
+        store.module(panes.primaryModule) ?? store.bibles.first
     }
 
     private func parts(_ key: String) -> (String, Int, Int)? {
@@ -40,19 +39,14 @@ struct BookmarksView: View {
     private var places: [Place] {
         switch kind {
         case 0:
-            return marks.data.bookmarks.map {
-                Place(id: $0.id.uuidString, book: $0.book, chapter: $0.chapter, verse: $0.verse, bookmark: $0)
-            }
+            return marks.data.bookmarks.map { Place(id: $0.id, book: $0.book, chapter: $0.chapter, verse: $0.verse, text: $0.text) }
         case 1:
-            return marks.data.notes.compactMap { k, text in
+            return marks.data.notes.compactMap { k, e in
                 guard let (b, c, v) = parts(k) else { return nil }
-                return Place(id: k, book: b, chapter: c, verse: v, note: text)
+                return Place(id: k, book: b, chapter: c, verse: v, note: e.text)
             }.sorted(by: order)
         case 3:
-            return marks.data.favorites.compactMap { k in
-                guard let (b, c, v) = parts(k) else { return nil }
-                return Place(id: k, book: b, chapter: c, verse: v)
-            }
+            return marks.data.favorites.map { Place(id: $0.id, book: $0.book, chapter: $0.chapter, verse: $0.verse, text: $0.text) }
         default:
             return marks.data.highlights.compactMap { k, color in
                 guard let (b, c, v) = parts(k) else { return nil }
@@ -84,7 +78,7 @@ struct BookmarksView: View {
                         ContentUnavailableView {
                             Label(kind == 0 ? "Нет закладок" : (kind == 1 ? "Нет заметок" : (kind == 3 ? "Нет любимых стихов" : "Нет подсветки")), systemImage: kind == 0 ? "bookmark" : (kind == 1 ? "note.text" : (kind == 3 ? "heart" : "highlighter")))
                         } description: {
-                            Text("Нажмите на стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым.")
+                            Text("Зажмите стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым.")
                         }
                     }
                 } else {
@@ -95,15 +89,17 @@ struct BookmarksView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        if let c = p.color {
-                                            Circle().fill(highlightColors[min(c, highlightColors.count - 1)]).frame(width: 12, height: 12)
+                                        if let c = hlColor(p.color) {
+                                            Circle().fill(c.color).frame(width: 12, height: 12)
                                         }
                                         Text(label(p)).font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
                                     }
                                     if let n = p.note {
                                         Text(n).foregroundStyle(.primary)
                                     }
-                                    if let m = module, let t = store.verseText(module: m.id, book: p.book, chapter: p.chapter, verse: p.verse) {
+                                    if let t = p.text, !t.isEmpty {
+                                        Text(t).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                                    } else if let m = module, let t = store.verseText(module: m.id, book: p.book, chapter: p.chapter, verse: p.verse) {
                                         Text(t).font(.callout).foregroundStyle(.secondary).lineLimit(3)
                                     }
                                 }
@@ -121,12 +117,12 @@ struct BookmarksView: View {
     }
 
     private func remove(_ p: Place) {
-        let key = MarksStore.key(p.book, p.chapter, p.verse)
         switch kind {
-        case 0: if let b = p.bookmark { marks.removeBookmark(b) }
-        case 1: marks.setNote(key, "")
-        case 3: marks.toggleFavorite(key)
-        default: marks.setHighlight(keys: [key], color: nil)
+        case 0:
+            if let b = marks.data.bookmarks.first(where: { $0.id == p.id }) { marks.removeBookmark(b) }
+        case 1: marks.setNote(p.id, "")
+        case 3: marks.removeFavorite(p.id)
+        default: marks.setHighlight(keys: [p.id], color: nil)
         }
     }
 }
