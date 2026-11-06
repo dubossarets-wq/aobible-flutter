@@ -3,6 +3,9 @@ import SwiftUI
 /// «Ещё»: сгруппированный список с крупным заголовком — шапка, сворачивание заголовка, края прокрутки и стекло
 /// рисует сама система
 struct MoreView: View {
+    @EnvironmentObject private var marks: MarksStore
+    @AppStorage("panesStacked") private var panesStacked = true
+    @State private var bookmarkedMessage: String?
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var audio: AudioEngine
@@ -12,7 +15,19 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section {
-                    link("Закладка на это место", "bookmark.fill", .orange)
+                    Button {
+                        if let p = panes.panes.first {
+                            let v = max(1, p.verse)
+                            if !marks.isBookmarked(p.book, p.chapter, v) {
+                                marks.toggleBookmark(p.book, p.chapter, v, text: store.verseText(module: p.moduleId, book: p.book, chapter: p.chapter, verse: v) ?? "")
+                            }
+                            let name = Books.info(p.book)?.name ?? p.book
+                            bookmarkedMessage = "Закладка: \(name) \(p.chapter):\(v)"
+                        }
+                    } label: {
+                        IconLabel(title: "Закладка на это место", symbol: "bookmark.fill", color: .orange)
+                    }
+                    .buttonStyle(.plain)
                     NavigationLink {
                         SermonsView()
                     } label: {
@@ -34,8 +49,9 @@ struct MoreView: View {
                     }
                 }
                 Section {
-                    link("Синхронная прокрутка", "link", .blue)
-                    link("Панели друг над другом", "rectangle.split.1x2.fill", Color(red: 0.35, green: 0.34, blue: 0.84))
+                    Toggle(isOn: $panesStacked) {
+                        IconLabel(title: "Панели друг над другом", symbol: "rectangle.split.1x2.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
+                    }
                     NavigationLink {
                         LibraryScreen()
                     } label: {
@@ -91,6 +107,11 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("Ещё")
+            .alert("Закладка", isPresented: Binding(get: { bookmarkedMessage != nil }, set: { if !$0 { bookmarkedMessage = nil } })) {
+                Button("OK") {}
+            } message: {
+                Text(bookmarkedMessage ?? "")
+            }
         }
     }
 

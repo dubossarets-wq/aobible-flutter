@@ -228,6 +228,12 @@ struct SearchPage: View {
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, isPresented: $searching, prompt: "Слово, Ин 3:16 или G26")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: onClose) {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("Назад")
+                }
                 ToolbarItem(placement: .bottomBar) {
                     Button(action: onClose) {
                         Image(systemName: "chevron.left")

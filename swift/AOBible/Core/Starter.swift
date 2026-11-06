@@ -42,6 +42,20 @@ enum Starter {
             if store.module(id) != nil { done.insert(id) }
             ud.set(Array(done), forKey: "starterDone")
         }
+        // аудиозаписи к установленным переводам — один раз каждая
+        var tried = Set(ud.stringArray(forKey: "autoAudioList") ?? [])
+        for e in store.catalog where e.type == "audio" && (e.json["unavailable"] as? Bool) != true {
+            let translation = e.json["translation"] as? String
+            guard store.module(e.id) == nil, !tried.contains(e.id), store.bibles.contains(where: { audioFits(translation, $0.id) }) else { continue }
+            store.starterStatus = "Устанавливаю аудио…"
+            tried.insert(e.id)
+            ud.set(Array(tried), forKey: "autoAudioList")
+            await store.install(e)
+            if store.module(e.id) == nil {
+                tried.remove(e.id)
+                ud.set(Array(tried), forKey: "autoAudioList")
+            }
+        }
         store.starterStatus = nil
     }
 }

@@ -65,6 +65,7 @@ struct ModulesList: View {
                                 }
                             }
                         }
+                        .buttonStyle(.plain)
                         .swipeActions {
                             Button("Удалить", role: .destructive) { store.remove(m.id) }
                         }

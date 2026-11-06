@@ -36,7 +36,6 @@ struct SettingsView: View {
                 Toggle("Параллельные места после стиха", isOn: $showXrefs)
                 Toggle("Иллюстрации к стихам", isOn: $showIllustrations)
                 Toggle("Панели друг над другом", isOn: $panesStacked)
-                Toggle("Синхронная прокрутка панелей", isOn: $syncScroll)
             } header: {
                 Text("Чтение")
             } footer: {
