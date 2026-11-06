@@ -13,6 +13,7 @@ struct RootView: View {
     @State private var showSearch = false
     @AppStorage("theme") private var theme = "system"
     @EnvironmentObject private var panes: PanesStore
+    @EnvironmentObject private var audio: AudioEngine
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -44,6 +45,10 @@ struct RootView: View {
             Tab(value: AppTab.search, role: .search) {
                 Color.clear
             }
+        }
+        // мини-проигрыватель над нижним меню, пока идёт аудио
+        .tabViewBottomAccessory(isEnabled: audio.active) {
+            AudioBar()
         }
         // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
         // (слева всегда «назад», рядом системное поле поиска), а выбранной остаётся прежняя вкладка

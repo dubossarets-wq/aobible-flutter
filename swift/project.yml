@@ -35,6 +35,8 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - audio
         UIAppFonts:
           - IBMPlexSans-Var.ttf
           - Literata-Var.ttf

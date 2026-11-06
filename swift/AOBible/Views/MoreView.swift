@@ -3,6 +3,11 @@ import SwiftUI
 /// «Ещё»: сгруппированный список с крупным заголовком — шапка, сворачивание заголовка, края прокрутки и стекло
 /// рисует сама система
 struct MoreView: View {
+    @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var panes: PanesStore
+    @EnvironmentObject private var audio: AudioEngine
+    @Environment(\.openVerse) private var openVerse
+
     var body: some View {
         NavigationStack {
             List {
@@ -13,7 +18,15 @@ struct MoreView: View {
                     } label: {
                         IconLabel(title: "Проповеди", symbol: "doc.text.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
                     }
-                    link("Слушать с этого места", "headphones", Color(red: 1.0, green: 0.18, blue: 0.33))
+                    Button {
+                        if let p = panes.panes.first {
+                            openVerse(p.book, p.chapter, max(1, p.verse))
+                            Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+                        }
+                    } label: {
+                        IconLabel(title: "Слушать с этого места", symbol: "headphones", color: Color(red: 1.0, green: 0.18, blue: 0.33))
+                    }
+                    .buttonStyle(.plain)
                     link("Карты", "map.fill", .green)
                 }
                 Section {
@@ -23,6 +36,11 @@ struct MoreView: View {
                         LibraryScreen()
                     } label: {
                         IconLabel(title: "Библиотека модулей", symbol: "books.vertical.fill", color: .teal)
+                    }
+                    NavigationLink {
+                        AudioSettingsView()
+                    } label: {
+                        IconLabel(title: "Аудио", symbol: "waveform", color: Color(red: 1.0, green: 0.18, blue: 0.33))
                     }
                     NavigationLink {
                         DictionaryView()

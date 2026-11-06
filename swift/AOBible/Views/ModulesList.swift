@@ -17,7 +17,7 @@ struct ModulesList: View {
     @Binding var selected: String
     @State private var kind = "bible"
 
-    private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные")]
+    private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
 
     private var shownInstalled: [InstalledModule] {
         store.installed.filter { $0.type == kind && !$0.online }
@@ -43,7 +43,7 @@ struct ModulesList: View {
                         Text(k.1).tag(k.0)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
             }
             if !shownInstalled.isEmpty {
                 Section("Установленные") {

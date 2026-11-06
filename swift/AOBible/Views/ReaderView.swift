@@ -4,6 +4,7 @@ import SwiftUI
 struct ReaderView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
+    @EnvironmentObject private var audio: AudioEngine
     @AppStorage("panesStacked") private var stacked = true
     @Environment(\.readerPalette) private var pal
     @State private var showModules = false
@@ -38,6 +39,11 @@ struct ReaderView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .background(pal.bg.ignoresSafeArea())
+            .alert("Аудио", isPresented: Binding(get: { audio.message != nil }, set: { if !$0 { audio.message = nil } })) {
+                Button("OK") {}
+            } message: {
+                Text(audio.message ?? "")
+            }
             .sheet(isPresented: $showModules) {
                 NavigationStack {
                     ModulesList(selected: panes.primaryBinding())
@@ -63,6 +69,7 @@ struct ReaderView: View {
 struct PaneView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
+    @EnvironmentObject private var audio: AudioEngine
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @State private var showGoto = false
@@ -131,6 +138,11 @@ struct PaneView: View {
                     .buttonStyle(.glass)
                     .accessibilityLabel("Вперёд")
             }
+            Button {
+                Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+            } label: { Image(systemName: "headphones") }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Слушать")
             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left") }
                 .buttonStyle(.glass)
                 .accessibilityLabel("Предыдущая глава")
@@ -187,6 +199,7 @@ struct ChapterText: View {
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var plans: PlansStore
     @EnvironmentObject private var sermons: SermonStore
+    @EnvironmentObject private var audio: AudioEngine
     let module: InstalledModule
     let pane: PaneState
 
@@ -416,6 +429,10 @@ struct ChapterText: View {
 
     private func background(_ n: Int) -> Color {
         if selected.contains(n) { return pal.accent.opacity(0.22) }
+        // звучащий стих подсвечен
+        if audio.active, audio.moduleId == module.id, let c = audio.current, c.book == book, c.chapter == chapter, c.verse == n {
+            return pal.accent.opacity(0.16)
+        }
         if let c = marks.highlight(MarksStore.key(book, chapter, n)) {
             return highlightColors[min(c, highlightColors.count - 1)].opacity(0.35)
         }
@@ -640,6 +657,10 @@ struct ChapterText: View {
                     for k in keys() where marks.isFavorite(k) == favorite { marks.toggleFavorite(k) }
                     selected = []
                 } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
+                Button {
+                    Task { await audio.listen(store: store, moduleId: module.id, from: Place(book: book, chapter: chapter, verse: first)) }
+                    selected = []
+                } label: { Label("Слушать", systemImage: "headphones") }
                 Menu {
                     ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
                         Button(s.title.isEmpty ? "Без названия" : s.title) { addToSermon(s.id, verses) }

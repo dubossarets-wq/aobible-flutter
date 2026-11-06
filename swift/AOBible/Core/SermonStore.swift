@@ -113,9 +113,9 @@ struct VerseItem {
 final class SermonStore: ObservableObject {
     @Published private(set) var sermons: [Sermon] = []
     private let url: URL
-    private static var seq = 0
+    nonisolated(unsafe) private static var seq = 0
 
-    static func newId() -> String {
+    nonisolated static func newId() -> String {
         seq += 1
         return String(Int(Date().timeIntervalSince1970 * 1000), radix: 36) + String(seq, radix: 36)
     }

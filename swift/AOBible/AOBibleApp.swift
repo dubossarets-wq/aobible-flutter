@@ -7,6 +7,7 @@ struct AOBibleApp: App {
     @StateObject private var plans = PlansStore()
     @StateObject private var panes = PanesStore()
     @StateObject private var sermons = SermonStore()
+    @StateObject private var audio = AudioEngine()
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,7 @@ struct AOBibleApp: App {
                 .environmentObject(plans)
                 .environmentObject(panes)
                 .environmentObject(sermons)
+                .environmentObject(audio)
         }
     }
 }
