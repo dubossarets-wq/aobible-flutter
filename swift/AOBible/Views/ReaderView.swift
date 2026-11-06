@@ -233,6 +233,7 @@ struct ChapterText: View {
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var strong: StrongRequest?
+    @State private var imageReq: ImageRequest?
     @State private var word: WordRequest?
     @State private var panel: StudyPanel?
     @State private var readTask: Task<Void, Never>?
@@ -383,6 +384,9 @@ struct ChapterText: View {
         }
         .sheet(item: $word) { r in
             WordSheet(req: r)
+        }
+        .sheet(item: $imageReq) { r in
+            VerseImageSheet(text: r.text, ref: r.ref)
         }
         .sheet(item: $panel) { p in
             switch p {
@@ -661,6 +665,11 @@ struct ChapterText: View {
                 Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
                 Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
                 Button { panel = .interlinear(first) } label: { Label("Подстрочник", systemImage: "text.alignleft") }
+                Button {
+                    let t = verses.filter { selected.contains($0.num) }.map { Markup.plain($0.text) }.joined(separator: " ")
+                    imageReq = ImageRequest(text: t, ref: "\(bookName) \(chapter):\(rangeText())")
+                    selected = []
+                } label: { Label("Картинка со стихом", systemImage: "photo") }
                 Menu {
                     ForEach(store.bibles) { m in
                         Button(m.name + " — " + m.title) {

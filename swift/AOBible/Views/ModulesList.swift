@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private struct LangGroup: Identifiable {
     let code: String
@@ -16,6 +17,8 @@ struct ModulesList: View {
     @EnvironmentObject private var store: ModuleStore
     @Binding var selected: String
     @State private var kind = "bible"
+    @State private var importing = false
+    @State private var importError: String?
 
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
 
@@ -89,6 +92,22 @@ struct ModulesList: View {
                     }
                 }
             }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { importing = true } label: { Image(systemName: "square.and.arrow.down.on.square") }
+                    .accessibilityLabel("Установить из файла")
+            }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .gzip, .data]) { result in
+            if case .success(let url) = result {
+                Task { importError = await store.importFile(url) }
+            }
+        }
+        .alert("Установка из файла", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text(importError ?? "")
         }
         .task {
             if store.catalog.isEmpty { await store.loadCatalog() }

@@ -72,6 +72,7 @@ final class PlansStore: ObservableObject {
 
     private func savePlans() {
         if let d = try? JSONEncoder().encode(plans) { try? d.write(to: plansURL, options: .atomic) }
+        Reminders.schedule(plans)
     }
 
     private func saveLog() {

@@ -170,6 +170,30 @@ final class ModuleStore: ObservableObject {
         return rows.first.map { Markup.plain($0) }
     }
 
+    /// Импорт модуля из файла (.json или .json.gz в формате aob-module)
+    func importFile(_ url: URL) async -> String? {
+        let ok = url.startAccessingSecurityScopedResource()
+        defer { if ok { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return "Не удалось прочитать файл." }
+        let dir = self.dir
+        let result: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+            do {
+                let raw = (data.count > 2 && data[0] == 0x1f && data[1] == 0x8b) ? try Gzip.decode(data) : data
+                guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any],
+                      j["format"] as? String == "aob-module", let id = j["id"] as? String,
+                      id.range(of: "^[A-Za-z0-9-]+$", options: .regularExpression) != nil else {
+                    return "Это не модуль AO Bible (нужен файл формата aob-module)."
+                }
+                try ModuleConverter.convert(json: raw, to: dir.appendingPathComponent("\(id).db"), catalogVersion: "")
+                return nil
+            } catch {
+                return "Не удалось установить модуль из файла."
+            }
+        }.value
+        if result == nil { scan() }
+        return result
+    }
+
     func remove(_ id: String) {
         opened[id] = nil
         if let m = module(id) {

@@ -65,6 +65,14 @@ struct RootView: View {
                 UserData.snapshot("до обновления с версии \(lastBuild)", marks: marks, plans: plans, sermons: sermons)
             }
             lastBuild = build
+            // данные Flutter-версии (если приложение стоит поверх неё): настройки и язык — один раз
+            let ud = UserDefaults.standard
+            if !ud.bool(forKey: "flutterImported") {
+                if let s = ud.string(forKey: "flutter.settings") { UserData.applySettings(s) }
+                if let l = ud.string(forKey: "flutter.lang"), interfaceLanguages.contains(where: { $0.0 == l }) { lang = l }
+                ud.set(true, forKey: "flutterImported")
+            }
+            Reminders.schedule(plans.plans)
             // первый запуск: основной перевод, затем остальное в фоне
             await Starter.run(store: store, lang: lang)
         }

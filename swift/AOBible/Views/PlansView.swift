@@ -3,6 +3,11 @@ import SwiftUI
 /// Планы чтения: «Стих дня», статистика, активные планы с отметками, каталог планов и свой план
 struct PlansView: View {
     @EnvironmentObject private var plans: PlansStore
+    @State private var remindOn = Reminders.isOn
+    @State private var remindTime: Date = {
+        let p = Reminders.time.split(separator: ":").compactMap { Int($0) }
+        return Calendar.current.date(from: DateComponents(hour: p.first ?? 20, minute: p.count > 1 ? p[1] : 0)) ?? Date()
+    }()
     @State private var catalog: [PlanMeta] = []
     @State private var catalogFailed = false
     @State private var busy: String?
@@ -18,6 +23,31 @@ struct PlansView: View {
                 }
                 Section {
                     StatsCard(stats: PlanLogic.stats(plans.log))
+                }
+                Section {
+                    Toggle("Напоминать о чтении", isOn: Binding(get: { remindOn }, set: { on in
+                        if on {
+                            Task {
+                                let ok = await Reminders.requestAccess()
+                                remindOn = ok
+                                Reminders.isOn = ok
+                                if !ok { flash("Уведомления запрещены — разрешите их в настройках телефона") }
+                                Reminders.schedule(plans.plans)
+                            }
+                        } else {
+                            remindOn = false
+                            Reminders.isOn = false
+                            Reminders.schedule(plans.plans)
+                        }
+                    }))
+                    if remindOn {
+                        DatePicker("Время", selection: $remindTime, displayedComponents: .hourAndMinute)
+                            .onChange(of: remindTime) { _, t in
+                                let c = Calendar.current.dateComponents([.hour, .minute], from: t)
+                                Reminders.time = String(format: "%02d:%02d", c.hour ?? 20, c.minute ?? 0)
+                                Reminders.schedule(plans.plans)
+                            }
+                    }
                 }
                 ForEach(plans.plans) { p in
                     Section {
@@ -120,6 +150,7 @@ struct VerseOfDayCard: View {
     private var moduleId: String { panes.primaryModule }
     @State private var verse: DayVerse?
     @State private var photo: URL?
+    @State private var imageReq: ImageRequest?
 
     private var label: String {
         guard let v = verse else { return "" }
@@ -159,8 +190,14 @@ struct VerseOfDayCard: View {
                             Label("Читать", systemImage: "book")
                         }
                         .buttonStyle(.glassProminent)
+                        Button {
+                            imageReq = ImageRequest(text: v.text, ref: label)
+                        } label: {
+                            Label("Картинка", systemImage: "photo")
+                        }
+                        .buttonStyle(.glass)
                         ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))") {
-                            Label("Поделиться", systemImage: "square.and.arrow.up")
+                            Image(systemName: "square.and.arrow.up")
                         }
                         .buttonStyle(.glass)
                     }
@@ -173,6 +210,7 @@ struct VerseOfDayCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 300)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .sheet(item: $imageReq) { VerseImageSheet(text: $0.text, ref: $0.ref) }
         .task(id: moduleId + "\(store.installed.count)") {
             verse = VerseOfDay.load(store: store, preferred: moduleId)
             if photo == nil, let j = await Net.json("images/verse-bg/index.json"),
