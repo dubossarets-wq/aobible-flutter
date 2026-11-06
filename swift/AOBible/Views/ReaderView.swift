@@ -83,7 +83,7 @@ struct PaneView: View {
     @EnvironmentObject private var audio: AudioEngine
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
-    @State private var showGoto = false
+    @State private var showGoto = UserDefaults.standard.bool(forKey: "debugGoto")
     @State private var showModules = false
 
     private var pane: PaneState? {
@@ -324,7 +324,15 @@ struct ChapterText: View {
                 .padding(.vertical, 12)
             }
             .background(pal.bg)
-            .onAppear { scroll(proxy, verses, heads) }
+            .onAppear {
+                scroll(proxy, verses, heads)
+                // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»
+                if UserDefaults.standard.bool(forKey: "debugWord"), word == nil {
+                    word = WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
+                }
+                // -debugSelect YES: выделен первый стих (панель действий)
+                if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
+            }
             .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
         }
         .id("\(module.id)|\(book)|\(chapter)")

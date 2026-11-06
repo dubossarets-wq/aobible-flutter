@@ -63,6 +63,28 @@ jobs:
             sleep 8
             xcrun simctl io "$DEV" screenshot shots/03-$tab.png
           done
+          for v in appearance settings mydata about news help library dictionary maps audio sermons; do
+            xcrun simctl terminate "$DEV" app.aobible || true
+            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugView $v
+            sleep 5
+            xcrun simctl io "$DEV" screenshot shots/05-$v.png
+          done
+          xcrun simctl terminate "$DEV" app.aobible || true
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugSearch "Бог"
+          sleep 6
+          xcrun simctl io "$DEV" screenshot shots/06-search.png
+          xcrun simctl terminate "$DEV" app.aobible || true
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugGoto YES
+          sleep 6
+          xcrun simctl io "$DEV" screenshot shots/07-goto.png
+          xcrun simctl terminate "$DEV" app.aobible || true
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugWord YES
+          sleep 6
+          xcrun simctl io "$DEV" screenshot shots/08-word.png
+          xcrun simctl terminate "$DEV" app.aobible || true
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugSelect YES
+          sleep 6
+          xcrun simctl io "$DEV" screenshot shots/09-select.png
           xcrun simctl ui "$DEV" appearance dark
           xcrun simctl terminate "$DEV" app.aobible || true
           xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -debugTab bible

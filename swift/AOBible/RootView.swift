@@ -19,6 +19,7 @@ struct RootView: View {
     @EnvironmentObject private var marks: MarksStore
     @EnvironmentObject private var plans: PlansStore
     @EnvironmentObject private var sermons: SermonStore
+    @State private var debugView: String? = UserDefaults.standard.string(forKey: "debugView")
     @AppStorage("welcomeSeen") private var welcomeSeen = false
     @AppStorage("lastBuild") private var lastBuild = ""
     @AppStorage("interfaceLanguage") private var lang = "ru"
@@ -26,6 +27,24 @@ struct RootView: View {
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
         AppThemes.scheme(theme)
+    }
+
+    @ViewBuilder
+    private var debugContent: some View {
+        switch debugView {
+        case "appearance": AppearanceView()
+        case "settings": SettingsView()
+        case "mydata": MyDataView()
+        case "about": AboutView()
+        case "news": NewsView()
+        case "help": HelpView()
+        case "library": ModulesList(selected: panes.primaryBinding()).navigationTitle("Библиотека")
+        case "dictionary": DictionaryView()
+        case "maps": MapsView()
+        case "audio": AudioSettingsView()
+        case "sermons": SermonsView()
+        default: EmptyView()
+        }
     }
 
     private static func startTab() -> AppTab {
@@ -65,6 +84,16 @@ struct RootView: View {
         }
         // мини-проигрыватель над нижним меню, пока идёт аудио
         .modifier(AudioAccessory(active: audio.active))
+        // проверка на симуляторе: -debugView appearance|settings|mydata|about|news|help|library|dictionary|maps|audio|sermons
+        .sheet(isPresented: Binding(get: { debugView != nil }, set: { if !$0 { debugView = nil } })) {
+            NavigationStack { debugContent }
+        }
+        .onAppear {
+            if let q = UserDefaults.standard.string(forKey: "debugSearch") {
+                query = q
+                showSearch = true
+            }
+        }
         .sheet(isPresented: Binding(get: { !welcomeSeen }, set: { if !$0 { welcomeSeen = true } })) {
             WelcomeSheet()
         }
