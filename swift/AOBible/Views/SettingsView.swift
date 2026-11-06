@@ -17,10 +17,12 @@ struct SettingsView: View {
                     Text("Українська").tag("uk")
                 }
             }
-            Section("Чтение") {
+            Section {
                 Toggle("Номера стихов", isOn: $showVerseNumbers)
                 Toggle("Номера Стронга", isOn: $showStrongs)
                 Toggle("Синхронная прокрутка панелей", isOn: $syncScroll)
+            } header: {
+                Text("Чтение")
             } footer: {
                 Text("Номера Стронга показываются у слов, для которых в модуле есть подстрочник.")
             }
