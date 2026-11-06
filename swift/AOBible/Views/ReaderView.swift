@@ -106,6 +106,23 @@ struct ReaderView: View {
     }
 }
 
+struct StrongRequest: Identifiable {
+    let id = UUID()
+    let key: String
+}
+
+enum StudyPanel: Identifiable {
+    case commentary(Int)
+    case xrefs(Int)
+
+    var id: String {
+        switch self {
+        case .commentary(let v): return "c\(v)"
+        case .xrefs(let v): return "x\(v)"
+        }
+    }
+}
+
 /// Текст главы: нажатие выбирает стих, внизу — панель действий (копировать, поделиться, подсветка, закладка, заметка)
 struct ChapterText: View {
     @EnvironmentObject private var store: ModuleStore
@@ -123,6 +140,8 @@ struct ChapterText: View {
     @State private var selected: Set<Int> = []
     @State private var noteVerse: Int?
     @State private var noteText = ""
+    @State private var strong: StrongRequest?
+    @State private var panel: StudyPanel?
 
     private let colorNames = ["Жёлтый", "Зелёный", "Синий", "Розовый", "Оранжевый"]
 
@@ -188,6 +207,24 @@ struct ChapterText: View {
             noteEditor
         }
         .onChange(of: chapter) { _, _ in selected = [] }
+        .environment(\.openURL, OpenURLAction { url in
+            if let k = StrongLinks.key(from: url) {
+                strong = StrongRequest(key: k)
+                return .handled
+            }
+            return .systemAction
+        })
+        .sheet(item: $strong) { r in
+            StrongSheet(keys: [r.key])
+        }
+        .sheet(item: $panel) { p in
+            switch p {
+            case .commentary(let v):
+                CommentarySheet(book: book, chapter: chapter, verse: v)
+            case .xrefs(let v):
+                XrefsSheet(module: module, book: book, chapter: chapter, verse: v)
+            }
+        }
     }
 
     private func scroll(_ proxy: ScrollViewProxy) {
@@ -226,11 +263,15 @@ struct ChapterText: View {
             }
             out += s
             if showStrongs && !t.strongs.isEmpty {
-                var n = AttributedString(" " + t.strongs.joined(separator: " "))
-                n.font = .system(size: fontSize * 0.55)
-                n.baselineOffset = fontSize * 0.3
-                n.foregroundColor = Color.accentColor
-                out += n
+                // номера Стронга — ссылки: нажатие открывает словарную статью
+                for key in t.strongs {
+                    var n = AttributedString(" " + key)
+                    n.font = .system(size: fontSize * 0.55)
+                    n.baselineOffset = fontSize * 0.3
+                    n.foregroundColor = Color.accentColor
+                    n.link = URL(string: "aobstrong:" + key)
+                    out += n
+                }
             }
         }
         return out
@@ -258,7 +299,7 @@ struct ChapterText: View {
     private func selectionBar(_ verses: [Verse]) -> some View {
         let first = selected.sorted().first ?? 1
         let bookmarked = marks.isBookmarked(book, chapter, first)
-        return HStack(spacing: 22) {
+        return HStack(spacing: 18) {
             Button {
                 UIPasteboard.general.string = quote(verses)
                 selected = []
@@ -291,6 +332,10 @@ struct ChapterText: View {
                 noteVerse = first
             } label: { Image(systemName: "note.text") }
                 .accessibilityLabel("Заметка")
+            Button { panel = .commentary(first) } label: { Image(systemName: "text.book.closed") }
+                .accessibilityLabel("Толкования")
+            Button { panel = .xrefs(first) } label: { Image(systemName: "arrow.triangle.branch") }
+                .accessibilityLabel("Параллельные места")
             Button { selected = [] } label: { Image(systemName: "xmark") }
                 .accessibilityLabel("Снять выделение")
         }

@@ -15,10 +15,17 @@ private struct LangGroup: Identifiable {
 struct ModulesList: View {
     @EnvironmentObject private var store: ModuleStore
     @Binding var selected: String
+    @State private var kind = "bible"
+
+    private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные")]
+
+    private var shownInstalled: [InstalledModule] {
+        store.installed.filter { $0.type == kind && !$0.online }
+    }
 
     private var groups: [LangGroup] {
         let installedIds = Set(store.installed.map { $0.id })
-        let list = store.catalog.filter { $0.type == "bible" && $0.downloadable && !installedIds.contains($0.id) }
+        let list = store.catalog.filter { $0.type == kind && $0.downloadable && !installedIds.contains($0.id) }
         let by = Dictionary(grouping: list, by: { $0.language })
         return by.keys
             .sorted { a, b in
@@ -30,11 +37,19 @@ struct ModulesList: View {
 
     var body: some View {
         List {
-            if !store.bibles.isEmpty {
+            Section {
+                Picker("Тип", selection: $kind) {
+                    ForEach(kinds, id: \.0) { k in
+                        Text(k.1).tag(k.0)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            if !shownInstalled.isEmpty {
                 Section("Установленные") {
-                    ForEach(store.bibles) { m in
+                    ForEach(shownInstalled) { m in
                         Button {
-                            selected = m.id
+                            if kind == "bible" { selected = m.id }
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -42,7 +57,7 @@ struct ModulesList: View {
                                     Text(m.title).font(.subheadline).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if m.id == selected {
+                                if kind == "bible" && m.id == selected {
                                     Image(systemName: "checkmark").foregroundStyle(.tint)
                                 }
                             }
@@ -99,7 +114,7 @@ struct ModulesList: View {
                 Button("Скачать") {
                     Task {
                         await store.install(e)
-                        if store.module(selected) == nil { selected = e.id }
+                        if e.type == "bible" && store.module(selected) == nil { selected = e.id }
                     }
                 }
                 .buttonStyle(.bordered)

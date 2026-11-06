@@ -20,6 +20,11 @@ struct MoreView: View {
                     } label: {
                         IconLabel(title: "Библиотека модулей", symbol: "books.vertical.fill", color: .teal)
                     }
+                    NavigationLink {
+                        DictionaryView()
+                    } label: {
+                        IconLabel(title: "Словарь", symbol: "character.book.closed.fill", color: .brown)
+                    }
                 }
                 Section {
                     NavigationLink {

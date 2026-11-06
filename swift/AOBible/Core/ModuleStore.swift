@@ -19,6 +19,8 @@ struct InstalledModule: Identifiable, Hashable {
     let books: [ModuleBook]
     /// Перевод по сети (без текста внутри файла) — пока не читается
     let online: Bool
+    /// Для словарей: «strongs» (ключи — номера Стронга) или «words» (ключи — слова)
+    var dictionaryKind: String = "words"
 }
 
 struct CatalogEntry: Identifiable {
@@ -108,7 +110,8 @@ final class ModuleStore: ObservableObject {
                 type: j["type"] as? String ?? "bible",
                 path: f.path,
                 books: books,
-                online: j["online"] != nil
+                online: j["online"] != nil,
+                dictionaryKind: j["dictionaryKind"] as? String ?? "words"
             ))
         }
         installed = list.sorted {
@@ -118,7 +121,7 @@ final class ModuleStore: ObservableObject {
         }
     }
 
-    private func db(_ id: String) -> SQLiteDB? {
+    func db(_ id: String) -> SQLiteDB? {
         if let d = opened[id] { return d }
         guard let m = module(id), let d = try? SQLiteDB(path: m.path, readOnly: true) else { return nil }
         opened[id] = d
@@ -247,9 +250,11 @@ enum Gzip {
 // MARK: - JSON модуля → SQLite (тот же формат, что у Flutter-версии)
 
 enum ModuleConverter {
+    static let studyTypes: Set<String> = ["dictionary", "commentary", "crossrefs"]
+
     static func convert(json: Data, to target: URL, catalogVersion: String) throws {
-        guard let j = (try JSONSerialization.jsonObject(with: json)) as? [String: Any],
-              let books = j["books"] as? [[String: Any]] else { throw ConvertError.format }
+        guard let j = (try JSONSerialization.jsonObject(with: json)) as? [String: Any] else { throw ConvertError.format }
+        let type = j["type"] as? String ?? "bible"
         let tmp = target.appendingPathExtension("part")
         try? FileManager.default.removeItem(at: tmp)
 
@@ -263,63 +268,25 @@ enum ModuleConverter {
                 meta.removeValue(forKey: k)
             }
             if !catalogVersion.isEmpty { meta["catalogVersion"] = catalogVersion }
-            meta["bookList"] = books.map { b -> [String: Any] in
-                [
-                    "id": b["id"] ?? "",
-                    "name": b["name"] ?? "",
-                    "short": b["short"] ?? "",
-                    "chapters": (b["chapters"] as? [Any])?.count ?? 0,
-                ]
-            }
 
-            try db.exec("""
-                CREATE TABLE verses(id INTEGER PRIMARY KEY, book TEXT NOT NULL, chapter INTEGER NOT NULL, verse INTEGER NOT NULL, text TEXT NOT NULL);
-                CREATE TABLE headings(book TEXT, chapter INTEGER, verse INTEGER, text TEXT);
-                CREATE TABLE xrefs(book TEXT, chapter INTEGER, verse INTEGER, refs TEXT);
-            """)
-            let hasFTS = (try? db.exec("CREATE VIRTUAL TABLE verses_fts USING fts5(plain, content='', tokenize='unicode61 remove_diacritics 2')")) != nil
-
-            var vrows: [[Any]] = []
-            var frows: [[Any]] = []
-            var hrows: [[Any]] = []
-            var xrows: [[Any]] = []
-            var id = 0
-            for b in books {
-                let bid = b["id"] as? String ?? ""
-                let chapters = b["chapters"] as? [[Any]] ?? []
-                for (ci, ch) in chapters.enumerated() {
-                    for (vi, v) in ch.enumerated() {
-                        guard let raw = v as? String, !raw.isEmpty else { continue }
-                        id += 1
-                        vrows.append([id, bid, ci + 1, vi + 1, raw])
-                        frows.append([id, Markup.plain(raw)])
-                    }
+            if type == "bible" {
+                guard let books = j["books"] as? [[String: Any]] else { throw ConvertError.format }
+                meta["bookList"] = books.map { b -> [String: Any] in
+                    [
+                        "id": b["id"] ?? "",
+                        "name": b["name"] ?? "",
+                        "short": b["short"] ?? "",
+                        "chapters": (b["chapters"] as? [Any])?.count ?? 0,
+                    ]
                 }
-                if let h = b["headings"] as? [String: Any] {
-                    for (k, t) in h {
-                        let p = k.split(separator: ":")
-                        if p.count == 2, let c = Int(p[0]), let v = Int(p[1]), let txt = t as? String {
-                            hrows.append([bid, c, v, txt])
-                        }
-                    }
-                }
-                if let x = b["xrefs"] as? [String: Any] {
-                    for (k, refs) in x {
-                        let p = k.split(separator: ":")
-                        if p.count == 2, let c = Int(p[0]), let v = Int(p[1]),
-                           JSONSerialization.isValidJSONObject(refs),
-                           let d = try? JSONSerialization.data(withJSONObject: refs),
-                           let s = String(data: d, encoding: .utf8) {
-                            xrows.append([bid, c, v, s])
-                        }
-                    }
-                }
+                try buildBible(db, books)
+            } else if studyTypes.contains(type) {
+                try buildStudy(db, j, type)
+            } else {
+                // прочие типы (карты, иллюстрации) — исходный JSON целиком, разберём по мере переноса
+                try db.exec("CREATE TABLE payload(json TEXT)")
+                try db.insert("INSERT INTO payload VALUES (?)", [[jsonString(j) ?? "{}"]])
             }
-            try db.insert("INSERT INTO verses VALUES (?, ?, ?, ?, ?)", vrows)
-            if hasFTS { try db.insert("INSERT INTO verses_fts(rowid, plain) VALUES (?, ?)", frows) }
-            try db.insert("INSERT INTO headings VALUES (?, ?, ?, ?)", hrows)
-            try db.insert("INSERT INTO xrefs VALUES (?, ?, ?, ?)", xrows)
-            try db.exec("CREATE INDEX verses_ref ON verses(book, chapter, verse); CREATE INDEX headings_ref ON headings(book, chapter, verse);")
 
             let metaData = try JSONSerialization.data(withJSONObject: meta)
             try db.insert("INSERT INTO meta VALUES (?, ?)", [["json", String(data: metaData, encoding: .utf8) ?? "{}"]])
@@ -328,5 +295,120 @@ enum ModuleConverter {
 
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: tmp, to: target)
+    }
+
+    private static func jsonString(_ x: Any) -> String? {
+        guard JSONSerialization.isValidJSONObject(x), let d = try? JSONSerialization.data(withJSONObject: x) else { return nil }
+        return String(data: d, encoding: .utf8)
+    }
+
+    /// Ключ «Gen.1.1», «Josh.14.1-5» → (книга, глава, первый стих)
+    private static func osisStart(_ key: String) -> (String, Int, Int)? {
+        guard let head = key.split(separator: "-").first else { return nil }
+        let a = head.split(separator: ".").map(String.init)
+        guard a.count >= 2, let c = Int(a[1]) else { return nil }
+        let v = a.count > 2 ? Int(a[2]) : 1
+        guard let vv = v else { return nil }
+        return (a[0], c, vv)
+    }
+
+    private static func buildBible(_ db: SQLiteDB, _ books: [[String: Any]]) throws {
+        try db.exec("""
+            CREATE TABLE verses(id INTEGER PRIMARY KEY, book TEXT NOT NULL, chapter INTEGER NOT NULL, verse INTEGER NOT NULL, text TEXT NOT NULL);
+            CREATE TABLE headings(book TEXT, chapter INTEGER, verse INTEGER, text TEXT);
+            CREATE TABLE xrefs(book TEXT, chapter INTEGER, verse INTEGER, refs TEXT);
+        """)
+        let hasFTS = (try? db.exec("CREATE VIRTUAL TABLE verses_fts USING fts5(plain, content='', tokenize='unicode61 remove_diacritics 2')")) != nil
+
+        var vrows: [[Any]] = []
+        var frows: [[Any]] = []
+        var hrows: [[Any]] = []
+        var xrows: [[Any]] = []
+        var id = 0
+        for b in books {
+            let bid = b["id"] as? String ?? ""
+            let chapters = b["chapters"] as? [[Any]] ?? []
+            for (ci, ch) in chapters.enumerated() {
+                for (vi, v) in ch.enumerated() {
+                    guard let raw = v as? String, !raw.isEmpty else { continue }
+                    id += 1
+                    vrows.append([id, bid, ci + 1, vi + 1, raw])
+                    frows.append([id, Markup.plain(raw)])
+                }
+            }
+            if let h = b["headings"] as? [String: Any] {
+                for (k, t) in h {
+                    let p = k.split(separator: ":")
+                    if p.count == 2, let c = Int(p[0]), let v = Int(p[1]), let txt = t as? String {
+                        hrows.append([bid, c, v, txt])
+                    }
+                }
+            }
+            if let x = b["xrefs"] as? [String: Any] {
+                for (k, refs) in x {
+                    let p = k.split(separator: ":")
+                    if p.count == 2, let c = Int(p[0]), let v = Int(p[1]), let s = jsonString(refs) {
+                        xrows.append([bid, c, v, s])
+                    }
+                }
+            }
+        }
+        try db.insert("INSERT INTO verses VALUES (?, ?, ?, ?, ?)", vrows)
+        if hasFTS { try db.insert("INSERT INTO verses_fts(rowid, plain) VALUES (?, ?)", frows) }
+        try db.insert("INSERT INTO headings VALUES (?, ?, ?, ?)", hrows)
+        try db.insert("INSERT INTO xrefs VALUES (?, ?, ?, ?)", xrows)
+        try db.exec("CREATE INDEX verses_ref ON verses(book, chapter, verse); CREATE INDEX headings_ref ON headings(book, chapter, verse);")
+    }
+
+    /// Словари, комментарии и параллельные места: те же таблицы, что у Flutter-версии
+    private static func buildStudy(_ db: SQLiteDB, _ j: [String: Any], _ type: String) throws {
+        try db.exec("CREATE TABLE st_ready(v INTEGER); INSERT INTO st_ready VALUES (1);")
+        let entries = j["entries"] as? [String: Any] ?? [:]
+        switch type {
+        case "dictionary":
+            try db.exec("CREATE TABLE dict(key TEXT PRIMARY KEY, word TEXT, json TEXT) WITHOUT ROWID")
+            var rows: [[Any]] = []
+            for (k, e) in entries {
+                guard let m = e as? [String: Any], let s = jsonString(m) else { continue }
+                let word = (m["word"] as? String) ?? (m["lemma"] as? String) ?? k
+                rows.append([k, word, s])
+            }
+            try db.insert("INSERT OR REPLACE INTO dict VALUES (?, ?, ?)", rows)
+            if let wi = j["wordIndex"] as? [String: Any] {
+                try db.exec("CREATE TABLE windex(word TEXT PRIMARY KEY, json TEXT) WITHOUT ROWID")
+                var wrows: [[Any]] = []
+                for (k, v) in wi {
+                    if let s = jsonString(v) { wrows.append([k, s]) }
+                }
+                try db.insert("INSERT OR REPLACE INTO windex VALUES (?, ?)", wrows)
+            }
+        case "commentary":
+            try db.exec("CREATE TABLE comm(book TEXT, chapter INTEGER, verse INTEGER, key TEXT, title TEXT, text TEXT)")
+            var rows: [[Any]] = []
+            for (k, e) in entries {
+                guard let p = osisStart(k) else { continue }
+                var title = ""
+                var text = ""
+                if let m = e as? [String: Any] {
+                    title = "\(m["title"] ?? "")"
+                    text = "\(m["text"] ?? "")"
+                } else {
+                    text = "\(e)"
+                }
+                rows.append([p.0, p.1, p.2, k, title, text])
+            }
+            try db.insert("INSERT INTO comm VALUES (?, ?, ?, ?, ?, ?)", rows)
+            try db.exec("CREATE INDEX comm_ref ON comm(book, chapter, verse)")
+        default:
+            // параллельные места
+            try db.exec("CREATE TABLE xr(book TEXT, chapter INTEGER, verse INTEGER, n INTEGER, refs TEXT)")
+            var rows: [[Any]] = []
+            for (k, v) in (j["refs"] as? [String: Any] ?? [:]) {
+                guard let p = osisStart(k), let list = v as? [Any], let s = jsonString(list) else { continue }
+                rows.append([p.0, p.1, p.2, list.count, s])
+            }
+            try db.insert("INSERT INTO xr VALUES (?, ?, ?, ?, ?)", rows)
+            try db.exec("CREATE INDEX xr_ref ON xr(book, chapter, verse)")
+        }
     }
 }
