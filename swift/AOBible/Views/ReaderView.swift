@@ -193,12 +193,14 @@ enum StudyPanel: Identifiable {
     case commentary(Int)
     case xrefs(Int)
     case compare(Int)
+    case interlinear(Int)
 
     var id: String {
         switch self {
         case .commentary(let v): return "c\(v)"
         case .xrefs(let v): return "x\(v)"
         case .compare(let v): return "v\(v)"
+        case .interlinear(let v): return "i\(v)"
         }
     }
 }
@@ -392,6 +394,8 @@ struct ChapterText: View {
                 }
             case .compare(let v):
                 CompareSheet(book: book, chapter: chapter, verse: v)
+            case .interlinear(let v):
+                InterlinearSheet(book: book, chapter: chapter, verse: v)
             }
         }
     }
@@ -581,7 +585,7 @@ struct ChapterText: View {
             guard p[2] < ms.count else { return }
             text = ns.substring(with: ms[p[2]].range)
         }
-        word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book)
+        word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0])
     }
 
     // MARK: - Панель действий
@@ -656,6 +660,7 @@ struct ChapterText: View {
                 Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
                 Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
                 Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
+                Button { panel = .interlinear(first) } label: { Label("Подстрочник", systemImage: "text.alignleft") }
                 Menu {
                     ForEach(store.bibles) { m in
                         Button(m.name + " — " + m.title) {

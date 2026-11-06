@@ -26,6 +26,8 @@ struct InstalledModule: Identifiable, Hashable {
     var author: String = ""
     var license: String = ""
     var source: String = ""
+    /// Подстрочник: у слов в тексте есть слово оригинала
+    var interlinear: Bool = false
 }
 
 struct CatalogEntry: Identifiable {
@@ -122,7 +124,8 @@ final class ModuleStore: ObservableObject {
                 strongs: ((j["features"] as? [String: Any])?["strongs"] as? Bool) == true,
                 author: j["author"] as? String ?? "",
                 license: j["license"] as? String ?? "",
-                source: j["source"] as? String ?? ""
+                source: j["source"] as? String ?? "",
+                interlinear: ((j["features"] as? [String: Any])?["interlinear"] as? Bool) == true
             ))
         }
         installed = list.sorted {
@@ -299,6 +302,8 @@ enum ModuleConverter {
                 try buildBible(db, books)
             } else if studyTypes.contains(type) {
                 try buildStudy(db, j, type)
+            } else if type == "maps", let places = j["places"] as? [[String: Any]] {
+                try buildPlaces(db, places)
             } else {
                 // прочие типы (карты, иллюстрации) — исходный JSON целиком, разберём по мере переноса
                 try db.exec("CREATE TABLE payload(json TEXT)")
@@ -312,6 +317,31 @@ enum ModuleConverter {
 
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: tmp, to: target)
+    }
+
+    /// «Места»: таблицы с индексами по названию и по стиху (те же, что у Flutter-версии)
+    private static func buildPlaces(_ db: SQLiteDB, _ places: [[String: Any]]) throws {
+        try db.exec("""
+            CREATE TABLE places(id TEXT PRIMARY KEY, ord INTEGER, name TEXT, name_norm TEXT, lat REAL, lng REAL, type TEXT,
+              confidence INTEGER, modern TEXT, descr TEXT, stems TEXT, refs TEXT);
+            CREATE TABLE place_refs(ref TEXT NOT NULL, place_id TEXT NOT NULL);
+        """)
+        var prow: [[Any]] = []
+        var rrow: [[Any]] = []
+        for (i, p) in places.enumerated() {
+            guard let id = p["id"] as? String else { continue }
+            let name = p["name"] as? String ?? id
+            let refs = (p["refs"] as? [String]) ?? []
+            let lat = (p["lat"] as? NSNumber)?.doubleValue ?? 0
+            let lng = (p["lng"] as? NSNumber)?.doubleValue ?? 0
+            let conf = (p["confidence"] as? NSNumber)?.intValue ?? 0
+            let stems = jsonString((p["stems"] as? [String]) ?? []) ?? "[]"
+            prow.append([id, i, name, name.lowercased().replacingOccurrences(of: "ё", with: "е"), "\(lat)", "\(lng)", p["type"] as? String ?? "", conf, p["modern"] as? String ?? "", p["description"] as? String ?? "", stems, jsonString(refs) ?? "[]"])
+            for r in refs { rrow.append([r, id]) }
+        }
+        try db.insert("INSERT OR REPLACE INTO places VALUES (?,?,?,?,CAST(? AS REAL),CAST(? AS REAL),?,?,?,?,?,?)", prow)
+        try db.insert("INSERT INTO place_refs VALUES (?,?)", rrow)
+        try db.exec("CREATE INDEX place_refs_ref ON place_refs(ref); CREATE INDEX places_name ON places(name_norm);")
     }
 
     private static func jsonString(_ x: Any) -> String? {

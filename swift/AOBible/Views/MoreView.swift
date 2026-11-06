@@ -27,7 +27,11 @@ struct MoreView: View {
                         IconLabel(title: "Слушать с этого места", symbol: "headphones", color: Color(red: 1.0, green: 0.18, blue: 0.33))
                     }
                     .buttonStyle(.plain)
-                    link("Карты", "map.fill", .green)
+                    NavigationLink {
+                        MapsView()
+                    } label: {
+                        IconLabel(title: "Карты", symbol: "map.fill", color: .green)
+                    }
                 }
                 Section {
                     link("Синхронная прокрутка", "link", .blue)

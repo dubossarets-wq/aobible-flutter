@@ -6,6 +6,8 @@ struct WordRequest: Identifiable {
     let strongs: [String]
     let morph: [String]
     let book: String
+    var chapter = 0
+    var verse = 0
 }
 
 /// Окно слова: словари, где оно есть (Стронг по разметке или по симфонии, словари «по словам»); выбор — статья
@@ -48,7 +50,19 @@ struct WordSheet: View {
                         Text(r.module.name)
                     }
                 }
-                if res.results.isEmpty && res.dictionaryCount > 0 {
+                let places = store.placesFor(word: req.text, book: req.book, chapter: req.chapter, verse: req.verse)
+                if !places.isEmpty {
+                    Section("Карта") {
+                        ForEach(places) { p in
+                            NavigationLink {
+                                PlaceDetail(place: p)
+                            } label: {
+                                Label(p.name, systemImage: "map")
+                            }
+                        }
+                    }
+                }
+                if res.results.isEmpty && res.dictionaryCount > 0 && places.isEmpty {
                     Section {
                         Text("В словарях такого слова нет.").foregroundStyle(.secondary)
                     }
