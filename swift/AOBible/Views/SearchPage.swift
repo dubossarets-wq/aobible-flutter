@@ -177,31 +177,7 @@ struct SearchPage: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Section {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "clock").foregroundStyle(.secondary)
-                                    ForEach(history, id: \.self) { h in
-                                        Button { query = h } label: { Text(h).font(.subheadline.weight(.semibold)) }
-                                            .buttonStyle(.bordered)
-                                            .buttonBorderShape(.capsule)
-                                            .contextMenu {
-                                                Button("Убрать из истории", role: .destructive) {
-                                                    history.removeAll { $0 == h }
-                                                    UserDefaults.standard.set(history, forKey: "searchHistory")
-                                                }
-                                            }
-                                    }
-                                }
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-                            Button("Очистить историю", role: .destructive) {
-                                history = []
-                                UserDefaults.standard.removeObject(forKey: "searchHistory")
-                            }
-                        } header: {
-                            Text("Недавние")
-                        }
+                        historySection
                     }
                 } else if model.running && model.hits.isEmpty {
                     Section {
@@ -212,7 +188,7 @@ struct SearchPage: View {
                     }
                 } else {
                     Section {
-                        ForEach(model.hits.prefix(shown), id: .uid) { h in
+                        ForEach(model.hits.prefix(shown), id: \.uid) { h in
                             Button {
                                 remember(query)
                                 onOpen(h.book, h.chapter, h.verse)
@@ -276,6 +252,44 @@ struct SearchPage: View {
             rerun()
         }
         .onDisappear { remember(query) }
+    }
+
+    // MARK: - Недавние запросы
+
+    private var historySection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock").foregroundStyle(.secondary)
+                    ForEach(history, id: \.self) { h in
+                        chip(h)
+                    }
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            Button("Очистить историю", role: .destructive) {
+                history = []
+                UserDefaults.standard.removeObject(forKey: "searchHistory")
+            }
+        } header: {
+            Text("Недавние")
+        }
+    }
+
+    private func chip(_ h: String) -> some View {
+        Button {
+            query = h
+        } label: {
+            Text(h).font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .contextMenu {
+            Button("Убрать из истории", role: .destructive) {
+                history.removeAll { $0 == h }
+                UserDefaults.standard.set(history, forKey: "searchHistory")
+            }
+        }
     }
 
     private func rerun() {
