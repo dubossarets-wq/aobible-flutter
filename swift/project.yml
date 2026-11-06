@@ -1,0 +1,38 @@
+name: AOBible
+options:
+  bundleIdPrefix: app
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+targets:
+  AOBible:
+    type: application
+    platform: iOS
+    sources:
+      - path: AOBible
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.aobible
+        INFOPLIST_FILE: AOBible/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: AOBible/Info.plist
+      properties:
+        CFBundleDisplayName: AO Bible
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
