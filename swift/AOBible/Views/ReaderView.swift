@@ -145,6 +145,9 @@ struct ChapterText: View {
     @State private var noteText = ""
     @State private var strong: StrongRequest?
     @State private var panel: StudyPanel?
+    @EnvironmentObject private var plans: PlansStore
+    @State private var readTask: Task<Void, Never>?
+    @State private var toast: String?
 
     private let colorNames = ["Жёлтый", "Зелёный", "Синий", "Розовый", "Оранжевый"]
 
@@ -186,6 +189,11 @@ struct ChapterText: View {
                         Text("В этом переводе нет такой главы.")
                             .foregroundStyle(.secondary)
                     }
+                    // конец главы на экране и прошло достаточно времени — глава прочитана (записывается в историю
+                    // и засчитывается в планы)
+                    Color.clear.frame(height: 1)
+                        .onAppear { startReading(count: verses.count) }
+                        .onDisappear { readTask?.cancel() }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -210,6 +218,17 @@ struct ChapterText: View {
             noteEditor
         }
         .onChange(of: chapter) { _, _ in selected = [] }
+        .overlay(alignment: .top) {
+            if let t = toast {
+                Text(t)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .glassEffect(.regular, in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.default, value: toast)
         .environment(\.openURL, OpenURLAction { url in
             if let k = StrongLinks.key(from: url) {
                 strong = StrongRequest(key: k)
@@ -227,6 +246,31 @@ struct ChapterText: View {
             case .xrefs(let v):
                 XrefsSheet(module: module, book: book, chapter: chapter, verse: v)
             }
+        }
+    }
+
+    private func startReading(count: Int) {
+        readTask?.cancel()
+        guard count > 0 else { return }
+        let b = book
+        let c = chapter
+        readTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(PlanLogic.minSeconds(count) * 1_000_000_000))
+            if Task.isCancelled { return }
+            let r = plans.chapterRead(book: b, chapter: c)
+            if let f = r.finished.first {
+                show("План «\(f)»: на сегодня всё ✓")
+            } else if let p = r.credited.first {
+                show("Засчитано в план «\(p)»")
+            }
+        }
+    }
+
+    private func show(_ s: String) {
+        toast = s
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if toast == s { toast = nil }
         }
     }
 
