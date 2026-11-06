@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Языки интерфейса: код, название на самом языке, флаг
+let interfaceLanguages: [(String, String, String)] = [
+    ("ru", "Русский", "🇷🇺"), ("uk", "Українська", "🇺🇦"), ("be", "Беларуская", "🇧🇾"), ("bg", "Български", "🇧🇬"),
+    ("cs", "Čeština", "🇨🇿"), ("de", "Deutsch", "🇩🇪"), ("en", "English", "🇬🇧"), ("es", "Español", "🇪🇸"),
+    ("fr", "Français", "🇫🇷"), ("hi", "हिन्दी", "🇮🇳"), ("hy", "Հայերեն", "🇦🇲"), ("id", "Bahasa Indonesia", "🇮🇩"),
+    ("it", "Italiano", "🇮🇹"), ("ja", "日本語", "🇯🇵"), ("ka", "ქართული", "🇬🇪"), ("ko", "한국어", "🇰🇷"),
+    ("pl", "Polski", "🇵🇱"), ("pt", "Português", "🇵🇹"), ("ro", "Română", "🇷🇴"), ("sr", "Српски", "🇷🇸"),
+    ("sw", "Kiswahili", "🇹🇿"), ("zh", "中文", "🇨🇳"),
+]
+
 /// Настройки. Значения хранятся в системном хранилище приложения (@AppStorage) — как у всех приложений iOS
 struct SettingsView: View {
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
@@ -14,9 +24,9 @@ struct SettingsView: View {
         Form {
             Section {
                 Picker("Язык", selection: $interfaceLanguage) {
-                    Text("Русский").tag("ru")
-                    Text("English").tag("en")
-                    Text("Українська").tag("uk")
+                    ForEach(interfaceLanguages, id: \.0) { l in
+                        Text("\(l.2) \(l.1)").tag(l.0)
+                    }
                 }
             }
             Section {

@@ -110,7 +110,7 @@ struct MoreView: View {
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
         } label: {
-            IconLabel(title: title, symbol: symbol, color: color)
+            IconLabel(title: LocalizedStringKey(title), symbol: symbol, color: color)
         }
     }
 }

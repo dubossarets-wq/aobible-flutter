@@ -40,7 +40,7 @@ struct ModulesList: View {
             Section {
                 Picker("Тип", selection: $kind) {
                     ForEach(kinds, id: \.0) { k in
-                        Text(k.1).tag(k.0)
+                        Text(LocalizedStringKey(k.1)).tag(k.0)
                     }
                 }
                 .pickerStyle(.menu)

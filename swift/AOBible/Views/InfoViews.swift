@@ -202,7 +202,7 @@ struct NewsView: View {
             ForEach(newsEntries, id: \.id) { e in
                 Section {
                     ForEach(e.items, id: \.self) { it in
-                        Text(it)
+                        Text(LocalizedStringKey(it))
                     }
                 } header: {
                     Text(title(e.id))
@@ -240,11 +240,11 @@ struct HelpView: View {
                             NavigationLink {
                                 HelpLesson(tour: t)
                             } label: {
-                                Label(t.title, systemImage: t.symbol)
+                                Label(LocalizedStringKey(t.title), systemImage: t.symbol)
                             }
                         }
                     } header: {
-                        Text(g)
+                        Text(LocalizedStringKey(g))
                     }
                 }
             }
@@ -267,12 +267,12 @@ struct HelpLesson: View {
                         .foregroundStyle(.white)
                         .frame(width: 26, height: 26)
                         .background(Color.accentColor, in: Circle())
-                    Text(tour.steps[i])
+                    Text(LocalizedStringKey(tour.steps[i]))
                 }
                 .padding(.vertical, 2)
             }
         }
-        .navigationTitle(tour.title)
+        .navigationTitle(LocalizedStringKey(tour.title))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

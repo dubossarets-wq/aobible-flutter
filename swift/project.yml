@@ -1,6 +1,7 @@
 name: AOBible
 options:
   bundleIdPrefix: app
+  developmentLanguage: ru
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
@@ -35,6 +36,30 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         ITSAppUsesNonExemptEncryption: false
+        CFBundleDevelopmentRegion: ru
+        CFBundleLocalizations:
+          - ru
+          - uk
+          - be
+          - bg
+          - cs
+          - de
+          - en
+          - es
+          - fr
+          - hi
+          - hy
+          - id
+          - it
+          - ja
+          - ka
+          - ko
+          - pl
+          - pt
+          - ro
+          - sr
+          - sw
+          - zh-Hans
         UIBackgroundModes:
           - audio
         UIAppFonts:

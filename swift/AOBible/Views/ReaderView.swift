@@ -849,7 +849,7 @@ struct GotoSheet: View {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {
                                 Circle().fill(sec.color).frame(width: 8, height: 8)
-                                Text(sec.title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                                Text(LocalizedStringKey(sec.title)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                             }
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
                                 ForEach(sec.books) { b in

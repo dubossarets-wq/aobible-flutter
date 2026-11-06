@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Строка списка со значком в цветном квадрате — как в «Настройках» iPhone
 struct IconLabel: View {
-    let title: String
+    let title: LocalizedStringKey
     let symbol: String
     let color: Color
 
@@ -26,7 +26,7 @@ struct SoonView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label(title, systemImage: symbol)
+            Label(LocalizedStringKey(title), systemImage: symbol)
         } description: {
             Text("Этот раздел скоро появится в новой версии.")
         }

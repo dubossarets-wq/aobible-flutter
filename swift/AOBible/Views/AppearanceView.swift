@@ -29,7 +29,7 @@ struct AppearanceView: View {
                                     Circle().fill(t.palette.accent).frame(width: 12, height: 12).offset(x: 18, y: 18)
                                 }
                                 .frame(width: 56, height: 56)
-                                Text(t.label).font(.caption).foregroundStyle(.primary).lineLimit(1)
+                                Text(LocalizedStringKey(t.label)).font(.caption).foregroundStyle(.primary).lineLimit(1)
                             }
                         }
                         .buttonStyle(.plain)
@@ -40,7 +40,7 @@ struct AppearanceView: View {
             Section("Шрифт") {
                 Picker("Шрифт", selection: $fontFamily) {
                     ForEach(ReadingFonts.all) { f in
-                        Text(f.label).tag(f.id)
+                        Text(LocalizedStringKey(f.label)).tag(f.id)
                     }
                 }
                 row("Размер: \(Int(fontSize))", value: $fontSize, range: 13...40, step: 1)

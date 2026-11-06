@@ -214,7 +214,7 @@ struct StatsCard: View {
         .padding(.vertical, 4)
     }
 
-    private func stat(_ n: String, _ label: String) -> some View {
+    private func stat(_ n: String, _ label: LocalizedStringKey) -> some View {
         VStack(spacing: 2) {
             Text(n).font(.title2.weight(.semibold))
             Text(label).font(.caption).foregroundStyle(.secondary)

@@ -88,6 +88,7 @@ struct RootView: View {
         }
         .environment(\.openVerse, OpenVerse(run: open))
         .environment(\.readerPalette, AppThemes.palette(theme))
+        .environment(\.locale, Locale(identifier: lang == "zh" ? "zh-Hans" : lang))
         .tint(theme == "system" ? nil : AppThemes.palette(theme).accent)
         .preferredColorScheme(scheme)
     }
