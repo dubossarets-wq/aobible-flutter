@@ -9,10 +9,13 @@ final class SearchModel: ObservableObject {
     @Published var hits: [SearchHit] = []
     @Published var running = false
     @Published var searched = ""
-    private var task: Task<Void, Never>?
+    private var generation = 0
 
+    /// Поиск без пауз: на каждое изменение запроса — новый проход по готовому индексу (миллисекунды);
+    /// устаревший результат отбрасывается
     func run(path: String?, query: String, whole: Bool, books: Set<String>?) {
-        task?.cancel()
+        generation += 1
+        let g = generation
         let q = query.trimmingCharacters(in: .whitespaces)
         guard let path, q.count >= 2 else {
             hits = []
@@ -20,17 +23,16 @@ final class SearchModel: ObservableObject {
             searched = ""
             return
         }
-        running = true
-        task = Task {
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            if Task.isCancelled { return }
-            let result = await Task.detached(priority: .userInitiated) {
-                SearchEngine.run(path: path, query: q, wholeWord: whole, books: books)
-            }.value
-            if Task.isCancelled { return }
-            hits = result
-            searched = q
-            running = false
+        running = hits.isEmpty
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let idx = SearchIndex.index(path: path)
+            let result = idx.map { SearchEngine.run(index: $0, query: q, wholeWord: whole, books: books) } ?? []
+            await MainActor.run {
+                guard let self, g == self.generation else { return }
+                self.hits = result
+                self.searched = q
+                self.running = false
+            }
         }
     }
 }
@@ -160,7 +162,10 @@ struct SearchPage: View {
         .onChange(of: query) { _, _ in rerun() }
         .onChange(of: scope) { _, _ in rerun() }
         .onChange(of: whole) { _, _ in rerun() }
-        .onAppear { rerun() }
+        .onAppear {
+            if let path = module?.path { SearchIndex.warm(path: path) }
+            rerun()
+        }
     }
 
     private func rerun() {

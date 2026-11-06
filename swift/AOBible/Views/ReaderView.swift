@@ -75,8 +75,11 @@ struct ReaderView: View {
             }
             .onAppear {
                 if moduleId.isEmpty, let m = store.bibles.first { moduleId = m.id }
+                // текст перевода для поиска готовится сразу: к первому запросу он уже в памяти
+                if let m = module { SearchIndex.warm(path: m.path) }
             }
             .onChange(of: moduleId) { _, _ in
+                if let m = module { SearchIndex.warm(path: m.path) }
                 // в другом переводе может не быть этой книги — тогда первая
                 if let m = module, !m.books.contains(where: { $0.id == bookId }), let first = m.books.first {
                     bookId = first.id
