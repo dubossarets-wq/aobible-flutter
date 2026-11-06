@@ -7,6 +7,7 @@ struct ReaderView: View {
     @AppStorage("readerModule") private var moduleId = ""
     @AppStorage("readerBook") private var bookId = "Gen"
     @AppStorage("readerChapter") private var chapter = 1
+    @AppStorage("readerVerse") private var verse = 0
     @State private var showGoto = false
     @State private var showModules = false
 
@@ -22,7 +23,7 @@ struct ReaderView: View {
         NavigationStack {
             Group {
                 if let m = module {
-                    ChapterText(module: m, book: bookId, chapter: chapter, onSwipe: step)
+                    ChapterText(module: m, book: bookId, chapter: chapter, focus: verse, onSwipe: step)
                 } else {
                     ContentUnavailableView {
                         Label("Нет переводов", systemImage: "book")
@@ -56,6 +57,7 @@ struct ReaderView: View {
                     GotoSheet(module: m) { b, c in
                         bookId = b
                         chapter = c
+                        verse = 0
                     }
                 }
             }
@@ -100,45 +102,74 @@ struct ReaderView: View {
         }
         bookId = m.books[b].id
         chapter = max(1, c)
+        verse = 0
     }
 }
 
-/// Текст главы
+/// Текст главы: нажатие выбирает стих, внизу — панель действий (копировать, поделиться, подсветка, закладка, заметка)
 struct ChapterText: View {
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var marks: MarksStore
     let module: InstalledModule
     let book: String
     let chapter: Int
+    let focus: Int
     let onSwipe: (Int) -> Void
 
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("lineHeight") private var lineHeight = 1.45
     @AppStorage("showVerseNumbers") private var showNumbers = true
+    @AppStorage("showStrongs") private var showStrongs = false
+    @State private var selected: Set<Int> = []
+    @State private var noteVerse: Int?
+    @State private var noteText = ""
+
+    private let colorNames = ["Жёлтый", "Зелёный", "Синий", "Розовый", "Оранжевый"]
+
+    private var bookName: String {
+        module.books.first { $0.id == book }?.name ?? Books.info(book)?.name ?? book
+    }
 
     var body: some View {
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: fontSize * 0.55) {
-                ForEach(verses) { v in
-                    VStack(alignment: .leading, spacing: 6) {
-                        if let h = heads[v.num] {
-                            Text(h)
-                                .font(.headline)
-                                .padding(.top, 8)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: fontSize * 0.55) {
+                    ForEach(verses) { v in
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let h = heads[v.num] {
+                                Text(h)
+                                    .font(.headline)
+                                    .padding(.top, 8)
+                            }
+                            Text(attributed(v))
+                                .font(.system(size: fontSize, design: .serif))
+                                .lineSpacing(fontSize * (lineHeight - 1))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay(alignment: .topTrailing) {
+                                    if marks.isBookmarked(book, chapter, v.num) {
+                                        Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture { toggle(v.num) }
                         }
-                        Text(attributed(v))
-                            .font(.system(size: fontSize, design: .serif))
-                            .lineSpacing(fontSize * (lineHeight - 1))
+                        .id(v.num)
+                    }
+                    if verses.isEmpty {
+                        Text("В этом переводе нет такой главы.")
+                            .foregroundStyle(.secondary)
                     }
                 }
-                if verses.isEmpty {
-                    Text("В этом переводе нет такой главы.")
-                        .foregroundStyle(.secondary)
-                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .onAppear { scroll(proxy) }
+            .onChange(of: focus) { _, _ in scroll(proxy) }
         }
         .id("\(module.id)|\(book)|\(chapter)")
         .simultaneousGesture(
@@ -148,6 +179,35 @@ struct ChapterText: View {
                 }
             }
         )
+        .safeAreaInset(edge: .bottom) {
+            if !selected.isEmpty {
+                selectionBar(verses)
+            }
+        }
+        .sheet(isPresented: Binding(get: { noteVerse != nil }, set: { if !$0 { noteVerse = nil } })) {
+            noteEditor
+        }
+        .onChange(of: chapter) { _, _ in selected = [] }
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy) {
+        guard focus > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation { proxy.scrollTo(focus, anchor: .top) }
+        }
+    }
+
+    private func toggle(_ n: Int) {
+        if selected.contains(n) { selected.remove(n) } else { selected.insert(n) }
+    }
+
+    private func background(_ n: Int) -> Color {
+        if selected.contains(n) { return Color.accentColor.opacity(0.22) }
+        if let c = marks.highlight(MarksStore.key(book, chapter, n)) {
+            return highlightColors[min(c, highlightColors.count - 1)].opacity(0.35)
+        }
+        if n == focus { return Color.yellow.opacity(0.3) }
+        return Color.clear
     }
 
     private func attributed(_ v: Verse) -> AttributedString {
@@ -165,8 +225,102 @@ struct ChapterText: View {
                 s.font = .system(size: fontSize, design: .serif).italic()
             }
             out += s
+            if showStrongs && !t.strongs.isEmpty {
+                var n = AttributedString(" " + t.strongs.joined(separator: " "))
+                n.font = .system(size: fontSize * 0.55)
+                n.baselineOffset = fontSize * 0.3
+                n.foregroundColor = Color.accentColor
+                out += n
+            }
         }
         return out
+    }
+
+    // MARK: - Панель действий
+
+    private func keys() -> [String] {
+        selected.sorted().map { MarksStore.key(book, chapter, $0) }
+    }
+
+    private func rangeText() -> String {
+        let nums = selected.sorted()
+        guard let first = nums.first, let last = nums.last else { return "" }
+        if nums.count == 1 { return "\(first)" }
+        if last - first + 1 == nums.count { return "\(first)-\(last)" }
+        return nums.map(String.init).joined(separator: ",")
+    }
+
+    private func quote(_ verses: [Verse]) -> String {
+        let text = verses.filter { selected.contains($0.num) }.map { Markup.plain($0.text) }.joined(separator: " ")
+        return "\(text)\n— \(bookName) \(chapter):\(rangeText()) (\(module.name))"
+    }
+
+    private func selectionBar(_ verses: [Verse]) -> some View {
+        let first = selected.sorted().first ?? 1
+        let bookmarked = marks.isBookmarked(book, chapter, first)
+        return HStack(spacing: 22) {
+            Button {
+                UIPasteboard.general.string = quote(verses)
+                selected = []
+            } label: { Image(systemName: "doc.on.doc") }
+                .accessibilityLabel("Копировать")
+            ShareLink(item: quote(verses)) { Image(systemName: "square.and.arrow.up") }
+                .accessibilityLabel("Поделиться")
+            Menu {
+                ForEach(0..<highlightColors.count, id: \.self) { i in
+                    Button(colorNames[i]) {
+                        marks.setHighlight(keys: keys(), color: i)
+                        selected = []
+                    }
+                }
+                Button("Убрать подсветку", role: .destructive) {
+                    marks.setHighlight(keys: keys(), color: nil)
+                    selected = []
+                }
+            } label: { Image(systemName: "highlighter") }
+                .accessibilityLabel("Подсветка")
+            Button {
+                for n in selected.sorted() where marks.isBookmarked(book, chapter, n) == bookmarked {
+                    marks.toggleBookmark(book, chapter, n)
+                }
+                selected = []
+            } label: { Image(systemName: bookmarked ? "bookmark.fill" : "bookmark") }
+                .accessibilityLabel("Закладка")
+            Button {
+                noteText = marks.note(MarksStore.key(book, chapter, first)) ?? ""
+                noteVerse = first
+            } label: { Image(systemName: "note.text") }
+                .accessibilityLabel("Заметка")
+            Button { selected = [] } label: { Image(systemName: "xmark") }
+                .accessibilityLabel("Снять выделение")
+        }
+        .font(.title3)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .glassEffect(.regular, in: Capsule())
+        .padding(.bottom, 8)
+    }
+
+    private var noteEditor: some View {
+        NavigationStack {
+            TextEditor(text: $noteText)
+                .padding(12)
+                .navigationTitle("Заметка")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Отмена") { noteVerse = nil }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Сохранить") {
+                            if let v = noteVerse { marks.setNote(MarksStore.key(book, chapter, v), noteText) }
+                            noteVerse = nil
+                            selected = []
+                        }
+                    }
+                }
+        }
+        .presentationDetents([.medium])
     }
 }
 

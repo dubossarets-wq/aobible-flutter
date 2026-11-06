@@ -141,6 +141,12 @@ final class ModuleStore: ObservableObject {
         return out
     }
 
+    func verseText(module: String, book: String, chapter: Int, verse: Int) -> String? {
+        guard let d = db(module) else { return nil }
+        let rows = d.query("SELECT text FROM verses WHERE book = ? AND chapter = ? AND verse = ?", [book, chapter, verse]) { $0.text(0) }
+        return rows.first.map { Markup.plain($0) }
+    }
+
     func remove(_ id: String) {
         opened[id] = nil
         if let m = module(id) {

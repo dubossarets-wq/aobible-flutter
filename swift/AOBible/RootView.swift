@@ -11,6 +11,27 @@ struct RootView: View {
     @State private var lastTab: AppTab = .bible
     @State private var query = ""
     @State private var showSearch = false
+    @AppStorage("theme") private var theme = "system"
+
+    /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
+    private var scheme: ColorScheme? {
+        switch theme {
+        case "light": return .light
+        case "dark", "ocean", "black": return .dark
+        default: return nil
+        }
+    }
+
+    /// Открыть место в чтении
+    private func open(_ book: String, _ chapter: Int, _ verse: Int) {
+        let d = UserDefaults.standard
+        d.set(book, forKey: "readerBook")
+        d.set(chapter, forKey: "readerChapter")
+        d.set(verse, forKey: "readerVerse")
+        showSearch = false
+        tab = .bible
+        lastTab = .bible
+    }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -41,7 +62,10 @@ struct RootView: View {
             }
         }
         .fullScreenCover(isPresented: $showSearch) {
-            SearchPage(query: $query) { showSearch = false }
+            SearchPage(query: $query, onClose: { showSearch = false }, onOpen: open)
+                .preferredColorScheme(scheme)
         }
+        .environment(\.openVerse, OpenVerse(run: open))
+        .preferredColorScheme(scheme)
     }
 }
