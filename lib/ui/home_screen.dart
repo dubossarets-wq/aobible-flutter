@@ -4,7 +4,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchItem;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNSymbol, CNTabBar, CNTabBarItem, CNTabBarSearchController, CNTabBarSearchItem;
 import 'package:flutter/cupertino.dart' show CupertinoColors;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
@@ -973,8 +973,6 @@ void openTab(WidgetRef ref, String id) {
     closeAllSheets(ctx);
     return;
   }
-  // в поиск: запоминаем, с какой вкладки пришли (круглая кнопка слева от поля поиска возвращает к ней)
-  if (id == 'search') Hub.searchFrom = tabActive.value;
   // другая вкладка: прежние окна закрываем, потом открываем раздел; в стиле iPhone — мгновенно, без анимаций
   // (как переключение вкладок в iOS: закрытие и въезд новой страницы одновременно накладывались)
   if (ios) {
@@ -1019,11 +1017,28 @@ class _TabBarState extends ConsumerState<_TabBar> {
   static const _ids = ['plans', 'search', 'bible', 'saved', 'more'];
   int? _hover; // плашка идёт за пальцем
   int _lastTab = 1; // последняя выбранная вкладка системного меню (кроме поиска)
+  // системное меню: кнопка поиска выбрана, пока открыт поиск; закрыли поиск — выбор возвращается к вкладке
+  final _search = CNTabBarSearchController();
+  String _was = tabActive.value;
 
   @override
   void initState() {
     super.initState();
     Hub.openTab = openTab;
+    tabActive.addListener(_onTab);
+  }
+
+  @override
+  void dispose() {
+    tabActive.removeListener(_onTab);
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _onTab() {
+    final now = tabActive.value;
+    if (_was == 'search' && now != 'search' && _search.isActive) _search.deactivateSearch();
+    _was = now;
   }
 
   void _open(String id) => openTab(ref, id);
@@ -1056,15 +1071,22 @@ class _TabBarState extends ConsumerState<_TabBar> {
                 CNTabBarItem(label: labels['saved'], icon: const CNSymbol('heart'), activeIcon: const CNSymbol('heart.fill')),
                 CNTabBarItem(label: labels['more'], icon: const CNSymbol('line.3.horizontal')),
               ],
-              // поиск — круглая кнопка справа (как вкладка поиска iOS 26); нажатие открывает окно поиска — меню на это
-              // время прячется, внизу окна своя строка: кнопка возврата к вкладке и поле поиска с клавиатурой
+              // поиск — круглая кнопка справа (как вкладка поиска iOS 26): открывает страницу поиска; меню остаётся,
+              // поле поиска — над ним (с клавиатурой — над клавиатурой)
               searchItem: CNTabBarSearchItem(
                 label: labels['search']!,
                 automaticallyActivatesSearch: false,
                 onSearchActiveChanged: (on) {
-                  if (on) _open('search');
+                  if (!on) return;
+                  // поиск уже открыт — повторное нажатие ставит курсор в поле (клавиатура)
+                  if (tabActive.value == 'search') {
+                    Hub.focusSearch?.call();
+                  } else {
+                    _open('search');
+                  }
                 },
               ),
+              searchController: _search,
               currentIndex: () {
                 // поиск — не вкладка из списка (номер −1 давал «Планы»)
                 final i = ids.indexOf(activeId);
@@ -1199,8 +1221,10 @@ class TabBarOverlay extends StatelessWidget {
       builder: (context, mounted, _) {
         // с клавиатурой вкладки прячутся (окно поднимается над ней); поверх — полноэкранная страница (проигрыватель)
         final kb = mq.viewInsets.bottom;
-        final show = mounted && suppressed == 0 && kb == 0;
-        final inset = show ? tabBarHeight(context) : 0.0;
+        // системное меню iOS 26 — не убираем и под клавиатурой (она его закрывает): иначе оно создавалось бы заново и
+        // выбор вкладки сбивался
+        final show = mounted && suppressed == 0 && (kb == 0 || nativeGlass);
+        final inset = show && kb == 0 ? tabBarHeight(context) : 0.0;
         if (tabBarInset.value != inset) WidgetsBinding.instance.addPostFrameCallback((_) => tabBarInset.value = inset);
         return Stack(fit: StackFit.expand, children: [
           child,

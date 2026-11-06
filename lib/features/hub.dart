@@ -94,9 +94,10 @@ class Hub {
   static PaneAction? openLibrary;
   static void Function(BuildContext context, String tab)? openLibraryTab; // вкладка: installed | catalog | import
   static PaneAction? openAudio; // «Слушать» с текущего места
-  // нижнее меню: открыть вкладку (как нажатие на неё); с какой вкладки пришли в поиск (кнопка возврата у поля поиска)
+  // нижнее меню: открыть вкладку (как нажатие на неё); поставить курсор в поле открытого поиска (повторное нажатие
+  // на кнопку поиска)
   static void Function(WidgetRef ref, String id)? openTab;
-  static String searchFrom = 'bible';
+  static VoidCallback? focusSearch;
   static Widget Function(BuildContext context, WidgetRef ref)? audioBar; // мини-проигрыватель над вкладками
 
   // Связи между функциями (каждую заполняет та функция, что её умеет)

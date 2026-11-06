@@ -4,7 +4,7 @@
 // прокрутка — в памяти до перезапуска.
 import 'dart:convert';
 
-import 'package:cupertino_native_better/cupertino_native_better.dart' show CNButton, CNButtonConfig, CNButtonStyle, CNGlassEffectShape, CNSymbol, LiquidGlassConfig, LiquidGlassContainer;
+import 'package:cupertino_native_better/cupertino_native_better.dart' show CNGlassEffectShape, LiquidGlassConfig, LiquidGlassContainer;
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -77,16 +77,8 @@ class _Memo {
 _Memo? _memo;
 
 /// fromTab — открыто вкладкой поиска нижнего меню: клавиатура открывается сразу
-Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope, bool fromTab = false}) {
-  final ios = ProviderScope.containerOf(context, listen: false).read(settingsProvider).get<bool>('iosStyle');
-  if (!fromTab) Hub.searchFrom = 'bible';
-  // стиль iPhone — как вкладка поиска iOS 26: пока открыт поиск, нижнего меню нет; внизу окна — круглая кнопка
-  // возврата к вкладке и поле поиска
-  final hide = ios || nativeGlass;
-  if (hide) tabBarSuppress.value++;
-  final f = showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope, fromTab: fromTab), tab: 'search', underKeyboard: true);
-  return hide ? f.whenComplete(() => tabBarSuppress.value--) : f;
-}
+Future<void> openSearch(BuildContext context, int pane, {String? query, String? scope, bool fromTab = false}) =>
+    showAobSheet(context, builder: (_) => SearchSheet(pane: pane, query: query, scope: scope, fromTab: fromTab), tab: 'search', underKeyboard: true);
 
 class SearchSheet extends ConsumerStatefulWidget {
   const SearchSheet({super.key, required this.pane, this.query, this.scope, this.fromTab = false});
@@ -130,6 +122,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     super.initState();
     if (widget.query != null && ['all', 'OT', 'NT', 'book'].contains(widget.scope)) _scope = widget.scope!;
     _focus.addListener(() => setState(() {}));
+    Hub.focusSearch = _focusField;
     // текст перевода для поиска готовится сразу — к первому запросу он уже в памяти
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -160,8 +153,13 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     });
   }
 
+  void _focusField() {
+    if (mounted) _focus.requestFocus();
+  }
+
   @override
   void dispose() {
+    if (Hub.focusSearch == _focusField) Hub.focusSearch = null;
     _gen++;
     final q = _q.text.trim();
     prefs.setString('searchQuery', _q.text);
@@ -400,21 +398,29 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         onChanged: (v) => _setOption('searchScope', v, () => _scope = v),
       ),
       gap,
+      // стиль iPhone: переключатели — одной карточкой, без пояснений под каждым (верх окна поиска компактнее:
+      // с клавиатурой виднее найденное)
       SwitchRow(
         label: t('Только целые слова'),
-        hint: t('Иначе «свет» найдёт и «светильник»'),
+        hint: iosUiNow ? null : t('Иначе «свет» найдёт и «светильник»'),
         value: _whole,
         onChanged: (v) => _setOption('searchWhole', v, () => _whole = v),
       ),
       if (_canAll)
         SwitchRow(
           label: t('Во всех модулях'),
-          hint: t('Искать во всех установленных переводах. У каждого места — метка перевода.'),
+          hint: iosUiNow ? null : t('Искать во всех установленных переводах. У каждого места — метка перевода.'),
           value: _allMods,
           onChanged: (v) => _setOption('searchAllModules', v, () => _allMods = v),
         ),
       // «И в оригиналах» — под включённым «Во всех модулях», раскрывается плавно
-      if (_canAll && _hasOrig)
+      if (_canAll && _hasOrig && iosUiNow && _allMods)
+        SwitchRow(
+          label: t('И в оригиналах'),
+          value: _withOrig,
+          onChanged: (v) => _setOption('searchOriginals', v, () => _withOrig = v),
+        ),
+      if (_canAll && _hasOrig && !iosUiNow)
         Reveal(
           open: _allMods,
           child: SwitchRow(
@@ -477,19 +483,24 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         scroll: false,
         padding: EdgeInsets.zero,
         child: Builder(builder: (bc) {
-          // строка внизу — на месте нижнего меню (в iosEdge от низа экрана), с клавиатурой — над ней
+          // поле поиска — над нижним меню, с клавиатурой — над ней (меню остаётся на месте, под клавиатурой)
           final kb = SheetKeyboard.of(bc);
-          final gap = kb > 0 ? kb + 8 : iosEdge;
-          return Stack(children: [
-            Positioned.fill(
-              child: CustomScrollView(
-                controller: _scroll,
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                slivers: [SliverPadding(padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _iosBarH + gap), sliver: results())],
-              ),
-            ),
-            Positioned(left: iosEdge, right: iosEdge, bottom: gap, child: _iosBar(pal)),
-          ]);
+          return ValueListenableBuilder<double>(
+            valueListenable: tabBarInset,
+            builder: (_, tabs, _) {
+              final gap = kb > 0 ? kb + 8 : (tabs > 0 ? tabs + 10 : iosEdge);
+              return Stack(children: [
+                Positioned.fill(
+                  child: CustomScrollView(
+                    controller: _scroll,
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [SliverPadding(padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _iosFieldH + gap), sliver: results())],
+                  ),
+                ),
+                Positioned(left: iosEdge, right: iosEdge, bottom: gap, child: _iosField(pal)),
+              ]);
+            },
+          );
         }),
       );
     }
@@ -534,44 +545,16 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     );
   }
 
-  // высота строки внизу — как у капсулы нижнего меню
-  static const _iosBarH = 58.0;
+  // поле поиска над нижним меню — стеклянная капсула
+  static const _iosFieldH = 48.0;
 
-  // Низ окна в стиле iPhone — как вкладка поиска iOS 26: меню свёрнуто в круглую кнопку прежней вкладки (нажатие —
-  // назад к ней), справа — поле поиска в стеклянной капсуле
-  Widget _iosBar(Palette pal) {
-    const h = _iosBarH;
-    const sf = {'plans': 'calendar', 'bible': 'book', 'saved': 'heart', 'more': 'line.3.horizontal'};
-    const lu = {'plans': LucideIcons.calendarCheck, 'bible': LucideIcons.bookOpen, 'saved': LucideIcons.heart, 'more': LucideIcons.menu};
-    final id = sf.containsKey(Hub.searchFrom) ? Hub.searchFrom : 'bible';
-    final label = {'plans': t('Планы'), 'bible': t('Библия'), 'saved': t('Закладки'), 'more': t('Ещё')}[id]!;
-    void back() {
-      final open = Hub.openTab;
-      if (open != null) {
-        open(ref, id);
-      } else {
-        Navigator.of(context).maybePop();
-      }
-    }
-
-    final circle = nativeGlass
-        ? SizedBox(
-            width: h,
-            height: h,
-            child: CNButton.icon(icon: CNSymbol(sf[id]!, size: 21), onPressed: back, semanticLabel: label, autoHideOnModal: false, config: const CNButtonConfig(style: CNButtonStyle.glass)),
-          )
-        : Semantics(
-            button: true,
-            label: label,
-            child: GestureDetector(
-              onTap: back,
-              child: Container(width: h, height: h, decoration: ShapeDecoration(color: iosFill(pal), shape: const CircleBorder()), child: AIcon(ico(lu[id]!), size: 22, color: pal.text)),
-            ),
-          );
+  // Поле поиска в стиле iPhone — стеклянная капсула над нижним меню: лупа, текст, круглый крестик. Нажатие мимо поля
+  // убирает клавиатуру — поле опускается обратно к меню
+  Widget _iosField(Palette pal) {
     final field = SizedBox(
-      height: h,
+      height: _iosFieldH,
       child: Row(children: [
-        Padding(padding: const EdgeInsets.only(left: 18), child: AIcon(CupertinoIcons.search, size: 19, color: pal.muted)),
+        Padding(padding: const EdgeInsets.only(left: 16), child: AIcon(CupertinoIcons.search, size: 18, color: pal.muted)),
         Expanded(
           child: BareField(
             controller: _q,
@@ -582,6 +565,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
               _schedule();
             },
             onSubmitted: (_) => _submit(),
+            onTapOutside: (_) => _focus.unfocus(),
             hint: t('Слово, Ин 3:16 или G26'),
             style: TextStyle(fontSize: 17, height: 1.25, color: pal.text),
             hintColor: pal.muted,
@@ -590,15 +574,17 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
           ),
         ),
         if (_q.text.isNotEmpty)
-          Padding(padding: const EdgeInsets.only(right: 10), child: IconBtn(icon: CupertinoIcons.xmark_circle_fill, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear))
+          Padding(padding: const EdgeInsets.only(right: 8), child: IconBtn(icon: CupertinoIcons.xmark_circle_fill, subtle: true, size: 18, tooltip: t('Очистить'), onTap: _clear))
         else
           const SizedBox(width: 14),
       ]),
     );
-    final capsule = nativeGlass
-        ? LiquidGlassContainer(config: const LiquidGlassConfig(shape: CNGlassEffectShape.capsule), autoHideOnModal: false, child: field)
-        : DecoratedBox(decoration: ShapeDecoration(color: iosFill(pal), shape: const StadiumBorder()), child: field);
-    return Row(children: [circle, const SizedBox(width: 10), Expanded(child: capsule)]);
+    // нажатия по всей капсуле (и по крестику) — не «мимо поля»
+    return TextFieldTapRegion(
+      child: nativeGlass
+          ? LiquidGlassContainer(config: const LiquidGlassConfig(shape: CNGlassEffectShape.capsule), autoHideOnModal: false, child: field)
+          : DecoratedBox(decoration: ShapeDecoration(color: iosCardAt(pal, false), shape: const StadiumBorder()), child: field),
+    );
   }
 
   // Поле запроса с крестиком и тёмная квадратная кнопка «Найти» (.search-form)

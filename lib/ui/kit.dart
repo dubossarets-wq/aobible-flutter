@@ -194,13 +194,15 @@ Future<T?> showAobSheet<T>(
           final cap = page || nested ? box.maxHeight : box.maxHeight - barH - 5;
           final want = math.min(box.maxHeight * (page || nested ? 1 : initial), cap);
           final h = kb == 0 ? want : math.max(want - kb, math.min(box.maxHeight - kb, 280.0));
-          if (underKeyboard && kb > 0 && ProviderScope.containerOf(c, listen: false).read(settingsProvider).get<bool>('iosStyle')) {
+          // одно и то же дерево и с клавиатурой, и без неё: иначе при её появлении окно строилось бы заново (терялись
+          // бы фокус, введённый текст и прокрутка)
+          if (underKeyboard && ProviderScope.containerOf(c, listen: false).read(settingsProvider).get<bool>('iosStyle')) {
             final mq = MediaQuery.of(c).removeViewInsets(removeBottom: true);
             return Align(
               alignment: Alignment.bottomCenter,
               child: SizedBox(
                 height: want,
-                child: MediaQuery(data: mq.copyWith(padding: mq.padding.copyWith(bottom: kb)), child: SheetKeyboard(height: kb, child: builder(c))),
+                child: MediaQuery(data: kb > 0 ? mq.copyWith(padding: mq.padding.copyWith(bottom: kb)) : mq, child: SheetKeyboard(height: kb, child: builder(c))),
               ),
             );
           }
@@ -795,7 +797,7 @@ class _IosPageFrame extends StatefulWidget {
 class _IosPageFrameState extends State<_IosPageFrame> {
   // шапка как в iOS (по замеру «Настроек» iPhone): ряд 44 pt сразу под строкой состояния, полоса фона заканчивается
   // на 7 pt ниже ряда
-  static const _row = 44.0, _below = 7.0;
+  static const _row = 44.0, _below = 7.0, _titleTop = 4.0;
   double _bar = _row + _below, _off = 0;
 
   @override
@@ -810,7 +812,8 @@ class _IosPageFrameState extends State<_IosPageFrame> {
     // размеры крупного заголовка (и подписи под ним) — заранее, чтобы вести его в шапку
     double tw = 0, th = 0, sh = 0;
     if (widget.root) {
-      final maxW = math.max(0.0, width - 2 * iosEdge);
+      // справа в том же ряду — свои кнопки страницы
+      final maxW = math.max(0.0, width - 2 * iosEdge - 48.0 * widget.actions.length);
       final scaler = MediaQuery.textScalerOf(context);
       final dir = Directionality.of(context);
       final tp = TextPainter(text: TextSpan(text: widget.title, style: largeStyle), textDirection: dir, maxLines: 1, ellipsis: '\u2026', textScaler: scaler)..layout(maxWidth: maxW);
@@ -823,7 +826,8 @@ class _IosPageFrameState extends State<_IosPageFrame> {
         sp.dispose();
       }
     }
-    final large = widget.root ? th + sh + 6 : 0.0;
+    // крупный заголовок стоит в ряду шапки; ниже шапки содержимому место нужно только под подпись
+    final large = widget.root ? math.max(0.0, _titleTop + th + sh + 6 - _bar) : 0.0;
     final top = status + _bar + large;
     final off = widget.under ? _off : 0.0;
     // полоса за шапкой — только когда под ней уже есть текст
@@ -844,10 +848,10 @@ class _IosPageFrameState extends State<_IosPageFrame> {
     // шапки, на место обычного заголовка; при оттягивании списка вниз — едет вниз вместе с ним
     Widget? title;
     if (widget.root) {
-      final p = large > 0 ? (off / large).clamp(0.0, 1.0) : 1.0;
+      final p = th > 0 ? (off / th).clamp(0.0, 1.0) : 1.0;
       final pull = off < 0 ? -off : 0.0;
       final k = 1 - p * (1 - 17 / 34);
-      final c = Offset.lerp(Offset(iosEdge + tw / 2, status + _bar + th / 2 + pull), Offset(width / 2, status + _row / 2), p)!;
+      final c = Offset.lerp(Offset(iosEdge + tw / 2, status + _titleTop + th / 2 + pull), Offset(width / 2, status + _row / 2), p)!;
       title = Positioned(
         left: c.dx - tw * k / 2,
         top: c.dy - th * k / 2,
@@ -875,10 +879,10 @@ class _IosPageFrameState extends State<_IosPageFrame> {
           Positioned(
             left: iosEdge,
             right: iosEdge,
-            top: status + _bar + th - off,
+            top: status + _titleTop + th - off,
             child: IgnorePointer(
               child: Opacity(
-                opacity: (1 - (off / math.max(1.0, large)) * 2).clamp(0.0, 1.0),
+                opacity: (1 - (off / math.max(1.0, th)) * 2).clamp(0.0, 1.0),
                 child: Text(widget.subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: subStyle),
               ),
             ),
@@ -1388,7 +1392,17 @@ class AobSwitch extends ConsumerWidget {
 /// Строка с подписью и переключателем (.switch-field)
 /// Системный переключатель: на iPhone (iOS 26) — настоящий UISwitch, иначе — CupertinoSwitch
 Widget iosSwitch(Palette pal, bool value, ValueChanged<bool>? onChanged, {String? label}) => nativeGlass
-    ? CNSwitch(value: value, onChanged: onChanged ?? (_) {}, enabled: onChanged != null, color: iosGreenOf(pal), autoHideOnModal: false, semanticLabel: label)
+    // системный вид — 44 по высоте (чтобы переключатель не обрезался), в строке он занимает 36: строка с ним — 52,
+    // как в UI Kit (иначе 44 + отступы давали 60)
+    ? SizedBox(
+        height: 36,
+        child: OverflowBox(
+          minHeight: 44,
+          maxHeight: 44,
+          fit: OverflowBoxFit.deferToChild,
+          child: CNSwitch(value: value, onChanged: onChanged ?? (_) {}, enabled: onChanged != null, color: iosGreenOf(pal), autoHideOnModal: false, semanticLabel: label),
+        ),
+      )
     : CupertinoSwitch(value: value, onChanged: onChanged, activeTrackColor: iosGreenOf(pal));
 
 class SwitchRow extends ConsumerWidget implements IosGroupRow, IosFooterRow {
@@ -1636,7 +1650,9 @@ class BareField extends StatelessWidget {
     this.autofocus = false,
     this.autocorrect = true,
     this.cursorColor,
+    this.onTapOutside,
   });
+  final TapRegionCallback? onTapOutside;
   final TextEditingController controller;
   final TextStyle style;
   final Color hintColor;
@@ -1680,6 +1696,7 @@ class BareField extends StatelessWidget {
             textInputAction: textInputAction,
             onChanged: onChanged,
             onSubmitted: onSubmitted,
+            onTapOutside: onTapOutside,
             cursorColor: cursorColor,
             maxLines: 1,
             style: st,
