@@ -186,6 +186,7 @@ struct ChapterText: View {
     @EnvironmentObject private var marks: MarksStore
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var plans: PlansStore
+    @EnvironmentObject private var sermons: SermonStore
     let module: InstalledModule
     let pane: PaneState
 
@@ -571,6 +572,15 @@ struct ChapterText: View {
         return nums.map(String.init).joined(separator: ",")
     }
 
+    private func addToSermon(_ id: String, _ verses: [Verse]) {
+        let items = verses.filter { selected.contains($0.num) }.map {
+            VerseItem(book: book, chapter: chapter, verse: $0.num, text: Markup.plain($0.text), moduleId: module.id)
+        }
+        sermons.addVerses(to: id, items: items, moduleId: module.id)
+        selected = []
+        show("Добавлено в проповедь")
+    }
+
     private func quote(_ verses: [Verse]) -> String {
         let text = verses.filter { selected.contains($0.num) }.map { Markup.plain($0.text) }.joined(separator: " ")
         return "\(text)\n— \(bookName) \(chapter):\(rangeText()) (\(module.name))"
@@ -630,6 +640,15 @@ struct ChapterText: View {
                     for k in keys() where marks.isFavorite(k) == favorite { marks.toggleFavorite(k) }
                     selected = []
                 } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
+                Menu {
+                    ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
+                        Button(s.title.isEmpty ? "Без названия" : s.title) { addToSermon(s.id, verses) }
+                    }
+                    Button("Новая проповедь") {
+                        let s = sermons.create("Новая проповедь")
+                        addToSermon(s.id, verses)
+                    }
+                } label: { Label("В проповедь", systemImage: "scroll") }
                 Button { selected = [] } label: { Label("Снять выделение", systemImage: "xmark") }
             } label: { Image(systemName: "ellipsis") }
                 .accessibilityLabel("Ещё")

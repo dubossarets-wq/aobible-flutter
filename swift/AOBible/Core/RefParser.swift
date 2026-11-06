@@ -4,6 +4,7 @@ struct ParsedRef {
     let book: String
     let chapter: Int
     let verse: Int
+    var endVerse: Int? = nil
 }
 
 /// «Ин 3:16», «1 Кор 13:4-7», «Пс 22» → ссылка; названия книг — целиком, по началу и по согласным («фс», «флп»…)
@@ -101,6 +102,6 @@ enum RefParser {
             return r.location == NSNotFound ? nil : ns.substring(with: r)
         }
         guard let bookText = group(1), let book = findBook(bookText), let c = Int(group(2) ?? "") else { return nil }
-        return ParsedRef(book: book, chapter: c, verse: Int(group(3) ?? "") ?? 1)
+        return ParsedRef(book: book, chapter: c, verse: Int(group(3) ?? "") ?? 1, endVerse: Int(group(4) ?? ""))
     }
 }

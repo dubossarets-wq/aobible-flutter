@@ -8,7 +8,11 @@ struct MoreView: View {
             List {
                 Section {
                     link("Закладка на это место", "bookmark.fill", .orange)
-                    link("Проповеди", "doc.text.fill", Color(red: 0.35, green: 0.34, blue: 0.84))
+                    NavigationLink {
+                        SermonsView()
+                    } label: {
+                        IconLabel(title: "Проповеди", symbol: "doc.text.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
+                    }
                     link("Слушать с этого места", "headphones", Color(red: 1.0, green: 0.18, blue: 0.33))
                     link("Карты", "map.fill", .green)
                 }
