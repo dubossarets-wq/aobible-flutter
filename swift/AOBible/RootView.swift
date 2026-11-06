@@ -47,9 +47,7 @@ struct RootView: View {
             }
         }
         // мини-проигрыватель над нижним меню, пока идёт аудио
-        .tabViewBottomAccessory(isEnabled: audio.active) {
-            AudioBar()
-        }
+        .modifier(AudioAccessory(active: audio.active))
         // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
         // (слева всегда «назад», рядом системное поле поиска), а выбранной остаётся прежняя вкладка
         .onChange(of: tab) { _, new in
@@ -72,5 +70,18 @@ struct RootView: View {
         .environment(\.readerPalette, AppThemes.palette(theme))
         .tint(theme == "system" ? nil : AppThemes.palette(theme).accent)
         .preferredColorScheme(scheme)
+    }
+}
+
+/// Мини-проигрыватель над нижним меню: на iOS 26.1 и новее — только пока идёт аудио
+private struct AudioAccessory: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.1, *) {
+            content.tabViewBottomAccessory(isEnabled: active) { AudioBar() }
+        } else {
+            content.tabViewBottomAccessory { AudioBar() }
+        }
     }
 }
