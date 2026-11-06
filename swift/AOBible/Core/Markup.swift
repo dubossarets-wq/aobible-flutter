@@ -6,6 +6,7 @@ struct Token {
     var italic: Bool = false
     var strongs: [String] = []
     var orig: String? = nil
+    var morph: [String] = []
 }
 
 /// Разметка стиха (формат aob-module):
@@ -35,7 +36,8 @@ enum Markup {
             } else {
                 let orig = group(4)
                 let strongs = (group(2) ?? "").split(separator: " ").map { String($0) }
-                out.append(Token(text: group(1) ?? "", strongs: strongs, orig: (orig ?? "").isEmpty ? nil : orig))
+                let morph = (group(3) ?? "").split(separator: " ").map { String($0) }
+                out.append(Token(text: group(1) ?? "", strongs: strongs, orig: (orig ?? "").isEmpty ? nil : orig, morph: morph))
             }
             pos = m.range.location + m.range.length
         }

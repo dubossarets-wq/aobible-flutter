@@ -196,6 +196,7 @@ struct ChapterText: View {
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var strong: StrongRequest?
+    @State private var word: WordRequest?
     @State private var panel: StudyPanel?
     @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
@@ -226,6 +227,8 @@ struct ChapterText: View {
                                     .padding(.top, 8)
                             }
                             Text(attributed(v, xrefs: xcounts[v.num] ?? 0))
+                                // слова — ссылки: цвет не меняем (тот же, что у текста)
+                                .tint(.primary)
                                 .font(.system(size: fontSize, design: .serif))
                                 .lineSpacing(fontSize * (lineHeight - 1))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -244,7 +247,13 @@ struct ChapterText: View {
                                 }
                                 .contentShape(Rectangle())
                                 .onTapGesture(count: 2) { marks.toggleFavorite(MarksStore.key(book, chapter, v.num)) }
-                                .onTapGesture { toggle(v.num) }
+                                // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
+                                // долгим нажатием (нажатие на слово открывает словарь)
+                                .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
+                                .onLongPressGesture(minimumDuration: 0.4) {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    selected.insert(v.num)
+                                }
                         }
                         .id(v.num)
                     }
@@ -310,10 +319,17 @@ struct ChapterText: View {
                 panel = .xrefs(v)
                 return .handled
             }
+            if url.scheme == "aobword" {
+                openWord(url)
+                return .handled
+            }
             return .systemAction
         })
         .sheet(item: $strong) { r in
             StrongSheet(keys: [r.key])
+        }
+        .sheet(item: $word) { r in
+            WordSheet(req: r)
         }
         .sheet(item: $panel) { p in
             switch p {
@@ -374,6 +390,14 @@ struct ChapterText: View {
         return Color.clear
     }
 
+    private static let wordRe = try! NSRegularExpression(pattern: "[\\p{L}\\p{M}]+(?:[-’'][\\p{L}\\p{M}]+)*")
+
+    private func piece(_ text: String, italic: Bool) -> AttributedString {
+        var s = AttributedString(text)
+        if italic { s.font = .system(size: fontSize, design: .serif).italic() }
+        return s
+    }
+
     private func attributed(_ v: Verse, xrefs: Int) -> AttributedString {
         var out = AttributedString()
         if showNumbers {
@@ -383,21 +407,40 @@ struct ChapterText: View {
             n.foregroundColor = Color.secondary
             out += n
         }
-        for t in Markup.parse(v.text) {
-            var s = AttributedString(t.text)
-            if t.italic {
-                s.font = .system(size: fontSize, design: .serif).italic()
-            }
-            out += s
-            if showStrongs && !t.strongs.isEmpty {
-                // номера Стронга — ссылки: нажатие открывает словарную статью
-                for key in t.strongs {
-                    var n = AttributedString(" " + key)
-                    n.font = .system(size: fontSize * 0.55)
-                    n.baselineOffset = fontSize * 0.3
-                    n.foregroundColor = Color.accentColor
-                    n.link = URL(string: "aobstrong:" + key)
-                    out += n
+        for (ti, t) in Markup.parse(v.text).enumerated() {
+            if !t.strongs.isEmpty {
+                // слово с номером Стронга — целиком одна ссылка на окно слова
+                var s = piece(t.text, italic: t.italic)
+                s.link = URL(string: "aobword:\(v.num),\(ti),-1")
+                out += s
+                if showStrongs {
+                    // номера Стронга — ссылки: нажатие открывает словарную статью
+                    for key in t.strongs {
+                        var n = AttributedString(" " + key)
+                        n.font = .system(size: fontSize * 0.55)
+                        n.baselineOffset = fontSize * 0.3
+                        n.foregroundColor = Color.accentColor
+                        n.link = URL(string: "aobstrong:" + key)
+                        out += n
+                    }
+                }
+            } else {
+                // обычный текст: каждое слово — ссылка, знаки между словами — просто текст
+                let ns = t.text as NSString
+                var pos = 0
+                var k = 0
+                for m in Self.wordRe.matches(in: t.text, range: NSRange(location: 0, length: ns.length)) {
+                    if m.range.location > pos {
+                        out += piece(ns.substring(with: NSRange(location: pos, length: m.range.location - pos)), italic: t.italic)
+                    }
+                    var w = piece(ns.substring(with: m.range), italic: t.italic)
+                    w.link = URL(string: "aobword:\(v.num),\(ti),\(k)")
+                    out += w
+                    k += 1
+                    pos = m.range.location + m.range.length
+                }
+                if pos < ns.length {
+                    out += piece(ns.substring(from: pos), italic: t.italic)
                 }
             }
         }
@@ -410,6 +453,23 @@ struct ChapterText: View {
             out += n
         }
         return out
+    }
+
+    /// Нажатие на слово: находим слово и его разметку (номера Стронга, морфология) и открываем окно слова
+    private func openWord(_ url: URL) {
+        let p = url.absoluteString.dropFirst("aobword:".count).split(separator: ",").map { Int($0) ?? -1 }
+        guard p.count == 3, let raw = store.verseRaw(module: module.id, book: book, chapter: chapter, verse: p[0]) else { return }
+        let toks = Markup.parse(raw)
+        guard p[1] >= 0, p[1] < toks.count else { return }
+        let t = toks[p[1]]
+        var text = t.text
+        if p[2] >= 0 {
+            let ns = t.text as NSString
+            let ms = Self.wordRe.matches(in: t.text, range: NSRange(location: 0, length: ns.length))
+            guard p[2] < ms.count else { return }
+            text = ns.substring(with: ms[p[2]].range)
+        }
+        word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book)
     }
 
     // MARK: - Панель действий

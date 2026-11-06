@@ -21,6 +21,8 @@ struct InstalledModule: Identifiable, Hashable {
     let online: Bool
     /// Для словарей: «strongs» (ключи — номера Стронга) или «words» (ключи — слова)
     var dictionaryKind: String = "words"
+    /// В тексте перевода есть номера Стронга (по описанию модуля)
+    var strongs: Bool = false
 }
 
 struct CatalogEntry: Identifiable {
@@ -111,7 +113,8 @@ final class ModuleStore: ObservableObject {
                 path: f.path,
                 books: books,
                 online: j["online"] != nil,
-                dictionaryKind: j["dictionaryKind"] as? String ?? "words"
+                dictionaryKind: j["dictionaryKind"] as? String ?? "words",
+                strongs: ((j["features"] as? [String: Any])?["strongs"] as? Bool) == true
             ))
         }
         installed = list.sorted {
@@ -142,6 +145,12 @@ final class ModuleStore: ObservableObject {
             out[v] = t
         }
         return out
+    }
+
+    /// Текст стиха с разметкой слов
+    func verseRaw(module: String, book: String, chapter: Int, verse: Int) -> String? {
+        guard let d = db(module) else { return nil }
+        return d.query("SELECT text FROM verses WHERE book = ? AND chapter = ? AND verse = ?", [book, chapter, verse]) { $0.text(0) }.first
     }
 
     func verseText(module: String, book: String, chapter: Int, verse: Int) -> String? {
