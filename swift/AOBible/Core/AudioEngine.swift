@@ -340,6 +340,11 @@ final class AudioEngine: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
+    func seek(to sec: Double) {
+        player?.seek(to: CMTime(seconds: sec, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        position = sec
+    }
+
     func seekVerse(_ verse: Int) {
         guard let c = current else { return }
         play(book: c.book, chapter: c.chapter, verse: verse)

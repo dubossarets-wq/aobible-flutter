@@ -95,6 +95,25 @@ struct PaneView: View {
             VStack(spacing: 0) {
                 header(p, m)
                 ChapterText(module: m, pane: p)
+                    .safeAreaInset(edge: .bottom) {
+                        HStack {
+                            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
+                                .accessibilityLabel("Предыдущая глава")
+                            Spacer()
+                            Button {
+                                Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+                            } label: { Image(systemName: "headphones").font(.title3) }
+                                .accessibilityLabel("Слушать")
+                            Spacer()
+                            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right").font(.title3) }
+                                .accessibilityLabel("Следующая глава")
+                        }
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
+                        .controlSize(.large)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 4)
+                    }
             }
             .sheet(isPresented: $showGoto) {
                 GotoSheet(module: m, recents: panes.recentBooks()) { b, c, v in
@@ -128,12 +147,12 @@ struct PaneView: View {
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
             Button { showModules = true } label: {
-                Text(m.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(m.name).font(.subheadline.weight(.semibold)).fixedSize()
             }
             .buttonStyle(.glass)
             Button { showGoto = true } label: {
                 HStack(spacing: 4) {
-                    Text("\(bookName(p, m)) \(p.chapter)").font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text("\(bookName(p, m)) \(p.chapter)").font(.subheadline.weight(.semibold)).fixedSize()
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                 }
             }
@@ -142,24 +161,15 @@ struct PaneView: View {
             if panes.canBack(paneID) {
                 Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward") }
                     .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
                     .accessibilityLabel("Назад")
             }
             if panes.canForward(paneID) {
                 Button { panes.forward(paneID) } label: { Image(systemName: "arrow.uturn.forward") }
                     .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
                     .accessibilityLabel("Вперёд")
             }
-            Button {
-                Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
-            } label: { Image(systemName: "headphones") }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Слушать")
-            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left") }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Предыдущая глава")
-            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right") }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Следующая глава")
             Menu {
                 if panes.panes.count < maxPanes {
                     Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: {
@@ -178,6 +188,7 @@ struct PaneView: View {
                 Image(systemName: "ellipsis")
             }
             .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -306,6 +317,9 @@ struct ChapterText: View {
                                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                         selected.insert(v.num)
                                     }
+                                if !continuous, v.num == selected.max() {
+                                    selectionBar(verses).frame(maxWidth: .infinity)
+                                }
                             }
                             .id(v.num)
                         }
@@ -353,7 +367,8 @@ struct ChapterText: View {
                 .onEnded { _ in pinchBase = nil }
         )
         .safeAreaInset(edge: .bottom) {
-            if !selected.isEmpty {
+            // сплошной текст: панель внизу; иначе она стоит между стихами, под последним выделенным
+            if !selected.isEmpty && continuous {
                 selectionBar(verses)
             }
         }

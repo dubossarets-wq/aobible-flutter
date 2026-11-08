@@ -3,6 +3,7 @@ import SwiftUI
 /// Мини-проигрыватель над нижним меню: стих, пауза, стих назад/вперёд, скорость, таймер сна, закрыть
 struct AudioBar: View {
     @EnvironmentObject private var audio: AudioEngine
+    @State private var expanded = false
 
     private func clock(_ s: Int) -> String {
         String(format: "%d:%02d", s / 60, s % 60)
@@ -49,7 +50,105 @@ struct AudioBar: View {
                 } label: { Image(systemName: "ellipsis.circle") }
             }
             .padding(.horizontal, 18)
+            .contentShape(Rectangle())
+            .onTapGesture { expanded = true }
+            .sheet(isPresented: $expanded) { AudioFullView() }
         }
+    }
+}
+
+/// Раскрытый проигрыватель: звучащий стих крупно, перемотка, стих и глава назад/вперёд, скорость, таймер сна
+struct AudioFullView: View {
+    @EnvironmentObject private var audio: AudioEngine
+    @EnvironmentObject private var store: ModuleStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openVerse) private var openVerse
+    @State private var scrub: Double?
+
+    private func clock(_ s: Double) -> String {
+        let v = Int(max(0, s))
+        return String(format: "%d:%02d", v / 60, v % 60)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 22) {
+                if let c = audio.current {
+                    let name = Books.info(c.book)?.name ?? c.book
+                    Text("\(name) \(c.chapter):\(c.verse)").font(.title2.weight(.bold))
+                    Text(audio.pack?.title ?? "").font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    ScrollView {
+                        Text(store.verseText(module: audio.moduleId, book: c.book, chapter: c.chapter, verse: c.verse) ?? "")
+                            .font(.system(size: 24, design: .serif))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 8)
+                    }
+                    VStack(spacing: 2) {
+                        Slider(value: Binding(get: { scrub ?? audio.position }, set: { scrub = $0 }), in: 0...max(1, audio.duration)) { editing in
+                            if !editing, let s = scrub {
+                                audio.seek(to: s)
+                                scrub = nil
+                            }
+                        }
+                        HStack {
+                            Text(clock(scrub ?? audio.position))
+                            Spacer()
+                            Text(clock(audio.duration))
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 26) {
+                        Button { audio.previousChapter() } label: { Image(systemName: "backward.end.fill") }
+                        Button { audio.previousVerse() } label: { Image(systemName: "backward.fill") }
+                        Button { audio.toggle() } label: { Image(systemName: audio.playing ? "pause.fill" : "play.fill").font(.largeTitle) }
+                        Button { audio.nextVerse() } label: { Image(systemName: "forward.fill") }
+                        Button { audio.nextChapter() } label: { Image(systemName: "forward.end.fill") }
+                    }
+                    .font(.title2)
+                    .buttonStyle(.plain)
+                    HStack {
+                        Menu {
+                            ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
+                                Button("\(r, specifier: "%g")×") { audio.rate = Float(r) }
+                            }
+                        } label: { Label("\(Double(audio.rate), specifier: "%g")×", systemImage: "speedometer") }
+                        Spacer()
+                        Menu {
+                            ForEach([15, 30, 45, 60], id: \.self) { m in
+                                Button("\(m) мин") { audio.setSleep(minutes: m) }
+                            }
+                            if audio.sleepLeft != nil {
+                                Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
+                            }
+                        } label: {
+                            Label(audio.sleepLeft.map { clock(Double($0)) } ?? "Таймер сна", systemImage: "moon.zzz")
+                        }
+                        Spacer()
+                        Button {
+                            dismiss()
+                            openVerse(c.book, c.chapter, c.verse)
+                        } label: { Label("К тексту", systemImage: "book") }
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    ContentUnavailableView("Ничего не звучит", systemImage: "headphones")
+                }
+            }
+            .padding(20)
+            .navigationTitle("Аудио")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Свернуть") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Закрыть плеер", role: .destructive) {
+                        audio.stop()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.large])
     }
 }
 

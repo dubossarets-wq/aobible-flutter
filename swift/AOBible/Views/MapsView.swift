@@ -204,15 +204,12 @@ struct InterlinearSheet: View {
         let words = t.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !words.isEmpty {
             VStack(spacing: 2) {
-                Text(words).font(.system(size: 17, weight: .semibold))
                 if let o = t.orig {
-                    Text(o).font(.system(size: 18, design: .serif)).foregroundStyle(.tint)
+                    Text(o).font(.system(size: 19, design: .serif)).foregroundStyle(.tint)
                 }
+                Text(words).font(.system(size: 17, weight: .semibold))
                 if !t.strongs.isEmpty {
                     Text(t.strongs.joined(separator: " ")).font(.caption2).foregroundStyle(.secondary)
-                }
-                if !t.morph.isEmpty {
-                    Text(t.morph.joined(separator: " ")).font(.system(size: 9)).foregroundStyle(.tertiary)
                 }
             }
             .padding(.horizontal, 6)
