@@ -165,6 +165,8 @@ final class AudioEngine: ObservableObject {
     @Published private(set) var current: Place?
     @Published private(set) var pack: AudioPack?
     @Published private(set) var moduleId = ""
+    /// Перевод, текст которого показан в раскрытом проигрывателе (как слова песни в Apple Music)
+    @Published var textModule = ""
     @Published private(set) var position = 0.0
     @Published private(set) var duration = 0.0
     @Published private(set) var sleepLeft: Int?
@@ -225,6 +227,7 @@ final class AudioEngine: ObservableObject {
             return
         }
         self.moduleId = moduleId
+        textModule = moduleId
         pack = pick
         active = true
         play(book: place.book, chapter: place.chapter, verse: max(1, place.verse))
@@ -338,6 +341,13 @@ final class AudioEngine: ObservableObject {
         sleepTask?.cancel()
         sleepLeft = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    /// Другая запись (язык чтеца) — с того же стиха
+    func switchPack(_ p: AudioPack) {
+        guard let c = current, p.has(c.book, c.chapter) else { return }
+        pack = p
+        play(book: c.book, chapter: c.chapter, verse: c.verse)
     }
 
     func seek(to sec: Double) {
