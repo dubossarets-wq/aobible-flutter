@@ -58,7 +58,7 @@ struct ModulesList: View {
     var body: some View {
         List {
             Section {
-                Picker("Тип", selection: $kind) {
+                Picker("Тип модуля", selection: $kind) {
                     ForEach(kinds, id: \.0) { k in
                         Text(LocalizedStringKey(k.1)).tag(k.0)
                     }
