@@ -23,11 +23,20 @@ struct PaneState: Identifiable, Codable, Hashable {
 /// Сколько панелей чтения можно открыть рядом
 let maxPanes = 6
 
+/// Живое место: верхний видимый стих каждой панели. Меняется при прокрутке, поэтому лежит отдельно от панелей —
+/// перерисовывается только то, что его читает (шапка), а не весь экран
+@MainActor
+final class LivePlace: ObservableObject {
+    @Published var verse: [UUID: Int] = [:]
+}
+
 /// Панели чтения: до шести, у каждой свой перевод и история. Хранятся файлом «panes.json»; если его ещё нет, но есть
 /// панели Flutter-версии (тот же контейнер), они подхватываются
 @MainActor
 final class PanesStore: ObservableObject {
     @Published var panes: [PaneState] = []
+    let live = LivePlace()
+    private var liveTask: Task<Void, Never>?
     private let url: URL
 
     init() {
@@ -49,7 +58,29 @@ final class PanesStore: ObservableObject {
     }
 
     private func save() {
-        if let d = try? JSONEncoder().encode(panes) { try? d.write(to: url, options: .atomic) }
+        // место на диске — то, где человек сейчас читает (верхний видимый стих)
+        var out = panes
+        for i in out.indices { if let v = live.verse[out[i].id] { out[i].verse = v } }
+        if let d = try? JSONEncoder().encode(out) { try? d.write(to: url, options: .atomic) }
+    }
+
+    /// Верхний видимый стих панели (при прокрутке); на диск пишется не чаще раза в секунду
+    func setLive(_ id: UUID, _ verse: Int) {
+        guard index(id) != nil, live.verse[id] != verse else { return }
+        live.verse[id] = verse
+        liveTask?.cancel()
+        liveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if !Task.isCancelled { save() }
+        }
+    }
+
+    /// Где сейчас читает панель: верхний видимый стих, иначе записанное место
+    func livePlace(_ id: UUID) -> Place? {
+        guard let i = index(id) else { return nil }
+        var p = panes[i].place
+        if let v = live.verse[id] { p.verse = v }
+        return p
     }
 
     /// Первая панель при самом первом запуске; панели без установленного перевода получают первый имеющийся
@@ -96,6 +127,7 @@ final class PanesStore: ObservableObject {
         panes[i].book = book
         panes[i].chapter = chapter
         panes[i].verse = verse
+        live.verse[id] = nil
         if record {
             var h = Array(panes[i].history.prefix(panes[i].hIndex + 1))
             let p = Place(book: book, chapter: chapter, verse: verse)

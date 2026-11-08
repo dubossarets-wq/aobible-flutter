@@ -16,13 +16,10 @@ struct MoreView: View {
             List {
                 Section {
                     Button {
-                        if let p = panes.panes.first {
-                            let v = max(1, p.verse)
-                            if !marks.isBookmarked(p.book, p.chapter, v) {
-                                marks.toggleBookmark(p.book, p.chapter, v, text: store.verseText(module: p.moduleId, book: p.book, chapter: p.chapter, verse: v) ?? "")
-                            }
-                            let name = Books.info(p.book)?.name ?? p.book
-                            bookmarkedMessage = "Закладка: \(name) \(p.chapter):\(v)"
+                        if let p = panes.panes.first, let here = panes.livePlace(p.id) {
+                            // закладка на текущее место (верхний видимый стих): повторное нажатие снимает её
+                            let v = max(1, here.verse)
+                            marks.toggleBookmark(p.book, p.chapter, v, text: String((store.verseText(module: p.moduleId, book: p.book, chapter: p.chapter, verse: v) ?? "").prefix(160)))
                         }
                     } label: {
                         IconLabel(title: "Закладка на это место", symbol: "bookmark.fill", color: .orange)

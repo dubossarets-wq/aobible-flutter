@@ -177,7 +177,7 @@ struct BookmarksView: View {
     // MARK: - Закладки
 
     @ViewBuilder private var bookmarksList: some View {
-        if let p = panes.panes.first {
+        if let first = panes.panes.first, let p = panes.livePlace(first.id) {
             Section {
                 Button {
                     openVerse(p.book, p.chapter, max(p.verse, 1))

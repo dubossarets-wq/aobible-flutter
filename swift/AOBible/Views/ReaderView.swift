@@ -152,7 +152,7 @@ struct PaneView: View {
             .buttonStyle(.glass)
             Button { showGoto = true } label: {
                 HStack(spacing: 4) {
-                    Text("\(bookName(p, m)) \(p.chapter)").font(.subheadline.weight(.semibold)).fixedSize()
+                    LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                 }
             }
@@ -184,6 +184,19 @@ struct PaneView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+    }
+}
+
+/// «Ин 3:16» в шапке: стих — верхний видимый, меняется при прокрутке
+struct LiveTitle: View {
+    @ObservedObject var live: LivePlace
+    let id: UUID
+    let name: String
+    let chapter: Int
+    let fallback: Int
+
+    var body: some View {
+        Text("\(name) \(chapter):\(live.verse[id] ?? fallback)").font(.subheadline.weight(.semibold)).fixedSize()
     }
 }
 
@@ -380,8 +393,12 @@ struct ChapterText: View {
                         .onAppear { startReading(count: verses.count) }
                         .onDisappear { readTask?.cancel() }
                 }
+                .scrollTargetLayout()
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
+            }
+            .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
+                if let top = ids.min() { panes.setLive(pane.id, top) }
             }
             .background(pal.bg)
             .onAppear {
