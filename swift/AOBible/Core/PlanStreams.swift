@@ -33,7 +33,7 @@ extension PlanLogic {
 
     static func streamBooks(_ key: String, own: [String]) -> [String] {
         switch key {
-        case "ot": return Books.all.filter { $0.t == "OT" }.map { $0.id }
+        case "ot": return Books.all.filter { $0.t == "OT" && $0.dc != true }.map { $0.id }
         case "nt": return Books.all.filter { $0.t == "NT" }.map { $0.id }
         case "ps": return ["Ps"]
         case "prov": return ["Prov"]

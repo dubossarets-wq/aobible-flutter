@@ -72,8 +72,8 @@ struct CustomPlanView: View {
 
     private func scopeBooks(_ id: String) -> [String] {
         switch id {
-        case "all": return Books.all.filter { $0.t == "OT" || $0.t == "NT" }.map { $0.id }
-        case "ot": return Books.all.filter { $0.t == "OT" }.map { $0.id }
+        case "all": return Books.all.filter { ($0.t == "OT" || $0.t == "NT") && $0.dc != true }.map { $0.id }
+        case "ot": return Books.all.filter { $0.t == "OT" && $0.dc != true }.map { $0.id }
         case "nt": return Books.all.filter { $0.t == "NT" }.map { $0.id }
         case "own": return own
         default: return scopes.first { $0.id == id }?.books ?? []
