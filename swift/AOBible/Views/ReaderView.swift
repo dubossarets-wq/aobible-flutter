@@ -81,6 +81,8 @@ struct PaneView: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var audio: AudioEngine
+    @EnvironmentObject private var plans: PlansStore
+    @State private var planDay: PlanReturn?
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @State private var showGoto = UserDefaults.standard.bool(forKey: "debugGoto")
@@ -94,6 +96,7 @@ struct PaneView: View {
         if let p = pane, let m = store.module(p.moduleId) {
             VStack(spacing: 0) {
                 header(p, m)
+                planPill(p)
                 ChapterText(module: m, pane: p)
                     .safeAreaInset(edge: .bottom) {
                         HStack {
@@ -114,6 +117,9 @@ struct PaneView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
                     }
+            }
+            .sheet(item: Binding(get: { planDay }, set: { planDay = $0 })) { r in
+                PlanDayView(uid: r.uid, day: r.day)
             }
             .sheet(isPresented: $showGoto) {
                 GotoSheet(module: m, recents: panes.recentBooks(), current: p.book) { b, c, v in
@@ -137,6 +143,27 @@ struct PaneView: View {
             }
         } else {
             Color.clear
+        }
+    }
+
+    /// «К плану · 2 из 4»: ушли из плана читать дальше — кнопка возвращает на страницу дня
+    @ViewBuilder private func planPill(_ p: PaneState) -> some View {
+        if panes.panes.first?.id == p.id, let r = plans.returnTo, let plan = plans.plans.first(where: { $0.uid == r.uid }), r.day < plan.readings.count {
+            let units = PlanLogic.dayUnits(plan, r.day)
+            let done = units.filter { PlanLogic.unitDone(plan, r.day, $0.key) }.count
+            HStack(spacing: 4) {
+                Button { planDay = r; plans.returnTo = nil } label: {
+                    Label("К плану · \(done) из \(units.count)", systemImage: "arrow.uturn.backward")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                }
+                Button { plans.returnTo = nil } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.bold)).padding(.trailing, 12).padding(.vertical, 8)
+                }
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular, in: Capsule())
+            .padding(.bottom, 4)
         }
     }
 

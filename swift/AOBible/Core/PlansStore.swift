@@ -26,6 +26,12 @@ enum Net {
     }
 }
 
+struct PlanReturn: Equatable, Identifiable {
+    let uid: String
+    let day: Int
+    var id: String { "\(uid)#\(day)" }
+}
+
 struct PlanMeta: Identifiable {
     let json: [String: Any]
     var id: String { json["id"] as? String ?? "" }
@@ -41,6 +47,8 @@ struct PlanMeta: Identifiable {
 @MainActor
 final class PlansStore: ObservableObject {
     @Published private(set) var plans: [Plan] = []
+    /// Ушли из плана читать дальше: сюда вернёт кнопка «К плану · N из M»
+    @Published var returnTo: PlanReturn?
     @Published private(set) var log = ReadLogData()
     private let plansURL: URL
     private let logURL: URL

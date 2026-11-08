@@ -120,6 +120,7 @@ struct PlanDayView: View {
             }
             if let last = units.last {
                 Button {
+                    plans.returnTo = PlanReturn(uid: uid, day: cur)
                     dismiss()
                     openVerse(last.book, last.chapter + 1, 1)
                 } label: {
