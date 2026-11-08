@@ -254,6 +254,9 @@ struct ChapterText: View {
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
     @State private var selected: Set<Int> = []
+    @GestureState private var lpHeld = false
+    @State private var lpFired = false
+    @State private var lpSwallowUntil = Date.distantPast
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var strong: StrongRequest?
@@ -326,11 +329,21 @@ struct ChapterText: View {
                                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                                         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
                                     })
+                                    // долгое нажатие в любом месте стиха (и на слове): выделяет; отпускание пальца
+                                    // не должно считаться нажатием на слово (иначе оно сразу снимало выделение)
                                     .simultaneousGesture(
-                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12).onEnded { _ in
-                                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                            selected.insert(v.num)
-                                        }
+                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12)
+                                            .sequenced(before: DragGesture(minimumDistance: 0))
+                                            .updating($lpHeld) { value, state, _ in
+                                                if case .second(true, _) = value { state = true }
+                                            }
+                                            .onChanged { value in
+                                                if case .second(true, _) = value, !lpFired {
+                                                    lpFired = true
+                                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                    selected.insert(v.num)
+                                                }
+                                            }
                                     )
                                 if !continuous, v.num == selected.max() {
                                     selectionBar(verses).frame(maxWidth: .infinity)
@@ -391,6 +404,12 @@ struct ChapterText: View {
             noteEditor
         }
         .onChange(of: chapter) { _, _ in selected = [] }
+        .onChange(of: lpHeld) { _, held in
+            if !held && lpFired {
+                lpFired = false
+                lpSwallowUntil = Date().addingTimeInterval(0.4)
+            }
+        }
         .overlay(alignment: .top) {
             if let t = toast {
                 Text(t)
@@ -403,6 +422,8 @@ struct ChapterText: View {
         }
         .animation(.default, value: toast)
         .environment(\.openURL, OpenURLAction { url in
+            // палец ещё не отпущен после долгого нажатия (или только что отпущен) — это не нажатие на слово
+            if lpFired || Date() < lpSwallowUntil { return .handled }
             // идёт выделение стихов: нажатие на слово, номер Стронга и метки только выделяет стих, словарь не открывается
             if !selected.isEmpty, let v = verseOf(url) {
                 toggle(v)

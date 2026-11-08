@@ -102,7 +102,16 @@ final class PlansStore: ObservableObject {
         saveLog()
     }
 
+    /// Такой план уже добавлен (тот же готовый план или тот же свой набор отрывков)
+    func has(planId: String, name: String, readings: [[String]]? = nil) -> Bool {
+        plans.contains { p in
+            if planId != "custom" { return p.planId == planId }
+            return p.planId == "custom" && p.name == name && (readings == nil || p.readings == readings!)
+        }
+    }
+
     func add(_ p: Plan) {
+        guard !has(planId: p.planId, name: p.name, readings: p.readings) else { return }
         plans.insert(p, at: 0)
         savePlans()
     }
@@ -178,12 +187,16 @@ enum VerseOfDay {
 
     /// Текст стиха на дату. Если в установленных переводах его нет (например, только Новый Завет) — следующий стих списка
     @MainActor
-    static func load(store: ModuleStore, preferred: String) -> DayVerse? {
+    static func load(store: ModuleStore, preferred: String, language: String = "ru") -> DayVerse? {
+        // только обычные переводы языка приложения (не подстрочники); главный перевод — первым
+        func plain(_ m: InstalledModule) -> Bool { !m.interlinear && !m.id.hasSuffix("-interlinear") }
         var mods: [InstalledModule] = []
-        if let m = store.module(preferred) { mods.append(m) }
-        for m in store.bibles where !mods.contains(where: { $0.id == m.id }) { mods.append(m) }
-        let own = mods.filter { $0.language == "ru" }
-        mods = own.isEmpty ? mods : own
+        if let m = store.module(preferred), plain(m), m.language == language { mods.append(m) }
+        for m in store.bibles where plain(m) && m.language == language && !mods.contains(where: { $0.id == m.id }) { mods.append(m) }
+        if mods.isEmpty {
+            if let m = store.module(preferred), plain(m) { mods.append(m) }
+            for m in store.bibles where plain(m) && !mods.contains(where: { $0.id == m.id }) { mods.append(m) }
+        }
         guard let first = key(), let start = list.firstIndex(of: first) else { return nil }
         for k in 0..<40 {
             guard let (b, c, v) = parse(list[(start + k) % list.count]) else { continue }

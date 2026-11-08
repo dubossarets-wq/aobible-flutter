@@ -313,6 +313,19 @@ struct DictionaryView: View {
 
     var body: some View {
         List {
+            Section {
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Слово или номер Стронга", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                    if !query.isEmpty {
+                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                            .buttonStyle(.plain)
+                    }
+                }
+            }
             if store.dictionaries.isEmpty {
                 Section {
                     Text("Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».")
@@ -341,7 +354,6 @@ struct DictionaryView: View {
         }
         .navigationTitle("Словарь")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, prompt: "Слово или номер Стронга")
         .onChange(of: query) { _, _ in search() }
     }
 

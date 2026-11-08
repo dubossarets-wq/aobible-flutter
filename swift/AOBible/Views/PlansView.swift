@@ -56,25 +56,21 @@ struct PlansView: View {
                 }
                 Section {
                     ForEach(catalog) { m in
-                        Button {
-                            Task { await start(m) }
+                        NavigationLink {
+                            PlanPreview(meta: m, added: plans.has(planId: m.id, name: m.name)) { await start(m) }
                         } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(m.name).foregroundStyle(.primary)
-                                    if let s = m.short {
-                                        Text("\(s) · \(m.days) дн.").font(.subheadline).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(m.name)
+                                    if plans.has(planId: m.id, name: m.name) {
+                                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                                     }
                                 }
-                                Spacer()
-                                if busy == m.id {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "plus.circle").foregroundStyle(.tint)
+                                if let s = m.short {
+                                    Text("\(s) · \(m.days) дн.").font(.subheadline).foregroundStyle(.secondary)
                                 }
                             }
                         }
-                        .buttonStyle(.plain)
                     }
                     if catalogFailed {
                         Button("Не удалось загрузить список планов. Повторить") { Task { await loadCatalog() } }
@@ -114,10 +110,18 @@ struct PlansView: View {
     }
 
     private func start(_ m: PlanMeta) async {
+        if plans.has(planId: m.id, name: m.name) {
+            flash("Этот план уже добавлен")
+            return
+        }
         busy = m.id
         defer { busy = nil }
         guard let j = await Net.json("plans/" + m.file), let readings = j["readings"] as? [[String]], !readings.isEmpty else {
             flash("План не загрузился")
+            return
+        }
+        if plans.has(planId: j["id"] as? String ?? m.id, name: m.name) {
+            flash("Этот план уже добавлен")
             return
         }
         let p = Plan(
@@ -148,6 +152,7 @@ struct VerseOfDayCard: View {
     @Environment(\.openVerse) private var openVerse
     @EnvironmentObject private var panes: PanesStore
     private var moduleId: String { panes.primaryModule }
+    @AppStorage("interfaceLanguage") private var lang = "ru"
     @State private var verse: DayVerse?
     @State private var photo: URL?
     @State private var imageReq: ImageRequest?
@@ -188,18 +193,32 @@ struct VerseOfDayCard: View {
                             openVerse(v.book, v.chapter, v.verse)
                         } label: {
                             Label("Читать", systemImage: "book")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 14).padding(.vertical, 10)
+                                .background(.white, in: Capsule())
                         }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.plain)
                         Button {
                             imageReq = ImageRequest(text: v.text, ref: label)
                         } label: {
                             Label("Картинка", systemImage: "photo")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14).padding(.vertical, 10)
+                                .background(.black.opacity(0.45), in: Capsule())
+                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1))
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.plain)
                         ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))") {
                             Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 40)
+                                .background(.black.opacity(0.45), in: Circle())
+                                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1))
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.plain)
                     }
                 } else {
                     Text("Скачайте перевод Библии, чтобы увидеть стих дня.")
@@ -211,12 +230,83 @@ struct VerseOfDayCard: View {
         .frame(maxWidth: .infinity, minHeight: 300)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .sheet(item: $imageReq) { VerseImageSheet(text: $0.text, ref: $0.ref) }
-        .task(id: moduleId + "\(store.installed.count)") {
-            verse = VerseOfDay.load(store: store, preferred: moduleId)
+        .task(id: moduleId + lang + "\(store.installed.count)") {
+            verse = VerseOfDay.load(store: store, preferred: moduleId, language: lang)
             if photo == nil, let j = await Net.json("images/verse-bg/index.json"),
                let list = j["images"] as? [[String: Any]], !list.isEmpty,
                let file = list[VerseOfDay.dayOfYear() % list.count]["file"] as? String {
                 photo = URL(string: Net.bases[0] + "images/verse-bg/" + file)
+            }
+        }
+    }
+}
+
+/// Описание готового плана: что в нём, сколько дней, чтения по дням; отсюда же план начинают
+struct PlanPreview: View {
+    let meta: PlanMeta
+    let added: Bool
+    let onStart: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var readings: [[String]] = []
+    @State private var failed = false
+    @State private var starting = false
+
+    var body: some View {
+        List {
+            Section {
+                if let d = meta.description, !d.isEmpty { Text(d) }
+                if let s = meta.short { Text(s).foregroundStyle(.secondary) }
+                LabeledContent("Длительность", value: "\(readings.isEmpty ? meta.days : readings.count) дн.")
+                if !readings.isEmpty {
+                    let n = readings.reduce(0) { $0 + $1.count }
+                    LabeledContent("Отрывков всего", value: "\(n)")
+                    LabeledContent("В день", value: String(format: "%.1f", Double(n) / Double(readings.count)))
+                }
+            }
+            Section {
+                if added {
+                    Label("План уже добавлен", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                } else {
+                    Button {
+                        Task {
+                            starting = true
+                            await onStart()
+                            starting = false
+                            dismiss()
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if starting { ProgressView() } else { Text("Начать план").font(.headline) }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.glassProminent)
+                    .listRowBackground(Color.clear)
+                    .disabled(starting)
+                }
+            }
+            if failed {
+                Section { Text("Не удалось загрузить состав плана").foregroundStyle(.secondary) }
+            }
+            if !readings.isEmpty {
+                Section("Чтения по дням") {
+                    ForEach(Array(readings.enumerated()), id: \.offset) { i, day in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("День \(i + 1)").foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
+                            Text(day.map { PlanLogic.readingLabel($0) }.joined(separator: " · "))
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(meta.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if let j = await Net.json("plans/" + meta.file), let r = j["readings"] as? [[String]] {
+                readings = r
+            } else {
+                failed = true
             }
         }
     }
@@ -421,83 +511,3 @@ struct PlanDetailView: View {
 }
 
 // MARK: - Свой план
-
-struct CustomPlanView: View {
-    @EnvironmentObject private var store: ModuleStore
-    @EnvironmentObject private var plans: PlansStore
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var panes: PanesStore
-    private var moduleId: String { panes.primaryModule }
-    @State private var scope = "all"
-    @State private var days = 365
-
-    private let scopes: [(String, String, [String])] = [
-        ("all", "Вся Библия", []),
-        ("ot", "Ветхий Завет", []),
-        ("nt", "Новый Завет", []),
-        ("gospels", "Евангелия", ["Matt", "Mark", "Luke", "John"]),
-        ("ps", "Псалтирь", ["Ps"]),
-    ]
-
-    private var module: InstalledModule? {
-        store.module(moduleId) ?? store.bibles.first
-    }
-
-    private func books() -> [String] {
-        guard let m = module else { return [] }
-        let have = Set(m.books.map { $0.id })
-        let ids: [String]
-        switch scope {
-        case "all": ids = Books.all.filter { $0.t == "OT" || $0.t == "NT" }.map { $0.id }
-        case "ot": ids = Books.all.filter { $0.t == "OT" }.map { $0.id }
-        case "nt": ids = Books.all.filter { $0.t == "NT" }.map { $0.id }
-        default: ids = scopes.first { $0.0 == scope }?.2 ?? []
-        }
-        return ids.filter { have.contains($0) }
-    }
-
-    var body: some View {
-        let label = scopes.first { $0.0 == scope }?.1 ?? ""
-        Form {
-            Section("Что читать") {
-                Picker("Что читать", selection: $scope) {
-                    ForEach(scopes, id: \.0) { s in
-                        Text(s.1).tag(s.0)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            }
-            Section("За сколько дней") {
-                Stepper(value: $days, in: 7...730, step: days < 60 ? 1 : 10) {
-                    Text("\(days) дн.")
-                }
-            }
-            Section {
-                Button("Создать план") { create(label) }
-                    .disabled(module == nil)
-            } footer: {
-                if module == nil {
-                    Text("Сначала скачайте перевод Библии.")
-                }
-            }
-        }
-        .navigationTitle("Свой план")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func create(_ label: String) {
-        guard let m = module else { return }
-        let readings = PlanLogic.splitChapters(store.chapterList(module: m, books: books()), days: days)
-        guard !readings.isEmpty else { return }
-        plans.add(Plan(
-            uid: String(Int(Date().timeIntervalSince1970 * 1000), radix: 36),
-            planId: "custom",
-            name: "\(label) за \(readings.count) дн.",
-            readings: readings,
-            calendar: false,
-            start: PlanLogic.localDate()
-        ))
-        dismiss()
-    }
-}

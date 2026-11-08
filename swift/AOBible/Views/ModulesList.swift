@@ -120,7 +120,7 @@ struct ModulesList: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down.on.square") }
                     .accessibilityLabel("Установить из файла")
             }
