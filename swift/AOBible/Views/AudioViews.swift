@@ -81,15 +81,17 @@ private struct RoutePicker: UIViewRepresentable {
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }
 
-/// Раскрытый проигрыватель — как в Apple Music: большая обложка, название, ползунок, управление, громкость;
-/// внизу — текст стиха (как слова песни) с переключением языка и язык чтеца, AirPlay
+/// Раскрытый проигрыватель — как в Apple Music: тёмный фон, сверху обложка с названием, звёздочка и меню;
+/// в середине текст стиха-главы, как слова песни (звучащий стих — крупно и ярко, остальные размыты; нажатие —
+/// перемотка к стиху); ползунок с временем; управление; громкость; внизу — слова, AirPlay и список
 struct AudioFullView: View {
     @EnvironmentObject private var audio: AudioEngine
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var marks: MarksStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openVerse) private var openVerse
     @State private var scrub: Double?
-    @State private var showText = false
+    @State private var lyrics = true
     @State private var packs: [AudioPack] = []
 
     private func clock(_ s: Double) -> String {
@@ -97,145 +99,220 @@ struct AudioFullView: View {
         return String(format: "%d:%02d", v / 60, v % 60)
     }
 
-    private var verseText: String {
-        guard let c = audio.current else { return "" }
-        return store.verseText(module: audio.textModule.isEmpty ? audio.moduleId : audio.textModule, book: c.book, chapter: c.chapter, verse: c.verse) ?? ""
+    private var textId: String {
+        audio.textModule.isEmpty ? audio.moduleId : audio.textModule
     }
 
     var body: some View {
-        VStack(spacing: 18) {
-            Capsule().fill(.secondary.opacity(0.4)).frame(width: 40, height: 5).padding(.top, 8)
+        ZStack {
+            LinearGradient(colors: [Color(hex: 0x3A1E26), Color(hex: 0x1A1620), Color(hex: 0x0E1824)], startPoint: .topTrailing, endPoint: .bottomLeading)
+                .ignoresSafeArea()
             if let c = audio.current {
-                let name = Books.info(c.book)?.name ?? c.book
-                if showText {
-                    ScrollView {
-                        Text(verseText)
-                            .font(.system(size: 30, weight: .bold, design: .serif))
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 12)
+                VStack(spacing: 16) {
+                    Capsule().fill(.white.opacity(0.35)).frame(width: 40, height: 5).padding(.top, 8)
+                    header(c)
+                    if lyrics {
+                        lyricsView(c)
+                    } else {
+                        Spacer(minLength: 0)
+                        artwork(c)
+                        Spacer(minLength: 0)
                     }
-                } else {
-                    Spacer(minLength: 0)
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(hex: 0x2F4B7C), Color(hex: 0x0F1A2A)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        VStack(spacing: 6) {
-                            Image(systemName: "book.closed.fill").font(.system(size: 46)).foregroundStyle(.white.opacity(0.9))
-                            Text(name).font(.system(size: 26, weight: .bold, design: .serif)).foregroundStyle(.white)
-                            Text("\(c.chapter)").font(.system(size: 54, weight: .bold, design: .serif)).foregroundStyle(.white)
-                        }
-                    }
-                    .aspectRatio(1, contentMode: .fit)
-                    .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
-                    .padding(.horizontal, 12)
-                    Spacer(minLength: 0)
+                    progress
+                    controls
+                    volume
+                    bottomRow(c)
                 }
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(name) \(c.chapter):\(c.verse)").font(.title3.weight(.bold)).lineLimit(1)
-                        Text(audio.pack?.title ?? "").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    Spacer()
-                    Menu {
-                        Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть проигрыватель", systemImage: "xmark") }
-                        Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
-                    } label: {
-                        Image(systemName: "ellipsis").frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-                }
-                VStack(spacing: 4) {
-                    Slider(value: Binding(get: { scrub ?? audio.position }, set: { scrub = $0 }), in: 0...max(1, audio.duration)) { editing in
-                        if !editing, let s = scrub {
-                            audio.seek(to: s)
-                            scrub = nil
-                        }
-                    }
-                    HStack {
-                        Text(clock(scrub ?? audio.position))
-                        Spacer()
-                        Text("-" + clock(max(0, audio.duration - (scrub ?? audio.position))))
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 34) {
-                    Button { audio.previousVerse() } label: { Image(systemName: "backward.fill").font(.system(size: 32)) }
-                    Button { audio.toggle() } label: { Image(systemName: audio.playing ? "pause.fill" : "play.fill").font(.system(size: 46)) }
-                    Button { audio.nextVerse() } label: { Image(systemName: "forward.fill").font(.system(size: 32)) }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary)
-                HStack(spacing: 10) {
-                    Image(systemName: "speaker.fill").font(.caption).foregroundStyle(.secondary)
-                    VolumeSlider().frame(height: 30)
-                    Image(systemName: "speaker.wave.3.fill").font(.caption).foregroundStyle(.secondary)
-                }
-                HStack {
-                    // текст стиха — как слова песни
-                    Button { showText.toggle() } label: {
-                        Image(systemName: showText ? "quote.bubble.fill" : "quote.bubble").font(.title3)
-                    }
-                    Spacer()
-                    // язык: перевод текста и запись чтеца — как переключение перевода слов в Apple Music
-                    Menu {
-                        Section("Текст") {
-                            ForEach(store.bibles.filter { !$0.interlinear }) { m in
-                                Button {
-                                    audio.textModule = m.id
-                                    showText = true
-                                } label: {
-                                    if m.id == audio.textModule { Label(m.name + " — " + m.title, systemImage: "checkmark") } else { Text(m.name + " — " + m.title) }
-                                }
-                            }
-                        }
-                        if packs.count > 1 {
-                            Section("Чтец") {
-                                ForEach(packs, id: \.id) { p in
-                                    Button {
-                                        audio.switchPack(p)
-                                    } label: {
-                                        if p.id == audio.pack?.id { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "translate").font(.title3)
-                    }
-                    Spacer()
-                    Menu {
-                        ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
-                            Button("\(r, specifier: "%g")×") { audio.rate = Float(r) }
-                        }
-                        Divider()
-                        ForEach([15, 30, 45, 60], id: \.self) { m in
-                            Button("Таймер сна: \(m) мин") { audio.setSleep(minutes: m) }
-                        }
-                        if audio.sleepLeft != nil {
-                            Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
-                        }
-                    } label: {
-                        Image(systemName: audio.sleepLeft == nil ? "gauge.with.dots.needle.33percent" : "moon.zzz.fill").font(.title3)
-                    }
-                    Spacer()
-                    RoutePicker().frame(width: 30, height: 30)
-                }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 6)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 14)
             } else {
                 ContentUnavailableView("Ничего не звучит", systemImage: "headphones")
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 14)
+        .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
             guard let c = audio.current else { return }
             packs = await audio.allPacks(store).filter { $0.has(c.book, c.chapter) }
+        }
+    }
+
+    private func bookName(_ c: Place) -> String {
+        Books.info(c.book)?.name ?? c.book
+    }
+
+    private func cover(_ size: CGFloat, _ c: Place) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.14, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x2F4B7C), Color(hex: 0x0F1A2A)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            VStack(spacing: size * 0.03) {
+                Image(systemName: "book.closed.fill").font(.system(size: size * 0.28))
+                Text("\(c.chapter)").font(.system(size: size * 0.3, weight: .bold, design: .serif))
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private func header(_ c: Place) -> some View {
+        HStack(spacing: 14) {
+            cover(78, c)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(bookName(c)) \(c.chapter):\(c.verse)").font(.title3.weight(.bold)).lineLimit(1)
+                Text(audio.pack?.title ?? "").font(.subheadline).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+            }
+            Spacer()
+            let key = MarksStore.key(c.book, c.chapter, c.verse)
+            Button {
+                marks.toggleFavorite(c.book, c.chapter, c.verse, text: store.verseText(module: textId, book: c.book, chapter: c.chapter, verse: c.verse) ?? "")
+            } label: {
+                Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title2)
+            }
+            Menu {
+                Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
+                Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть проигрыватель", systemImage: "xmark") }
+            } label: {
+                Image(systemName: "ellipsis").font(.title2).frame(width: 34, height: 34)
+            }
+        }
+    }
+
+    private func artwork(_ c: Place) -> some View {
+        cover(300, c)
+            .shadow(color: .black.opacity(0.4), radius: 20, y: 10)
+    }
+
+    /// Слова песни: стихи главы; звучащий — крупно и ярко, остальные — тусклее и размыты
+    private func lyricsView(_ c: Place) -> some View {
+        let verses = store.verses(module: textId, book: c.book, chapter: c.chapter)
+        return ZStack(alignment: .bottomTrailing) {
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 26) {
+                        ForEach(verses) { v in
+                            let on = v.num == c.verse
+                            Text(Markup.plain(v.text))
+                                .font(.system(size: 31, weight: .bold))
+                                .opacity(on ? 1 : 0.38)
+                                .blur(radius: on ? 0 : 2.5)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .onTapGesture { audio.seekVerse(v.num) }
+                                .id(v.num)
+                        }
+                    }
+                    .padding(.vertical, 120)
+                    .animation(.easeInOut(duration: 0.3), value: c.verse)
+                }
+                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12), .init(color: .black, location: 0.85), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .onChange(of: c.verse) { _, v in
+                    withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(v, anchor: .center) }
+                }
+                .onAppear { proxy.scrollTo(c.verse, anchor: .center) }
+            }
+            // язык текста и чтеца — как переключение перевода слов в Apple Music
+            Menu {
+                Section("Текст") {
+                    ForEach(store.bibles.filter { !$0.interlinear }) { m in
+                        Button {
+                            audio.textModule = m.id
+                        } label: {
+                            if m.id == textId { Label(m.name + " — " + m.title, systemImage: "checkmark") } else { Text(m.name + " — " + m.title) }
+                        }
+                    }
+                }
+                if packs.count > 1 {
+                    Section("Чтец") {
+                        ForEach(packs, id: \.id) { p in
+                            Button {
+                                audio.switchPack(p)
+                            } label: {
+                                if p.id == audio.pack?.id { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "translate").font(.title3).frame(width: 46, height: 46)
+                    .background(.white.opacity(0.18), in: Circle())
+            }
+        }
+    }
+
+    private var progress: some View {
+        VStack(spacing: 4) {
+            Slider(value: Binding(get: { scrub ?? audio.position }, set: { scrub = $0 }), in: 0...max(1, audio.duration)) { editing in
+                if !editing, let s = scrub {
+                    audio.seek(to: s)
+                    scrub = nil
+                }
+            }
+            .tint(.white.opacity(0.75))
+            HStack {
+                Text(clock(scrub ?? audio.position))
+                Spacer()
+                Text("−" + clock(max(0, audio.duration - (scrub ?? audio.position))))
+            }
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.55))
+        }
+    }
+
+    private var controls: some View {
+        HStack {
+            Button { audio.previousVerse() } label: { Image(systemName: "backward.fill").font(.system(size: 38)) }
+            Spacer()
+            Button { audio.toggle() } label: { Image(systemName: audio.playing ? "pause.fill" : "play.fill").font(.system(size: 54)) }
+            Spacer()
+            Button { audio.nextVerse() } label: { Image(systemName: "forward.fill").font(.system(size: 38)) }
+        }
+        .padding(.horizontal, 46)
+        .buttonStyle(.plain)
+        .padding(.vertical, 6)
+    }
+
+    private var volume: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
+            VolumeSlider().frame(height: 30)
+            Image(systemName: "speaker.wave.3.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
+        }
+    }
+
+    private func bottomRow(_ c: Place) -> some View {
+        HStack {
+            Button { lyrics.toggle() } label: {
+                Image(systemName: lyrics ? "quote.bubble.fill" : "quote.bubble")
+                    .font(.title2)
+                    .frame(width: 56, height: 46)
+                    .background(lyrics ? Color.white.opacity(0.25) : Color.clear, in: Capsule())
+            }
+            Spacer()
+            RoutePicker().frame(width: 34, height: 34)
+            Spacer()
+            // список: скорость и таймер сна
+            Menu {
+                Section("Скорость") {
+                    ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
+                        Button {
+                            audio.rate = Float(r)
+                        } label: {
+                            if Double(audio.rate) == r { Label("\(r, specifier: "%g")×", systemImage: "checkmark") } else { Text("\(r, specifier: "%g")×") }
+                        }
+                    }
+                }
+                Section("Таймер сна") {
+                    ForEach([15, 30, 45, 60], id: \.self) { m in
+                        Button("\(m) мин") { audio.setSleep(minutes: m) }
+                    }
+                    if audio.sleepLeft != nil {
+                        Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
+                    }
+                }
+            } label: {
+                Image(systemName: "list.bullet").font(.title2).frame(width: 56, height: 46)
+            }
         }
     }
 }
