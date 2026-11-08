@@ -17,7 +17,7 @@ struct CustomPlanView: View {
     @AppStorage("cp.periodDays") private var periodDays = 90
     @AppStorage("cp.own") private var ownRaw = ""
     @AppStorage("cp.streams") private var streamsRaw = "ot:1,ps:1,nt:1"
-    @State private var cache = ChapterCache()
+    @State private var cache = PlanChapterCache()
     @State private var message: String?
 
     private let scopes: [(id: String, label: String, icon: String, books: [String])] = [
@@ -332,7 +332,7 @@ struct CustomPlanView: View {
     }
 }
 
-final class ChapterCache {
+final class PlanChapterCache {
     var d: [String: [ChapterRef]] = [:]
 }
 

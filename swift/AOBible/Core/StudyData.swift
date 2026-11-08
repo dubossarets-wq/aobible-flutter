@@ -35,11 +35,13 @@ struct OsisRef {
     }
 }
 
-struct DictHit: Identifiable {
+struct DictHit: Identifiable, Hashable {
     let module: InstalledModule
     let key: String
     let word: String
     var id: String { module.id + "|" + key }
+    static func == (a: DictHit, b: DictHit) -> Bool { a.id == b.id }
+    func hash(into h: inout Hasher) { h.combine(id) }
 }
 
 struct BibleIllustration: Identifiable, Hashable {
