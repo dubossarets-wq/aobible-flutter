@@ -318,14 +318,15 @@ struct ChapterText: View {
                                         }
                                     }
                                     .contentShape(Rectangle())
-                                    .onTapGesture(count: 2) { marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text)) }
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
                                     .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
-                                    .onLongPressGesture(minimumDuration: 0.15, maximumDistance: 12) {
-                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                        selected.insert(v.num)
-                                    }
+                                    .simultaneousGesture(
+                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12).onEnded { _ in
+                                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                            selected.insert(v.num)
+                                        }
+                                    )
                                 if !continuous, v.num == selected.max() {
                                     selectionBar(verses).frame(maxWidth: .infinity)
                                 }
@@ -397,6 +398,11 @@ struct ChapterText: View {
         }
         .animation(.default, value: toast)
         .environment(\.openURL, OpenURLAction { url in
+            // идёт выделение стихов: нажатие на слово, номер Стронга и метки только выделяет стих, словарь не открывается
+            if !selected.isEmpty, let v = verseOf(url) {
+                toggle(v)
+                return .handled
+            }
             if let k = StrongLinks.key(from: url) {
                 strong = StrongRequest(key: k)
                 return .handled
@@ -462,6 +468,19 @@ struct ChapterText: View {
         let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
         cacheBox.value = c
         return c
+    }
+
+    /// Номер стиха, к которому относится ссылка в тексте
+    private func verseOf(_ url: URL) -> Int? {
+        let s = url.absoluteString
+        switch url.scheme {
+        case "aobword": return s.dropFirst("aobword:".count).split(separator: ",").first.flatMap { Int($0) }
+        case "aobstrong": return s.split(separator: "@").last.flatMap { Int($0) }
+        case "aobxref": return Int(s.dropFirst("aobxref:".count))
+        case "aobillus": return Int(s.dropFirst("aobillus:".count))
+        case "aobverse": return Int(s.dropFirst("aobverse:".count))
+        default: return nil
+        }
     }
 
     private func startReading(count: Int) {
@@ -600,7 +619,7 @@ struct ChapterText: View {
                         n.font = .system(size: fontSize * 0.55)
                         n.baselineOffset = fontSize * 0.3
                         n.foregroundColor = pal.accent
-                        n.link = URL(string: "aobstrong:" + key)
+                        n.link = URL(string: "aobstrong:\(key)@\(v.num)")
                         out += n
                     }
                 }
