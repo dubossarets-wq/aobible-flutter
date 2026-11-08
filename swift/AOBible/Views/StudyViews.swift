@@ -18,6 +18,34 @@ enum StrongLinks {
         return attr
     }
 
+    private static let seeRe = try! NSRegularExpression(pattern: "(?:См\\.|см\\.|Ср\\.|ср\\.)\\s*([А-Яа-яЁё][А-Яа-яЁё\\s,\\-]*)")
+    private static let wordRe = try! NSRegularExpression(pattern: "[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*")
+
+    /// Текст статьи со ссылками: номера Стронга и слова после «См.» / «Ср.» (нажатие — статья этого слова)
+    static func attributed(_ s: String, refs: Bool) -> AttributedString {
+        var attr = attributed(s)
+        guard refs else { return attr }
+        let ns = s as NSString
+        for m in seeRe.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+            let group = m.range(at: 1)
+            for w in wordRe.matches(in: s, range: group) {
+                let word = ns.substring(with: w.range)
+                guard word.count > 2, let r = Range(w.range, in: s), let enc = word.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { continue }
+                let lo = s.distance(from: s.startIndex, to: r.lowerBound)
+                let hi = s.distance(from: s.startIndex, to: r.upperBound)
+                let a = attr.index(attr.startIndex, offsetByCharacters: lo)
+                let b = attr.index(attr.startIndex, offsetByCharacters: hi)
+                attr[a..<b].link = URL(string: "aobref:" + enc)
+            }
+        }
+        return attr
+    }
+
+    static func refWord(from url: URL) -> String? {
+        guard url.scheme == "aobref" else { return nil }
+        return String(url.absoluteString.dropFirst("aobref:".count)).removingPercentEncoding
+    }
+
     static func key(from url: URL) -> String? {
         guard url.scheme == "aobstrong" else { return nil }
         let rest = String(url.absoluteString.dropFirst("aobstrong:".count))
@@ -29,6 +57,9 @@ enum StrongLinks {
 struct EntryView: View {
     let entry: [String: Any]
     let onLink: (String) -> Void
+    /// Словарь «по словам»: «См. Законник» — ссылка на статью (onRef получает слово)
+    var refs = false
+    var onRef: ((String) -> Void)? = nil
 
     private func str(_ k: String) -> String? {
         guard let s = entry[k] as? String, !s.isEmpty else { return nil }
@@ -51,7 +82,7 @@ struct EntryView: View {
                 Text(StrongLinks.attributed(d))
             }
             if let t = str("text") {
-                Text(StrongLinks.attributed(t))
+                Text(StrongLinks.attributed(t, refs: refs))
             }
             if let k = str("kjv") {
                 Text("KJV: \(k)").foregroundStyle(.secondary)
@@ -59,6 +90,10 @@ struct EntryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.openURL, OpenURLAction { url in
+            if let w = StrongLinks.refWord(from: url) {
+                onRef?(w)
+                return .handled
+            }
             if let k = StrongLinks.key(from: url) {
                 onLink(k)
                 return .handled
@@ -336,12 +371,22 @@ struct EntryPage: View {
     @EnvironmentObject private var store: ModuleStore
     let hit: DictHit
     @State private var extra: [String] = []
+    @State private var refHit: DictHit?
 
     var body: some View {
         List {
             if let e = store.dictEntry(module: hit.module, key: hit.key) {
                 Section {
-                    EntryView(entry: e) { extra.append($0) }
+                    EntryView(entry: e, onLink: { extra.append($0) }, refs: hit.module.dictionaryKind != "strongs", onRef: { openRef($0) })
+                }
+            }
+            if hit.module.dictionaryKind != "strongs" {
+                ForEach(store.otherEntries(key: hit.key, excluding: hit.module.id)) { o in
+                    Section {
+                        EntryView(entry: o.entry, onLink: { _ in }, refs: true, onRef: { openRef($0) })
+                    } header: {
+                        Text(o.module.name)
+                    }
                 }
             }
             ForEach(extra, id: \.self) { k in
@@ -358,5 +403,14 @@ struct EntryPage: View {
         }
         .navigationTitle(hit.word)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $refHit) { EntryPage(hit: $0) }
+    }
+
+    /// «См. Законник»: статья этого слова в том же словаре
+    private func openRef(_ word: String) {
+        let keys = [Lexicon.dictKey(word), word.lowercased()]
+        if let f = store.dictGetMany(module: hit.module, keys: keys).first {
+            refHit = DictHit(module: hit.module, key: f.0, word: (f.1["word"] as? String) ?? (f.1["lemma"] as? String) ?? f.0)
+        }
     }
 }

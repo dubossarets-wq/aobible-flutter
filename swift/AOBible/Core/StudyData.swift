@@ -53,6 +53,12 @@ struct BibleIllustration: Identifiable, Hashable {
     var id: String { img }
 }
 
+struct OtherEntry: Identifiable {
+    let module: InstalledModule
+    let entry: [String: Any]
+    var id: String { module.id }
+}
+
 struct CommentaryItem: Identifiable {
     let id = UUID()
     let module: InstalledModule
@@ -195,6 +201,16 @@ extension ModuleStore {
                     ))
                 }
             }
+        }
+        return out
+    }
+
+    /// Статьи на то же слово в других словарях «по словам» (значения из других модулей)
+    func otherEntries(key: String, excluding: String) -> [OtherEntry] {
+        let keys = [Lexicon.dictKey(key), key.lowercased(), key]
+        var out: [OtherEntry] = []
+        for m in dictionaries where m.id != excluding && m.dictionaryKind != "strongs" {
+            if let f = dictGetMany(module: m, keys: keys).first { out.append(OtherEntry(module: m, entry: f.1)) }
         }
         return out
     }

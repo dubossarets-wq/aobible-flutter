@@ -87,6 +87,7 @@ struct EntryDetail: View {
     let module: InstalledModule
     let found: Found
     @State private var linked: String?
+    @State private var refHit: DictHit?
 
     private var renderings: [(String, Int)] {
         guard let list = found.entry["renderings"] as? [[Any]] else { return [] }
@@ -96,10 +97,27 @@ struct EntryDetail: View {
         }
     }
 
+    /// «См. Законник»: статья этого слова в том же словаре
+    private func openRef(_ word: String) {
+        let keys = [Lexicon.dictKey(word), word.lowercased()]
+        if let f = store.dictGetMany(module: module, keys: keys).first {
+            refHit = DictHit(module: module, key: f.0, word: (f.1["word"] as? String) ?? (f.1["lemma"] as? String) ?? f.0)
+        }
+    }
+
     var body: some View {
         List {
             Section {
-                EntryView(entry: found.entry) { linked = $0 }
+                EntryView(entry: found.entry, onLink: { linked = $0 }, refs: module.dictionaryKind != "strongs", onRef: { openRef($0) })
+            }
+            if module.dictionaryKind != "strongs" {
+                ForEach(store.otherEntries(key: found.key, excluding: module.id)) { o in
+                    Section {
+                        EntryView(entry: o.entry, onLink: { _ in }, refs: true, onRef: { openRef($0) })
+                    } header: {
+                        Text(o.module.name)
+                    }
+                }
             }
             if !renderings.isEmpty {
                 Section("Как переведено") {
@@ -127,6 +145,7 @@ struct EntryDetail: View {
         }
         .navigationTitle(found.label)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $refHit) { EntryPage(hit: $0) }
         .navigationDestination(item: $linked) { k in
             StrongList(keys: [k]) { linked = $0 }
                 .navigationTitle(k)
