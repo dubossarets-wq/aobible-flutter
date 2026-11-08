@@ -195,6 +195,20 @@ struct PaneView: View {
     }
 }
 
+struct ChapterCache {
+    let key: String
+    let verses: [Verse]
+    let heads: [Int: String]
+    let xcounts: [Int: Int]
+    let icounts: [Int: Int]
+    let attr: [Int: AttributedString]
+}
+
+/// Ссылочный ящик: запись в него при построении экрана не вызывает перерисовку
+final class CacheBox {
+    var value: ChapterCache?
+}
+
 struct StrongRequest: Identifiable {
     let id = UUID()
     let key: String
@@ -243,6 +257,8 @@ struct ChapterText: View {
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
     @Environment(\.readerPalette) private var pal
+    @AppStorage("theme") private var theme = "system"
+    @State private var cacheBox = CacheBox()
     @State private var selected: Set<Int> = []
     @State private var noteVerse: Int?
     @State private var noteText = ""
@@ -263,10 +279,11 @@ struct ChapterText: View {
     }
 
     var body: some View {
-        let verses = store.verses(module: module.id, book: book, chapter: chapter)
-        let heads = store.headings(module: module.id, book: book, chapter: chapter)
-        let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
-        let icounts = showIllus ? store.illustrationCounts(book: book, chapter: chapter) : [:]
+        let d = chapterData()
+        let verses = d.verses
+        let heads = d.heads
+        let xcounts = d.xcounts
+        let icounts = d.icounts
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
@@ -288,7 +305,7 @@ struct ChapterText: View {
                         ForEach(verses) { v in
                             VStack(alignment: .leading, spacing: 6) {
                                 if showHeadings, let h = heads[v.num] { headingText(h) }
-                                Text(attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: false))
+                                Text(d.attr[v.num] ?? AttributedString())
                                     // слова — ссылки: цвет не меняем (тот же, что у текста)
                                     .tint(pal.text)
                                     .font(readerFont)
@@ -313,7 +330,7 @@ struct ChapterText: View {
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
                                     .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
-                                    .onLongPressGesture(minimumDuration: 0.4) {
+                                    .onLongPressGesture(minimumDuration: 0.3) {
                                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                         selected.insert(v.num)
                                     }
@@ -435,6 +452,24 @@ struct ChapterText: View {
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
             }
         }
+    }
+
+    /// Глава, её заголовки, числа параллельных мест и иллюстраций и готовый текст стихов — собираются один раз и
+    /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
+    private func chapterData() -> ChapterCache {
+        let key = "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
+        if let c = cacheBox.value, c.key == key { return c }
+        let verses = store.verses(module: module.id, book: book, chapter: chapter)
+        let heads = store.headings(module: module.id, book: book, chapter: chapter)
+        let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
+        let icounts = showIllus ? store.illustrationCounts(book: book, chapter: chapter) : [:]
+        var attr: [Int: AttributedString] = [:]
+        for v in verses {
+            attr[v.num] = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: false)
+        }
+        let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
+        cacheBox.value = c
+        return c
     }
 
     private func startReading(count: Int) {
