@@ -307,13 +307,19 @@ struct ReportView: View {
                 Text("Откроется письмо с вашим описанием, версией приложения и устройством — вы сами видите текст перед отправкой. Ничего не отправляется автоматически.")
             }
             Section {
-                Button("Написать письмо") {
+                Button {
                     var body = text + "\n\n\n— — —\n" + info
                     if body.count > 1800 { body = String(body.prefix(1800)) }
                     let q = "subject=" + "AO Bible: сообщение о проблеме".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
                         + "&body=" + body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
                     if let u = URL(string: "mailto:\(supportEmail)?\(q)") { openURL(u) }
+                } label: {
+                    Label("Отправить письмо", systemImage: "paperplane.fill")
+                        .frame(maxWidth: .infinity, minHeight: 36)
                 }
+                .buttonStyle(.borderedProminent)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
         }
         .navigationTitle("Сообщить о проблеме")
