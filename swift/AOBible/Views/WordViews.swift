@@ -23,7 +23,7 @@ struct WordSheet: View {
         let id: String
         let module: InstalledModule
         let found: Found
-        var isStrong: Bool { found.key.range(of: "^[GH]\d", options: .regularExpression) != nil }
+        var isStrong: Bool { found.key.range(of: "^[GH][0-9]", options: .regularExpression) != nil }
     }
 
     var body: some View {
