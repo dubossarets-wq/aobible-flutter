@@ -330,7 +330,7 @@ struct ChapterText: View {
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
                                     .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
-                                    .onLongPressGesture(minimumDuration: 0.3) {
+                                    .onLongPressGesture(minimumDuration: 0.15, maximumDistance: 12) {
                                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                         selected.insert(v.num)
                                     }
