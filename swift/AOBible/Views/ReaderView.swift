@@ -147,7 +147,7 @@ struct PaneView: View {
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
             Button { showModules = true } label: {
-                Text(m.name).font(.subheadline.weight(.semibold)).fixedSize()
+                Text(m.shortName).font(.subheadline.weight(.semibold)).fixedSize()
             }
             .buttonStyle(.glass)
             Button { showGoto = true } label: {

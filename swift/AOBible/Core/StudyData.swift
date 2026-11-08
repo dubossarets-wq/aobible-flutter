@@ -213,3 +213,14 @@ extension ModuleStore {
         return parts.joined(separator: " ")
     }
 }
+
+extension InstalledModule {
+    /// Короткое название для шапки панели — не длиннее 4 знаков
+    var shortName: String {
+        let known = ["rst-interlinear": "Подс", "vin-interlinear": "Вин", "rst-plus": "RST+", "byz-rp2018": "Byz", "oshb": "OSHB"]
+        if let k = known[id] { return k }
+        if name.count <= 4 { return name }
+        let first = name.split(whereSeparator: { $0 == " " || $0 == "(" || $0 == "—" || $0 == "-" }).first.map(String.init) ?? name
+        return String(first.prefix(4))
+    }
+}
