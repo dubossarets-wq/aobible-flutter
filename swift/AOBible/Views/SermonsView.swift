@@ -4,11 +4,11 @@ import SwiftUI
 struct SermonsView: View {
     @EnvironmentObject private var sermons: SermonStore
     @State private var query = ""
-    @State private var path: [String] = []
+    @State private var openId: String?
 
     private var list: [Sermon] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let all = sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
+        let all = sermons.sermons
         guard !q.isEmpty else { return all }
         return all.filter { $0.title.lowercased().contains(q) || ($0.series ?? "").lowercased().contains(q) || ($0.subtitle ?? "").lowercased().contains(q) }
     }
@@ -23,7 +23,9 @@ struct SermonsView: View {
                 }
             }
             ForEach(list) { s in
-                NavigationLink(value: s.id) {
+                NavigationLink {
+                    SermonEditor(id: s.id)
+                } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(s.title.isEmpty ? "Без названия" : s.title).font(.headline)
                         HStack(spacing: 8) {
@@ -46,17 +48,14 @@ struct SermonsView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    let s = sermons.create("Новая проповедь")
-                    path.append(s.id)
+                    openId = sermons.create("Новая проповедь").id
                 } label: {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("Новая проповедь")
             }
         }
-        .navigationDestination(for: String.self) { id in
-            SermonEditor(id: id)
-        }
+        .navigationDestination(item: $openId) { SermonEditor(id: $0) }
     }
 }
 
@@ -108,6 +107,10 @@ struct SermonEditor: View {
                 }
             }
             .environment(\.editMode, .constant(editing ? .active : .inactive))
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             .navigationTitle(s.title.isEmpty ? "Проповедь" : s.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

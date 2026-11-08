@@ -48,7 +48,7 @@ struct AudioBar: View {
                             Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
                         }
                     } label: { Label("Таймер сна", systemImage: "moon.zzz") }
-                    Button(role: .destructive) { audio.stop() } label: { Label("Закрыть проигрыватель", systemImage: "xmark") }
+                    Button(role: .destructive) { audio.stop() } label: { Label("Закрыть", systemImage: "xmark") }
                 } label: { Image(systemName: "ellipsis.circle") }
             }
             .padding(.horizontal, 18)
@@ -98,7 +98,7 @@ private struct VolumeHost: UIViewRepresentable {
 private struct RoutePicker: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView(frame: .zero)
-        v.tintColor = .white
+        v.tintColor = UIColor.white.withAlphaComponent(0.55)
         v.activeTintColor = .white
         v.prioritizesVideoDevices = false
         return v
@@ -234,12 +234,14 @@ struct AudioFullView: View {
                 marks.toggleFavorite(c.book, c.chapter, c.verse, text: store.verseText(module: textId, book: c.book, chapter: c.chapter, verse: c.verse) ?? "")
             } label: {
                 Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title3).frame(width: 36, height: 44)
+                    .foregroundStyle(.white.opacity(0.75))
             }
             Menu {
                 Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
-                Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть проигрыватель", systemImage: "xmark") }
+                Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть", systemImage: "xmark") }
             } label: {
                 Image(systemName: "ellipsis").font(.title3).frame(width: 36, height: 44)
+                    .foregroundStyle(.white.opacity(0.75))
             }
         }
     }
@@ -347,9 +349,9 @@ struct AudioFullView: View {
     /// Громкость: значки по бокам стоят точно напротив ползунка
     private var volumeRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(width: 18)
+            Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.55)).frame(width: 18)
             SlimBar(value: Binding(get: { volume.value }, set: { volume.set($0) }))
-            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(width: 22)
+            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.55)).frame(width: 22)
         }
         .frame(height: 26)
     }
@@ -359,6 +361,7 @@ struct AudioFullView: View {
             Button { lyrics.toggle() } label: {
                 Image(systemName: lyrics ? "quote.bubble.fill" : "quote.bubble")
                     .font(.title3)
+                    .foregroundStyle(.white.opacity(lyrics ? 0.9 : 0.55))
                     .frame(width: 52, height: 52)
                     .background(lyrics ? Color.white.opacity(0.25) : Color.clear, in: Circle())
             }
@@ -390,7 +393,7 @@ struct AudioFullView: View {
                     }
                 }
             } label: {
-                Image(systemName: "list.bullet").font(.title3).frame(width: 52, height: 52)
+                Image(systemName: "list.bullet").font(.title3).foregroundStyle(.white.opacity(0.55)).frame(width: 52, height: 52)
             }
             .frame(maxWidth: .infinity)
         }
