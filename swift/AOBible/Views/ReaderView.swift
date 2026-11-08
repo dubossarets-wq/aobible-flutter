@@ -170,25 +170,17 @@ struct PaneView: View {
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Вперёд")
             }
-            Menu {
-                if panes.panes.count < maxPanes {
-                    Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: {
-                        Label("Добавить панель", systemImage: "rectangle.split.2x1")
-                    }
-                }
-                if panes.panes.count > 1 {
-                    Button { stacked.toggle() } label: {
-                        Label(stacked ? "Панели рядом" : "Панели друг над другом", systemImage: "rectangle.split.1x2")
-                    }
-                    Button(role: .destructive) { panes.closePane(paneID) } label: {
-                        Label("Закрыть панель", systemImage: "xmark")
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
+            if panes.panes.count > 1 {
+                Button(role: .destructive) { panes.closePane(paneID) } label: { Image(systemName: "xmark") }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .accessibilityLabel("Закрыть панель")
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
+            Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1") }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .disabled(panes.panes.count >= maxPanes)
+                .accessibilityLabel("Добавить панель")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
