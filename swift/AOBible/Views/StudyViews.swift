@@ -20,7 +20,8 @@ enum StrongLinks {
 
     static func key(from url: URL) -> String? {
         guard url.scheme == "aobstrong" else { return nil }
-        return String(url.absoluteString.dropFirst("aobstrong:".count))
+        let rest = String(url.absoluteString.dropFirst("aobstrong:".count))
+        return String(rest.split(separator: "@").first ?? "")
     }
 }
 
