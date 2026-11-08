@@ -178,9 +178,15 @@ final class AudioEngine: ObservableObject {
     @Published private(set) var moduleId = ""
     /// Перевод, текст которого показан в раскрытом проигрывателе (как слова песни в Apple Music)
     @Published var textModule = ""
+    /// Секунды в файле (для общих файлов на несколько глав — от начала файла)
     @Published private(set) var position = 0.0
     @Published private(set) var duration = 0.0
+    /// Секунды внутри главы: по ним ползунок и время в проигрывателе
+    @Published private(set) var chapterPos = 0.0
+    @Published private(set) var chapterDur = 0.0
     @Published private(set) var sleepLeft: Int?
+    /// Таймер сна «До конца главы»
+    @Published private(set) var sleepAtChapterEnd = false
     @Published var rate: Float = 1.0 {
         didSet { if playing { player?.rate = rate } }
     }
@@ -233,8 +239,10 @@ final class AudioEngine: ObservableObject {
         for p in await allPacks(store) where p.has(place.book, place.chapter) {
             if audioFits(p.translation, moduleId) { fits.append(p) } else { other.append(p) }
         }
-        guard let pick = fits.first ?? other.first else {
-            message = "К этой главе нет аудиозаписи. Установите записи: «Ещё» → «Аудио»."
+        // «Озвучка следует за переводом» (по умолчанию): запись другого перевода не подставляем
+        let follows = UserDefaults.standard.object(forKey: "audioFollowsTranslation") as? Bool ?? true
+        guard let pick = fits.first ?? (follows ? nil : other.first) else {
+            message = "Для этой главы нет аудиозаписи."
             return
         }
         self.moduleId = moduleId
@@ -311,6 +319,15 @@ final class AudioEngine: ObservableObject {
             let d = item.duration.seconds
             if d.isFinite { duration = d }
         }
+        if let ch = chapter {
+            let start = ch.start ?? 0
+            let end = ch.end ?? duration
+            chapterPos = max(0, sec - start)
+            chapterDur = max(0, end - start)
+        } else {
+            chapterPos = sec
+            chapterDur = duration
+        }
         guard let ch = chapter, var cur = current else { return }
         if let end = ch.end, sec >= end {
             nextChapter()
@@ -361,9 +378,12 @@ final class AudioEngine: ObservableObject {
         play(book: c.book, chapter: c.chapter, verse: c.verse)
     }
 
+    /// Перемотка: sec — секунды внутри главы
     func seek(to sec: Double) {
-        player?.seek(to: CMTime(seconds: sec, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-        position = sec
+        let file = sec + (chapter?.start ?? 0)
+        player?.seek(to: CMTime(seconds: file, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        position = file
+        chapterPos = sec
     }
 
     func seekVerse(_ verse: Int) {
@@ -425,6 +445,12 @@ final class AudioEngine: ObservableObject {
     }
 
     func nextChapter() {
+        // таймер сна «До конца главы»: глава закончилась — останавливаемся
+        if sleepAtChapterEnd {
+            sleepAtChapterEnd = false
+            stop()
+            return
+        }
         if let p = neighbour(1), pack?.has(p.book, p.chapter) == true {
             play(book: p.book, chapter: p.chapter, verse: 1)
         } else {
@@ -441,8 +467,16 @@ final class AudioEngine: ObservableObject {
 
     // MARK: - Таймер сна
 
+    /// Таймер сна «До конца главы»
+    func setSleepAtChapterEnd() {
+        sleepTask?.cancel()
+        sleepLeft = nil
+        sleepAtChapterEnd = true
+    }
+
     func setSleep(minutes: Int?) {
         sleepTask?.cancel()
+        sleepAtChapterEnd = false
         guard let m = minutes else {
             sleepLeft = nil
             return
@@ -491,9 +525,9 @@ final class AudioEngine: ObservableObject {
             MPMediaItemPropertyAlbumTitle: "\(name) \(c.chapter) · AO Bible",
             MPMediaItemPropertyArtwork: Self.artwork,
             MPNowPlayingInfoPropertyPlaybackRate: playing ? Double(rate) : 0.0,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: chapterPos,
         ]
-        if duration > 0 { info[MPMediaItemPropertyPlaybackDuration] = duration }
+        if chapterDur > 0 { info[MPMediaItemPropertyPlaybackDuration] = chapterDur }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 }

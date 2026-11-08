@@ -18,7 +18,7 @@ struct AudioBar: View {
                     Text("\(Books.info(c.book)?.short.replacingOccurrences(of: ".", with: "") ?? c.book) \(c.chapter):\(c.verse)")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Text((audio.pack?.name ?? "") + (audio.sleepLeft.map { " · сон \(clock($0))" } ?? ""))
+                    Text((audio.pack?.reader ?? audio.pack?.name ?? "") + (audio.sleepLeft.map { " · сон \(clock($0))" } ?? (audio.sleepAtChapterEnd ? " · сон до конца главы" : "")))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -41,10 +41,11 @@ struct AudioBar: View {
                         }
                     } label: { Label("Скорость", systemImage: "speedometer") }
                     Menu {
-                        ForEach([15, 30, 45, 60], id: \.self) { m in
+                        Button("До конца главы") { audio.setSleepAtChapterEnd() }
+                        ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { m in
                             Button("\(m) мин") { audio.setSleep(minutes: m) }
                         }
-                        if audio.sleepLeft != nil {
+                        if audio.sleepLeft != nil || audio.sleepAtChapterEnd {
                             Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
                         }
                     } label: { Label("Таймер сна", systemImage: "moon.zzz") }
@@ -312,8 +313,8 @@ struct AudioFullView: View {
     }
 
     private var progress: some View {
-        let total = max(1, audio.duration)
-        let pos = scrub ?? audio.position
+        let total = max(1, audio.chapterDur)
+        let pos = scrub ?? audio.chapterPos
         return VStack(spacing: 2) {
             SlimBar(value: Binding(get: { pos / total }, set: { scrub = $0 * total })) {
                 if let s = scrub {
@@ -326,7 +327,7 @@ struct AudioFullView: View {
                 Spacer()
                 Text(store.module(textId)?.shortName ?? "")
                 Spacer()
-                Text("−" + clock(max(0, audio.duration - pos)))
+                Text("−" + clock(max(0, audio.chapterDur - pos)))
             }
             .font(.caption2.weight(.medium))
             .foregroundStyle(.white.opacity(0.55))
@@ -385,10 +386,11 @@ struct AudioFullView: View {
                     }
                 }
                 Section("Таймер сна") {
-                    ForEach([15, 30, 45, 60], id: \.self) { m in
+                    Button("До конца главы") { audio.setSleepAtChapterEnd() }
+                    ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { m in
                         Button("\(m) мин") { audio.setSleep(minutes: m) }
                     }
-                    if audio.sleepLeft != nil {
+                    if audio.sleepLeft != nil || audio.sleepAtChapterEnd {
                         Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
                     }
                 }
