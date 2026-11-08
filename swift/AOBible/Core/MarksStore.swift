@@ -21,6 +21,12 @@ func hlColor(_ id: String?) -> HlColor? {
     hlColors.first { $0.id == id }
 }
 
+/// Часть стиха: номера слов от и до
+struct Part: Codable, Hashable {
+    var from: Int
+    var to: Int
+}
+
 /// Закладка или любимый стих: {book, chapter, verse, text, at}
 struct MarkItem: Codable, Identifiable, Hashable {
     var book: String
@@ -28,9 +34,11 @@ struct MarkItem: Codable, Identifiable, Hashable {
     var verse: Int
     var text: String
     var at: Double
+    var part: Part?
     var id: String { "\(book).\(chapter).\(verse)" }
 
-    init(book: String, chapter: Int, verse: Int, text: String) {
+    init(book: String, chapter: Int, verse: Int, text: String, part: Part? = nil) {
+        self.part = part
         self.book = book
         self.chapter = chapter
         self.verse = verse
@@ -45,6 +53,7 @@ struct MarkItem: Codable, Identifiable, Hashable {
         verse = try c.decodeIfPresent(Int.self, forKey: .verse) ?? 1
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         at = try c.decodeIfPresent(Double.self, forKey: .at) ?? 0
+        part = try? c.decodeIfPresent(Part.self, forKey: .part)
     }
 }
 
@@ -161,12 +170,12 @@ final class MarksStore: ObservableObject {
         data.favorites.contains { $0.id == key }
     }
 
-    func toggleFavorite(_ book: String, _ chapter: Int, _ verse: Int, text: String) {
+    func toggleFavorite(_ book: String, _ chapter: Int, _ verse: Int, text: String, part: Part? = nil) {
         let key = Self.key(book, chapter, verse)
         if let i = data.favorites.firstIndex(where: { $0.id == key }) {
             data.favorites.remove(at: i)
         } else {
-            data.favorites.insert(MarkItem(book: book, chapter: chapter, verse: verse, text: text), at: 0)
+            data.favorites.insert(MarkItem(book: book, chapter: chapter, verse: verse, text: text, part: part), at: 0)
         }
         save()
     }

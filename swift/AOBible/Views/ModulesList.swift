@@ -95,7 +95,7 @@ struct ModulesList: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down.on.square") }
                     .accessibilityLabel("Установить из файла")
             }

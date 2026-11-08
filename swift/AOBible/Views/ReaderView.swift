@@ -212,6 +212,7 @@ enum StudyPanel: Identifiable {
     case compare(Int)
     case interlinear(Int)
     case illustrations(Int)
+    case part(Int)
 
     var id: String {
         switch self {
@@ -220,6 +221,7 @@ enum StudyPanel: Identifiable {
         case .compare(let v): return "v\(v)"
         case .interlinear(let v): return "i\(v)"
         case .illustrations(let v): return "p\(v)"
+        case .part(let v): return "t\(v)"
         }
     }
 }
@@ -320,7 +322,10 @@ struct ChapterText: View {
                                     .contentShape(Rectangle())
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
-                                    .onTapGesture { if !selected.isEmpty { toggle(v.num) } }
+                                    .simultaneousGesture(TapGesture().onEnded { if !selected.isEmpty { toggle(v.num) } })
+                                    .simultaneousGesture(TapGesture(count: 2).onEnded {
+                                        marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+                                    })
                                     .simultaneousGesture(
                                         LongPressGesture(minimumDuration: 0.25, maximumDistance: 12).onEnded { _ in
                                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -448,6 +453,8 @@ struct ChapterText: View {
                 InterlinearSheet(book: book, chapter: chapter, verse: v)
             case .illustrations(let v):
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
+            case .part(let v):
+                PartSheet(module: module, book: book, chapter: chapter, verse: v)
             }
         }
     }
@@ -716,8 +723,13 @@ struct ChapterText: View {
                 selected = []
             } label: { Image(systemName: "doc.on.doc") }
                 .accessibilityLabel("Копировать")
-            ShareLink(item: quote(verses)) { Image(systemName: "square.and.arrow.up") }
-                .accessibilityLabel("Поделиться")
+            Button {
+                for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
+                    marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+                }
+                selected = []
+            } label: { Image(systemName: favorite ? "heart.fill" : "heart").foregroundStyle(favorite ? Color.red : Color.primary) }
+                .accessibilityLabel("Любимый")
             Menu {
                 ForEach(hlColors) { c in
                     Button {
@@ -747,6 +759,8 @@ struct ChapterText: View {
             } label: { Image(systemName: "note.text") }
                 .accessibilityLabel("Заметка")
             Menu {
+                ShareLink(item: quote(verses)) { Label("Поделиться", systemImage: "square.and.arrow.up") }
+                Button { panel = .part(first); selected = [] } label: { Label("Часть стиха", systemImage: "selection.pin.in.out") }
                 Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
                 Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
                 Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
