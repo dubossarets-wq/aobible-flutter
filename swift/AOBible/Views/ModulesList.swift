@@ -22,13 +22,30 @@ struct ModulesList: View {
 
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
 
+    @State private var lang = "all"
+
     private var shownInstalled: [InstalledModule] {
-        store.installed.filter { $0.type == kind && !$0.online }
+        store.installed.filter { $0.type == kind && !$0.online && (lang == "all" || $0.language == lang) }
+    }
+
+    /// Языки модулей этого типа — установленных и из каталога
+    private var languages: [String] {
+        var set = Set(store.installed.filter { $0.type == kind }.map { $0.language })
+        for e in store.catalog where e.type == kind && e.downloadable { set.insert(e.language) }
+        return set.sorted { a, b in
+            if (a == "ru") != (b == "ru") { return a == "ru" }
+            return langName(a) < langName(b)
+        }
+    }
+
+    private func langName(_ code: String) -> String {
+        let n = Locale(identifier: "ru").localizedString(forLanguageCode: code) ?? code
+        return n.prefix(1).uppercased() + n.dropFirst()
     }
 
     private var groups: [LangGroup] {
         let installedIds = Set(store.installed.map { $0.id })
-        let list = store.catalog.filter { $0.type == kind && $0.downloadable && !installedIds.contains($0.id) }
+        let list = store.catalog.filter { $0.type == kind && $0.downloadable && !installedIds.contains($0.id) && (lang == "all" || $0.language == lang) }
         let by = Dictionary(grouping: list, by: { $0.language })
         return by.keys
             .sorted { a, b in
@@ -47,6 +64,14 @@ struct ModulesList: View {
                     }
                 }
                 .pickerStyle(.menu)
+                Picker("Язык модуля", selection: $lang) {
+                    Text("Все языки").tag("all")
+                    ForEach(languages, id: \.self) { l in
+                        Text(langName(l)).tag(l)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: kind) { _, _ in lang = "all" }
             }
             if !shownInstalled.isEmpty {
                 Section("Установленные") {
