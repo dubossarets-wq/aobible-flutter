@@ -254,6 +254,10 @@ struct ChapterText: View {
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
     @State private var selected: Set<Int> = []
+    @State private var pulseVerse = 0
+    @State private var pulseAmt = 0.0
+    @State private var wordTask: Task<Void, Never>?
+    @State private var noWordUntil = Date.distantPast
     @GestureState private var lpHeld = false
     @State private var lpFired = false
     @State private var lpSwallowUntil = Date.distantPast
@@ -312,11 +316,14 @@ struct ChapterText: View {
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
                                     .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .background(Color(hex: 0xd9475e).opacity(pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .overlay(alignment: .leading) {
+                                        if selected.contains(v.num) {
+                                            Capsule().fill(pal.accent).frame(width: 3).padding(.vertical, 2)
+                                        }
+                                    }
                                     .overlay(alignment: .topTrailing) {
                                         HStack(spacing: 4) {
-                                            if marks.isFavorite(MarksStore.key(book, chapter, v.num)) {
-                                                Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red)
-                                            }
                                             if marks.isBookmarked(book, chapter, v.num) {
                                                 Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
                                             }
@@ -327,7 +334,15 @@ struct ChapterText: View {
                                     // долгим нажатием (нажатие на слово открывает словарь)
                                     .simultaneousGesture(TapGesture().onEnded { if !selected.isEmpty { toggle(v.num) } })
                                     .simultaneousGesture(TapGesture(count: 2).onEnded {
+                                        guard selected.isEmpty else { return }
+                                        wordTask?.cancel()
+                                        noWordUntil = Date().addingTimeInterval(0.6)
+                                        let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
                                         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+                                        show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
+                                        pulseVerse = v.num
+                                        pulseAmt = 0.3
+                                        withAnimation(.easeOut(duration: 0.8)) { pulseAmt = 0 }
                                     })
                                     // долгое нажатие в любом месте стиха (и на слове): выделяет; отпускание пальца
                                     // не должно считаться нажатием на слово (иначе оно сразу снимало выделение)
@@ -438,7 +453,12 @@ struct ChapterText: View {
                 return .handled
             }
             if url.scheme == "aobword" {
-                openWord(url)
+                if Date() < noWordUntil { return .handled }
+                wordTask?.cancel()
+                wordTask = Task {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    if !Task.isCancelled { openWord(url) }
+                }
                 return .handled
             }
             if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
@@ -483,7 +503,8 @@ struct ChapterText: View {
     /// Глава, её заголовки, числа параллельных мест и иллюстраций и готовый текст стихов — собираются один раз и
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
-        let key = "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
+        let favs = favNums
+        let key = "\(favs.sorted())|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
         if let c = cacheBox.value, c.key == key { return c }
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
@@ -491,7 +512,7 @@ struct ChapterText: View {
         let icounts = showIllus ? store.illustrationCounts(book: book, chapter: chapter) : [:]
         var attr: [Int: AttributedString] = [:]
         for v in verses {
-            attr[v.num] = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: false)
+            attr[v.num] = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true)
         }
         let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
         cacheBox.value = c
@@ -551,8 +572,13 @@ struct ChapterText: View {
         if selected.contains(n) { selected.remove(n) } else { selected.insert(n) }
     }
 
+    /// Любимые стихи этой главы (сердечко ставится в текст между номером и словами)
+    private var favNums: Set<Int> {
+        Set(marks.data.favorites.filter { $0.book == book && $0.chapter == chapter }.map { $0.verse })
+    }
+
     private func background(_ n: Int) -> Color {
-        if selected.contains(n) { return pal.accent.opacity(0.22) }
+        if selected.contains(n) { return pal.accent.opacity(continuous ? 0.16 : 0.09) }
         // звучащий стих подсвечен
         if audio.active, audio.moduleId == module.id, let c = audio.current, c.book == book, c.chapter == chapter, c.verse == n {
             return pal.accent.opacity(0.16)
@@ -560,6 +586,7 @@ struct ChapterText: View {
         if let c = hlColor(marks.highlight(MarksStore.key(book, chapter, n))) {
             return c.color.opacity(0.4)
         }
+        if marks.isFavorite(MarksStore.key(book, chapter, n)) { return Color(hex: 0xd9475e).opacity(0.09) }
         if n == focus { return pal.hl }
         return Color.clear
     }
@@ -633,6 +660,12 @@ struct ChapterText: View {
             n.foregroundColor = pal.verseNum
             if numberLink { n.link = URL(string: "aobverse:\(v.num)") }
             out += n
+        }
+        if favNums.contains(v.num) {
+            var h = AttributedString("♥ ")
+            h.font = .system(size: fontSize * 0.62)
+            h.foregroundColor = Color(hex: 0xd9475e)
+            out += h
         }
         for (ti, t) in Markup.parse(v.text).enumerated() {
             if !t.strongs.isEmpty {

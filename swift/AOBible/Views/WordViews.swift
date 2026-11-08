@@ -10,61 +10,69 @@ struct WordRequest: Identifiable {
     var verse = 0
 }
 
-/// Окно слова: словари, где оно есть (Стронг по разметке или по симфонии, словари «по словам»); выбор — статья
+/// Выбор словаря у слова (как всплывающая карточка Flutter-версии): места («Название · Карта»), затем статьи
+/// по номерам Стронга, затем остальные словари. Выбор — статья: Стронг на всю высоту, остальное на полэкрана
 struct WordSheet: View {
     @EnvironmentObject private var store: ModuleStore
     @Environment(\.dismiss) private var dismiss
     let req: WordRequest
+    @State private var chosen: String?
+    @State private var detent: PresentationDetent = .height(160)
+
+    private struct Row: Identifiable {
+        let id: String
+        let module: InstalledModule
+        let found: Found
+        var isStrong: Bool { found.key.range(of: "^[GH]\d", options: .regularExpression) != nil }
+    }
 
     var body: some View {
         let res = Lexicon.lookupWord(store: store, text: req.text, strongs: req.strongs, morph: req.morph, book: req.book)
+        let all = res.results.flatMap { r in r.found.map { Row(id: r.module.id + "|" + $0.key, module: r.module, found: $0) } }
+        let rows = all.filter { $0.isStrong } + all.filter { !$0.isStrong }
+        let places = store.placesFor(word: req.text, book: req.book, chapter: req.chapter, verse: req.verse)
+        let count = rows.count + places.count + (res.mapping.mode == "approx" ? 1 : 0)
+        let height = CGFloat(min(max(count, 1), 7)) * 56 + 90
         NavigationStack {
             List {
-                if res.dictionaryCount == 0 {
-                    Section {
-                        Text("Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».")
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 if res.mapping.mode == "approx" {
-                    Section {
-                        Text("Номера Стронга подобраны приблизительно — по симфонии. Точные есть в переводах с разметкой Стронга.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("≈ приблизительно: перевод без номеров Стронга")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
-                ForEach(res.results) { r in
-                    Section {
-                        ForEach(r.found.indices, id: \.self) { i in
-                            let f = r.found[i]
-                            NavigationLink {
-                                EntryDetail(module: r.module, found: f)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(f.label)
-                                    Text(f.key).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    } header: {
-                        Text(r.module.name)
-                    }
-                }
-                let places = store.placesFor(word: req.text, book: req.book, chapter: req.chapter, verse: req.verse)
-                if !places.isEmpty {
-                    Section("Карта") {
-                        ForEach(places) { p in
-                            NavigationLink {
-                                PlaceDetail(place: p)
-                            } label: {
-                                Label(p.name, systemImage: "map")
-                            }
+                ForEach(places) { p in
+                    NavigationLink {
+                        PlaceDetail(place: p).onAppear { detent = .medium }
+                    } label: {
+                        HStack {
+                            Image(systemName: "mappin.and.ellipse").foregroundStyle(.tint)
+                            Text(p.name).fontWeight(.semibold)
+                            Text("·").foregroundStyle(.secondary)
+                            Text("Карта")
                         }
                     }
                 }
-                if res.results.isEmpty && res.dictionaryCount > 0 && places.isEmpty {
-                    Section {
-                        Text("В словарях такого слова нет.").foregroundStyle(.secondary)
+                ForEach(rows) { r in
+                    NavigationLink {
+                        EntryDetail(module: r.module, found: r.found).onAppear { detent = r.isStrong ? .large : .medium }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if r.isStrong {
+                                Text(r.found.key)
+                                    .font(.subheadline.weight(.bold).monospacedDigit())
+                                    .padding(.horizontal, 8).padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                                    .foregroundStyle(.tint)
+                            } else {
+                                Text(r.found.label.isEmpty ? r.found.key : r.found.label).fontWeight(.semibold)
+                            }
+                            Text(r.module.name).foregroundStyle(.primary).lineLimit(1)
+                        }
+                    }
+                }
+                if rows.isEmpty && places.isEmpty {
+                    Text("Статей для «\(req.text)» нет").foregroundStyle(.secondary)
+                    if res.dictionaryCount == 0 {
+                        Text("Словари в библиотеке: «Ещё» → «Библиотека модулей»").font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -76,7 +84,8 @@ struct WordSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(height), .medium, .large], selection: $detent)
+        .onAppear { detent = .height(height) }
     }
 }
 
