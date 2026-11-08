@@ -94,36 +94,64 @@ struct CustomPlanView: View {
 
     // MARK: вид
 
+    private var cardColor: Color { Color(.secondarySystemGroupedBackground) }
+
+    private func card<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func caption(_ s: LocalizedStringKey) -> some View {
+        Text(s)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(nil)
+            .padding(.horizontal, 6)
+    }
+
     var body: some View {
-        Form {
-            Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
                 Picker("Режим", selection: $mode) {
                     Text("Последовательно").tag("seq")
                     Text("Параллельно").tag("par")
                 }
                 .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            } footer: {
                 Text(par ? "Каждый день — немного из разных частей Библии" : "Читаете книги по порядку, понемногу каждый день")
-            }
-            if par { parallelBody } else { sequentialBody }
-            Section {
-                Button {
-                    create()
-                } label: {
-                    HStack {
-                        Spacer()
-                        Label(startLabel, systemImage: "play.fill").font(.headline)
-                        Spacer()
-                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                if par { parallelBody } else { sequentialBody }
+                if module == nil {
+                    Text("Сначала скачайте перевод Библии.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 6)
                 }
-                .buttonStyle(.glassProminent)
-                .disabled(!canStart || module == nil)
-                .listRowBackground(Color.clear)
-            } footer: {
-                if module == nil { Text("Сначала скачайте перевод Библии.") }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .background(Color(.systemGroupedBackground))
+        // кнопка «Начать» закреплена внизу — не нужно листать до конца
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                create()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "play.fill")
+                    Text(startLabel).font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .disabled(!canStart || module == nil)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
         }
         .navigationTitle("Свой план")
         .navigationBarTitleDisplayMode(.inline)
@@ -135,150 +163,213 @@ struct CustomPlanView: View {
             }
         }
         .animation(.default, value: message)
-        .animation(.default, value: mode)
-        .animation(.default, value: parMode)
-        .animation(.default, value: scope)
+        .animation(.snappy, value: mode)
+        .animation(.snappy, value: parMode)
+        .animation(.snappy, value: scope)
     }
 
     private var startLabel: String {
-        if par && !period && parDays == 0 || needOwn { return String(localized: "Выберите книги") }
-        return String(localized: "Начать")
+        if needOwn || (par && !period && parDays == 0) { return String(localized: "Выберите книги") }
+        let n = par ? (period ? periodDays : parDays) : days
+        return String(localized: "Начать") + " · " + String(localized: "\(n) дн.")
     }
 
     // MARK: последовательно
 
     @ViewBuilder private var sequentialBody: some View {
-        Section("Что читать") {
-            ForEach(scopes, id: \.id) { s in
-                Button { scope = s.id } label: {
-                    HStack {
-                        Label(LocalizedStringKey(s.label), systemImage: s.icon).foregroundStyle(.primary)
-                        Spacer()
-                        if scope == s.id { Image(systemName: "checkmark").foregroundStyle(.tint) }
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            caption("Что читать")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(scopes, id: \.id) { s in
+                    let full = s.id == "all" || s.id == "own"
+                    scopeTile(s)
+                        .gridCellColumns(full ? 2 : 1)
                 }
             }
         }
-        if scope == "own" { Section { BookPicker(selected: Set(own), onChange: setOwn) } }
-        daysSection(binding: $days, books: scopeBooks(scope))
+        if scope == "own" { card { BookPicker(selected: Set(own), onChange: setOwn) } }
+        daysCard(binding: $days, books: scopeBooks(scope))
+    }
+
+    @ViewBuilder private func scopeTile(_ s: (id: String, label: String, icon: String, books: [String])) -> some View {
+        let on = scope == s.id
+        Button {
+            scope = s.id
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: s.icon)
+                    .font(.title3)
+                    .foregroundStyle(on ? Color.accentColor : .secondary)
+                    .frame(width: 26)
+                Text(LocalizedStringKey(s.label))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                if on { Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor) }
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(on ? Color.accentColor.opacity(0.12) : cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(on ? Color.accentColor : Color.clear, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: параллельно
 
     @ViewBuilder private var parallelBody: some View {
-        Section {
-            Picker("Режим", selection: $parMode) {
-                Text("Глав в день").tag("perday")
-                Text("За срок").tag("period")
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
+        Picker("Режим", selection: $parMode) {
+            Text("Глав в день").tag("perday")
+            Text("За срок").tag("period")
         }
-        Section {
-            ForEach(PlanLogic.streams) { s in
-                streamRow(s)
+        .pickerStyle(.segmented)
+        VStack(alignment: .leading, spacing: 8) {
+            caption(period ? "Разделы" : "Разделы и глав в день")
+            VStack(spacing: 8) {
+                ForEach(PlanLogic.streams) { s in streamRow(s) }
             }
-        } header: {
-            Text(period ? "Разделы" : "Разделы и глав в день")
         }
-        if streams["own"] != nil { Section { BookPicker(selected: Set(own), onChange: setOwn) } }
+        if streams["own"] != nil { card { BookPicker(selected: Set(own), onChange: setOwn) } }
         if period {
-            daysSection(binding: $periodDays, books: parBooks)
+            daysCard(binding: $periodDays, books: parBooks)
         } else {
-            Section {
-                let first = PlanLogic.firstDayText(sel, chapters: chapters)
-                if !first.isEmpty {
-                    Text("Первый день: \(first)").font(.subheadline.weight(.semibold))
+            let first = PlanLogic.firstDayText(sel, chapters: chapters)
+            card {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !first.isEmpty {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "sun.max.fill").foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Первый день").font(.caption).foregroundStyle(.secondary)
+                                Text(first).font(.subheadline.weight(.semibold))
+                            }
+                        }
+                    }
+                    Text("Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «За срок».")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
-                Text("Псалтирь и Притчи читаются по кругу, остальные разделы — один раз. Чтобы все разделы закончились в один день, выберите «За срок».")
-                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
 
     private func streamRow(_ s: PlanStream) -> some View {
         let on = streams[s.key] != nil
-        return HStack {
+        let n = streams[s.key] ?? 1
+        return HStack(spacing: 12) {
             Button {
                 var d = streams
                 if on { d.removeValue(forKey: s.key) } else { d[s.key] = 1 }
                 setStreams(d)
             } label: {
-                HStack {
-                    Image(systemName: on ? "checkmark.circle.fill" : "circle").foregroundStyle(on ? Color.accentColor : .secondary)
-                    Text(LocalizedStringKey(s.label)).foregroundStyle(.primary)
+                HStack(spacing: 12) {
+                    Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(on ? Color.accentColor : Color.secondary)
+                    Text(LocalizedStringKey(s.label))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 0)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            Spacer()
             if on && !period {
-                let n = streams[s.key] ?? 1
-                Stepper("\(n)", value: Binding(get: { n }, set: { v in
-                    var d = streams
-                    d[s.key] = min(10, max(1, v))
-                    setStreams(d)
-                }), in: 1...10)
-                .fixedSize()
-                .labelsHidden()
-                Text("\(n) гл. в день").font(.subheadline).foregroundStyle(.secondary)
+                HStack(spacing: 2) {
+                    stepButton("minus", enabled: n > 1) { setPer(s.key, n - 1) }
+                    Text("\(n)").font(.subheadline.weight(.bold).monospacedDigit()).frame(minWidth: 22)
+                    stepButton("plus", enabled: n < 10) { setPer(s.key, n + 1) }
+                }
+                Text("гл./день").font(.caption).foregroundStyle(.secondary)
             }
         }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 54)
+        .background(on ? Color.accentColor.opacity(0.08) : cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func setPer(_ key: String, _ v: Int) {
+        var d = streams
+        d[key] = min(10, max(1, v))
+        setStreams(d)
+    }
+
+    private func stepButton(_ icon: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.footnote.weight(.bold))
+                .frame(width: 30, height: 30)
+                .background(Color.secondary.opacity(0.15), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.35)
+        .disabled(!enabled)
     }
 
     // MARK: срок
 
-    @ViewBuilder private func daysSection(binding: Binding<Int>, books: [String]) -> some View {
-        Section {
-            Stepper(value: binding, in: 7...730, step: binding.wrappedValue < 60 ? 1 : 10) {
-                HStack {
-                    Text("За сколько дней")
-                    Spacer()
-                    Text("\(binding.wrappedValue) дн.").foregroundStyle(.secondary)
-                }
-            }
-            if let line = loadLine(books: books, days: binding.wrappedValue) {
-                Text(line.text).font(.footnote.weight(.semibold))
-                    .foregroundStyle(line.heavy ? Color.red : .secondary)
-            }
-            ForEach(Array(presets.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 8) {
-                    ForEach(row, id: \.0) { n, label in
-                        Button { binding.wrappedValue = n } label: {
-                            Text(LocalizedStringKey(label)).font(.subheadline).frame(maxWidth: .infinity)
+    @ViewBuilder private func daysCard(binding: Binding<Int>, books: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            caption("За сколько дней")
+            card {
+                VStack(spacing: 16) {
+                    HStack(spacing: 14) {
+                        Button { binding.wrappedValue = max(7, binding.wrappedValue - (binding.wrappedValue <= 60 ? 1 : 10)) } label: {
+                            Image(systemName: "minus").font(.title3.weight(.bold)).frame(width: 48, height: 48)
+                                .background(Color.secondary.opacity(0.14), in: Circle())
                         }
-                        .buttonStyle(.bordered)
-                        .tint(binding.wrappedValue == n ? .accentColor : .gray)
+                        .buttonStyle(.plain)
+                        VStack(spacing: 0) {
+                            Text("\(binding.wrappedValue)")
+                                .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
+                                .contentTransition(.numericText())
+                            Text(daysWord(binding.wrappedValue)).font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        Button { binding.wrappedValue = min(730, binding.wrappedValue + (binding.wrappedValue < 60 ? 1 : 10)) } label: {
+                            Image(systemName: "plus").font(.title3.weight(.bold)).frame(width: 48, height: 48)
+                                .background(Color.secondary.opacity(0.14), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Slider(value: Binding(get: { Double(binding.wrappedValue) }, set: { binding.wrappedValue = Int($0) }), in: 7...730, step: 1)
+                    if let line = loadLine(books: books, days: binding.wrappedValue) {
+                        HStack(spacing: 8) {
+                            Image(systemName: line.heavy ? "exclamationmark.triangle.fill" : "clock")
+                            Text(line.text).font(.footnote.weight(.semibold))
+                        }
+                        .foregroundStyle(line.heavy ? Color.red : Color.secondary)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .background((line.heavy ? Color.red : Color.secondary).opacity(0.1), in: Capsule())
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                        ForEach(presets.flatMap { $0 }, id: \.0) { n, label in
+                            let on = binding.wrappedValue == n
+                            Button { binding.wrappedValue = n } label: {
+                                Text(LocalizedStringKey(label))
+                                    .font(.subheadline.weight(on ? .semibold : .regular))
+                                    .frame(maxWidth: .infinity, minHeight: 38)
+                                    .background(on ? Color.accentColor : Color.secondary.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(on ? Color.white : Color.primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .listRowBackground(Color.clear)
             }
-        } header: {
-            Text("За сколько дней")
         }
     }
 
-    /// «≈ 13 гл. в день · до 24 января»; больше часа чтения в день (~8 с на стих) — красным
-    private func loadLine(books: [String], days: Int) -> (text: String, heavy: Bool)? {
-        let ch = chapters(books)
-        guard !ch.isEmpty, days > 0 else { return nil }
-        let d = min(days, ch.count)
-        let verses = ch.reduce(0) { $0 + $1.n }
-        let per = max(1, Int((Double(ch.count) / Double(d)).rounded()))
-        let minutes = max(1, Int((Double(verses) / Double(d) * 8 / 60).rounded()))
-        let text = String(localized: "≈ \(per) гл. в день") + " · " + String(localized: "до") + " " + endText(d)
-        return (text, minutes > 60)
-    }
-
-    private func endText(_ days: Int) -> String {
-        let cal = Calendar.current
-        let now = Date()
-        let end = cal.date(byAdding: .day, value: max(days, 1) - 1, to: now) ?? now
-        let f = DateFormatter()
-        f.locale = Locale(identifier: lang)
-        let sameYear = cal.component(.year, from: end) == cal.component(.year, from: now)
-        f.setLocalizedDateFormatFromTemplate(sameYear ? "dMMMM" : "dMMMMyyyy")
-        return f.string(from: end)
+    private func daysWord(_ n: Int) -> String {
+        let m10 = n % 10, m100 = n % 100
+        if lang == "ru" || lang == "uk" || lang == "be" {
+            if m10 == 1 && m100 != 11 { return "день" }
+            if (2...4).contains(m10) && !(12...14).contains(m100) { return "дня" }
+            return "дней"
+        }
+        return String(localized: "дн.")
     }
 
     // MARK: создание
