@@ -33,6 +33,8 @@ struct AudioChapter {
 
 /// Аудиомодуль: перевод, к которому записи подходят, и озвученные главы («Книга.глава» → запись)
 final class AudioPack: @unchecked Sendable {
+    /// Чтец (из описания модуля: «чтец: …»)
+    var reader: String?
     let id: String
     let name: String
     let title: String
@@ -63,7 +65,16 @@ final class AudioPack: @unchecked Sendable {
             ch[k] = AudioChapter(url: url, verses: verses, start: (m["start"] as? NSNumber)?.doubleValue, end: (m["end"] as? NSNumber)?.doubleValue)
         }
         let name = j["name"] as? String ?? id
-        return AudioPack(id: id, name: name, title: j["title"] as? String ?? name, translation: j["translation"] as? String, language: j["language"] as? String ?? "ru", chapters: ch)
+        let pack = AudioPack(id: id, name: name, title: j["title"] as? String ?? name, translation: j["translation"] as? String, language: j["language"] as? String ?? "ru", chapters: ch)
+        if let d = j["description"] as? String,
+           let r = d.range(of: "чтец[а-яё]*:\\s*[^)\\.;]+", options: .regularExpression) {
+            let t = String(d[r])
+            if let colon = t.firstIndex(of: ":") {
+                let v = t[t.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+                if !v.isEmpty { pack.reader = v }
+            }
+        }
+        return pack
     }
 
     func has(_ book: String, _ chapter: Int) -> Bool { chapters["\(book).\(chapter)"] != nil }
@@ -452,14 +463,37 @@ final class AudioEngine: ObservableObject {
 
     // MARK: - Экран блокировки
 
+    /// Обложка для острова и экрана блокировки: значок книги на цвете приложения
+    private static let artwork: MPMediaItemArtwork = {
+        let size = CGSize(width: 512, height: 512)
+        let img = UIGraphicsImageRenderer(size: size).image { ctx in
+            let cg = ctx.cgContext
+            let colors = [UIColor(red: 0.42, green: 0.31, blue: 0.86, alpha: 1).cgColor, UIColor(red: 0.20, green: 0.45, blue: 0.95, alpha: 1).cgColor]
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1]) {
+                cg.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+            }
+            let cfg = UIImage.SymbolConfiguration(pointSize: 250, weight: .semibold)
+            if let sym = UIImage(systemName: "book.fill", withConfiguration: cfg)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                let r = CGRect(x: (size.width - sym.size.width) / 2, y: (size.height - sym.size.height) / 2, width: sym.size.width, height: sym.size.height)
+                sym.draw(in: r)
+            }
+        }
+        return MPMediaItemArtwork(boundsSize: size) { _ in img }
+    }()
+
     private func updateNowPlaying() {
         guard let c = current, let pk = pack else { return }
         let name = Books.info(c.book)?.name ?? c.book
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+        var info: [String: Any] = [
+            // название: «От Матфея 1:10»; ниже — кто читает; альбом — перевод и глава (виден на экране блокировки)
             MPMediaItemPropertyTitle: "\(name) \(c.chapter):\(c.verse)",
-            MPMediaItemPropertyArtist: pk.title,
+            MPMediaItemPropertyArtist: pk.reader ?? pk.name,
+            MPMediaItemPropertyAlbumTitle: "\(name) \(c.chapter) · AO Bible",
+            MPMediaItemPropertyArtwork: Self.artwork,
             MPNowPlayingInfoPropertyPlaybackRate: playing ? Double(rate) : 0.0,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
         ]
+        if duration > 0 { info[MPMediaItemPropertyPlaybackDuration] = duration }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 }

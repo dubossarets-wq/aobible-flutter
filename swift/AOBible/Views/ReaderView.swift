@@ -182,7 +182,7 @@ struct PaneView: View {
                 .disabled(panes.panes.count >= maxPanes)
                 .accessibilityLabel("Добавить панель")
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 20)
         .padding(.vertical, 6)
     }
 }
@@ -219,13 +219,18 @@ struct StrongRequest: Identifiable {
     let key: String
 }
 
+/// Долгое нажатие выделило стих: следующее нажатие на слово этого стиха — это отпускание пальца, а не выбор слова
+struct LPGuard {
+    let verse: Int
+    let at: Date
+}
+
 enum StudyPanel: Identifiable {
     case commentary(Int)
     case xrefs(Int)
     case compare(Int)
     case interlinear(Int)
     case illustrations(Int)
-    case part(Int)
     case collect(Int)
 
     var id: String {
@@ -235,7 +240,6 @@ enum StudyPanel: Identifiable {
         case .compare(let v): return "v\(v)"
         case .interlinear(let v): return "i\(v)"
         case .illustrations(let v): return "p\(v)"
-        case .part(let v): return "t\(v)"
         case .collect(let v): return "k\(v)"
         }
     }
@@ -274,9 +278,10 @@ struct ChapterText: View {
     @State private var pulseAmt = 0.0
     @State private var wordTask: Task<Void, Never>?
     @State private var noWordUntil = Date.distantPast
-    @GestureState private var lpHeld = false
-    @State private var lpFired = false
-    @State private var lpSwallowUntil = Date.distantPast
+    @State private var lpGuard: LPGuard?
+    @State private var partVerse: Int?
+    @State private var partFrom: Int?
+    @State private var partTo: Int?
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var strong: StrongRequest?
@@ -333,11 +338,6 @@ struct ChapterText: View {
                                     .padding(.vertical, 3)
                                     .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                                     .background(Color(hex: 0xd9475e).opacity(pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .overlay(alignment: .leading) {
-                                        if selected.contains(v.num) {
-                                            Capsule().fill(pal.accent).frame(width: 3).padding(.vertical, 2)
-                                        }
-                                    }
                                     .overlay(alignment: .topTrailing) {
                                         HStack(spacing: 4) {
                                             if marks.isBookmarked(book, chapter, v.num) {
@@ -363,20 +363,16 @@ struct ChapterText: View {
                                     // долгое нажатие в любом месте стиха (и на слове): выделяет; отпускание пальца
                                     // не должно считаться нажатием на слово (иначе оно сразу снимало выделение)
                                     .simultaneousGesture(
-                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12)
-                                            .sequenced(before: DragGesture(minimumDistance: 0))
-                                            .updating($lpHeld) { value, state, _ in
-                                                if case .second(true, _) = value { state = true }
-                                            }
-                                            .onChanged { value in
-                                                if case .second(true, _) = value, !lpFired {
-                                                    lpFired = true
-                                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                                    selected.insert(v.num)
-                                                }
-                                            }
+                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12).onEnded { _ in
+                                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                            partVerse = nil
+                                            selected.insert(v.num)
+                                            lpGuard = LPGuard(verse: v.num, at: Date())
+                                        }
                                     )
-                                if !continuous, v.num == selected.max() {
+                                if !continuous, partVerse == v.num {
+                                    partBar(v).frame(maxWidth: .infinity)
+                                } else if !continuous, v.num == selected.max() {
                                     selectionBar(verses).frame(maxWidth: .infinity)
                                 }
                             }
@@ -439,12 +435,6 @@ struct ChapterText: View {
             noteEditor
         }
         .onChange(of: chapter) { _, _ in selected = [] }
-        .onChange(of: lpHeld) { _, held in
-            if !held && lpFired {
-                lpFired = false
-                lpSwallowUntil = Date().addingTimeInterval(0.4)
-            }
-        }
         .overlay(alignment: .top) {
             if let t = toast {
                 Text(t)
@@ -458,7 +448,17 @@ struct ChapterText: View {
         .animation(.default, value: toast)
         .environment(\.openURL, OpenURLAction { url in
             // палец ещё не отпущен после долгого нажатия (или только что отпущен) — это не нажатие на слово
-            if lpFired || Date() < lpSwallowUntil { return .handled }
+            if let g = lpGuard, let v = verseOf(url), v == g.verse {
+                lpGuard = nil
+                if Date().timeIntervalSince(g.at) < 15 { return .handled }
+            }
+            // выбор части стиха: нажатия по словам этого стиха ставят начало и конец
+            if let pv = partVerse, url.scheme == "aobword", verseOf(url) == pv {
+                if let wi = partWordIndex(url) {
+                    if partFrom == nil || partTo != nil { partFrom = wi; partTo = nil } else { partTo = wi }
+                }
+                return .handled
+            }
             // идёт выделение стихов: нажатие на слово, номер Стронга и метки только выделяет стих, словарь не открывается
             if !selected.isEmpty, let v = verseOf(url) {
                 toggle(v)
@@ -514,8 +514,6 @@ struct ChapterText: View {
                 InterlinearSheet(book: book, chapter: chapter, verse: v)
             case .illustrations(let v):
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
-            case .part(let v):
-                PartSheet(module: module, book: book, chapter: chapter, verse: v)
             case .collect:
                 CollectSheet(items: collectItems) { show("Добавлено в подборку «\($0)»") }
             }
@@ -526,7 +524,7 @@ struct ChapterText: View {
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
         let favs = favNums
-        let key = "\(favs.sorted())|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
+        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
         if let c = cacheBox.value, c.key == key { return c }
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
@@ -592,6 +590,22 @@ struct ChapterText: View {
 
     private func toggle(_ n: Int) {
         if selected.contains(n) { selected.remove(n) } else { selected.insert(n) }
+    }
+
+    private var partKey: String {
+        let fp = marks.data.favorites.filter { $0.book == book && $0.chapter == chapter }.compactMap { f in f.part.map { "\(f.verse):\($0.from)-\($0.to)" } }
+        return "\(partVerse ?? 0):\(partFrom ?? -1):\(partTo ?? -1)|\(fp.sorted())"
+    }
+
+    private func partRange(_ n: Int) -> ClosedRange<Int>? {
+        guard partVerse == n, let a = partFrom else { return nil }
+        let b = partTo ?? a
+        return min(a, b)...max(a, b)
+    }
+
+    private func favPartRange(_ n: Int) -> ClosedRange<Int>? {
+        guard let p = marks.data.favorites.first(where: { $0.book == book && $0.chapter == chapter && $0.verse == n })?.part else { return nil }
+        return min(p.from, p.to)...max(p.from, p.to)
     }
 
     /// Любимые стихи этой главы (сердечко ставится в текст между номером и словами)
@@ -689,11 +703,20 @@ struct ChapterText: View {
             h.foregroundColor = Color(hex: 0xd9475e)
             out += h
         }
+        var wi = 0
+        let sel = partRange(v.num)
+        let fav = favPartRange(v.num)
+        func mark(_ s: inout AttributedString, _ i: Int) {
+            if let r = sel, r.contains(i) { s.backgroundColor = pal.accent.opacity(0.24) }
+            else if let r = fav, r.contains(i) { s.backgroundColor = Color(hex: 0xd9475e).opacity(0.2) }
+        }
         for (ti, t) in Markup.parse(v.text).enumerated() {
             if !t.strongs.isEmpty {
                 // слово с номером Стронга — целиком одна ссылка на окно слова
                 var s = piece(t.text, italic: t.italic)
                 s.link = URL(string: "aobword:\(v.num),\(ti),-1")
+                mark(&s, wi)
+                wi += 1
                 out += s
                 if showStrongs {
                     // номера Стронга — ссылки: нажатие открывает словарную статью
@@ -717,6 +740,8 @@ struct ChapterText: View {
                     }
                     var w = piece(ns.substring(with: m.range), italic: t.italic)
                     w.link = URL(string: "aobword:\(v.num),\(ti),\(k)")
+                    mark(&w, wi)
+                    wi += 1
                     out += w
                     k += 1
                     pos = m.range.location + m.range.length
@@ -742,6 +767,101 @@ struct ChapterText: View {
             out += n
         }
         return out
+    }
+
+    /// Номер слова в стихе: слово с номером Стронга — одно слово, в обычном тексте — каждое слово отдельно
+    private func partWordIndex(_ url: URL) -> Int? {
+        let p = url.absoluteString.dropFirst("aobword:".count).split(separator: ",").map { Int($0) ?? -1 }
+        guard p.count == 3, let raw = store.verseRaw(module: module.id, book: book, chapter: chapter, verse: p[0]) else { return nil }
+        let toks = Markup.parse(raw)
+        guard p[1] >= 0, p[1] < toks.count else { return nil }
+        var n = 0
+        for i in 0..<p[1] {
+            n += toks[i].strongs.isEmpty ? Self.wordRe.numberOfMatches(in: toks[i].text, range: NSRange(location: 0, length: (toks[i].text as NSString).length)) : 1
+        }
+        return toks[p[1]].strongs.isEmpty ? n + max(p[2], 0) : n
+    }
+
+    private func verseWords(_ num: Int) -> [String] {
+        guard let raw = store.verseRaw(module: module.id, book: book, chapter: chapter, verse: num) else { return [] }
+        var out: [String] = []
+        for t in Markup.parse(raw) {
+            if !t.strongs.isEmpty { out.append(t.text); continue }
+            let ns = t.text as NSString
+            for m in Self.wordRe.matches(in: t.text, range: NSRange(location: 0, length: ns.length)) { out.append(ns.substring(with: m.range)) }
+        }
+        return out
+    }
+
+    private func partText(_ num: Int) -> String {
+        guard let r = partRange(num) else { return "" }
+        let w = verseWords(num)
+        guard r.lowerBound < w.count else { return "" }
+        return w[r.lowerBound...min(r.upperBound, w.count - 1)].joined(separator: " ")
+    }
+
+    private func endPart() {
+        partVerse = nil
+        partFrom = nil
+        partTo = nil
+    }
+
+    /// Выбор части стиха прямо в тексте: нажмите первое и последнее слово — они закрашиваются; действия — под стихом
+    private func partBar(_ v: Verse) -> some View {
+        let text = partText(v.num)
+        let short = Books.info(book)?.short ?? bookName
+        let quote = "\"\(text)\" - \(short) \(chapter):\(v.num)"
+        return VStack(spacing: 8) {
+            if partFrom == nil {
+                Text(partTo == nil ? "Нажмите первое и последнее слово части" : "")
+                    .font(.footnote).foregroundStyle(pal.muted)
+            }
+            HStack(spacing: 4) {
+                if !text.isEmpty, let r = partRange(v.num) {
+                    barButton("heart", "В любимые") {
+                        marks.setFavoritePart(book, chapter, v.num, text: text, part: Part(from: r.lowerBound, to: r.upperBound))
+                        show("♥ Часть стиха — в любимых")
+                        endPart()
+                    }
+                    Menu {
+                        ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
+                            Button(s.title.isEmpty ? "Без названия" : s.title) { partToSermon(s.id, v.num, text) }
+                        }
+                        Button("Новая проповедь") { partToSermon(sermons.create("Новая проповедь").id, v.num, text) }
+                    } label: { barLabel("scroll", "В проповедь") }
+                    barButton("doc.on.doc", "Копировать") {
+                        UIPasteboard.general.string = quote
+                        show("Часть стиха скопирована")
+                        endPart()
+                    }
+                }
+                barButton("xmark", "Отмена") { endPart() }
+            }
+            .padding(.horizontal, 8)
+            .glassEffect(.regular, in: Capsule())
+        }
+        .padding(.bottom, 8)
+    }
+
+    private func partToSermon(_ id: String, _ num: Int, _ text: String) {
+        sermons.addVerses(to: id, items: [VerseItem(book: book, chapter: chapter, verse: num, text: text, moduleId: module.id, part: true)], moduleId: module.id)
+        show("Добавлено в проповедь")
+        endPart()
+    }
+
+    private func barLabel(_ icon: String, _ title: LocalizedStringKey) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon).font(.body)
+            Text(title).font(.caption2).lineLimit(1)
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 7)
+        .frame(minHeight: 52)
+    }
+
+    private func barButton(_ icon: String, _ title: LocalizedStringKey, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) { barLabel(icon, title) }
+            .buttonStyle(.plain)
     }
 
     /// Нажатие на слово: находим слово и его разметку (номера Стронга, морфология) и открываем окно слова
@@ -802,49 +922,66 @@ struct ChapterText: View {
         let first = selected.sorted().first ?? 1
         let bookmarked = marks.isBookmarked(book, chapter, first)
         let favorite = !selected.isEmpty && selected.allSatisfy { marks.isFavorite(MarksStore.key(book, chapter, $0)) }
-        return HStack(spacing: 20) {
-            Button {
-                UIPasteboard.general.string = quote(verses)
-                show(selected.count > 1 ? "Скопировано стихов: \(selected.count)" : "Стих скопирован")
+        return HStack(spacing: 4) {
+            barButton("headphones", "Слушать") {
+                Task { await audio.listen(store: store, moduleId: module.id, from: Place(book: book, chapter: chapter, verse: first)) }
                 selected = []
-            } label: { Image(systemName: "doc.on.doc") }
-                .accessibilityLabel("Копировать")
-            Button {
-                toggleFavorites(verses, favorite)
-            } label: { Image(systemName: favorite ? "heart.fill" : "heart").foregroundStyle(favorite ? Color.red : Color.primary) }
-                .accessibilityLabel("Любимый")
+            }
             Menu {
-                ForEach(hlColors) { c in
-                    Button {
-                        marks.setHighlight(keys: keys(), color: c.id)
-                        selected = []
-                    } label: {
-                        Label(marks.colorName(c), systemImage: "circle.fill")
-                    }
-                    .tint(c.color)
+                ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
+                    Button(s.title.isEmpty ? "Без названия" : s.title) { addToSermon(s.id, verses) }
                 }
-                Button("Убрать подсветку", role: .destructive) {
-                    marks.setHighlight(keys: keys(), color: nil)
+                Button("Новая проповедь") {
+                    let s = sermons.create("Новая проповедь")
+                    addToSermon(s.id, verses)
+                }
+            } label: { barLabel("scroll", "В проповедь") }
+            if selected.count == 1 {
+                barButton("selection.pin.in.out", "Часть стиха") {
+                    partVerse = first
+                    partFrom = nil
+                    partTo = nil
                     selected = []
                 }
-            } label: { Image(systemName: "highlighter") }
-                .accessibilityLabel("Подсветка")
-            Button {
-                if let v = verses.first(where: { $0.num == first }) {
-                    marks.toggleBookmark(book, chapter, v.num, text: String(Markup.plain(v.text).prefix(160)))
-                    show(bookmarked ? "Закладка удалена" : "Закладка: \(Books.info(book)?.short ?? bookName) \(chapter):\(first)")
-                }
-                selected = []
-            } label: { Image(systemName: bookmarked ? "bookmark.fill" : "bookmark") }
-                .accessibilityLabel("Закладка")
-            Button {
-                noteText = marks.note(MarksStore.key(book, chapter, first)) ?? ""
-                noteVerse = first
-            } label: { Image(systemName: "note.text") }
-                .accessibilityLabel("Заметка")
+            }
+            barButton("text.alignleft", "Подстрочник") { panel = .interlinear(first) }
             Menu {
+                Menu {
+                    ForEach(hlColors) { c in
+                        Button {
+                            marks.setHighlight(keys: keys(), color: c.id)
+                            selected = []
+                        } label: {
+                            Label(marks.colorName(c), systemImage: "circle.fill")
+                        }
+                        .tint(c.color)
+                    }
+                    Button("Убрать выделение цветом", role: .destructive) {
+                        marks.setHighlight(keys: keys(), color: nil)
+                        selected = []
+                    }
+                } label: { Label("Выделить цветом", systemImage: "highlighter") }
+                Button {
+                    toggleFavorites(verses, favorite)
+                } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
+                Button {
+                    if let v = verses.first(where: { $0.num == first }) {
+                        marks.toggleBookmark(book, chapter, v.num, text: String(Markup.plain(v.text).prefix(160)))
+                        show(bookmarked ? "Закладка удалена" : "Закладка: \(Books.info(book)?.short ?? bookName) \(chapter):\(first)")
+                    }
+                    selected = []
+                } label: { Label(bookmarked ? "Убрать закладку" : "Закладка", systemImage: bookmarked ? "bookmark.slash" : "bookmark") }
+                Button {
+                    noteText = marks.note(MarksStore.key(book, chapter, first)) ?? ""
+                    noteVerse = first
+                } label: { Label("Заметка", systemImage: "note.text") }
+                Button {
+                    UIPasteboard.general.string = quote(verses)
+                    show(selected.count > 1 ? "Скопировано стихов: \(selected.count)" : "Стих скопирован")
+                    selected = []
+                } label: { Label("Копировать", systemImage: "doc.on.doc") }
                 ShareLink(item: quote(verses)) { Label("Поделиться", systemImage: "square.and.arrow.up") }
-                Button { panel = .part(first); selected = [] } label: { Label("Часть стиха", systemImage: "selection.pin.in.out") }
+                Divider()
                 Button {
                     collectItems = verses.filter { selected.contains($0.num) }.map {
                         MarkItem(book: book, chapter: chapter, verse: $0.num, text: Markup.plain($0.text))
@@ -853,9 +990,10 @@ struct ChapterText: View {
                     selected = []
                 } label: { Label("В подборку…", systemImage: "folder.badge.plus") }
                 Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
-                Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
+                if selected.count == 1 {
+                    Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
+                }
                 Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
-                Button { panel = .interlinear(first) } label: { Label("Подстрочник", systemImage: "text.alignleft") }
                 Button {
                     let t = verses.filter { selected.contains($0.num) }.map { Markup.plain($0.text) }.joined(separator: " ")
                     imageReq = ImageRequest(text: t, ref: "\(bookName) \(chapter):\(rangeText())")
@@ -870,29 +1008,17 @@ struct ChapterText: View {
                     }
                 } label: { Label("Перевод рядом", systemImage: "rectangle.split.2x1") }
                     .disabled(panes.panes.count >= maxPanes)
-                Button {
-                    toggleFavorites(verses, favorite)
-                } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
-                Button {
-                    Task { await audio.listen(store: store, moduleId: module.id, from: Place(book: book, chapter: chapter, verse: first)) }
-                    selected = []
-                } label: { Label("Слушать", systemImage: "headphones") }
-                Menu {
-                    ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
-                        Button(s.title.isEmpty ? "Без названия" : s.title) { addToSermon(s.id, verses) }
-                    }
-                    Button("Новая проповедь") {
-                        let s = sermons.create("Новая проповедь")
-                        addToSermon(s.id, verses)
-                    }
-                } label: { Label("В проповедь", systemImage: "scroll") }
+                Divider()
                 Button { selected = [] } label: { Label("Снять выделение", systemImage: "xmark") }
-            } label: { Image(systemName: "ellipsis") }
-                .accessibilityLabel("Ещё")
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .frame(width: 40, height: 52)
+            }
+            .accessibilityLabel("Ещё")
         }
-        .font(.title3)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 6)
         .glassEffect(.regular, in: Capsule())
         .padding(.bottom, 8)
     }

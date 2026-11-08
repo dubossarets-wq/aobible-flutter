@@ -209,6 +209,14 @@ final class MarksStore: ObservableObject {
         save()
     }
 
+    /// Любимая часть стиха: заменяет прежнюю отметку этого стиха
+    func setFavoritePart(_ book: String, _ chapter: Int, _ verse: Int, text: String, part: Part) {
+        let key = Self.key(book, chapter, verse)
+        data.favorites.removeAll { $0.id == key }
+        data.favorites.insert(MarkItem(book: book, chapter: chapter, verse: verse, text: text, part: part), at: 0)
+        save()
+    }
+
     func removeFavorite(_ key: String) {
         data.favorites.removeAll { $0.id == key }
         save()
