@@ -31,9 +31,10 @@ extension PlanLogic {
     /// Псалтирь и Притчи читаются по кругу, остальное — один раз
     static let cyclicStreams: Set<String> = ["ps", "prov"]
 
-    static func streamBooks(_ key: String, own: [String]) -> [String] {
+    /// dc — включать неканонические книги (Товит, Иудифь, Маккавеи…) в «Ветхий Завет»
+    static func streamBooks(_ key: String, own: [String], dc: Bool = false) -> [String] {
         switch key {
-        case "ot": return Books.all.filter { $0.t == "OT" && $0.dc != true }.map { $0.id }
+        case "ot": return Books.all.filter { $0.t == "OT" && (dc || $0.dc != true) }.map { $0.id }
         case "nt": return Books.all.filter { $0.t == "NT" }.map { $0.id }
         case "ps": return ["Ps"]
         case "prov": return ["Prov"]
@@ -44,7 +45,7 @@ extension PlanLogic {
 
     /// Книги разделов без повторов (как во Flutter-версии): книги узких разделов не читаются ещё раз в ВЗ/НЗ,
     /// а в своих книгах — те, что уже есть в Псалтири, Притчах, Евангелиях. Порядок — по первой книге
-    static func streamList(on: [String: Int], own: [String]) -> [StreamSel] {
+    static func streamList(on: [String: Int], own: [String], dc: Bool = false) -> [StreamSel] {
         let keys = streams.filter { on[$0.key] != nil }
         var fixed = Set<String>()
         var narrow = Set<String>()
@@ -56,7 +57,7 @@ extension PlanLogic {
         var out: [StreamSel] = keys.map { s in
             let books: [String]
             if s.wide {
-                books = streamBooks(s.key, own: []).filter { !narrow.contains($0) }
+                books = streamBooks(s.key, own: [], dc: dc).filter { !narrow.contains($0) }
             } else if s.key == "own" {
                 books = own.filter { !fixed.contains($0) }
             } else {

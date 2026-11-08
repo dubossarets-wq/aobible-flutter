@@ -10,6 +10,7 @@ struct CustomPlanView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("interfaceLanguage") private var lang = "ru"
 
+    @AppStorage("cp.dc") private var includeDC = false
     @AppStorage("cp.mode") private var mode = "seq"
     @AppStorage("cp.parMode") private var parMode = "perday"
     @AppStorage("cp.scope") private var scope = "nt"
@@ -42,7 +43,7 @@ struct CustomPlanView: View {
 
     private var own: [String] {
         let set = Set(ownRaw.split(separator: ",").map(String.init))
-        return Books.all.filter { set.contains($0.id) }.map { $0.id }
+        return Books.all.filter { set.contains($0.id) && (includeDC || $0.dc != true) }.map { $0.id }
     }
 
     private func setOwn(_ ids: Set<String>) { ownRaw = ids.sorted().joined(separator: ",") }
@@ -72,8 +73,8 @@ struct CustomPlanView: View {
 
     private func scopeBooks(_ id: String) -> [String] {
         switch id {
-        case "all": return Books.all.filter { ($0.t == "OT" || $0.t == "NT") && $0.dc != true }.map { $0.id }
-        case "ot": return Books.all.filter { $0.t == "OT" && $0.dc != true }.map { $0.id }
+        case "all": return Books.all.filter { ($0.t == "OT" || $0.t == "NT") && (includeDC || $0.dc != true) }.map { $0.id }
+        case "ot": return Books.all.filter { $0.t == "OT" && (includeDC || $0.dc != true) }.map { $0.id }
         case "nt": return Books.all.filter { $0.t == "NT" }.map { $0.id }
         case "own": return own
         default: return scopes.first { $0.id == id }?.books ?? []
@@ -82,7 +83,7 @@ struct CustomPlanView: View {
 
     private var par: Bool { mode == "par" }
     private var period: Bool { par && parMode == "period" }
-    private var sel: [StreamSel] { PlanLogic.streamList(on: streams, own: own) }
+    private var sel: [StreamSel] { PlanLogic.streamList(on: streams, own: own, dc: includeDC) }
     private var parBooks: [String] { sel.flatMap { $0.books } }
     private var parDays: Int { period ? 0 : PlanLogic.parallelDays(sel, chapters: chapters) }
     private var needOwn: Bool { (par ? streams["own"] != nil : scope == "own") && own.isEmpty }
@@ -187,7 +188,8 @@ struct CustomPlanView: View {
                 }
             }
         }
-        if scope == "own" { card { BookPicker(selected: Set(own), onChange: setOwn) } }
+        dcToggle
+        if scope == "own" { card { BookPicker(selected: Set(own), includeDC: includeDC, onChange: setOwn) } }
         daysCard(binding: $days, books: scopeBooks(scope))
     }
 
@@ -231,7 +233,8 @@ struct CustomPlanView: View {
                 ForEach(PlanLogic.streams) { s in streamRow(s) }
             }
         }
-        if streams["own"] != nil { card { BookPicker(selected: Set(own), onChange: setOwn) } }
+        dcToggle
+        if streams["own"] != nil { card { BookPicker(selected: Set(own), includeDC: includeDC, onChange: setOwn) } }
         if period {
             daysCard(binding: $periodDays, books: parBooks)
         } else {
@@ -287,6 +290,21 @@ struct CustomPlanView: View {
         .padding(.horizontal, 14)
         .frame(minHeight: 54)
         .background(on ? Color.accentColor.opacity(0.08) : cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// Неканонические книги: по умолчанию в планы не входят
+    private var dcToggle: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: $includeDC) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Неканонические книги").font(.subheadline.weight(.semibold))
+                    Text("Товит, Иудифь, Маккавеи, Премудрость, Сирах и другие — добавить в «Ветхий Завет» и в выбор своих книг")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
     }
 
     private func setPer(_ key: String, _ v: Int) {
@@ -453,15 +471,25 @@ final class PlanChapterCache {
 /// Свои книги: сетка коротких названий по Заветам, нажатие — выбрать или убрать
 struct BookPicker: View {
     let selected: Set<String>
+    var includeDC = false
     let onChange: (Set<String>) -> Void
+
+    private var groups: [(String, String, [BookInfo])] {
+        var g: [(String, String, [BookInfo])] = [
+            ("OT", "Ветхий Завет", Books.all.filter { $0.t == "OT" && $0.dc != true }),
+            ("NT", "Новый Завет", Books.all.filter { $0.t == "NT" && $0.dc != true }),
+        ]
+        if includeDC { g.append(("DC", "Неканонические", Books.all.filter { $0.dc == true })) }
+        return g
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach([("OT", "Ветхий Завет"), ("NT", "Новый Завет")], id: \.0) { t, title in
+            ForEach(groups, id: \.0) { _, title, books in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(LocalizedStringKey(title)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                     FlowLayout(spacing: 6) {
-                        ForEach(Books.all.filter { $0.t == t }) { b in
+                        ForEach(books) { b in
                             let on = selected.contains(b.id)
                             Button {
                                 var s = selected
