@@ -59,11 +59,36 @@ struct AudioBar: View {
     }
 }
 
-/// Системные громкость и AirPlay — как в Apple Music
-private struct VolumeSlider: UIViewRepresentable {
+/// Системная громкость: ползунок рисуем сами (без кружка), а звук меняет скрытый MPVolumeView — так делает Apple Music
+@MainActor
+final class SystemVolume: ObservableObject {
+    @Published var value: Double = Double(AVAudioSession.sharedInstance().outputVolume)
+    fileprivate weak var host: MPVolumeView?
+    private var obs: NSKeyValueObservation?
+
+    init() {
+        try? AVAudioSession.sharedInstance().setActive(true)
+        obs = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { [weak self] _, change in
+            guard let v = change.newValue else { return }
+            Task { @MainActor in self?.value = Double(v) }
+        }
+    }
+
+    func set(_ v: Double) {
+        value = v
+        (host?.subviews.first { $0 is UISlider } as? UISlider)?.value = Float(v)
+    }
+}
+
+/// Невидимый MPVolumeView: без него система не даёт менять громкость
+private struct VolumeHost: UIViewRepresentable {
+    let volume: SystemVolume
+
     func makeUIView(context: Context) -> MPVolumeView {
-        let v = MPVolumeView(frame: .zero)
+        let v = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         v.showsRouteButton = false
+        v.alpha = 0.01
+        volume.host = v
         return v
     }
 
@@ -73,23 +98,58 @@ private struct VolumeSlider: UIViewRepresentable {
 private struct RoutePicker: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let v = AVRoutePickerView(frame: .zero)
-        v.tintColor = .label
-        v.activeTintColor = .systemBlue
+        v.tintColor = .white
+        v.activeTintColor = .white
+        v.prioritizesVideoDevices = false
         return v
     }
 
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }
 
-/// Раскрытый проигрыватель — как в Apple Music: тёмный фон, сверху обложка с названием, звёздочка и меню;
-/// в середине текст стиха-главы, как слова песни (звучащий стих — крупно и ярко, остальные размыты; нажатие —
-/// перемотка к стиху); ползунок с временем; управление; громкость; внизу — слова, AirPlay и список
+/// Тонкий ползунок без кружка, как в Apple Music: при касании утолщается
+private struct SlimBar: View {
+    @Binding var value: Double
+    var onEnd: (() -> Void)? = nil
+    @State private var dragging = false
+
+    var body: some View {
+        GeometryReader { g in
+            let h: CGFloat = dragging ? 10 : 6
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.22))
+                Capsule().fill(.white.opacity(0.88)).frame(width: max(h, g.size.width * min(1, max(0, value))))
+            }
+            .frame(height: h)
+            .frame(maxHeight: .infinity, alignment: .center)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { v in
+                        dragging = true
+                        value = min(1, max(0, v.location.x / max(1, g.size.width)))
+                    }
+                    .onEnded { _ in
+                        dragging = false
+                        onEnd?()
+                    }
+            )
+            .animation(.easeOut(duration: 0.15), value: dragging)
+        }
+        .frame(height: 26)
+    }
+}
+
+/// Раскрытый проигрыватель — как экран слов в Apple Music: сверху обложка с названием, звёздочка и меню; в середине
+/// текст главы как слова песни (звучащий стих — крупно и ярко, остальные размыты; нажатие — перемотка к стиху);
+/// тонкий ползунок со временем; перемотка и пауза; громкость; внизу — слова, AirPlay и список
 struct AudioFullView: View {
     @EnvironmentObject private var audio: AudioEngine
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var marks: MarksStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openVerse) private var openVerse
+    @StateObject private var volume = SystemVolume()
     @State private var scrub: Double?
     @State private var lyrics = true
     @State private var packs: [AudioPack] = []
@@ -103,27 +163,35 @@ struct AudioFullView: View {
         audio.textModule.isEmpty ? audio.moduleId : audio.textModule
     }
 
+    private var routeName: String? {
+        guard let port = AVAudioSession.sharedInstance().currentRoute.outputs.first else { return nil }
+        switch port.portType {
+        case .builtInSpeaker, .builtInReceiver: return nil
+        default: return port.portName
+        }
+    }
+
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(hex: 0x3A1E26), Color(hex: 0x1A1620), Color(hex: 0x0E1824)], startPoint: .topTrailing, endPoint: .bottomLeading)
+            LinearGradient(colors: [Color(hex: 0x14395C), Color(hex: 0x0E2238), Color(hex: 0x0A121C)], startPoint: .topTrailing, endPoint: .bottomLeading)
                 .ignoresSafeArea()
             if let c = audio.current {
-                VStack(spacing: 16) {
-                    Capsule().fill(.white.opacity(0.35)).frame(width: 40, height: 5).padding(.top, 8)
+                VStack(spacing: 0) {
+                    Capsule().fill(.white.opacity(0.35)).frame(width: 40, height: 5).padding(.top, 8).padding(.bottom, 22)
                     header(c)
                     if lyrics {
-                        lyricsView(c)
+                        lyricsView(c).padding(.top, 10)
                     } else {
                         Spacer(minLength: 0)
                         artwork(c)
                         Spacer(minLength: 0)
                     }
-                    progress
-                    controls
-                    volume
-                    bottomRow(c)
+                    progress.padding(.top, 14)
+                    controls.padding(.top, 26)
+                    volumeRow.padding(.top, 30)
+                    bottomRow(c).padding(.top, 26)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 28)
                 .padding(.bottom, 14)
             } else {
                 ContentUnavailableView("Ничего не звучит", systemImage: "headphones")
@@ -131,6 +199,7 @@ struct AudioFullView: View {
         }
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
+        .background(VolumeHost(volume: volume).frame(width: 1, height: 1))
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
@@ -145,35 +214,32 @@ struct AudioFullView: View {
 
     private func cover(_ size: CGFloat, _ c: Place) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.14, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x2F4B7C), Color(hex: 0x0F1A2A)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            VStack(spacing: size * 0.03) {
-                Image(systemName: "book.closed.fill").font(.system(size: size * 0.28))
-                Text("\(c.chapter)").font(.system(size: size * 0.3, weight: .bold, design: .serif))
-            }
+            RoundedRectangle(cornerRadius: size * 0.12, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x6B4FDB), Color(hex: 0x3373F2)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            Image(systemName: "book.fill").font(.system(size: size * 0.46, weight: .semibold)).foregroundStyle(.white)
         }
         .frame(width: size, height: size)
     }
 
     private func header(_ c: Place) -> some View {
         HStack(spacing: 14) {
-            cover(78, c)
+            cover(64, c)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(bookName(c)) \(c.chapter):\(c.verse)").font(.title3.weight(.bold)).lineLimit(1)
-                Text(audio.pack?.title ?? "").font(.subheadline).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                Text("\(bookName(c)) \(c.chapter):\(c.verse)").font(.headline.weight(.bold)).lineLimit(1)
+                Text(audio.pack?.reader ?? audio.pack?.name ?? "").font(.subheadline).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 8)
             let key = MarksStore.key(c.book, c.chapter, c.verse)
             Button {
                 marks.toggleFavorite(c.book, c.chapter, c.verse, text: store.verseText(module: textId, book: c.book, chapter: c.chapter, verse: c.verse) ?? "")
             } label: {
-                Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title2)
+                Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title3).frame(width: 36, height: 44)
             }
             Menu {
                 Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
                 Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть проигрыватель", systemImage: "xmark") }
             } label: {
-                Image(systemName: "ellipsis").font(.title2).frame(width: 34, height: 34)
+                Image(systemName: "ellipsis").font(.title3).frame(width: 36, height: 44)
             }
         }
     }
@@ -189,13 +255,13 @@ struct AudioFullView: View {
         return ZStack(alignment: .bottomTrailing) {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 26) {
+                    VStack(alignment: .leading, spacing: 30) {
                         ForEach(verses) { v in
                             let on = v.num == c.verse
                             Text(Markup.plain(v.text))
                                 .font(.system(size: 31, weight: .bold))
-                                .opacity(on ? 1 : 0.38)
-                                .blur(radius: on ? 0 : 2.5)
+                                .opacity(on ? 1 : 0.4)
+                                .blur(radius: on ? 0 : 3)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                                 .onTapGesture { audio.seekVerse(v.num) }
@@ -205,13 +271,13 @@ struct AudioFullView: View {
                     .padding(.vertical, 120)
                     .animation(.easeInOut(duration: 0.3), value: c.verse)
                 }
-                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12), .init(color: .black, location: 0.85), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.14), .init(color: .black, location: 0.82), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
                 .onChange(of: c.verse) { _, v in
                     withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(v, anchor: .center) }
                 }
                 .onAppear { proxy.scrollTo(c.verse, anchor: .center) }
             }
-            // язык текста и чтеца — как переключение перевода слов в Apple Music
+            // язык текста и чтеца — вертикальная «таблетка» справа, как переключатель слов в Apple Music
             Menu {
                 Section("Текст") {
                     ForEach(store.bibles.filter { !$0.interlinear }) { m in
@@ -234,63 +300,76 @@ struct AudioFullView: View {
                     }
                 }
             } label: {
-                Image(systemName: "translate").font(.title3).frame(width: 46, height: 46)
-                    .background(.white.opacity(0.18), in: Circle())
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(.white.opacity(0.22)).frame(width: 44, height: 92)
+                    Circle().fill(.white.opacity(0.7)).frame(width: 44, height: 44)
+                        .overlay(Image(systemName: "translate").font(.body.weight(.semibold)).foregroundStyle(Color(hex: 0x14395C)))
+                }
             }
         }
     }
 
     private var progress: some View {
-        VStack(spacing: 4) {
-            Slider(value: Binding(get: { scrub ?? audio.position }, set: { scrub = $0 }), in: 0...max(1, audio.duration)) { editing in
-                if !editing, let s = scrub {
+        let total = max(1, audio.duration)
+        let pos = scrub ?? audio.position
+        return VStack(spacing: 2) {
+            SlimBar(value: Binding(get: { pos / total }, set: { scrub = $0 * total })) {
+                if let s = scrub {
                     audio.seek(to: s)
                     scrub = nil
                 }
             }
-            .tint(.white.opacity(0.75))
             HStack {
-                Text(clock(scrub ?? audio.position))
+                Text(clock(pos))
                 Spacer()
-                Text("−" + clock(max(0, audio.duration - (scrub ?? audio.position))))
+                Text(store.module(textId)?.shortName ?? "")
+                Spacer()
+                Text("−" + clock(max(0, audio.duration - pos)))
             }
-            .font(.caption)
+            .font(.caption2.weight(.medium))
             .foregroundStyle(.white.opacity(0.55))
         }
     }
 
+    /// Три кнопки на равных расстояниях друг от друга
     private var controls: some View {
-        HStack {
-            Button { audio.previousVerse() } label: { Image(systemName: "backward.fill").font(.system(size: 38)) }
-            Spacer()
-            Button { audio.toggle() } label: { Image(systemName: audio.playing ? "pause.fill" : "play.fill").font(.system(size: 54)) }
-            Spacer()
-            Button { audio.nextVerse() } label: { Image(systemName: "forward.fill").font(.system(size: 38)) }
+        HStack(spacing: 0) {
+            Button { audio.previousVerse() } label: { Image(systemName: "backward.fill").font(.system(size: 34)) }
+                .frame(maxWidth: .infinity)
+            Button { audio.toggle() } label: { Image(systemName: audio.playing ? "pause.fill" : "play.fill").font(.system(size: 48)).frame(width: 60) }
+                .frame(maxWidth: .infinity)
+            Button { audio.nextVerse() } label: { Image(systemName: "forward.fill").font(.system(size: 34)) }
+                .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 46)
         .buttonStyle(.plain)
-        .padding(.vertical, 6)
     }
 
-    private var volume: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "speaker.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
-            VolumeSlider().frame(height: 30)
-            Image(systemName: "speaker.wave.3.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
+    /// Громкость: значки по бокам стоят точно напротив ползунка
+    private var volumeRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "speaker.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(width: 18)
+            SlimBar(value: Binding(get: { volume.value }, set: { volume.set($0) }))
+            Image(systemName: "speaker.wave.3.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(width: 22)
         }
+        .frame(height: 26)
     }
 
     private func bottomRow(_ c: Place) -> some View {
-        HStack {
+        HStack(alignment: .top, spacing: 0) {
             Button { lyrics.toggle() } label: {
                 Image(systemName: lyrics ? "quote.bubble.fill" : "quote.bubble")
-                    .font(.title2)
-                    .frame(width: 56, height: 46)
-                    .background(lyrics ? Color.white.opacity(0.25) : Color.clear, in: Capsule())
+                    .font(.title3)
+                    .frame(width: 52, height: 52)
+                    .background(lyrics ? Color.white.opacity(0.25) : Color.clear, in: Circle())
             }
-            Spacer()
-            RoutePicker().frame(width: 34, height: 34)
-            Spacer()
+            .frame(maxWidth: .infinity)
+            VStack(spacing: 4) {
+                RoutePicker().frame(width: 34, height: 34).frame(height: 52)
+                if let r = routeName {
+                    Text(r).font(.caption2).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
             // список: скорость и таймер сна
             Menu {
                 Section("Скорость") {
@@ -311,8 +390,9 @@ struct AudioFullView: View {
                     }
                 }
             } label: {
-                Image(systemName: "list.bullet").font(.title2).frame(width: 56, height: 46)
+                Image(systemName: "list.bullet").font(.title3).frame(width: 52, height: 52)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
