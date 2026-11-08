@@ -234,6 +234,44 @@ final class MarksStore: ObservableObject {
         save()
     }
 
+    // MARK: - Возврат удалённого («Отменить»)
+
+    func restoreBookmark(_ b: MarkItem, at i: Int) {
+        guard !data.bookmarks.contains(where: { $0.at == b.at && $0.id == b.id }) else { return }
+        data.bookmarks.insert(b, at: min(i, data.bookmarks.count))
+        save()
+    }
+
+    func restoreFavorite(_ b: MarkItem, at i: Int) {
+        guard !isFavorite(b.id) else { return }
+        data.favorites.insert(b, at: min(i, data.favorites.count))
+        save()
+    }
+
+    func restoreNote(_ key: String, _ e: NoteEntry) {
+        guard data.notes[key] == nil else { return }
+        data.notes[key] = e
+        save()
+    }
+
+    func restoreCollection(_ c: VerseCollection, at i: Int) {
+        guard !data.collections.contains(where: { $0.id == c.id }) else { return }
+        data.collections.insert(c, at: min(i, data.collections.count))
+        save()
+    }
+
+    func restoreCollectionItem(_ id: String, _ item: MarkItem, at i: Int) {
+        guard let k = data.collections.firstIndex(where: { $0.id == id }) else { return }
+        data.collections[k].items.insert(item, at: min(i, data.collections[k].items.count))
+        save()
+    }
+
+    func removeNote(_ key: String) -> NoteEntry? {
+        guard let e = data.notes.removeValue(forKey: key) else { return nil }
+        save()
+        return e
+    }
+
     // MARK: - Названия цветов и подборки
 
     /// Название цвета выделения: своё (из «Цветов выделений»), иначе обычное

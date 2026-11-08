@@ -125,6 +125,14 @@ final class PanesStore: ObservableObject {
         go(panes[i + 1].id, book, chapter, verse)
     }
 
+    /// Перейти по истории панели на запись i (без новой записи в историю)
+    func goHistory(_ id: UUID, _ i: Int) {
+        guard let k = index(id), i >= 0, i < panes[k].history.count else { return }
+        panes[k].hIndex = i
+        let p = panes[k].history[i]
+        go(id, p.book, p.chapter, p.verse, record: false)
+    }
+
     func canBack(_ id: UUID) -> Bool {
         guard let i = index(id) else { return false }
         return panes[i].hIndex > 0
