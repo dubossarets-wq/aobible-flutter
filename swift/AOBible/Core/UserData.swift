@@ -48,8 +48,33 @@ enum UserData {
         ("syncScroll", "b"), ("panesStacked", "b"),
     ]
 
+    // MARK: - Чужие ключи файла (Flutter, веб): хранятся как есть и уходят в файл обратно, чтобы ничего не терялось
+
+    private static var supportDir: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+    }
+    private static var extraURL: URL { supportDir.appendingPathComponent("userdata_extra.json") }
+    private static var settingsRawURL: URL { supportDir.appendingPathComponent("userdata_settings.json") }
+
+    /// Ключи, которые Swift-версия разбирает сама
+    private static let handledKeys: Set<String> = [
+        "bookmarks", "favorites", "notes", "highlights", "highlightLabels", "collections", "plans", "readLog", "sermons", "settings",
+    ]
+
+    private static func loadExtra() -> [String: String] {
+        guard let d = try? Data(contentsOf: extraURL), let m = (try? JSONSerialization.jsonObject(with: d)) as? [String: String] else { return [:] }
+        return m
+    }
+
+    private static func loadSettingsRaw() -> [String: Any] {
+        guard let d = try? Data(contentsOf: settingsRawURL), let m = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return [:] }
+        return m
+    }
+
     static func settingsJSON() -> String {
-        var j: [String: Any] = [:]
+        // начинаем с настроек, какими их принесли из файла (ключи, которых Swift не знает, остаются), затем свои
+        var j: [String: Any] = loadSettingsRaw()
         let ud = UserDefaults.standard
         for (k, t) in settingKeys {
             guard let v = ud.object(forKey: k) else { continue }
@@ -59,12 +84,23 @@ enum UserData {
             default: if let b = v as? Bool { j[k] = b }
             }
         }
+        // имена ключей Flutter-версии и веба
+        if let x = j.removeValue(forKey: "showXrefs") { j["showXrefButtons"] = x }
+        if let stacked = j.removeValue(forKey: "panesStacked") as? Bool {
+            if stacked { j["splitLayout"] = "rows" } else if j["splitLayout"] as? String == "rows" { j["splitLayout"] = "columns" }
+        }
+        if j["theme"] as? String == "system" { j["theme"] = "auto" }
         guard let d = try? JSONSerialization.data(withJSONObject: j), let s = String(data: d, encoding: .utf8) else { return "{}" }
         return s
     }
 
     static func applySettings(_ json: String) {
-        guard let d = json.data(using: .utf8), let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return }
+        guard let d = json.data(using: .utf8), var j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return }
+        try? d.write(to: settingsRawURL, options: .atomic)
+        // имена Flutter-версии и веба → имена Swift
+        if let x = j["showXrefButtons"] { j["showXrefs"] = x }
+        if let l = j["splitLayout"] as? String { j["panesStacked"] = (l == "rows") }
+        if j["theme"] as? String == "auto" { j["theme"] = "system" }
         let ud = UserDefaults.standard
         for (k, t) in settingKeys {
             guard let v = j[k] else { continue }
@@ -82,11 +118,15 @@ enum UserData {
         for (k, v) in plans.exportEntries() { e[k] = v }
         e["sermons"] = sermons.exportEntry()
         e["settings"] = settingsJSON()
+        // ключи, которых Swift не знает (панели, язык, история чтения, свои планы…), уходят как пришли
+        for (k, v) in loadExtra() where e[k] == nil { e[k] = v }
         return e
     }
 
     @MainActor
     static func apply(_ entries: [String: String], marks: MarksStore, plans: PlansStore, sermons: SermonStore) {
+        let extra = entries.filter { !handledKeys.contains($0.key) }
+        if let d = try? JSONSerialization.data(withJSONObject: extra) { try? d.write(to: extraURL, options: .atomic) }
         marks.importEntries(entries)
         plans.importEntries(entries)
         sermons.importEntry(entries["sermons"])
@@ -110,7 +150,11 @@ enum UserData {
         for (k, v) in d {
             if let s = v as? String { entries[k] = s }
         }
-        let at = (j["exportedAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
+        // Flutter пишет время с долями секунды
+        let plain = ISO8601DateFormatter()
+        let frac = ISO8601DateFormatter()
+        frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let at = (j["exportedAt"] as? String).flatMap { frac.date(from: $0) ?? plain.date(from: $0) }
         return (entries, at)
     }
 

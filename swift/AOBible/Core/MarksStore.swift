@@ -80,11 +80,36 @@ struct NoteEntry: Codable, Hashable {
     }
 }
 
+/// Подборка: {id, name, at, items:[{book, chapter, verse, text, at}]}
+struct VerseCollection: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var at: Double
+    var items: [MarkItem]
+
+    init(id: String, name: String, items: [MarkItem] = []) {
+        self.id = id
+        self.name = name
+        self.at = Date().timeIntervalSince1970 * 1000
+        self.items = items
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        at = try c.decodeIfPresent(Double.self, forKey: .at) ?? 0
+        items = (try? c.decodeIfPresent([MarkItem].self, forKey: .items)) ?? []
+    }
+}
+
 struct MarksData: Codable {
     var bookmarks: [MarkItem] = []
     var favorites: [MarkItem] = []
     var notes: [String: NoteEntry] = [:]
     var highlights: [String: String] = [:]
+    var highlightLabels: [String: String] = [:]
+    var collections: [VerseCollection] = []
 
     init() {}
 
@@ -94,6 +119,8 @@ struct MarksData: Codable {
         favorites = (try? c.decodeIfPresent([MarkItem].self, forKey: .favorites)) ?? []
         notes = (try? c.decodeIfPresent([String: NoteEntry].self, forKey: .notes)) ?? [:]
         highlights = (try? c.decodeIfPresent([String: String].self, forKey: .highlights)) ?? [:]
+        highlightLabels = (try? c.decodeIfPresent([String: String].self, forKey: .highlightLabels)) ?? [:]
+        collections = (try? c.decodeIfPresent([VerseCollection].self, forKey: .collections)) ?? []
     }
 }
 
@@ -123,6 +150,8 @@ final class MarksStore: ObservableObject {
             m.favorites = dec("favorites", [MarkItem].self) ?? []
             m.notes = dec("notes", [String: NoteEntry].self) ?? [:]
             m.highlights = dec("highlights", [String: String].self) ?? [:]
+            m.highlightLabels = dec("highlightLabels", [String: String].self) ?? [:]
+            m.collections = dec("collections", [VerseCollection].self) ?? []
             data = m
         }
     }
@@ -205,6 +234,58 @@ final class MarksStore: ObservableObject {
         save()
     }
 
+    // MARK: - Названия цветов и подборки
+
+    /// Название цвета выделения: своё (из «Цветов выделений»), иначе обычное
+    func colorName(_ c: HlColor) -> String {
+        let s = (data.highlightLabels[c.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return s.isEmpty ? c.name : s
+    }
+
+    func setColorLabel(_ id: String, _ text: String) {
+        data.highlightLabels[id] = text
+        save()
+    }
+
+    /// В подборку: существующую (id) или новую (id == nil, имя); стихи, уже бывшие в ней, не дублируются.
+    /// Новая подборка — в начало списка. Возвращает название подборки
+    @discardableResult
+    func addToCollection(id: String?, name: String?, items: [MarkItem]) -> String? {
+        var i = id.flatMap { cid in data.collections.firstIndex { $0.id == cid } }
+        if i == nil {
+            let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !n.isEmpty else { return nil }
+            data.collections.insert(VerseCollection(id: String(Int(Date().timeIntervalSince1970 * 1000), radix: 36), name: n), at: 0)
+            i = 0
+        }
+        guard let k = i else { return nil }
+        var have = Set(data.collections[k].items.map { $0.id })
+        for it in items where have.insert(it.id).inserted {
+            var x = it
+            x.text = String(x.text.prefix(200))
+            x.at = Date().timeIntervalSince1970 * 1000
+            data.collections[k].items.append(x)
+        }
+        save()
+        return data.collections[k].name
+    }
+
+    func removeFromCollection(_ id: String, item: String) {
+        guard let k = data.collections.firstIndex(where: { $0.id == id }) else { return }
+        data.collections[k].items.removeAll { $0.id == item }
+        save()
+    }
+
+    func removeCollection(_ id: String) {
+        data.collections.removeAll { $0.id == id }
+        save()
+    }
+
+    /// Стих есть хотя бы в одной подборке
+    func inCollection(_ key: String) -> Bool {
+        data.collections.contains { $0.items.contains { $0.id == key } }
+    }
+
     // MARK: - Файл «Мои данные»
 
     /// Ключи файла «Мои данные» (значения — строки JSON, как в localStorage веб-версии)
@@ -217,6 +298,8 @@ final class MarksStore: ObservableObject {
             "favorites": js(data.favorites),
             "notes": js(data.notes),
             "highlights": js(data.highlights),
+            "highlightLabels": js(data.highlightLabels),
+            "collections": js(data.collections),
         ]
     }
 
@@ -230,6 +313,8 @@ final class MarksStore: ObservableObject {
         m.favorites = dec("favorites", [MarkItem].self) ?? []
         m.notes = dec("notes", [String: NoteEntry].self) ?? [:]
         m.highlights = dec("highlights", [String: String].self) ?? [:]
+        m.highlightLabels = dec("highlightLabels", [String: String].self) ?? [:]
+        m.collections = dec("collections", [VerseCollection].self) ?? []
         data = m
         save()
     }
