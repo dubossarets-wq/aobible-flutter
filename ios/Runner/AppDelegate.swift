@@ -15,5 +15,17 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // Канал aobible/screen: экран не гаснет на «Кафедре» (lib/features/sermons/screen_on.dart)
+    if let reg = engineBridge.pluginRegistry.registrar(forPlugin: "AobScreen") {
+      FlutterMethodChannel(name: "aobible/screen", binaryMessenger: reg.messenger()).setMethodCallHandler { call, result in
+        if call.method == "keepOn" {
+          let on = (call.arguments as? Bool) == true
+          DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = on }
+          result(nil)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
   }
 }
