@@ -372,6 +372,29 @@ struct CustomPlanView: View {
         return String(localized: "дн.")
     }
 
+    /// «≈ 13 гл. в день · до 24 января»; больше часа чтения в день (~8 с на стих) — красным
+    private func loadLine(books: [String], days: Int) -> (text: String, heavy: Bool)? {
+        let ch = chapters(books)
+        guard !ch.isEmpty, days > 0 else { return nil }
+        let d = min(days, ch.count)
+        let verses = ch.reduce(0) { $0 + $1.n }
+        let per = max(1, Int((Double(ch.count) / Double(d)).rounded()))
+        let minutes = max(1, Int((Double(verses) / Double(d) * 8 / 60).rounded()))
+        let text = String(localized: "≈ \(per) гл. в день") + " · " + String(localized: "до") + " " + endText(d)
+        return (text, minutes > 60)
+    }
+
+    private func endText(_ days: Int) -> String {
+        let cal = Calendar.current
+        let now = Date()
+        let end = cal.date(byAdding: .day, value: max(days, 1) - 1, to: now) ?? now
+        let f = DateFormatter()
+        f.locale = Locale(identifier: lang)
+        let sameYear = cal.component(.year, from: end) == cal.component(.year, from: now)
+        f.setLocalizedDateFormatFromTemplate(sameYear ? "dMMMM" : "dMMMMyyyy")
+        return f.string(from: end)
+    }
+
     // MARK: создание
 
     private func ownLabel() -> String {
