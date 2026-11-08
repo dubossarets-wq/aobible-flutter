@@ -213,6 +213,7 @@ enum StudyPanel: Identifiable {
     case interlinear(Int)
     case illustrations(Int)
     case part(Int)
+    case collect(Int)
 
     var id: String {
         switch self {
@@ -222,6 +223,7 @@ enum StudyPanel: Identifiable {
         case .interlinear(let v): return "i\(v)"
         case .illustrations(let v): return "p\(v)"
         case .part(let v): return "t\(v)"
+        case .collect(let v): return "k\(v)"
         }
     }
 }
@@ -254,6 +256,7 @@ struct ChapterText: View {
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
     @State private var selected: Set<Int> = []
+    @State private var collectItems: [MarkItem] = []
     @State private var pulseVerse = 0
     @State private var pulseAmt = 0.0
     @State private var wordTask: Task<Void, Never>?
@@ -496,6 +499,8 @@ struct ChapterText: View {
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
             case .part(let v):
                 PartSheet(module: module, book: book, chapter: chapter, verse: v)
+            case .collect:
+                CollectSheet(items: collectItems) { show("Добавлено в подборку «\($0)»") }
             }
         }
     }
@@ -750,7 +755,7 @@ struct ChapterText: View {
         guard let first = nums.first, let last = nums.last else { return "" }
         if nums.count == 1 { return "\(first)" }
         if last - first + 1 == nums.count { return "\(first)-\(last)" }
-        return nums.map(String.init).joined(separator: ",")
+        return nums.map(String.init).joined(separator: ", ")
     }
 
     private func addToSermon(_ id: String, _ verses: [Verse]) {
@@ -764,24 +769,31 @@ struct ChapterText: View {
 
     private func quote(_ verses: [Verse]) -> String {
         let text = verses.filter { selected.contains($0.num) }.map { Markup.plain($0.text) }.joined(separator: " ")
-        return "\(text)\n— \(bookName) \(chapter):\(rangeText()) (\(module.name))"
+        let short = Books.info(book)?.short ?? bookName
+        return "\"\(text)\" - \(short) \(chapter):\(rangeText())"
+    }
+
+    private func toggleFavorites(_ verses: [Verse], _ favorite: Bool) {
+        for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
+            marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+        }
+        show(favorite ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
+        selected = []
     }
 
     private func selectionBar(_ verses: [Verse]) -> some View {
         let first = selected.sorted().first ?? 1
         let bookmarked = marks.isBookmarked(book, chapter, first)
-        let favorite = marks.isFavorite(MarksStore.key(book, chapter, first))
+        let favorite = !selected.isEmpty && selected.allSatisfy { marks.isFavorite(MarksStore.key(book, chapter, $0)) }
         return HStack(spacing: 20) {
             Button {
                 UIPasteboard.general.string = quote(verses)
+                show(selected.count > 1 ? "Скопировано стихов: \(selected.count)" : "Стих скопирован")
                 selected = []
             } label: { Image(systemName: "doc.on.doc") }
                 .accessibilityLabel("Копировать")
             Button {
-                for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
-                    marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
-                }
-                selected = []
+                toggleFavorites(verses, favorite)
             } label: { Image(systemName: favorite ? "heart.fill" : "heart").foregroundStyle(favorite ? Color.red : Color.primary) }
                 .accessibilityLabel("Любимый")
             Menu {
@@ -790,7 +802,7 @@ struct ChapterText: View {
                         marks.setHighlight(keys: keys(), color: c.id)
                         selected = []
                     } label: {
-                        Label(c.name, systemImage: "circle.fill")
+                        Label(marks.colorName(c), systemImage: "circle.fill")
                     }
                     .tint(c.color)
                 }
@@ -801,8 +813,9 @@ struct ChapterText: View {
             } label: { Image(systemName: "highlighter") }
                 .accessibilityLabel("Подсветка")
             Button {
-                for v in verses where selected.contains(v.num) && marks.isBookmarked(book, chapter, v.num) == bookmarked {
-                    marks.toggleBookmark(book, chapter, v.num, text: Markup.plain(v.text))
+                if let v = verses.first(where: { $0.num == first }) {
+                    marks.toggleBookmark(book, chapter, v.num, text: String(Markup.plain(v.text).prefix(160)))
+                    show(bookmarked ? "Закладка удалена" : "Закладка: \(Books.info(book)?.short ?? bookName) \(chapter):\(first)")
                 }
                 selected = []
             } label: { Image(systemName: bookmarked ? "bookmark.fill" : "bookmark") }
@@ -815,6 +828,13 @@ struct ChapterText: View {
             Menu {
                 ShareLink(item: quote(verses)) { Label("Поделиться", systemImage: "square.and.arrow.up") }
                 Button { panel = .part(first); selected = [] } label: { Label("Часть стиха", systemImage: "selection.pin.in.out") }
+                Button {
+                    collectItems = verses.filter { selected.contains($0.num) }.map {
+                        MarkItem(book: book, chapter: chapter, verse: $0.num, text: Markup.plain($0.text))
+                    }
+                    panel = .collect(first)
+                    selected = []
+                } label: { Label("В подборку…", systemImage: "folder.badge.plus") }
                 Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
                 Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
                 Button { panel = .compare(first) } label: { Label("Сравнить переводы", systemImage: "rectangle.on.rectangle") }
@@ -834,10 +854,7 @@ struct ChapterText: View {
                 } label: { Label("Перевод рядом", systemImage: "rectangle.split.2x1") }
                     .disabled(panes.panes.count >= maxPanes)
                 Button {
-                    for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
-                        marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
-                    }
-                    selected = []
+                    toggleFavorites(verses, favorite)
                 } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
                 Button {
                     Task { await audio.listen(store: store, moduleId: module.id, from: Place(book: book, chapter: chapter, verse: first)) }
