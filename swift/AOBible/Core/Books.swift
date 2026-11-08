@@ -5,6 +5,7 @@ struct BookInfo: Decodable, Identifiable, Hashable {
     let name: String
     let short: String
     let t: String
+    var dc: Bool? = nil
 }
 
 /// Список книг (порядок Библии) — тот же файл, что у Flutter-версии

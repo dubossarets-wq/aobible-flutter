@@ -7,7 +7,9 @@ struct ParsedRef {
     var endVerse: Int? = nil
 }
 
-/// «Ин 3:16», «1 Кор 13:4-7», «Пс 22» → ссылка; названия книг — целиком, по началу и по согласным («фс», «флп»…)
+/// «Ин 3:16», «1 Кор 13:4-7», «Пс 22», «John 3:16» → ссылка. Таблица сокращений — та же, что у Flutter-версии
+/// (lib/core/books.dart): id, названия и сокращения (русские и английские), дополнительные сокращения
+/// («мф», «ин», «флп»…), затем сгенерированные: начала названий и сокращения по согласным
 enum RefParser {
     private static let vowels = Set("аеиоуыэюяйъь")
     private static let table: (dict: [String: String], order: [String]) = build()
@@ -28,14 +30,33 @@ enum RefParser {
     private static func build() -> (dict: [String: String], order: [String]) {
         var dict: [String: String] = [:]
         var order: [String] = []
+
+        // 1–2: id, названия, сокращения и дополнительные — последний записавший побеждает, место в порядке остаётся первое
+        func add(_ key: String, _ id: String) {
+            let k = norm(key)
+            if dict[k] == nil { order.append(k) }
+            dict[k] = id
+        }
+        for b in Books.all {
+            add(b.id, b.id)
+            add(b.name, b.id)
+            add(b.short, b.id)
+            for n in BookNames.en[b.id] ?? [] { add(n, b.id) }
+        }
+        for (id, keys) in BookNames.extra {
+            for k in keys { add(k, id) }
+        }
+
+        // 3: сгенерированные — первый записавший побеждает; неканонические книги после канонических
         func put(_ key: String, _ id: String) {
             if key.count >= 2, dict[key] == nil {
                 dict[key] = id
                 order.append(key)
             }
         }
+        let ordered = Books.all.filter { $0.dc != true } + Books.all.filter { $0.dc == true }
         var forms: [(id: String, n: String?, starts: [String], skel: [String])] = []
-        for b in Books.all {
+        for b in ordered {
             let lower = b.name.lowercased()
             let ns = lower as NSString
             var n: String? = nil
@@ -47,7 +68,8 @@ enum RefParser {
             base = base.replacingOccurrences(of: "ё", with: "е")
             var bases = [strip(base)]
             if base.hasPrefix("от ") {
-                bases.append(strip(String(base.dropFirst(3))))
+                let extra = strip(String(base.dropFirst(3)))
+                if !bases.contains(extra) { bases.append(extra) }
             }
             var starts: [String] = []
             var skel: [String] = []
