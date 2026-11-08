@@ -44,17 +44,16 @@ enum AppThemes {
         ThemeDef(id: "light", label: "Светлая", palette: p(0xffffff, 0x121212, 0x5f5f5f, 0x1c1c1e, 0xfbe7a1, 0x6e6e6e)),
         ThemeDef(id: "warm", label: "Тёплая", palette: p(0xf6f5f2, 0x1d1c1a, 0x68655e, 0x8c5e28, 0xf6e3a8, 0x55524c)),
         ThemeDef(id: "sepia", label: "Сепия", palette: p(0xf3e9d7, 0x3b2f22, 0x6e604c, 0x8b5a24, 0xebd189, 0x6b5a44)),
-        ThemeDef(id: "mint", label: "Мята", palette: p(0xf2faf6, 0x14261f, 0x4b665b, 0x1b7a5c, 0xf5e3a0, 0x4b665b)),
-        ThemeDef(id: "lavender", label: "Лаванда", palette: p(0xf6f3fc, 0x221a33, 0x5b5373, 0x6346c2, 0xf3e3a6, 0x5b5373)),
-        ThemeDef(id: "sunset", label: "Закат", palette: p(0xfff6f0, 0x2a1a12, 0x6b5243, 0xb4451f, 0xfde2a0, 0x6b5243)),
         ThemeDef(id: "contrast", label: "Контраст", palette: p(0xffffff, 0x000000, 0x303030, 0x0037b3, 0xffe14d, 0x000000)),
         ThemeDef(id: "dark", label: "Тёмная", palette: p(0x161617, 0xdedbd4, 0x8d8a84, 0xd9a35c, 0x5b4a1c, 0xa7a39b, dark: true)),
         ThemeDef(id: "ocean", label: "Океан", palette: p(0x0f1a2a, 0xdfe7f1, 0x93a3b8, 0x5cb8f0, 0x1f4a6b, 0x8ea2bb, dark: true)),
         ThemeDef(id: "black", label: "Чёрная", palette: p(0x000000, 0xe4e4e4, 0x9a9a9a, 0xe8b86a, 0x4a3b12, 0x8f8f8f, dark: true)),
     ]
 
+    /// Тема, которой больше нет в списке (прежние «Мята», «Лаванда», «Закат»), считается светлой
     static func palette(_ id: String) -> ThemePalette {
-        all.first { $0.id == id }?.palette ?? system
+        if id == "system" { return system }
+        return all.first { $0.id == id }?.palette ?? all.first { $0.id == "light" }?.palette ?? system
     }
 
     static func scheme(_ id: String) -> ColorScheme? {

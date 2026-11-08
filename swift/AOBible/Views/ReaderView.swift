@@ -400,7 +400,7 @@ struct ChapterText: View {
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() { panes.setLive(pane.id, top) }
             }
-            .background(pal.bg)
+            .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, verses, heads)
                 // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»

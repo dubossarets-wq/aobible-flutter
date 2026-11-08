@@ -36,6 +36,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         ITSAppUsesNonExemptEncryption: false
+        NSAlarmKitUsageDescription: Будильник напомнит о чтении Библии в выбранное вами время.
         CFBundleDevelopmentRegion: ru
         CFBundleLocalizations:
           - ru

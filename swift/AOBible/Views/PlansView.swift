@@ -3,11 +3,6 @@ import SwiftUI
 /// Планы чтения: «Стих дня», статистика, активные планы с отметками, каталог планов и свой план
 struct PlansView: View {
     @EnvironmentObject private var plans: PlansStore
-    @State private var remindOn = Reminders.isOn
-    @State private var remindTime: Date = {
-        let p = Reminders.time.split(separator: ":").compactMap { Int($0) }
-        return Calendar.current.date(from: DateComponents(hour: p.first ?? 20, minute: p.count > 1 ? p[1] : 0)) ?? Date()
-    }()
     @State private var catalog: [PlanMeta] = []
     @State private var catalogFailed = false
     @State private var busy: String?
@@ -24,31 +19,7 @@ struct PlansView: View {
                 Section {
                     StatsCard(stats: PlanLogic.stats(plans.log))
                 }
-                Section {
-                    Toggle("Напоминать о чтении", isOn: Binding(get: { remindOn }, set: { on in
-                        if on {
-                            Task {
-                                let ok = await Reminders.requestAccess()
-                                remindOn = ok
-                                Reminders.isOn = ok
-                                if !ok { flash("Уведомления запрещены — разрешите их в настройках телефона") }
-                                Reminders.schedule(plans.plans)
-                            }
-                        } else {
-                            remindOn = false
-                            Reminders.isOn = false
-                            Reminders.schedule(plans.plans)
-                        }
-                    }))
-                    if remindOn {
-                        DatePicker("Время", selection: $remindTime, displayedComponents: .hourAndMinute)
-                            .onChange(of: remindTime) { _, t in
-                                let c = Calendar.current.dateComponents([.hour, .minute], from: t)
-                                Reminders.time = String(format: "%02d:%02d", c.hour ?? 20, c.minute ?? 0)
-                                Reminders.schedule(plans.plans)
-                            }
-                    }
-                }
+                RemindersSection(flash: flash)
                 ForEach(plans.plans) { p in
                     Section {
                         PlanCard(plan: p)
@@ -192,7 +163,7 @@ struct VerseOfDayCard: View {
                         Button {
                             openVerse(v.book, v.chapter, v.verse)
                         } label: {
-                            Label("Читать", systemImage: "book")
+                            HStack(spacing: 6) { Image(systemName: "book"); Text("Читать") }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 14).padding(.vertical, 10)
@@ -202,7 +173,7 @@ struct VerseOfDayCard: View {
                         Button {
                             imageReq = ImageRequest(text: v.text, ref: label)
                         } label: {
-                            Label("Картинка", systemImage: "photo")
+                            HStack(spacing: 6) { Image(systemName: "photo"); Text("Картинка") }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 14).padding(.vertical, 10)
@@ -227,7 +198,7 @@ struct VerseOfDayCard: View {
             }
             .padding(20)
         }
-        .frame(maxWidth: .infinity, minHeight: 300)
+        .frame(maxWidth: .infinity, minHeight: 240)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .sheet(item: $imageReq) { VerseImageSheet(text: $0.text, ref: $0.ref) }
         .task(id: moduleId + lang + "\(store.installed.count)") {

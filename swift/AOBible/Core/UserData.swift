@@ -60,6 +60,7 @@ enum UserData {
     /// Ключи, которые Swift-версия разбирает сама
     private static let handledKeys: Set<String> = [
         "bookmarks", "favorites", "notes", "highlights", "highlightLabels", "collections", "plans", "readLog", "sermons", "settings",
+        "planReminder",
     ]
 
     private static func loadExtra() -> [String: String] {
@@ -118,6 +119,7 @@ enum UserData {
         for (k, v) in plans.exportEntries() { e[k] = v }
         e["sermons"] = sermons.exportEntry()
         e["settings"] = settingsJSON()
+        if let r = Reminders.jsonString { e["planReminder"] = r }
         // ключи, которых Swift не знает (панели, язык, история чтения, свои планы…), уходят как пришли
         for (k, v) in loadExtra() where e[k] == nil { e[k] = v }
         return e
@@ -130,6 +132,8 @@ enum UserData {
         marks.importEntries(entries)
         plans.importEntries(entries)
         sermons.importEntry(entries["sermons"])
+        Reminders.importJSON(entries["planReminder"])
+        Reminders.schedule(plans.plans)
         if let s = entries["settings"] { applySettings(s) }
     }
 
