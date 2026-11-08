@@ -116,7 +116,7 @@ struct PaneView: View {
                     }
             }
             .sheet(isPresented: $showGoto) {
-                GotoSheet(module: m, recents: panes.recentBooks()) { b, c, v in
+                GotoSheet(module: m, recents: panes.recentBooks(), current: p.book) { b, c, v in
                     panes.go(paneID, b, c, v)
                 }
             }
@@ -896,6 +896,7 @@ struct GotoSheet: View {
     @EnvironmentObject private var store: ModuleStore
     let module: InstalledModule
     let recents: [String]
+    let current: String
     let onPick: (String, Int, Int) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var link = ""
@@ -945,10 +946,14 @@ struct GotoSheet: View {
                                 Image(systemName: "clock").foregroundStyle(.secondary)
                                 ForEach(rec) { b in
                                     Button { path.append(b) } label: {
-                                        Text(b.name).font(.subheadline.weight(.semibold))
+                                        Text(b.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(b.id == current ? Color.white : Color.primary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 7)
+                                            .background(b.id == current ? Color.accentColor : Color.primary.opacity(0.06), in: Capsule())
                                     }
-                                    .buttonStyle(.bordered)
-                                    .buttonBorderShape(.capsule)
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -957,7 +962,6 @@ struct GotoSheet: View {
                     ForEach(sections(), id: \.title) { sec in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {
-                                Circle().fill(sec.color).frame(width: 8, height: 8)
                                 Text(LocalizedStringKey(sec.title)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                             }
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
@@ -965,11 +969,12 @@ struct GotoSheet: View {
                                     Button { path.append(b) } label: {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(b.short.replacingOccurrences(of: ".", with: "")).font(.headline)
-                                            Text(b.name).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                                .foregroundStyle(b.id == current ? Color.white : Color.primary)
+                                            Text(b.name).font(.caption).foregroundStyle(b.id == current ? Color.white.opacity(0.85) : Color.secondary).lineLimit(1)
                                         }
                                         .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                                         .padding(.horizontal, 10)
-                                        .background(sec.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                        .background(b.id == current ? Color.accentColor : sec.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                                     }
                                     .buttonStyle(.plain)
                                 }
