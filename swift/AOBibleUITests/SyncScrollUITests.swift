@@ -73,8 +73,9 @@ final class SyncScrollUITests: XCTestCase {
     func test2LongPressKeepsSelection() throws {
         let app = launch()
         // долгое нажатие на слове: стих выделен и остаётся выделенным после отпускания
-        let text = app.textViews.element(boundBy: 1)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        // при нескольких панелях построены все стихи главы — берём тот, что виден в верхней панели
+        let visible = app.textViews.allElementsBoundByIndex.first { $0.frame.minY > 130 && $0.frame.maxY < 400 && $0.frame.height > 30 }
+        let text = try XCTUnwrap(visible, "нет видимого стиха")
         text.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.25)).press(forDuration: 0.32)
         XCTAssertTrue(app.staticTexts["Подстрочник"].firstMatch.waitForExistence(timeout: 3), "панель выделения не появилась")
         sleep(1)

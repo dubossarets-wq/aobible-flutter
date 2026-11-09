@@ -306,7 +306,6 @@ final class ScrollSync {
     static func debugSetup(store: ModuleStore, panes: PanesStore) {
         #if DEBUG
         guard SyncTrace.on, panes.panes.count < 2 else { return }
-        SyncTrace.write("L,continuous=\(UserDefaults.standard.bool(forKey: "continuousVerses"))")
         Task { @MainActor in
             for _ in 0..<280 {
                 if store.module("rst-plus") != nil, store.module("vin-interlinear") != nil, store.starterStatus == nil { break }
