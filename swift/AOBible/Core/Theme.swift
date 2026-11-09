@@ -105,6 +105,28 @@ enum ReadingFonts {
         }
     }
 
+    static func uiWeight(_ w: Double) -> UIFont.Weight {
+        switch Int((max(100, min(900, w)) / 100).rounded()) {
+        case 1: return .ultraLight
+        case 2: return .thin
+        case 3: return .light
+        case 4: return .regular
+        case 5: return .medium
+        case 6: return .semibold
+        case 7: return .bold
+        case 8: return .heavy
+        default: return .black
+        }
+    }
+
+    /// Тот же шрифт для UIKit (текст стихов рисуется своим слоем)
+    static func uiFont(_ family: String, size: CGFloat, weight w: Double) -> UIFont {
+        let wt = uiWeight(w)
+        if family == "system" { return .systemFont(ofSize: size, weight: wt) }
+        let d = UIFontDescriptor(fontAttributes: [.family: family]).addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: wt]])
+        return UIFont(descriptor: d, size: size)
+    }
+
     static func font(_ family: String, size: CGFloat, weight w: Double) -> Font {
         let wt = weight(w)
         if family == "system" { return .system(size: size, weight: wt) }

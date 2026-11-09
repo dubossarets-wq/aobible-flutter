@@ -233,7 +233,7 @@ struct ChapterCache {
     let heads: [Int: String]
     let xcounts: [Int: Int]
     let icounts: [Int: Int]
-    let attr: [Int: AttributedString]
+    let attr: [Int: NSAttributedString]
 }
 
 /// Ссылочный ящик: запись в него при построении экрана не вызывает перерисовку
@@ -244,12 +244,6 @@ final class CacheBox {
 struct StrongRequest: Identifiable {
     let id = UUID()
     let key: String
-}
-
-/// Долгое нажатие выделило стих: следующее нажатие на слово этого стиха — это отпускание пальца, а не выбор слова
-struct LPGuard {
-    let verse: Int
-    let at: Date
 }
 
 enum StudyPanel: Identifiable {
@@ -305,8 +299,6 @@ struct ChapterText: View {
     @State private var pulseAmt = 0.0
     @State private var wordTask: Task<Void, Never>?
     @State private var noWordUntil = Date.distantPast
-    @State private var lpGuard: LPGuard?
-    @State private var lpAt = Date.distantPast
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
@@ -342,12 +334,14 @@ struct ChapterText: View {
                         ForEach(blocks(verses, heads)) { blk in
                             VStack(alignment: .leading, spacing: 6) {
                                 if let h = blk.heading, showHeadings { headingText(h) }
-                                Text(continuousText(blk, xcounts, icounts))
-                                    .tint(pal.text)
-                                    .font(readerFont)
-                                    .foregroundStyle(pal.text)
-                                    .lineSpacing(fontSize * (lineHeight - 1))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                VerseTextView(
+                                    text: continuousNS(blk, xcounts, icounts),
+                                    verse: blk.id,
+                                    onTap: { url, vn in tapped(url, vn) },
+                                    onDouble: { vn in doubleTapped(verses.first { $0.num == vn }) },
+                                    onLong: { vn in longPressed(vn) }
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .id(blk.id)
                         }
@@ -355,12 +349,13 @@ struct ChapterText: View {
                         ForEach(verses) { v in
                             VStack(alignment: .leading, spacing: 6) {
                                 if showHeadings, let h = heads[v.num] { headingText(h) }
-                                Text(d.attr[v.num] ?? AttributedString())
-                                    // слова — ссылки: цвет не меняем (тот же, что у текста)
-                                    .tint(pal.text)
-                                    .font(readerFont)
-                                    .foregroundStyle(pal.text)
-                                    .lineSpacing(fontSize * (lineHeight - 1))
+                                VerseTextView(
+                                    text: d.attr[v.num] ?? NSAttributedString(),
+                                    verse: v.num,
+                                    onTap: { url, vn in tapped(url, vn) },
+                                    onDouble: { _ in doubleTapped(v) },
+                                    onLong: { vn in longPressed(vn) }
+                                )
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
@@ -372,37 +367,8 @@ struct ChapterText: View {
                                                 Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
                                             }
                                         }
+                                        .allowsHitTesting(false)
                                     }
-                                    .contentShape(Rectangle())
-                                    // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
-                                    // долгим нажатием (нажатие на слово открывает словарь)
-                                    .simultaneousGesture(TapGesture().onEnded {
-                                        // отпустили палец сразу после долгого нажатия: это не нажатие, выделение остаётся
-                                        if Date().timeIntervalSince(lpAt) < 0.8 { return }
-                                        if !selected.isEmpty { toggle(v.num) }
-                                    })
-                                    .simultaneousGesture(TapGesture(count: 2).onEnded {
-                                        guard selected.isEmpty else { return }
-                                        wordTask?.cancel()
-                                        noWordUntil = Date().addingTimeInterval(0.6)
-                                        let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
-                                        marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
-                                        show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
-                                        pulseVerse = v.num
-                                        pulseAmt = 0.3
-                                        withAnimation(.easeOut(duration: 0.8)) { pulseAmt = 0 }
-                                    })
-                                    // долгое нажатие в любом месте стиха (и на слове): выделяет; отпускание пальца
-                                    // не должно считаться нажатием на слово (иначе оно сразу снимало выделение)
-                                    .simultaneousGesture(
-                                        LongPressGesture(minimumDuration: 0.25, maximumDistance: 12).onEnded { _ in
-                                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                            partVerse = nil
-                                            selected.insert(v.num)
-                                            lpGuard = LPGuard(verse: v.num, at: Date())
-                                            lpAt = Date()
-                                        }
-                                    )
                                 if !continuous, partVerse == v.num {
                                     partBar(v).frame(maxWidth: .infinity)
                                 } else if !continuous, v.num == selected.max() {
@@ -479,51 +445,6 @@ struct ChapterText: View {
             }
         }
         .animation(.default, value: toast)
-        .environment(\.openURL, OpenURLAction { url in
-            // палец ещё не отпущен после долгого нажатия (или только что отпущен) — это не нажатие на слово
-            if let g = lpGuard, let v = verseOf(url), v == g.verse {
-                lpGuard = nil
-                if Date().timeIntervalSince(g.at) < 15 { return .handled }
-            }
-            // выбор части стиха: нажатия по словам этого стиха ставят начало и конец
-            if let pv = partVerse, url.scheme == "aobword", verseOf(url) == pv {
-                if let wi = partWordIndex(url) {
-                    if partFrom == nil || partTo != nil { partFrom = wi; partTo = nil } else { partTo = wi }
-                }
-                return .handled
-            }
-            // идёт выделение стихов: нажатие на слово, номер Стронга и метки только выделяет стих, словарь не открывается
-            if !selected.isEmpty, let v = verseOf(url) {
-                toggle(v)
-                return .handled
-            }
-            if let k = StrongLinks.key(from: url) {
-                strong = StrongRequest(key: k)
-                return .handled
-            }
-            if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
-                panel = .xrefs(v)
-                return .handled
-            }
-            if url.scheme == "aobword" {
-                if Date() < noWordUntil { return .handled }
-                wordTask?.cancel()
-                wordTask = Task {
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    if !Task.isCancelled { openWord(url) }
-                }
-                return .handled
-            }
-            if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
-                panel = .illustrations(v)
-                return .handled
-            }
-            if url.scheme == "aobverse", let v = Int(url.absoluteString.dropFirst("aobverse:".count)) {
-                toggle(v)
-                return .handled
-            }
-            return .systemAction
-        })
         .sheet(item: $strong) { r in
             StrongSheet(keys: [r.key])
         }
@@ -563,9 +484,9 @@ struct ChapterText: View {
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
         let xcounts = showXrefs ? store.xrefCounts(module: module.id, book: book, chapter: chapter) : [:]
         let icounts = showIllus ? store.illustrationCounts(book: book, chapter: chapter) : [:]
-        var attr: [Int: AttributedString] = [:]
+        var attr: [Int: NSAttributedString] = [:]
         for v in verses {
-            attr[v.num] = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true)
+            attr[v.num] = attributedNS(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true)
         }
         let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
         cacheBox.value = c
@@ -666,12 +587,6 @@ struct ChapterText: View {
         ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight)
     }
 
-    private func piece(_ text: String, italic: Bool) -> AttributedString {
-        var s = AttributedString(text)
-        if italic { s.font = readerFont.italic() }
-        return s
-    }
-
     private func headingText(_ h: String) -> some View {
         Text(h)
             .font(ReadingFonts.font(fontFamily, size: fontSize * 0.92, weight: max(fontWeight, 600)))
@@ -704,13 +619,25 @@ struct ChapterText: View {
         return out
     }
 
-    private func continuousText(_ blk: VerseBlock, _ xcounts: [Int: Int], _ icounts: [Int: Int]) -> AttributedString {
-        var out = AttributedString()
+    private func uiFont(_ size: CGFloat, _ weight: Double? = nil) -> UIFont {
+        ReadingFonts.uiFont(fontFamily, size: size, weight: weight ?? fontWeight)
+    }
+
+    private func paragraph() -> NSParagraphStyle {
+        let ps = NSMutableParagraphStyle()
+        ps.lineSpacing = fontSize * (lineHeight - 1)
+        return ps
+    }
+
+    private func continuousNS(_ blk: VerseBlock, _ xcounts: [Int: Int], _ icounts: [Int: Int]) -> NSAttributedString {
+        let out = NSMutableAttributedString()
         for v in blk.verses {
-            var part = attributed(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true)
-            if let bgc = continuousBackground(v.num) { part.backgroundColor = bgc }
-            out += part
-            out += AttributedString(" ")
+            let part = NSMutableAttributedString(attributedString: attributedNS(v, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true))
+            if let bgc = continuousBackground(v.num) {
+                part.addAttribute(.backgroundColor, value: UIColor(bgc), range: NSRange(location: 0, length: part.length))
+            }
+            out.append(part)
+            out.append(NSAttributedString(string: " ", attributes: [.font: uiFont(fontSize), .aobVerse: v.num, .paragraphStyle: paragraph()]))
         }
         return out
     }
@@ -720,46 +647,47 @@ struct ChapterText: View {
         return c == Color.clear ? nil : c
     }
 
-    private func attributed(_ v: Verse, xrefs: Int, illus: Int, number: Bool, numberLink: Bool) -> AttributedString {
-        var out = AttributedString()
+    /// Текст стиха для UIKit: слова, номера Стронга, метки — с ссылками (aobURL) и номером стиха (aobVerse)
+    private func attributedNS(_ v: Verse, xrefs: Int, illus: Int, number: Bool, numberLink: Bool) -> NSAttributedString {
+        typealias K = NSAttributedString.Key
+        let out = NSMutableAttributedString()
+        let base = uiFont(fontSize)
+        let ink = UIColor(pal.text)
+        func add(_ s: String, _ attrs: [K: Any] = [:]) {
+            var a: [K: Any] = [.font: base, .foregroundColor: ink, .aobVerse: v.num]
+            a.merge(attrs) { _, new in new }
+            out.append(NSAttributedString(string: s, attributes: a))
+        }
         if showNumbers && number {
-            var n = AttributedString("\(v.num) ")
-            n.font = .system(size: fontSize * 0.62, weight: .semibold)
-            if verseNumPos == "sup" { n.baselineOffset = fontSize * 0.32 }
-            n.foregroundColor = pal.verseNum
-            if numberLink { n.link = URL(string: "aobverse:\(v.num)") }
-            out += n
+            var a: [K: Any] = [.font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .semibold), .foregroundColor: UIColor(pal.verseNum)]
+            if verseNumPos == "sup" { a[.baselineOffset] = fontSize * 0.32 }
+            if numberLink { a[.aobURL] = URL(string: "aobverse:\(v.num)")! }
+            add("\(v.num) ", a)
         }
         if favNums.contains(v.num) {
-            var h = AttributedString("♥ ")
-            h.font = .system(size: fontSize * 0.62)
-            h.foregroundColor = Color(hex: 0xd9475e)
-            out += h
+            add("♥ ", [.font: UIFont.systemFont(ofSize: fontSize * 0.62), .foregroundColor: UIColor(Color(hex: 0xd9475e))])
         }
         var wi = 0
         let sel = partRange(v.num)
         let fav = favPartRange(v.num)
-        func mark(_ s: inout AttributedString, _ i: Int) {
-            if let r = sel, r.contains(i) { s.backgroundColor = pal.accent.opacity(0.24) }
-            else if let r = fav, r.contains(i) { s.backgroundColor = Color(hex: 0xd9475e).opacity(0.2) }
+        func mark(_ i: Int) -> [K: Any] {
+            if let r = sel, r.contains(i) { return [.backgroundColor: UIColor(pal.accent.opacity(0.24))] }
+            if let r = fav, r.contains(i) { return [.backgroundColor: UIColor(Color(hex: 0xd9475e).opacity(0.2))] }
+            return [:]
         }
         for (ti, t) in Markup.parse(v.text).enumerated() {
+            let slant: [K: Any] = t.italic ? [.obliqueness: 0.2] : [:]
             if !t.strongs.isEmpty {
                 // слово с номером Стронга — целиком одна ссылка на окно слова
-                var s = piece(t.text, italic: t.italic)
-                s.link = URL(string: "aobword:\(v.num),\(ti),-1")
-                mark(&s, wi)
+                var a = slant
+                a[.aobURL] = URL(string: "aobword:\(v.num),\(ti),-1")!
+                a.merge(mark(wi)) { _, new in new }
                 wi += 1
-                out += s
+                add(t.text, a)
                 if showStrongs {
                     // номера Стронга — ссылки: нажатие открывает словарную статью
                     for key in t.strongs {
-                        var n = AttributedString(" " + key)
-                        n.font = .system(size: fontSize * 0.55)
-                        n.baselineOffset = fontSize * 0.3
-                        n.foregroundColor = pal.accent
-                        n.link = URL(string: "aobstrong:\(key)@\(v.num)")
-                        out += n
+                        add(" " + key, [.font: UIFont.systemFont(ofSize: fontSize * 0.55), .baselineOffset: fontSize * 0.3, .foregroundColor: UIColor(pal.accent), .aobURL: URL(string: "aobstrong:\(key)@\(v.num)")!])
                     }
                 }
             } else {
@@ -769,37 +697,100 @@ struct ChapterText: View {
                 var k = 0
                 for m in Self.wordRe.matches(in: t.text, range: NSRange(location: 0, length: ns.length)) {
                     if m.range.location > pos {
-                        out += piece(ns.substring(with: NSRange(location: pos, length: m.range.location - pos)), italic: t.italic)
+                        add(ns.substring(with: NSRange(location: pos, length: m.range.location - pos)), slant)
                     }
-                    var w = piece(ns.substring(with: m.range), italic: t.italic)
-                    w.link = URL(string: "aobword:\(v.num),\(ti),\(k)")
-                    mark(&w, wi)
+                    var a = slant
+                    a[.aobURL] = URL(string: "aobword:\(v.num),\(ti),\(k)")!
+                    a.merge(mark(wi)) { _, new in new }
+                    add(ns.substring(with: m.range), a)
                     wi += 1
-                    out += w
                     k += 1
                     pos = m.range.location + m.range.length
                 }
-                if pos < ns.length {
-                    out += piece(ns.substring(from: pos), italic: t.italic)
-                }
+                if pos < ns.length { add(ns.substring(from: pos), slant) }
             }
         }
         if xrefs > 0 {
             // число параллельных мест после стиха: нажатие открывает их список
-            var n = AttributedString(" ⇅\(xrefs)")
-            n.font = .system(size: fontSize * 0.62, weight: .medium)
-            n.foregroundColor = pal.accent
-            n.link = URL(string: "aobxref:\(v.num)")
-            out += n
+            add(" ⇅\(xrefs)", [.font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium), .foregroundColor: UIColor(pal.accent), .aobURL: URL(string: "aobxref:\(v.num)")!])
         }
         if illus > 0 {
             // иллюстрации к стиху: нажатие открывает их
-            var n = AttributedString(" 🖼\(illus)")
-            n.font = .system(size: fontSize * 0.62, weight: .medium)
-            n.link = URL(string: "aobillus:\(v.num)")
-            out += n
+            add(" 🖼\(illus)", [.font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium), .aobURL: URL(string: "aobillus:\(v.num)")!])
         }
+        out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: out.length))
         return out
+    }
+
+    // MARK: - Нажатия на текст
+
+    /// Короткое нажатие: на слове, номере Стронга, метке — их действие; на любом другом месте стиха — выделение (если оно уже идёт)
+    private func tapped(_ url: URL?, _ verse: Int) {
+        if let url {
+            openLink(url)
+        } else if !selected.isEmpty {
+            toggle(verse)
+        }
+    }
+
+    /// Двойное касание — любимый стих (без выделения)
+    private func doubleTapped(_ v: Verse?) {
+        guard let v, selected.isEmpty else { return }
+        wordTask?.cancel()
+        noWordUntil = Date().addingTimeInterval(0.6)
+        let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
+        marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
+        show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
+        pulseVerse = v.num
+        pulseAmt = 0.3
+        withAnimation(.easeOut(duration: 0.8)) { pulseAmt = 0 }
+    }
+
+    /// Долгое нажатие в любом месте стиха (и на слове) выделяет его
+    private func longPressed(_ verse: Int) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        wordTask?.cancel()
+        partVerse = nil
+        selected.insert(verse)
+    }
+
+    private func openLink(_ url: URL) {
+        // выбор части стиха: нажатия по словам этого стиха ставят начало и конец
+        if let pv = partVerse, url.scheme == "aobword", verseOf(url) == pv {
+            if let wi = partWordIndex(url) {
+                if partFrom == nil || partTo != nil { partFrom = wi; partTo = nil } else { partTo = wi }
+            }
+            return
+        }
+        // идёт выделение стихов: нажатие на слово, номер Стронга и метки только выделяет стих, словарь не открывается
+        if !selected.isEmpty, let v = verseOf(url) {
+            toggle(v)
+            return
+        }
+        if let k = StrongLinks.key(from: url) {
+            strong = StrongRequest(key: k)
+            return
+        }
+        if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
+            panel = .xrefs(v)
+            return
+        }
+        if url.scheme == "aobword" {
+            if Date() < noWordUntil { return }
+            wordTask?.cancel()
+            wordTask = Task {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                if !Task.isCancelled { openWord(url) }
+            }
+            return
+        }
+        if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
+            panel = .illustrations(v)
+            return
+        }
+        if url.scheme == "aobverse", let v = Int(url.absoluteString.dropFirst("aobverse:".count)) {
+            toggle(v)
+        }
     }
 
     /// Номер слова в стихе: слово с номером Стронга — одно слово, в обычном тексте — каждое слово отдельно
