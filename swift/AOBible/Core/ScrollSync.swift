@@ -154,6 +154,8 @@ final class ScrollSync {
         weak var scrollView: UIScrollView?
         var observation: NSKeyValueObservation?
         let views = VerseViews()
+        /// Где был верх окна до этого события: при начале движения ведомую сравниваем с ним, а не с уже сдвинувшимся
+        var lastTop: CGFloat?
     }
 
     private struct Follower {
@@ -228,7 +230,10 @@ final class ScrollSync {
     }
 
     private func offsetChanged(_ id: UUID) {
-        guard !applying, let p = panes[id], let sv = p.scrollView, let store else { return }
+        guard let p = panes[id], let sv = p.scrollView else { return }
+        let previousTop = p.lastTop
+        p.lastTop = sv.contentOffset.y + sv.adjustedContentInset.top
+        guard !applying, let store else { return }
         // только движение от пальца: переходы к стиху и смещения, поставленные отсюда же, никуда не передаются
         guard sv.isTracking || sv.isDragging || sv.isDecelerating else { return }
         guard store.panes.count > 1, UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true else {
@@ -244,7 +249,7 @@ final class ScrollSync {
         if session == nil || session?.leader != id || start - (session?.lastEvent ?? 0) > 0.12 {
             // другую панель прямо сейчас держит другой палец — эта едет сама по себе
             if let s = session, s.leader != id, panes[s.leader]?.scrollView?.isTracking == true { return }
-            session = Session(leader: id, lastEvent: start, lastY: y)
+            session = Session(leader: id, lastEvent: start, lastY: previousTop ?? y)
             stopOthers(except: id)
         }
         let previousY = session?.lastY ?? y
@@ -266,7 +271,7 @@ final class ScrollSync {
                 guard let m = SyncCurve.make(fromTops: tops(p, sv), geo, toTops: tops(fp, fv), fgeo) else { continue }
                 // панели стояли немного не вместе (открыли новую, поменялась раскладка) — догоняем по пути, без рывка;
                 // совсем в другом месте — сразу встаём на нужное
-                var bias = fv.contentOffset.y + fgeo.insetTop - m.target(y)
+                var bias = fv.contentOffset.y + fgeo.insetTop - m.target(previousTop ?? y)
                 if abs(bias) < 0.5 || abs(bias) > fgeo.boundsHeight { bias = 0 }
                 let made = Follower(mapping: m, bias: bias, fade: max(240, abs(bias) * 4), startTravel: travel)
                 st = made
@@ -301,6 +306,7 @@ final class ScrollSync {
     static func debugSetup(store: ModuleStore, panes: PanesStore) {
         #if DEBUG
         guard SyncTrace.on, panes.panes.count < 2 else { return }
+        SyncTrace.write("L,continuous=\(UserDefaults.standard.bool(forKey: "continuousVerses"))")
         Task { @MainActor in
             for _ in 0..<280 {
                 if store.module("rst-plus") != nil, store.module("vin-interlinear") != nil, store.starterStatus == nil { break }

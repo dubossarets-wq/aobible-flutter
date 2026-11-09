@@ -2,9 +2,9 @@ import XCTest
 
 /// Настоящие касания на симуляторе: приложение пишет журнал синхронной прокрутки (Documents/sync-trace.csv) при -debugSync YES
 final class SyncScrollUITests: XCTestCase {
-    private func launch() -> XCUIApplication {
+    private func launch(_ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-welcomeSeen", "YES", "-debugSync", "YES"]
+        app.launchArguments = ["-welcomeSeen", "YES", "-debugSync", "YES"] + extra
         app.launch()
         // две панели появляются, когда стартовые модули установлены
         XCTAssertTrue(app.buttons["Закрыть панель"].firstMatch.waitForExistence(timeout: 320), "нет второй панели")
@@ -51,6 +51,22 @@ final class SyncScrollUITests: XCTestCase {
         for _ in 0..<16 {
             drag(app, 0.18, 0.40, 1800, hold: 0)
             sleep(2)
+        }
+    }
+
+    func test3ContinuousText() throws {
+        let app = launch(["-continuousVerses", "YES"])
+        for _ in 0..<6 {
+            drag(app, 0.40, 0.18, 300, hold: 0.2)
+            usleep(250_000)
+        }
+        for _ in 0..<4 {
+            drag(app, 0.40, 0.18, 2500, hold: 0)
+            sleep(3)
+        }
+        for _ in 0..<5 {
+            drag(app, 0.18, 0.40, 2500, hold: 0)
+            sleep(3)
         }
     }
 
