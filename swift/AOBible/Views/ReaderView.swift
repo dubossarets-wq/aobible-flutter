@@ -563,27 +563,62 @@ struct ChapterText: View {
         }
     }
 
-    /// Ведущая панель: где сейчас верх экрана — стих и доля пути до следующего стиха
-    private func reportSync(_ offset: CGFloat) {
-        guard panes.isLeader(pane.id) else { return }
-        let y = offset - 12
-        let rows = frameBox.frames.sorted { $0.value.minY < $1.value.minY }
-        guard let i = rows.lastIndex(where: { $0.value.minY <= y }) else { return }
-        let cur = rows[i]
-        let nextY = i + 1 < rows.count ? rows[i + 1].value.minY : cur.value.maxY
-        let span = max(1, nextY - cur.value.minY)
-        panes.syncPosition(pane.id, verse: cur.key, frac: Double(min(1, max(0, (y - cur.value.minY) / span))))
+    // Синхронная прокрутка — принцип Flutter-версии. Место у верха экрана — стих и доля его промежутка (от верха стиха до верха
+    // следующего). Между краями стихов не прямая линия, а монотонная кубическая кривая (Эрмит; наклоны — среднее гармоническое
+    // соседних промежутков): верхние края стихов в обеих панелях совпадают точно, а скорость ведомой панели меняется плавно,
+    // а не скачком на каждой границе стихов, где стихи двух переводов разной высоты
+
+    private static func harmonic(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a > 0 && b > 0 ? 2 * a * b / (a + b) : max(a, b) }
+
+    private static func hermite(_ s: CGFloat, _ d: CGFloat, _ m0: CGFloat, _ m1: CGFloat) -> CGFloat {
+        let s2 = s * s, s3 = s2 * s
+        return (-2 * s3 + 3 * s2) * d + (s3 - 2 * s2 + s) * m0 + (s3 - s2) * m1
     }
 
-    /// Ведомая панель: встать на стих и долю пути до следующего (высоты стихов у переводов разные — доля, а не пиксели)
+    /// Верхние края строк по порядку (и их номера); для последней строки конец — её низ
+    private func rowTops() -> (keys: [Int], tops: [CGFloat], end: CGFloat)? {
+        let rows = frameBox.frames.sorted { $0.value.minY < $1.value.minY }
+        guard let last = rows.last else { return nil }
+        return (rows.map { $0.key }, rows.map { $0.value.minY }, last.value.maxY)
+    }
+
+    /// Длина промежутка строки i и наклоны кривой на его краях
+    private func shape(_ tops: [CGFloat], _ end: CGFloat, _ i: Int) -> (d: CGFloat, m0: CGFloat, m1: CGFloat) {
+        func gap(_ k: Int) -> CGFloat? {
+            guard k >= 0, k < tops.count else { return nil }
+            return (k + 1 < tops.count ? tops[k + 1] : end) - tops[k]
+        }
+        let d = max(1, gap(i) ?? 1)
+        let prev = gap(i - 1) ?? d
+        let next = gap(i + 1) ?? d
+        return (d, Self.harmonic(prev, d), Self.harmonic(d, next))
+    }
+
+    /// Ведущая панель: где сейчас верх экрана — стих и параметр кривой внутри его промежутка
+    private func reportSync(_ offset: CGFloat) {
+        guard panes.isLeader(pane.id), let r = rowTops() else { return }
+        let y = offset - 12
+        guard let i = r.tops.lastIndex(where: { $0 <= y }) else { return }
+        let sh = shape(r.tops, r.end, i)
+        let local = min(max(0, y - r.tops[i]), sh.d)
+        // параметр кривой по расстоянию от верха стиха (двоичный поиск, кривая монотонна)
+        var lo: CGFloat = 0, hi: CGFloat = 1
+        for _ in 0..<22 {
+            let mid = (lo + hi) / 2
+            if Self.hermite(mid, sh.d, sh.m0, sh.m1) < local { lo = mid } else { hi = mid }
+        }
+        panes.syncPosition(pane.id, verse: r.keys[i], frac: Double((lo + hi) / 2))
+    }
+
+    /// Ведомая панель: тот же стих и тот же параметр — на своей кривой (высоты стихов у переводов разные)
     private func followTo(_ verse: Int, _ frac: Double) {
-        let rows = frameBox.frames
-        guard let a = rows[verse] else {
+        guard let r = rowTops(), let i = r.keys.firstIndex(of: verse) else {
             scrollPos.scrollTo(id: verse, anchor: .top)
             return
         }
-        let nextY = rows.keys.filter { $0 > verse }.min().flatMap { rows[$0]?.minY } ?? a.maxY
-        scrollPos.scrollTo(y: a.minY + CGFloat(frac) * max(0, nextY - a.minY) + 12)
+        let sh = shape(r.tops, r.end, i)
+        let dy = Self.hermite(CGFloat(min(1, max(0, frac))), sh.d, sh.m0, sh.m1)
+        scrollPos.scrollTo(y: r.tops[i] + dy + 12)
     }
 
     private func toggle(_ n: Int) {
