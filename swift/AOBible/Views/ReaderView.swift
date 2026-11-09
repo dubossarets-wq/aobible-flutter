@@ -511,6 +511,7 @@ struct ChapterText: View {
         }
         let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
         cacheBox.value = c
+        frameBox.frames.removeAll()
         return c
     }
 
@@ -575,11 +576,41 @@ struct ChapterText: View {
         return (-2 * s3 + 3 * s2) * d + (s3 - 2 * s2 + s) * m0 + (s3 - s2) * m1
     }
 
-    /// Верхние края строк по порядку (и их номера); для последней строки конец — её низ
+    /// Верхние края ВСЕХ строк главы по порядку. Строки, которые уже показывались, — точно (их положения запомнены);
+    /// ещё не показанные — достраиваем по их средней высоте: иначе рядом с видимыми были бы «дыры», и ведомая панель
+    /// прыгала или вставала на месте
     private func rowTops() -> (keys: [Int], tops: [CGFloat], end: CGFloat)? {
-        let rows = frameBox.frames.sorted { $0.value.minY < $1.value.minY }
-        guard let last = rows.last else { return nil }
-        return (rows.map { $0.key }, rows.map { $0.value.minY }, last.value.maxY)
+        guard let c = cacheBox.value, !frameBox.frames.isEmpty else { return nil }
+        let keys: [Int]
+        if continuous {
+            keys = blocks(c.verses, c.heads).map { $0.id }
+        } else {
+            keys = c.verses.map { $0.num }
+        }
+        guard !keys.isEmpty else { return nil }
+        let known = frameBox.frames
+        let avg = known.values.reduce(0) { $0 + ($1.maxY - $1.minY) } / CGFloat(known.count)
+        let gap = fontSize * verseSpacing
+        func height(_ k: Int) -> CGFloat { known[keys[k]].map { $0.maxY - $0.minY } ?? avg }
+        var tops = [CGFloat?](repeating: nil, count: keys.count)
+        for (i, k) in keys.enumerated() { tops[i] = known[k]?.minY }
+        // вперёд от известных
+        var lastKnown = -1
+        for i in keys.indices {
+            if tops[i] != nil {
+                lastKnown = i
+            } else if lastKnown >= 0, let prev = tops[i - 1] {
+                tops[i] = prev + height(i - 1) + gap
+            }
+        }
+        // назад от первой известной (строки выше всех показанных)
+        if let first = tops.firstIndex(where: { $0 != nil }), first > 0 {
+            for i in stride(from: first - 1, through: 0, by: -1) {
+                if let next = tops[i + 1] { tops[i] = next - height(i) - gap }
+            }
+        }
+        let full = tops.map { $0 ?? 0 }
+        return (keys, full, (full.last ?? 0) + height(keys.count - 1))
     }
 
     /// Длина промежутка строки i и наклоны кривой на его краях
@@ -612,7 +643,7 @@ struct ChapterText: View {
 
     /// Ведомая панель: тот же стих и тот же параметр — на своей кривой (высоты стихов у переводов разные)
     private func followTo(_ verse: Int, _ frac: Double) {
-        guard let r = rowTops(), let i = r.keys.firstIndex(of: verse) else {
+        guard let r = rowTops(), let i = r.keys.lastIndex(where: { $0 <= verse }) else {
             scrollPos.scrollTo(id: verse, anchor: .top)
             return
         }
