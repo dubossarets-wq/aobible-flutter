@@ -247,7 +247,8 @@ final class ScrollSync {
             session = Session(leader: id, lastEvent: start, lastY: y)
             stopOthers(except: id)
         }
-        session?.travel += abs(y - (session?.lastY ?? y))
+        let previousY = session?.lastY ?? y
+        session?.travel += abs(y - previousY)
         session?.lastY = y
         session?.lastEvent = start
         let travel = session?.travel ?? 0
