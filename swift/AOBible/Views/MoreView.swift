@@ -5,6 +5,7 @@ import SwiftUI
 struct MoreView: View {
     @EnvironmentObject private var marks: MarksStore
     @AppStorage("panesStacked") private var panesStacked = true
+    @AppStorage("syncScroll") private var syncScroll = true
     @State private var bookmarkedMessage: String?
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
@@ -48,6 +49,11 @@ struct MoreView: View {
                 Section {
                     Toggle(isOn: $panesStacked) {
                         IconLabel(title: "Панели друг над другом", symbol: "rectangle.split.1x2.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
+                    }
+                    if panes.panes.count > 1 {
+                        Toggle(isOn: $syncScroll) {
+                            IconLabel(title: "Синхронная прокрутка", symbol: "arrow.up.arrow.down", color: .teal)
+                        }
                     }
                     NavigationLink {
                         LibraryScreen()

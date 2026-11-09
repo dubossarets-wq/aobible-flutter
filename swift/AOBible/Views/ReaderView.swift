@@ -97,7 +97,7 @@ struct PaneView: View {
             VStack(spacing: 0) {
                 header(p, m)
                 planPill(p)
-                ChapterText(module: m, pane: p)
+                ChapterText(module: m, pane: p, sync: panes.sync)
                     .safeAreaInset(edge: .bottom) {
                         HStack {
                             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
@@ -276,6 +276,7 @@ struct ChapterText: View {
     @EnvironmentObject private var audio: AudioEngine
     let module: InstalledModule
     let pane: PaneState
+    @ObservedObject var sync: ScrollSync
 
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("lineHeight") private var lineHeight = 1.45
@@ -395,6 +396,9 @@ struct ChapterText: View {
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() { panes.setLive(pane.id, top) }
             }
+            .onScrollPhaseChange { _, phase in
+                panes.userScroll(pane.id, active: phase == .interacting || phase == .decelerating)
+            }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, verses, heads)
@@ -406,6 +410,13 @@ struct ChapterText: View {
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
             }
             .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
+            // синхронная прокрутка: ведущая панель передала стих — встаём на него сразу, без анимации
+            .onChange(of: sync.target[pane.id]) { _, t in
+                guard let t else { return }
+                var target = t.verse
+                if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == t.verse } }) { target = blk.id }
+                proxy.scrollTo(target, anchor: .top)
+            }
         }
         .id("\(module.id)|\(book)|\(chapter)")
         .simultaneousGesture(
@@ -853,6 +864,7 @@ struct ChapterText: View {
                         }
                         Button("Новая проповедь") { partToSermon(sermons.create("Новая проповедь").id, v.num, text) }
                     } label: { barLabel("scroll", "В проповедь") }
+                        .tint(.primary)
                     barButton("doc.on.doc", "Копировать") {
                         UIPasteboard.general.string = quote
                         show("Часть стиха скопирована")
@@ -875,12 +887,11 @@ struct ChapterText: View {
 
     private func barLabel(_ icon: String, _ title: LocalizedStringKey) -> some View {
         VStack(spacing: 3) {
-            Image(systemName: icon).font(.body)
-            Text(title).font(.caption2).lineLimit(1)
+            Image(systemName: icon).font(.body).frame(height: 24)
+            Text(title).font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
         }
         .foregroundStyle(.primary)
-        .padding(.horizontal, 7)
-        .frame(minHeight: 52)
+        .frame(maxWidth: .infinity, minHeight: 52)
     }
 
     private func barButton(_ icon: String, _ title: LocalizedStringKey, _ action: @escaping () -> Void) -> some View {
@@ -960,6 +971,7 @@ struct ChapterText: View {
                     addToSermon(s.id, verses)
                 }
             } label: { barLabel("scroll", "В проповедь") }
+                .tint(.primary)
             if selected.count == 1 {
                 barButton("selection.pin.in.out", "Часть стиха") {
                     partVerse = first
@@ -1040,6 +1052,7 @@ struct ChapterText: View {
                     .foregroundStyle(.primary)
                     .frame(width: 40, height: 52)
             }
+            .tint(.primary)
             .accessibilityLabel("Ещё")
         }
         .padding(.horizontal, 6)

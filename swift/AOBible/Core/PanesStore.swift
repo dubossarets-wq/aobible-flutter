@@ -30,12 +30,28 @@ final class LivePlace: ObservableObject {
     @Published var verse: [UUID: Int] = [:]
 }
 
+/// Куда ведомая панель должна прокрутиться при синхронной прокрутке (счётчик — чтобы повтор того же стиха тоже срабатывал)
+struct SyncTarget: Equatable {
+    let verse: Int
+    let n: Int
+}
+
+@MainActor
+final class ScrollSync: ObservableObject {
+    @Published var target: [UUID: SyncTarget] = [:]
+    var counter = 0
+}
+
 /// Панели чтения: до шести, у каждой свой перевод и история. Хранятся файлом «panes.json»; если его ещё нет, но есть
 /// панели Flutter-версии (тот же контейнер), они подхватываются
 @MainActor
 final class PanesStore: ObservableObject {
     @Published var panes: [PaneState] = []
     let live = LivePlace()
+    let sync = ScrollSync()
+    /// Панель, которую сейчас прокручивает палец («ведущая»): её место передаётся остальным
+    private var scrollingPane: UUID?
+    private var scrollEndTask: Task<Void, Never>?
     private var liveTask: Task<Void, Never>?
     private let url: URL
 
@@ -64,10 +80,37 @@ final class PanesStore: ObservableObject {
         if let d = try? JSONEncoder().encode(out) { try? d.write(to: url, options: .atomic) }
     }
 
+    /// Палец начал или закончил прокручивать панель
+    func userScroll(_ id: UUID, active: Bool) {
+        if active {
+            scrollEndTask?.cancel()
+            scrollingPane = id
+        } else {
+            scrollEndTask = Task {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                if !Task.isCancelled, scrollingPane == id { scrollingPane = nil }
+            }
+        }
+    }
+
     /// Верхний видимый стих панели (при прокрутке); на диск пишется не чаще раза в секунду
     func setLive(_ id: UUID, _ verse: Int) {
-        guard index(id) != nil, live.verse[id] != verse else { return }
+        guard let src = index(id), live.verse[id] != verse else { return }
         live.verse[id] = verse
+        // синхронная прокрутка: остальные панели встают на тот же стих (только при настоящей прокрутке пальцем)
+        let on = UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true
+        if on, panes.count > 1, scrollingPane == id {
+            let s = panes[src]
+            for i in panes.indices where panes[i].id != id {
+                let f = panes[i]
+                if f.book != s.book || f.chapter != s.chapter {
+                    go(f.id, s.book, s.chapter, verse, record: false)
+                } else {
+                    sync.counter += 1
+                    sync.target[f.id] = SyncTarget(verse: verse, n: sync.counter)
+                }
+            }
+        }
         liveTask?.cancel()
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
