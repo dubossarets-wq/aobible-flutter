@@ -306,6 +306,7 @@ struct ChapterText: View {
     @State private var wordTask: Task<Void, Never>?
     @State private var noWordUntil = Date.distantPast
     @State private var lpGuard: LPGuard?
+    @State private var lpAt = Date.distantPast
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
@@ -375,7 +376,11 @@ struct ChapterText: View {
                                     .contentShape(Rectangle())
                                     // выделение уже есть — нажатие добавляет и снимает стихи; без него стих выделяется
                                     // долгим нажатием (нажатие на слово открывает словарь)
-                                    .simultaneousGesture(TapGesture().onEnded { if !selected.isEmpty { toggle(v.num) } })
+                                    .simultaneousGesture(TapGesture().onEnded {
+                                        // отпустили палец сразу после долгого нажатия: это не нажатие, выделение остаётся
+                                        if Date().timeIntervalSince(lpAt) < 0.8 { return }
+                                        if !selected.isEmpty { toggle(v.num) }
+                                    })
                                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                                         guard selected.isEmpty else { return }
                                         wordTask?.cancel()
@@ -395,6 +400,7 @@ struct ChapterText: View {
                                             partVerse = nil
                                             selected.insert(v.num)
                                             lpGuard = LPGuard(verse: v.num, at: Date())
+                                            lpAt = Date()
                                         }
                                     )
                                 if !continuous, partVerse == v.num {
