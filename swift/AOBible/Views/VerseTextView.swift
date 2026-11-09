@@ -18,6 +18,8 @@ struct VerseTextView: UIViewRepresentable {
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
     var onLong: (Int) -> Void
+    /// Куда записать текстовый блок (по ним синхронная прокрутка узнаёт положения стихов)
+    var views: VerseViews?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -45,23 +47,38 @@ struct VerseTextView: UIViewRepresentable {
             g.cancelsTouchesInView = false
             tv.addGestureRecognizer(g)
         }
+        views?.add(tv)
         return tv
     }
 
     func updateUIView(_ tv: UITextView, context: Context) {
-        context.coordinator.parent = self
-        if !tv.attributedText.isEqual(to: text) { tv.attributedText = text }
+        let c = context.coordinator
+        c.parent = self
+        // при каждой перестройке экрана: тот же объект текста — сравнивать нечего (в длинной главе блоков много)
+        guard c.lastText !== text else { return }
+        c.lastText = text
+        if !tv.attributedText.isEqual(to: text) {
+            tv.attributedText = text
+            c.measuredWidth = -1
+        }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         var w = proposal.width ?? 320
         if !w.isFinite || w <= 0 { w = 320 }
-        let s = uiView.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude))
-        return CGSize(width: w, height: ceil(s.height))
+        let c = context.coordinator
+        if c.measuredWidth != w {
+            c.measuredHeight = ceil(uiView.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude)).height)
+            c.measuredWidth = w
+        }
+        return CGSize(width: w, height: c.measuredHeight)
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: VerseTextView
+        var lastText: NSAttributedString?
+        var measuredWidth: CGFloat = -1
+        var measuredHeight: CGFloat = 0
         private var lpActive = false
         private var lpEnded = Date.distantPast
 

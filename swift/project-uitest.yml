@@ -1,0 +1,26 @@
+# Проект с автотестами (только для проверки на симуляторе; обычная сборка .ipa идёт по project.yml и тестов не содержит).
+# Запуск: xcodegen generate --spec project-uitest.yml
+include:
+  - project.yml
+targets:
+  AOBibleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: AOBibleUITests
+    dependencies:
+      - target: AOBible
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.aobible.uitests
+schemes:
+  AOBibleUITests:
+    build:
+      targets:
+        AOBible: all
+        AOBibleUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - AOBibleUITests

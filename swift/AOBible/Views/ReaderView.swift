@@ -70,6 +70,7 @@ struct ReaderView: View {
             .onAppear {
                 panes.ensureStarted(store)
                 if let m = store.module(panes.primaryModule) { SearchIndex.warm(path: m.path) }
+                ScrollSync.debugSetup(store: store, panes: panes)
             }
             .onChange(of: store.installed) { _, _ in panes.ensureStarted(store) }
         }
@@ -236,11 +237,6 @@ struct ChapterCache {
     let attr: [Int: NSAttributedString]
 }
 
-/// Где на экране строки стихов (для синхронной прокрутки): запись не вызывает перерисовку
-final class FrameBox {
-    var frames: [Int: CGRect] = [:]
-}
-
 /// Ссылочный ящик: запись в него при построении экрана не вызывает перерисовку
 final class CacheBox {
     var value: ChapterCache?
@@ -281,8 +277,6 @@ struct ChapterText: View {
     @EnvironmentObject private var audio: AudioEngine
     let module: InstalledModule
     let pane: PaneState
-    @State private var scrollPos = ScrollPosition()
-    @State private var frameBox = FrameBox()
 
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("lineHeight") private var lineHeight = 1.45
@@ -331,88 +325,25 @@ struct ChapterText: View {
         let d = chapterData()
         let verses = d.verses
         let heads = d.heads
-        let xcounts = d.xcounts
-        let icounts = d.icounts
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
-                    if continuous {
-                        // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
-                        ForEach(blocks(verses, heads)) { blk in
-                            VStack(alignment: .leading, spacing: 6) {
-                                if let h = blk.heading, showHeadings { headingText(h) }
-                                VerseTextView(
-                                    text: continuousNS(blk, xcounts, icounts),
-                                    verse: blk.id,
-                                    onTap: { url, vn in tapped(url, vn) },
-                                    onDouble: { vn in doubleTapped(verses.first { $0.num == vn }) },
-                                    onLong: { vn in longPressed(vn) }
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("rows")) } action: { frameBox.frames[blk.id] = $0 }
-                            .id(blk.id)
-                        }
+                Group {
+                    if panes.panes.count > 1 {
+                        // несколько панелей: все стихи главы строятся сразу — их положения точные и не «плывут»
+                        // при прокрутке (на этом держится синхронная прокрутка, см. ScrollSync)
+                        VStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
+                            .scrollTargetLayout()
                     } else {
-                        ForEach(verses) { v in
-                            VStack(alignment: .leading, spacing: 6) {
-                                if showHeadings, let h = heads[v.num] { headingText(h) }
-                                VerseTextView(
-                                    text: d.attr[v.num] ?? NSAttributedString(),
-                                    verse: v.num,
-                                    onTap: { url, vn in tapped(url, vn) },
-                                    onDouble: { _ in doubleTapped(v) },
-                                    onLong: { vn in longPressed(vn) }
-                                )
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .background(Color(hex: 0xd9475e).opacity(pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .overlay(alignment: .topTrailing) {
-                                        HStack(spacing: 4) {
-                                            if marks.isBookmarked(book, chapter, v.num) {
-                                                Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
-                                            }
-                                        }
-                                        .allowsHitTesting(false)
-                                    }
-                                if !continuous, partVerse == v.num {
-                                    partBar(v).frame(maxWidth: .infinity)
-                                } else if !continuous, v.num == selected.max() {
-                                    selectionBar(verses).frame(maxWidth: .infinity)
-                                }
-                            }
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("rows")) } action: { frameBox.frames[v.num] = $0 }
-                            .id(v.num)
-                        }
+                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
+                            .scrollTargetLayout()
                     }
-                    if verses.isEmpty {
-                        Text("В этом переводе нет такой главы.")
-                            .foregroundStyle(pal.muted)
-                    }
-                    // конец главы на экране и прошло достаточно времени — глава прочитана (записывается в историю
-                    // и засчитывается в планы)
-                    Color.clear.frame(height: 1)
-                        .onAppear { startReading(count: verses.count) }
-                        .onDisappear { readTask?.cancel() }
                 }
-                .scrollTargetLayout()
-                .coordinateSpace(name: "rows")
+                .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id))
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .scrollPosition($scrollPos)
-            // синхронная прокрутка: ведущая панель (которую листает палец) передаёт ведомым стих и долю пути —
-            // они едут вместе с ней плавно, а не прыгают от стиха к стиху
-            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in
-                reportSync(y)
-            }
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() { panes.setLive(pane.id, top) }
-            }
-            .onScrollPhaseChange { _, phase in
-                panes.userScroll(pane.id, active: phase == .interacting || phase == .decelerating)
             }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
@@ -425,8 +356,12 @@ struct ChapterText: View {
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
             }
             .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
-            .onAppear { panes.registerFollower(pane.id) { verse, frac in followTo(verse, frac) } }
-            .onDisappear { panes.unregisterFollower(pane.id) }
+            // открыли или закрыли вторую панель — глава построилась иначе: остаёмся на том же стихе
+            .onChange(of: panes.panes.count > 1) { _, _ in
+                if let v = panes.live.verse[pane.id] {
+                    DispatchQueue.main.async { proxy.scrollTo(v, anchor: .top) }
+                }
+            }
         }
         .id("\(module.id)|\(book)|\(chapter)")
         .simultaneousGesture(
@@ -495,11 +430,79 @@ struct ChapterText: View {
         }
     }
 
+    /// Строки главы: стихи (или сплошные блоки) и метка конца главы
+    @ViewBuilder private func rows(_ d: ChapterCache) -> some View {
+        let verses = d.verses
+        let heads = d.heads
+        let views = panes.scrollSync.views(pane.id)
+        if continuous {
+            // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
+            ForEach(blocks(verses, heads)) { blk in
+                VStack(alignment: .leading, spacing: 6) {
+                    if let h = blk.heading, showHeadings { headingText(h) }
+                    VerseTextView(
+                        text: continuousNS(blk, d.xcounts, d.icounts),
+                        verse: blk.id,
+                        onTap: { url, vn in tapped(url, vn) },
+                        onDouble: { vn in doubleTapped(verses.first { $0.num == vn }) },
+                        onLong: { vn in longPressed(vn) },
+                        views: views
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .id(blk.id)
+            }
+        } else {
+            ForEach(verses) { v in
+                VStack(alignment: .leading, spacing: 6) {
+                    if showHeadings, let h = heads[v.num] { headingText(h) }
+                    VerseTextView(
+                        text: d.attr[v.num] ?? NSAttributedString(),
+                        verse: v.num,
+                        onTap: { url, vn in tapped(url, vn) },
+                        onDouble: { _ in doubleTapped(v) },
+                        onLong: { vn in longPressed(vn) },
+                        views: views
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(background(v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Color(hex: 0xd9475e).opacity(pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        HStack(spacing: 4) {
+                            if marks.isBookmarked(book, chapter, v.num) {
+                                Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    if partVerse == v.num {
+                        partBar(v).frame(maxWidth: .infinity)
+                    } else if v.num == selected.max() {
+                        selectionBar(verses).frame(maxWidth: .infinity)
+                    }
+                }
+                .id(v.num)
+            }
+        }
+        if verses.isEmpty {
+            Text("В этом переводе нет такой главы.")
+                .foregroundStyle(pal.muted)
+        }
+        // конец главы на экране и прошло достаточно времени — глава прочитана (записывается в историю
+        // и засчитывается в планы). Именно видимость при прокрутке: при нескольких панелях все строки строятся сразу
+        Color.clear.frame(height: 1)
+            .onScrollVisibilityChange { visible in
+                if visible { startReading(count: verses.count) } else { readTask?.cancel() }
+            }
+    }
+
     /// Глава, её заголовки, числа параллельных мест и иллюстраций и готовый текст стихов — собираются один раз и
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
         let favs = favNums
-        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
+        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
         if let c = cacheBox.value, c.key == key { return c }
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
@@ -511,7 +514,6 @@ struct ChapterText: View {
         }
         let c = ChapterCache(key: key, verses: verses, heads: heads, xcounts: xcounts, icounts: icounts, attr: attr)
         cacheBox.value = c
-        frameBox.frames.removeAll()
         return c
     }
 
@@ -562,94 +564,6 @@ struct ChapterText: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
         }
-    }
-
-    // Синхронная прокрутка — принцип Flutter-версии. Место у верха экрана — стих и доля его промежутка (от верха стиха до верха
-    // следующего). Между краями стихов не прямая линия, а монотонная кубическая кривая (Эрмит; наклоны — среднее гармоническое
-    // соседних промежутков): верхние края стихов в обеих панелях совпадают точно, а скорость ведомой панели меняется плавно,
-    // а не скачком на каждой границе стихов, где стихи двух переводов разной высоты
-
-    private static func harmonic(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a > 0 && b > 0 ? 2 * a * b / (a + b) : max(a, b) }
-
-    private static func hermite(_ s: CGFloat, _ d: CGFloat, _ m0: CGFloat, _ m1: CGFloat) -> CGFloat {
-        let s2 = s * s, s3 = s2 * s
-        return (-2 * s3 + 3 * s2) * d + (s3 - 2 * s2 + s) * m0 + (s3 - s2) * m1
-    }
-
-    /// Верхние края ВСЕХ строк главы по порядку. Строки, которые уже показывались, — точно (их положения запомнены);
-    /// ещё не показанные — достраиваем по их средней высоте: иначе рядом с видимыми были бы «дыры», и ведомая панель
-    /// прыгала или вставала на месте
-    private func rowTops() -> (keys: [Int], tops: [CGFloat], end: CGFloat)? {
-        guard let c = cacheBox.value, !frameBox.frames.isEmpty else { return nil }
-        let keys: [Int]
-        if continuous {
-            keys = blocks(c.verses, c.heads).map { $0.id }
-        } else {
-            keys = c.verses.map { $0.num }
-        }
-        guard !keys.isEmpty else { return nil }
-        let known = frameBox.frames
-        let avg = known.values.reduce(0) { $0 + ($1.maxY - $1.minY) } / CGFloat(known.count)
-        let gap = fontSize * verseSpacing
-        func height(_ k: Int) -> CGFloat { known[keys[k]].map { $0.maxY - $0.minY } ?? avg }
-        var tops = [CGFloat?](repeating: nil, count: keys.count)
-        for (i, k) in keys.enumerated() { tops[i] = known[k]?.minY }
-        // вперёд от известных
-        var lastKnown = -1
-        for i in keys.indices {
-            if tops[i] != nil {
-                lastKnown = i
-            } else if lastKnown >= 0, let prev = tops[i - 1] {
-                tops[i] = prev + height(i - 1) + gap
-            }
-        }
-        // назад от первой известной (строки выше всех показанных)
-        if let first = tops.firstIndex(where: { $0 != nil }), first > 0 {
-            for i in stride(from: first - 1, through: 0, by: -1) {
-                if let next = tops[i + 1] { tops[i] = next - height(i) - gap }
-            }
-        }
-        let full = tops.map { $0 ?? 0 }
-        return (keys, full, (full.last ?? 0) + height(keys.count - 1))
-    }
-
-    /// Длина промежутка строки i и наклоны кривой на его краях
-    private func shape(_ tops: [CGFloat], _ end: CGFloat, _ i: Int) -> (d: CGFloat, m0: CGFloat, m1: CGFloat) {
-        func gap(_ k: Int) -> CGFloat? {
-            guard k >= 0, k < tops.count else { return nil }
-            return (k + 1 < tops.count ? tops[k + 1] : end) - tops[k]
-        }
-        let d = max(1, gap(i) ?? 1)
-        let prev = gap(i - 1) ?? d
-        let next = gap(i + 1) ?? d
-        return (d, Self.harmonic(prev, d), Self.harmonic(d, next))
-    }
-
-    /// Ведущая панель: где сейчас верх экрана — стих и параметр кривой внутри его промежутка
-    private func reportSync(_ offset: CGFloat) {
-        guard panes.isLeader(pane.id), let r = rowTops() else { return }
-        let y = offset - 12
-        guard let i = r.tops.lastIndex(where: { $0 <= y }) else { return }
-        let sh = shape(r.tops, r.end, i)
-        let local = min(max(0, y - r.tops[i]), sh.d)
-        // параметр кривой по расстоянию от верха стиха (двоичный поиск, кривая монотонна)
-        var lo: CGFloat = 0, hi: CGFloat = 1
-        for _ in 0..<22 {
-            let mid = (lo + hi) / 2
-            if Self.hermite(mid, sh.d, sh.m0, sh.m1) < local { lo = mid } else { hi = mid }
-        }
-        panes.syncPosition(pane.id, verse: r.keys[i], frac: Double((lo + hi) / 2))
-    }
-
-    /// Ведомая панель: тот же стих и тот же параметр — на своей кривой (высоты стихов у переводов разные)
-    private func followTo(_ verse: Int, _ frac: Double) {
-        guard let r = rowTops(), let i = r.keys.lastIndex(where: { $0 <= verse }) else {
-            scrollPos.scrollTo(id: verse, anchor: .top)
-            return
-        }
-        let sh = shape(r.tops, r.end, i)
-        let dy = Self.hermite(CGFloat(min(1, max(0, frac))), sh.d, sh.m0, sh.m1)
-        scrollPos.scrollTo(y: r.tops[i] + dy + 12)
     }
 
     private func toggle(_ n: Int) {

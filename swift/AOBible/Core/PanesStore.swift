@@ -37,11 +37,8 @@ final class LivePlace: ObservableObject {
 final class PanesStore: ObservableObject {
     @Published var panes: [PaneState] = []
     let live = LivePlace()
-    /// Ведомые панели: как встать на место ведущей (стих и доля пути до следующего стиха)
-    private var followers: [UUID: (Int, Double) -> Void] = [:]
-    /// Панель, которую сейчас прокручивает палец («ведущая»): её место передаётся остальным
-    private var scrollingPane: UUID?
-    private var scrollEndTask: Task<Void, Never>?
+    /// Синхронная прокрутка панелей
+    let scrollSync = ScrollSync()
     private var liveTask: Task<Void, Never>?
     private let url: URL
 
@@ -61,6 +58,7 @@ final class PanesStore: ObservableObject {
                 return PaneState(moduleId: mod, book: b, chapter: c, verse: v, history: [Place(book: b, chapter: c, verse: v)])
             }
         }
+        scrollSync.store = self
     }
 
     private func save() {
@@ -70,44 +68,10 @@ final class PanesStore: ObservableObject {
         if let d = try? JSONEncoder().encode(out) { try? d.write(to: url, options: .atomic) }
     }
 
-    func registerFollower(_ id: UUID, _ f: @escaping (Int, Double) -> Void) { followers[id] = f }
-    func unregisterFollower(_ id: UUID) { followers.removeValue(forKey: id) }
-
-    func isLeader(_ id: UUID) -> Bool { scrollingPane == id }
-
-    /// Ведущая панель сдвинулась: ведомые плавно встают на тот же стих и ту же долю пути до следующего
-    func syncPosition(_ id: UUID, verse: Int, frac: Double) {
-        guard scrollingPane == id, panes.count > 1, let src = index(id),
-              UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true else { return }
-        let s = panes[src]
-        for i in panes.indices where panes[i].id != id {
-            let f = panes[i]
-            if f.book != s.book || f.chapter != s.chapter {
-                go(f.id, s.book, s.chapter, verse, record: false)
-            } else {
-                followers[f.id]?(verse, frac)
-            }
-        }
-    }
-
-    /// Палец начал или закончил прокручивать панель
-    func userScroll(_ id: UUID, active: Bool) {
-        if active {
-            scrollEndTask?.cancel()
-            scrollingPane = id
-        } else {
-            scrollEndTask = Task {
-                try? await Task.sleep(nanoseconds: 600_000_000)
-                if !Task.isCancelled, scrollingPane == id { scrollingPane = nil }
-            }
-        }
-    }
-
     /// Верхний видимый стих панели (при прокрутке); на диск пишется не чаще раза в секунду
     func setLive(_ id: UUID, _ verse: Int) {
-        guard let src = index(id), live.verse[id] != verse else { return }
+        guard index(id) != nil, live.verse[id] != verse else { return }
         live.verse[id] = verse
-        _ = src
         liveTask?.cancel()
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -268,8 +232,9 @@ final class PanesStore: ObservableObject {
 
     func addPane(after id: UUID, moduleId: String) {
         guard panes.count < maxPanes, let i = index(id) else { return }
-        let src = panes[i]
-        let p = PaneState(moduleId: moduleId, book: src.book, chapter: src.chapter, verse: src.verse, history: [src.place])
+        var here = panes[i].place
+        if let v = live.verse[id] { here.verse = v }
+        let p = PaneState(moduleId: moduleId, book: here.book, chapter: here.chapter, verse: here.verse, history: [here])
         panes.insert(p, at: i + 1)
         save()
     }
@@ -277,6 +242,7 @@ final class PanesStore: ObservableObject {
     func closePane(_ id: UUID) {
         guard panes.count > 1 else { return }
         panes.removeAll { $0.id == id }
+        scrollSync.detach(id)
         save()
     }
 
