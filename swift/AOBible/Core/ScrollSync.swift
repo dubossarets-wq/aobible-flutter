@@ -54,7 +54,7 @@ private struct PaneGeometry: Equatable {
 }
 
 /// Соответствие «верх окна ведущей → верх окна ведомой»
-private struct Mapping {
+private struct SyncCurve {
     let from: [CGFloat]
     let to: [CGFloat]
     let fromSlope: [CGFloat]
@@ -88,7 +88,7 @@ private struct Mapping {
     }
 
     /// Опорные точки: начало содержимого, верхи стихов, которые есть в обеих панелях, конец содержимого
-    static func make(fromTops a: [Int: CGFloat], _ fromGeo: PaneGeometry, toTops b: [Int: CGFloat], _ toGeo: PaneGeometry) -> Mapping? {
+    static func make(fromTops a: [Int: CGFloat], _ fromGeo: PaneGeometry, toTops b: [Int: CGFloat], _ toGeo: PaneGeometry) -> SyncCurve? {
         guard !a.isEmpty, !b.isEmpty else { return nil }
         var f: [CGFloat] = [0]
         var t: [CGFloat] = [0]
@@ -102,7 +102,7 @@ private struct Mapping {
         }
         f.append(max((f.last ?? 0) + 1, fromGeo.contentHeight))
         t.append(max((t.last ?? 0) + 1, toGeo.contentHeight))
-        var m = Mapping(from: f, to: t, fromSlope: slopes(f), toSlope: slopes(t), fromGeo: fromGeo, toGeo: toGeo)
+        var m = SyncCurve(from: f, to: t, fromSlope: slopes(f), toSlope: slopes(t), fromGeo: fromGeo, toGeo: toGeo)
         let end = fromGeo.maxTop
         if end > 1 {
             let d = toGeo.maxTop - m.forward(end)
@@ -157,7 +157,7 @@ final class ScrollSync {
     }
 
     private struct Follower {
-        var mapping: Mapping
+        var mapping: SyncCurve
         /// Разница, которая была в начале движения: сходит на нет по пути, а не скачком
         var bias: CGFloat
         var fade: CGFloat
@@ -262,7 +262,7 @@ final class ScrollSync {
             let fgeo = PaneGeometry(fv)
             var st = session?.followers[f.id]
             if st == nil || st?.mapping.fromGeo != geo || st?.mapping.toGeo != fgeo {
-                guard let m = Mapping.make(fromTops: tops(p, sv), geo, toTops: tops(fp, fv), fgeo) else { continue }
+                guard let m = SyncCurve.make(fromTops: tops(p, sv), geo, toTops: tops(fp, fv), fgeo) else { continue }
                 // панели стояли немного не вместе (открыли новую, поменялась раскладка) — догоняем по пути, без рывка;
                 // совсем в другом месте — сразу встаём на нужное
                 var bias = fv.contentOffset.y + fgeo.insetTop - m.target(y)
