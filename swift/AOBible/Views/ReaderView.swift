@@ -97,7 +97,7 @@ struct PaneView: View {
             VStack(spacing: 0) {
                 header(p, m)
                 planPill(p)
-                ChapterText(module: m, pane: p, sync: panes.sync)
+                ChapterText(module: m, pane: p)
                     .safeAreaInset(edge: .bottom) {
                         HStack {
                             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
@@ -236,6 +236,11 @@ struct ChapterCache {
     let attr: [Int: NSAttributedString]
 }
 
+/// Где на экране строки стихов (для синхронной прокрутки): запись не вызывает перерисовку
+final class FrameBox {
+    var frames: [Int: CGRect] = [:]
+}
+
 /// Ссылочный ящик: запись в него при построении экрана не вызывает перерисовку
 final class CacheBox {
     var value: ChapterCache?
@@ -276,7 +281,8 @@ struct ChapterText: View {
     @EnvironmentObject private var audio: AudioEngine
     let module: InstalledModule
     let pane: PaneState
-    @ObservedObject var sync: ScrollSync
+    @State private var scrollPos = ScrollPosition()
+    @State private var frameBox = FrameBox()
 
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("lineHeight") private var lineHeight = 1.45
@@ -344,6 +350,7 @@ struct ChapterText: View {
                                 )
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("rows")) } action: { frameBox.frames[blk.id] = $0 }
                             .id(blk.id)
                         }
                     } else {
@@ -376,6 +383,7 @@ struct ChapterText: View {
                                     selectionBar(verses).frame(maxWidth: .infinity)
                                 }
                             }
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("rows")) } action: { frameBox.frames[v.num] = $0 }
                             .id(v.num)
                         }
                     }
@@ -390,8 +398,15 @@ struct ChapterText: View {
                         .onDisappear { readTask?.cancel() }
                 }
                 .scrollTargetLayout()
+                .coordinateSpace(name: "rows")
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
+            }
+            .scrollPosition($scrollPos)
+            // синхронная прокрутка: ведущая панель (которую листает палец) передаёт ведомым стих и долю пути —
+            // они едут вместе с ней плавно, а не прыгают от стиха к стиху
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in
+                reportSync(y)
             }
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() { panes.setLive(pane.id, top) }
@@ -410,13 +425,8 @@ struct ChapterText: View {
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
             }
             .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
-            // синхронная прокрутка: ведущая панель передала стих — встаём на него сразу, без анимации
-            .onChange(of: sync.target[pane.id]) { _, t in
-                guard let t else { return }
-                var target = t.verse
-                if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == t.verse } }) { target = blk.id }
-                proxy.scrollTo(target, anchor: .top)
-            }
+            .onAppear { panes.registerFollower(pane.id) { verse, frac in followTo(verse, frac) } }
+            .onDisappear { panes.unregisterFollower(pane.id) }
         }
         .id("\(module.id)|\(book)|\(chapter)")
         .simultaneousGesture(
@@ -551,6 +561,29 @@ struct ChapterText: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
         }
+    }
+
+    /// Ведущая панель: где сейчас верх экрана — стих и доля пути до следующего стиха
+    private func reportSync(_ offset: CGFloat) {
+        guard panes.isLeader(pane.id) else { return }
+        let y = offset - 12
+        let rows = frameBox.frames.sorted { $0.value.minY < $1.value.minY }
+        guard let i = rows.lastIndex(where: { $0.value.minY <= y }) else { return }
+        let cur = rows[i]
+        let nextY = i + 1 < rows.count ? rows[i + 1].value.minY : cur.value.maxY
+        let span = max(1, nextY - cur.value.minY)
+        panes.syncPosition(pane.id, verse: cur.key, frac: Double(min(1, max(0, (y - cur.value.minY) / span))))
+    }
+
+    /// Ведомая панель: встать на стих и долю пути до следующего (высоты стихов у переводов разные — доля, а не пиксели)
+    private func followTo(_ verse: Int, _ frac: Double) {
+        let rows = frameBox.frames
+        guard let a = rows[verse] else {
+            scrollPos.scrollTo(id: verse, anchor: .top)
+            return
+        }
+        let nextY = rows.keys.filter { $0 > verse }.min().flatMap { rows[$0]?.minY } ?? a.maxY
+        scrollPos.scrollTo(y: a.minY + CGFloat(frac) * max(0, nextY - a.minY) + 12)
     }
 
     private func toggle(_ n: Int) {
