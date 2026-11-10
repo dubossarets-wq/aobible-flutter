@@ -83,6 +83,7 @@ struct PaneView: View {
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var audio: AudioEngine
     @EnvironmentObject private var plans: PlansStore
+    @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
@@ -108,6 +109,15 @@ struct PaneView: View {
                             }
                             planPill(p)
                             ReadProgress(live: panes.live, id: paneID)
+                        }
+                    }
+                    .overlay(alignment: .top) {
+                        if chrome.hidden[paneID] == true {
+                            LinearGradient(colors: [pal.bg, pal.bg.opacity(0.85), pal.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 64)
+                                .ignoresSafeArea(edges: .top)
+                                .allowsHitTesting(false)
+                                .transition(.opacity)
                         }
                     }
                     .safeAreaInset(edge: .bottom) {
@@ -288,6 +298,11 @@ struct PullHint: View {
     }
 }
 
+/// Идёт ли сейчас прокрутка пальцем (без перерисовки при записи)
+final class PhaseBox {
+    var user = false
+}
+
 /// Тонкая полоска вверху панели: сколько прочитано книги
 struct ReadProgress: View {
     @ObservedObject var live: LivePlace
@@ -391,6 +406,8 @@ struct ChapterText: View {
     @AppStorage("hideOnScroll") private var hideOnScroll = true
     @AppStorage("readingStyle") private var readingStyle = "scroll"
     @State private var pull = PullState()
+    @State private var touchScroll = PhaseBox()
+    @State private var flashVerse = 0
     @State private var chromeLastY: CGFloat = 0
     @State private var chromeAcc: CGFloat = 0
     @State private var collectItems: [MarkItem] = []
@@ -462,6 +479,7 @@ struct ChapterText: View {
                 pull.setTop(max(0, over))
             }
             .onScrollPhaseChange { old, new in
+                touchScroll.user = (new == .interacting || new == .decelerating)
                 guard old == .interacting, new != .interacting else { return }
                 if pull.bottom >= PullState.threshold {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -483,7 +501,17 @@ struct ChapterText: View {
                 // -debugSelect YES: выделен первый стих (панель действий)
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
             }
-            .onChange(of: focus) { _, _ in scroll(proxy, verses, heads) }
+            .onChange(of: focus) { _, v in
+                scroll(proxy, verses, heads)
+                // перешли к стиху (закладка, ссылка, поиск) — он мигает 2,4 секунды
+                if v > 0 && v < 9999 {
+                    flashVerse = v
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_400_000_000)
+                        if flashVerse == v { flashVerse = 0 }
+                    }
+                }
+            }
             // открыли или закрыли вторую панель — глава построилась иначе: остаёмся на том же стихе
             .onChange(of: panes.panes.count > 1) { _, _ in
                 if let v = panes.live.verse[pane.id] {
@@ -765,6 +793,8 @@ struct ChapterText: View {
     private func trackChrome(_ y: CGFloat) {
         let d = y - chromeLastY
         chromeLastY = y
+        // переходы к стиху, возврат на сохранённое место, прокрутка второй панели — не повод прятать шапку
+        guard touchScroll.user else { return }
         func set(_ h: Bool) {
             if (panes.chrome.hidden[pane.id] ?? false) != h { panes.chrome.hidden[pane.id] = h }
         }
@@ -819,7 +849,7 @@ struct ChapterText: View {
             return c.color.opacity(0.4)
         }
         if marks.isFavorite(MarksStore.key(book, chapter, n)) { return Color(hex: 0xd9475e).opacity(0.09) }
-        if n == focus { return pal.hl }
+        if n == flashVerse { return pal.hl }
         return Color.clear
     }
 
