@@ -159,12 +159,18 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     /// Листание нажатием у края: +1 вперёд, −1 назад
     func turn(_ d: Int) {
+        #if DEBUG
+        SyncTrace.write("T,turn,\(d),current=\(current),pages=\(pages.count)")
+        #endif
         let t = current + d
         guard t >= 0, t < pages.count else { return }
         show(t, animated: true)
     }
 
     private func landed(_ i: Int) {
+        #if DEBUG
+        SyncTrace.write("T,landed,\(i)")
+        #endif
         if i == 0 {
             cfg?.onEdge(-1)
         } else if i == pages.count - 1 {
@@ -233,6 +239,9 @@ final class TextPage: UIViewController {
         tv.isUserInteractionEnabled = false
         view.addSubview(tv)
         textView = tv
+        #if DEBUG
+        SyncTrace.write("T,pageLoaded,\(view.isUserInteractionEnabled)")
+        #endif
         if let h = host {
             let t = PageTouch(host: h, textView: tv)
             t.attach(to: view)
@@ -290,6 +299,9 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc func tap(_ g: UITapGestureRecognizer) {
+        #if DEBUG
+        SyncTrace.write("T,tap,\(g.state.rawValue),\(g.location(in: g.view).x),\(g.view?.bounds.width ?? 0),lp=\(lpActive)")
+        #endif
         guard g.state == .ended, let v = g.view else { return }
         if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
         let p = g.location(in: v)

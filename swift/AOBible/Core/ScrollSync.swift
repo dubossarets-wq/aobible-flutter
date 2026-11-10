@@ -305,7 +305,7 @@ final class ScrollSync {
     /// -debugSync YES: две панели с разными переводами на одной главе (для автотеста и журнала sync-trace.csv)
     static func debugSetup(store: ModuleStore, panes: PanesStore) {
         #if DEBUG
-        guard SyncTrace.on, panes.panes.count < 2 else { return }
+        guard UserDefaults.standard.bool(forKey: "debugSync"), panes.panes.count < 2 else { return }
         Task { @MainActor in
             for _ in 0..<280 {
                 if store.module("rst-plus") != nil, store.module("vin-interlinear") != nil, store.starterStatus == nil { break }
@@ -324,7 +324,7 @@ final class ScrollSync {
 #if DEBUG
 /// Журнал синхронной прокрутки: Documents/sync-trace.csv (только при -debugSync YES)
 enum SyncTrace {
-    static let on = UserDefaults.standard.bool(forKey: "debugSync")
+    static let on = UserDefaults.standard.bool(forKey: "debugSync") || UserDefaults.standard.bool(forKey: "debugTrace")
     private static var buffer = ""
     private static var scheduled = false
     private static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("sync-trace.csv")

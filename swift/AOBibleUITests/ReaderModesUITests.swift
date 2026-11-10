@@ -4,7 +4,7 @@ import XCTest
 final class ReaderModesUITests: XCTestCase {
     private func launch(_ extra: [String]) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-welcomeSeen", "YES"] + extra
+        app.launchArguments = ["-welcomeSeen", "YES", "-debugTrace", "YES"] + extra
         app.launch()
         let head = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Быт'")).firstMatch
         XCTAssertTrue(head.waitForExistence(timeout: 420), "читалка не появилась")

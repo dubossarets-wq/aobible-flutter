@@ -444,6 +444,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() {
                     panes.setLive(pane.id, top)
