@@ -222,6 +222,53 @@ struct PaneView: View {
     }
 }
 
+/// Насколько потянули за край главы (в точках): по нему показывается подсказка, а при отпускании — переход к соседней главе
+@MainActor
+final class PullState: ObservableObject {
+    static let threshold: CGFloat = 90
+    private(set) var bottom: CGFloat = 0
+    private(set) var top: CGFloat = 0
+    /// Шаг 0…3 — подсказка меняется ступенями, а не каждый кадр
+    @Published private(set) var bottomStep = 0
+    @Published private(set) var topStep = 0
+
+    private static func step(_ v: CGFloat) -> Int { v < 12 ? 0 : (v < 45 ? 1 : (v < threshold ? 2 : 3)) }
+
+    func setBottom(_ v: CGFloat) {
+        bottom = v
+        if bottomStep != Self.step(v) { bottomStep = Self.step(v) }
+    }
+
+    func setTop(_ v: CGFloat) {
+        top = v
+        if topStep != Self.step(v) { topStep = Self.step(v) }
+    }
+}
+
+struct PullHint: View {
+    @ObservedObject var state: PullState
+    let next: Bool
+
+    var body: some View {
+        let step = next ? state.bottomStep : state.topStep
+        if step > 0 {
+            HStack(spacing: 8) {
+                Image(systemName: next ? "chevron.compact.up" : "chevron.compact.down")
+                    .font(.title3.weight(.semibold))
+                    .rotationEffect(.degrees(step == 3 ? 180 : 0))
+                Text(step == 3 ? (next ? "Отпустите — следующая глава" : "Отпустите — предыдущая глава") : (next ? "Потяните выше — следующая глава" : "Потяните ниже — предыдущая глава"))
+                    .font(.footnote.weight(.medium))
+            }
+            .foregroundStyle(step == 3 ? Color.accentColor : .secondary)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .glassEffect(.regular, in: Capsule())
+            .opacity(step == 1 ? 0.6 : 1)
+            .animation(.easeOut(duration: 0.15), value: step)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 /// Тонкая полоска вверху панели: сколько прочитано книги
 struct ReadProgress: View {
     @ObservedObject var live: LivePlace
@@ -324,6 +371,7 @@ struct ChapterText: View {
     @State private var selected: Set<Int> = []
     @AppStorage("hideOnScroll") private var hideOnScroll = true
     @AppStorage("readingStyle") private var readingStyle = "scroll"
+    @State private var pull = PullState()
     @State private var chromeLastY: CGFloat = 0
     @State private var chromeAcc: CGFloat = 0
     @State private var collectItems: [MarkItem] = []
@@ -386,6 +434,25 @@ struct ChapterText: View {
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
                 trackChrome(y)
             }
+            // потянули за конец главы вверх (или за начало вниз) и отпустили — открывается соседняя глава, как в «ТикТоке»
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.containerSize.height - $0.contentSize.height - $0.contentInsets.bottom }) { _, over in
+                pull.setBottom(max(0, over))
+            }
+            .onScrollGeometryChange(for: CGFloat.self, of: { -($0.contentOffset.y + $0.contentInsets.top) }) { _, over in
+                pull.setTop(max(0, over))
+            }
+            .onScrollPhaseChange { old, new in
+                guard old == .interacting, new != .interacting else { return }
+                if pull.bottom >= PullState.threshold {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    panes.step(pane.id, 1, module: module)
+                } else if pull.top >= PullState.threshold {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    panes.step(pane.id, -1, module: module, atEnd: true)
+                }
+            }
+            .overlay(alignment: .bottom) { PullHint(state: pull, next: true).padding(.bottom, 14) }
+            .overlay(alignment: .top) { PullHint(state: pull, next: false).padding(.top, 8) }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, verses, heads)
