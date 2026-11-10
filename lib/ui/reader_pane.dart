@@ -722,7 +722,9 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       final view = View.of(context);
       final w = view.physicalSize.width / view.devicePixelRatio;
       final edge = e.position.dx < 24 || e.position.dx > w - 24; // у края — системные жесты телефона
-      _sw = _busy() || edge ? null : (x: e.position.dx, y: e.position.dy, t: DateTime.now().millisecondsSinceEpoch, dir: 0);
+      // Глава по свайпу влево/вправо не переключается (случайные переключения): только кнопками внизу панели
+      _sw = null;
+      if (edge) _back.stop();
       _back.stop();
     }
   }
@@ -855,11 +857,13 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       _emitSync();
     }
     if (widget.index != 0) return false;
-    if (!ref.read(settingsProvider).get<bool>('focusMode') || _pinching) return false;
+    final st = ref.read(settingsProvider);
+    // шапка и вкладки прячутся при прокрутке вниз и возвращаются при прокрутке вверх (отдельный выключатель «Прятать меню при прокрутке»)
+    if (!(st.get<bool>('focusMode') || st.j['hideOnScroll'] != false) || _pinching) return false;
     final d = n.scrollDelta ?? 0;
     if (d == 0) return false;
     _dirAcc = (_dirAcc > 0) == (d > 0) ? _dirAcc + d : d;
-    if (_dirAcc.abs() > 24) {
+    if (_dirAcc.abs() > 14) {
       final down = _dirAcc > 0;
       _dirAcc = 0;
       // Положение элементов обновится в этом кадре — решаем после него: у самого верха панели не прячем
@@ -897,7 +901,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       final ps = partSelection.value;
       if (ps != null && ps.pane == widget.index && (b[widget.index]?.isNotEmpty ?? false)) partSelection.value = null;
     });
-    if (widget.index == 0 && !s.get<bool>('focusMode') && focusHidden.value) {
+    if (widget.index == 0 && !(s.get<bool>('focusMode') || s.j['hideOnScroll'] != false) && focusHidden.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (focusHidden.value) focusHidden.value = false;
       });

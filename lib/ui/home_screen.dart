@@ -148,7 +148,7 @@ class _FocusHide extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final focusMode = ref.watch(settingsProvider.select((s) => s.get<bool>('focusMode')));
+    final focusMode = ref.watch(settingsProvider.select((s) => s.get<bool>('focusMode') || s.j['hideOnScroll'] != false));
     final anim = ref.watch(settingsProvider.select((s) => s.get<bool>('animations')));
     final selecting = ref.watch(selectionProvider.select((m) => pane == null ? m.values.any((v) => v.isNotEmpty) : (m[pane]?.isNotEmpty ?? false)));
     final current = ModalRoute.of(context)?.isCurrent ?? true;
@@ -160,13 +160,13 @@ class _FocusHide extends ConsumerWidget {
       child: child,
       builder: (_, hidden, child) {
         final hide = focusMode && hidden && !selecting && current && open == 0;
-        final d = anim ? const Duration(milliseconds: 250) : Duration.zero;
+        final d = anim ? const Duration(milliseconds: 180) : Duration.zero;
         return ClipRect(
           child: AnimatedAlign(
             alignment: down ? Alignment.topCenter : Alignment.bottomCenter,
             heightFactor: hide ? 0 : 1,
             duration: d,
-            curve: Curves.easeOut,
+            curve: Curves.easeOutCubic,
             child: AnimatedOpacity(opacity: hide ? 0 : 1, duration: d, child: IgnorePointer(ignoring: hide, child: child)),
           ),
         );

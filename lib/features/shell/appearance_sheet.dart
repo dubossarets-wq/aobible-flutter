@@ -40,7 +40,7 @@ const _bars = <(String, String)>[
 const _lookKeys = [
   'theme', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'verseSpacing', 'textWidth', 'textMargin', 'textAlign', 'showVerseNumbers', 'chapterTitleSize',
   'showStrongs', 'showHeadings', 'showXrefButtons', 'showIllustrations', 'continuousVerses', 'bookMode', 'colorOverrides', 'strongSize', 'strongPos',
-  'verseNumPos', 'headingSize', 'uiFontSize', 'barHeight', 'animations', 'focusMode', 'splitLayout', 'commentaryFontSize',
+  'verseNumPos', 'headingSize', 'uiFontSize', 'barHeight', 'animations', 'focusMode', 'hideOnScroll', 'splitLayout', 'commentaryFontSize',
   'bgImage', 'bgPhoto', 'bgVeil', 'bgBlur', 'inlineCommentaries',
 ];
 
@@ -778,6 +778,7 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
         Card2(title: t('В тексте'), children: [
           SwitchField(bold: true, label: t('Кнопки параллельных мест'), hint: t('Число после стиха — сколько у него параллельных мест'), value: s.get<bool>('showXrefButtons'), onChanged: (v) => set({'showXrefButtons': v})),
           SwitchField(bold: true, label: t('Значки иллюстраций у стихов'), value: s.get<bool>('showIllustrations'), onChanged: (v) => set({'showIllustrations': v})),
+          SwitchField(bold: true, label: t('Прятать меню при прокрутке'), hint: t('Вниз — меню уходит, вверх — возвращается'), value: s.j['hideOnScroll'] != false, onChanged: (v) => set({'hideOnScroll': v})),
           SwitchField(bold: true, label: t('Режим чтения'), hint: t('Без кнопок в тексте, панель прячется при прокрутке'), value: s.get<bool>('focusMode'), onChanged: (v) => set({'focusMode': v})),
         ]),
         Card2(title: t('Меню и панели'), children: [
