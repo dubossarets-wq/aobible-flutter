@@ -65,6 +65,7 @@ jobs:
             -derivedDataPath build -parallel-testing-enabled NO -resultBundlePath out/result.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee out/test.log | tail -40
           xcrun xcresulttool export attachments --path out/result.xcresult --output-path out/attachments >/dev/null 2>&1 || true
           kill $SHOTS 2>/dev/null || true
+          mkdir -p out/crash; cp ~/Library/Logs/DiagnosticReports/AOBible* out/crash/ 2>/dev/null || true
           C=$(xcrun simctl get_app_container "$DEV" app.aobible data 2>/dev/null || true)
           [ -n "$C" ] && cp "$C/Documents/sync-trace.csv" out/ 2>/dev/null
           wc -l out/sync-trace.csv || true

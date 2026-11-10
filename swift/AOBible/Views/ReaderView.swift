@@ -557,7 +557,7 @@ struct ChapterText: View {
     private func pagedView(_ d: ChapterCache) -> some View {
         PagedChapter(
             text: pagedNS(d),
-            key: "\(d.key)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
             focus: focus,
             insets: UIEdgeInsets(top: 14, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             onTap: { url, vn in tapped(url, vn) },

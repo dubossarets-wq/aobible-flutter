@@ -42,6 +42,8 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
     private var builtKey = ""
     private var builtSize = CGSize.zero
     private var lastFocus = -1
+    /// Стих у верха текущей страницы: при пересборке (другой шрифт, дозагрузились модули) остаёмся на нём
+    private var topVerse = 1
     private let counter = UILabel()
 
     override func viewDidLoad() {
@@ -95,8 +97,8 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     private func rebuildIfNeeded() {
         guard let c = cfg, let size = pageSize else { return }
-        if c.key == builtKey && size == builtSize {
-            // тот же вид: изменился только текст (выделение, закладки) — вёрстка прежняя
+        if c.key == builtKey && size == builtSize && c.text.length == storage.length {
+            // тот же вид: изменился только вид текста (выделение, закладки) — вёрстка прежняя
             if !storage.isEqual(to: c.text) { storage.setAttributedString(c.text) }
             if c.focus != lastFocus {
                 lastFocus = c.focus
@@ -105,6 +107,8 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             }
             return
         }
+        // пересборка: первый раз — на стихе из панели, дальше — на том же стихе, что был у верха страницы
+        let startVerse = builtKey.isEmpty ? c.focus : topVerse
         builtKey = c.key
         builtSize = size
         lastFocus = c.focus
@@ -123,7 +127,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         for tc in containers { list.append(TextPage(container: tc, host: self)) }
         list.append(EdgePage(direction: 1))
         pages = list
-        let i = pageIndex(forVerse: c.focus)
+        let i = pageIndex(forVerse: startVerse)
         current = i
         pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
         report(i)
@@ -189,6 +193,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         if cr.length > 0, cr.location < storage.length {
             verse = (storage.attribute(.aobVerse, at: cr.location, effectiveRange: nil) as? Int) ?? 1
         }
+        topVerse = verse
         let total = max(1, pages.count - 2)
         counter.text = "\(i) / \(total)"
         cfg?.onPage(verse, i, total)
