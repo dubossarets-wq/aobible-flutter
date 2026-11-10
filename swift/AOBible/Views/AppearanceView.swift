@@ -15,6 +15,8 @@ struct AppearanceView: View {
     @AppStorage("showHeadings") private var showHeadings = true
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
+    @AppStorage("hideOnScroll") private var hideOnScroll = true
+    @AppStorage("readingStyle") private var readingStyle = "scroll"
     @AppStorage("bgImage") private var bgImage = 0
     @AppStorage("bgVeil") private var bgVeil = ReaderBackground.defaultVeil
     @AppStorage("bgBlur") private var bgBlur = 0.0
@@ -64,6 +66,10 @@ struct AppearanceView: View {
                 row("Поля по бокам: \(Int(textMargin))", value: $textMargin, range: 8...48, step: 2, def: 14)
             }
             Section("Текст") {
+                Picker("Режим чтения", selection: $readingStyle) {
+                    Text("Прокрутка").tag("scroll")
+                    Text("Страницы, как в книге").tag("pages")
+                }
                 Toggle("Номера стихов", isOn: $showNumbers)
                 if showNumbers {
                     Picker("Номер стиха", selection: $verseNumPos) {
@@ -73,6 +79,7 @@ struct AppearanceView: View {
                 }
                 Toggle("Заголовки разделов", isOn: $showHeadings)
                 Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous)
+                Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
             }
             Section {
                 PhotosPicker(selection: $photo, matching: .images) {
@@ -133,7 +140,7 @@ struct AppearanceView: View {
 
     private func reset() {
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
-        verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14
+        verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()
         bgImage = 0; bgVeil = ReaderBackground.defaultVeil; bgBlur = 0
     }

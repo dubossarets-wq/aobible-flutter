@@ -28,6 +28,14 @@ let maxPanes = 6
 @MainActor
 final class LivePlace: ObservableObject {
     @Published var verse: [UUID: Int] = [:]
+    /// Сколько прочитано книги, 0…1 (полоска вверху панели)
+    @Published var progress: [UUID: Double] = [:]
+}
+
+/// Спрятаны ли шапки панелей (при прокрутке вниз уходят, вверх — возвращаются)
+@MainActor
+final class ChromeState: ObservableObject {
+    @Published var hidden: [UUID: Bool] = [:]
 }
 
 
@@ -37,6 +45,7 @@ final class LivePlace: ObservableObject {
 final class PanesStore: ObservableObject {
     @Published var panes: [PaneState] = []
     let live = LivePlace()
+    let chrome = ChromeState()
     /// Синхронная прокрутка панелей
     let scrollSync = ScrollSync()
     private var liveTask: Task<Void, Never>?
@@ -200,7 +209,8 @@ final class PanesStore: ObservableObject {
     }
 
     /// Соседняя глава; за последней главой книги — следующая книга
-    func step(_ id: UUID, _ delta: Int, module m: InstalledModule) {
+    /// atEnd — открыть конец предыдущей главы (листаем страницами назад)
+    func step(_ id: UUID, _ delta: Int, module m: InstalledModule, atEnd: Bool = false) {
         guard let i = index(id), let bi = m.books.firstIndex(where: { $0.id == panes[i].book }) else { return }
         var c = panes[i].chapter + delta
         var b = bi
@@ -213,7 +223,7 @@ final class PanesStore: ObservableObject {
             b += 1
             c = 1
         }
-        go(id, m.books[b].id, max(1, c), 0, record: false)
+        go(id, m.books[b].id, max(1, c), atEnd ? 9999 : 0, record: false)
     }
 
     func setModule(_ id: UUID, _ moduleId: String, _ store: ModuleStore) {

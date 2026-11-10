@@ -24,14 +24,14 @@ struct ReaderView: View {
                 } else if stacked || panes.panes.count == 1 {
                     VStack(spacing: 0) {
                         ForEach(panes.panes) { p in
-                            PaneView(paneID: p.id)
+                            PaneView(paneID: p.id, chrome: panes.chrome)
                             if p.id != panes.panes.last?.id { Divider() }
                         }
                     }
                 } else {
                     HStack(spacing: 0) {
                         ForEach(panes.panes) { p in
-                            PaneView(paneID: p.id)
+                            PaneView(paneID: p.id, chrome: panes.chrome)
                             if p.id != panes.panes.last?.id { Divider() }
                         }
                     }
@@ -86,6 +86,7 @@ struct PaneView: View {
     @State private var planDay: PlanReturn?
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
+    @ObservedObject var chrome: ChromeState
     @State private var showGoto = UserDefaults.standard.bool(forKey: "debugGoto")
     @State private var showModules = false
 
@@ -96,7 +97,12 @@ struct PaneView: View {
     var body: some View {
         if let p = pane, let m = store.module(p.moduleId) {
             VStack(spacing: 0) {
-                header(p, m)
+                // при прокрутке вниз шапка плавно уходит, при прокрутке вверх — возвращается
+                if chrome.hidden[paneID] != true {
+                    header(p, m)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                ReadProgress(live: panes.live, id: paneID)
                 planPill(p)
                 ChapterText(module: m, pane: p)
                     .safeAreaInset(edge: .bottom) {
@@ -119,6 +125,7 @@ struct PaneView: View {
                         .padding(.bottom, 4)
                     }
             }
+            .animation(.easeOut(duration: 0.2), value: chrome.hidden[paneID])
             .sheet(item: Binding(get: { planDay }, set: { planDay = $0 })) { r in
                 PlanDayView(uid: r.uid, day: r.day)
             }
@@ -215,6 +222,26 @@ struct PaneView: View {
     }
 }
 
+/// Тонкая полоска вверху панели: сколько прочитано книги
+struct ReadProgress: View {
+    @ObservedObject var live: LivePlace
+    let id: UUID
+
+    var body: some View {
+        let v = min(1, max(0, live.progress[id] ?? 0))
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Color.secondary.opacity(0.15))
+                Rectangle().fill(Color.accentColor).frame(width: g.size.width * v)
+            }
+        }
+        .frame(height: 3)
+        .animation(.easeOut(duration: 0.3), value: v)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// «Ин 3:16» в шапке: стих — верхний видимый, меняется при прокрутке
 struct LiveTitle: View {
     @ObservedObject var live: LivePlace
@@ -295,6 +322,10 @@ struct ChapterText: View {
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
     @State private var selected: Set<Int> = []
+    @AppStorage("hideOnScroll") private var hideOnScroll = true
+    @AppStorage("readingStyle") private var readingStyle = "scroll"
+    @State private var chromeLastY: CGFloat = 0
+    @State private var chromeAcc: CGFloat = 0
     @State private var collectItems: [MarkItem] = []
     @State private var pulseVerse = 0
     @State private var pulseAmt = 0.0
@@ -325,6 +356,10 @@ struct ChapterText: View {
         let d = chapterData()
         let verses = d.verses
         let heads = d.heads
+        Group {
+        if readingStyle == "pages" {
+            pagedView(d)
+        } else {
         ScrollViewReader { proxy in
             ScrollView {
                 Group {
@@ -343,7 +378,13 @@ struct ChapterText: View {
                 .padding(.vertical, 12)
             }
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
-                if let top = ids.min() { panes.setLive(pane.id, top) }
+                if let top = ids.min() {
+                    panes.setLive(pane.id, top)
+                    updateProgress(top, verses.count)
+                }
+            }
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
+                trackChrome(y)
             }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
@@ -364,13 +405,8 @@ struct ChapterText: View {
             }
         }
         .id("\(module.id)|\(book)|\(chapter)")
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 50).onEnded { g in
-                if abs(g.translation.width) > abs(g.translation.height) * 2 {
-                    panes.step(pane.id, g.translation.width < 0 ? 1 : -1, module: module)
-                }
-            }
-        )
+        }
+        }
         // два пальца: размер букв
         .simultaneousGesture(
             MagnifyGesture()
@@ -382,7 +418,7 @@ struct ChapterText: View {
         )
         .safeAreaInset(edge: .bottom) {
             // сплошной текст: панель внизу; иначе она стоит между стихами, под последним выделенным
-            if !selected.isEmpty && continuous {
+            if !selected.isEmpty && (continuous || readingStyle == "pages") {
                 selectionBar(verses)
             }
         }
@@ -428,6 +464,56 @@ struct ChapterText: View {
                 CollectSheet(items: collectItems) { show("Добавлено в подборку «\($0)»") }
             }
         }
+    }
+
+    /// Режим «Страницы»: глава листается страницами, как в «Книгах»
+    private func pagedView(_ d: ChapterCache) -> some View {
+        PagedChapter(
+            text: pagedNS(d),
+            key: "\(d.key)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
+            focus: focus,
+            insets: UIEdgeInsets(top: 14, left: textMargin + 6, bottom: 34, right: textMargin + 6),
+            onTap: { url, vn in tapped(url, vn) },
+            onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
+            onLong: { vn in longPressed(vn) },
+            onPage: { verse, page, total in
+                panes.setLive(pane.id, verse)
+                panes.live.progress[pane.id] = (Double(chapter - 1) + Double(page - 1) / Double(max(1, total))) / Double(max(1, module.books.first { $0.id == book }?.chapters ?? 1))
+            },
+            onEdge: { dir in
+                DispatchQueue.main.async { panes.step(pane.id, dir, module: module, atEnd: dir < 0) }
+            }
+        )
+        .background { ReaderBackdrop(pal: pal) }
+    }
+
+    /// Вся глава одним текстом для разбивки на страницы: заголовки разделов и стихи (отдельными абзацами или сплошным текстом)
+    private func pagedNS(_ d: ChapterCache) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        let base = uiFont(fontSize)
+        let ink = UIColor(pal.text)
+        func para(_ spacing: CGFloat, before: CGFloat = 0) -> NSParagraphStyle {
+            let ps = NSMutableParagraphStyle()
+            ps.lineSpacing = fontSize * (lineHeight - 1)
+            ps.paragraphSpacing = spacing
+            ps.paragraphSpacingBefore = before
+            return ps
+        }
+        for v in d.verses {
+            if showHeadings, let h = d.heads[v.num] {
+                out.append(NSAttributedString(string: h + "\n", attributes: [
+                    .font: uiFont(fontSize * 0.92, max(fontWeight, 600)), .foregroundColor: ink, .aobVerse: v.num,
+                    .paragraphStyle: para(6, before: out.length > 0 ? 10 : 0),
+                ]))
+            }
+            let part = NSMutableAttributedString(attributedString: attributedNS(v, xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0, number: true, numberLink: true))
+            let full = NSRange(location: 0, length: part.length)
+            if let bgc = continuousBackground(v.num) { part.addAttribute(.backgroundColor, value: UIColor(bgc), range: full) }
+            part.addAttribute(.paragraphStyle, value: para(continuous ? 0 : fontSize * verseSpacing), range: full)
+            out.append(part)
+            out.append(NSAttributedString(string: continuous ? " " : "\n", attributes: [.font: base, .aobVerse: v.num, .paragraphStyle: para(continuous ? 0 : fontSize * verseSpacing)]))
+        }
+        return out
     }
 
     /// Строки главы: стихи (или сплошные блоки) и метка конца главы
@@ -563,6 +649,36 @@ struct ChapterText: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
+        }
+    }
+
+    /// Сколько прочитано книги: главы до этой плюс доля этой главы
+    private func updateProgress(_ verse: Int, _ count: Int) {
+        let chapters = Double(max(1, module.books.first { $0.id == book }?.chapters ?? 1))
+        let inChapter = Double(max(0, verse - 1)) / Double(max(1, count))
+        panes.live.progress[pane.id] = (Double(chapter - 1) + inChapter) / chapters
+    }
+
+    /// Прокрутка вниз прячет шапку, вверх — возвращает; у самого верха и при выделении — на месте
+    private func trackChrome(_ y: CGFloat) {
+        let d = y - chromeLastY
+        chromeLastY = y
+        func set(_ h: Bool) {
+            if (panes.chrome.hidden[pane.id] ?? false) != h { panes.chrome.hidden[pane.id] = h }
+        }
+        guard hideOnScroll, selected.isEmpty, partVerse == nil, y > 80 else {
+            chromeAcc = 0
+            set(false)
+            return
+        }
+        if d == 0 || abs(d) > 1500 { return }
+        chromeAcc = (chromeAcc > 0) == (d > 0) ? chromeAcc + d : d
+        if chromeAcc > 14 {
+            chromeAcc = 0
+            set(true)
+        } else if chromeAcc < -10 {
+            chromeAcc = 0
+            set(false)
         }
     }
 
@@ -985,7 +1101,7 @@ struct ChapterText: View {
                 }
             } label: { barLabel("scroll", "В проповедь") }
                 .tint(.primary)
-            if selected.count == 1 {
+            if selected.count == 1 && readingStyle != "pages" {
                 barButton("selection.pin.in.out", "Часть стиха") {
                     partVerse = first
                     partFrom = nil

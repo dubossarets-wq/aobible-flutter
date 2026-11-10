@@ -23,6 +23,7 @@ struct RootView: View {
     @AppStorage("welcomeSeen") private var welcomeSeen = false
     @AppStorage("lastBuild") private var lastBuild = ""
     @AppStorage("interfaceLanguage") private var lang = "ru"
+    @AppStorage("hideOnScroll") private var hideOnScroll = true
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -82,6 +83,8 @@ struct RootView: View {
                 Color.clear
             }
         }
+        // при прокрутке вниз нижнее меню сворачивается, при прокрутке вверх — возвращается (системное поведение iOS 26)
+        .tabBarMinimizeBehavior(hideOnScroll ? .onScrollDown : .never)
         // мини-проигрыватель над нижним меню, пока идёт аудио
         .modifier(AudioAccessory(active: audio.active))
         // проверка на симуляторе: -debugView appearance|settings|mydata|about|news|help|library|dictionary|maps|audio|sermons
