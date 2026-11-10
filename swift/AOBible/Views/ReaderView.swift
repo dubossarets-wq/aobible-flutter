@@ -97,14 +97,19 @@ struct PaneView: View {
     var body: some View {
         if let p = pane, let m = store.module(p.moduleId) {
             VStack(spacing: 0) {
-                // при прокрутке вниз шапка плавно уходит, при прокрутке вверх — возвращается
-                if chrome.hidden[paneID] != true {
-                    header(p, m)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                ReadProgress(live: panes.live, id: paneID)
-                planPill(p)
                 ChapterText(module: m, pane: p)
+                    // шапка — панель сверху: текст проходит под ней, у края — мягкое размытие с градиентом (iOS 26)
+                    .safeAreaBar(edge: .top, spacing: 0) {
+                        VStack(spacing: 0) {
+                            // при прокрутке вниз шапка плавно уходит, при прокрутке вверх — возвращается
+                            if chrome.hidden[paneID] != true {
+                                header(p, m)
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                            }
+                            planPill(p)
+                            ReadProgress(live: panes.live, id: paneID)
+                        }
+                    }
                     .safeAreaInset(edge: .bottom) {
                         HStack {
                             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
@@ -182,16 +187,19 @@ struct PaneView: View {
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
             Button { showModules = true } label: {
-                Text(m.shortName).font(.subheadline.weight(.semibold)).fixedSize()
+                Text(m.shortName).font(.headline).fixedSize().padding(.horizontal, 4)
             }
             .buttonStyle(.glass)
+            .controlSize(.large)
             Button { showGoto = true } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
-                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
                 }
+                .padding(.horizontal, 4)
             }
             .buttonStyle(.glass)
+            .controlSize(.large)
             Spacer(minLength: 4)
             if panes.canBack(paneID) {
                 Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward") }
@@ -228,44 +236,55 @@ final class PullState: ObservableObject {
     static let threshold: CGFloat = 90
     private(set) var bottom: CGFloat = 0
     private(set) var top: CGFloat = 0
-    /// Шаг 0…3 — подсказка меняется ступенями, а не каждый кадр
-    @Published private(set) var bottomStep = 0
-    @Published private(set) var topStep = 0
-
-    private static func step(_ v: CGFloat) -> Int { v < 12 ? 0 : (v < 45 ? 1 : (v < threshold ? 2 : 3)) }
+    /// Для подсказки: меняется плавно вместе с пальцем (перерисовывается только сама подсказка)
+    @Published private(set) var bottomShown: CGFloat = 0
+    @Published private(set) var topShown: CGFloat = 0
 
     func setBottom(_ v: CGFloat) {
         bottom = v
-        if bottomStep != Self.step(v) { bottomStep = Self.step(v) }
+        bottomShown = v
     }
 
     func setTop(_ v: CGFloat) {
         top = v
-        if topStep != Self.step(v) { topStep = Self.step(v) }
+        topShown = v
     }
 }
 
+/// Растягивающаяся «таблетка» у края: растёт вслед за пальцем, внутри стрелка и название того, что откроется;
+/// когда потянули достаточно — стрелка разворачивается и она подсвечивается
 struct PullHint: View {
     @ObservedObject var state: PullState
     let next: Bool
+    let label: (kind: String, name: String)?
 
     var body: some View {
-        let step = next ? state.bottomStep : state.topStep
-        if step > 0 {
-            HStack(spacing: 8) {
-                Image(systemName: next ? "chevron.compact.up" : "chevron.compact.down")
-                    .font(.title3.weight(.semibold))
-                    .rotationEffect(.degrees(step == 3 ? 180 : 0))
-                Text(step == 3 ? (next ? "Отпустите — следующая глава" : "Отпустите — предыдущая глава") : (next ? "Потяните выше — следующая глава" : "Потяните ниже — предыдущая глава"))
-                    .font(.footnote.weight(.medium))
+        let v = next ? state.bottomShown : state.topShown
+        if v > 6, let label {
+            let ready = v >= PullState.threshold
+            VStack(spacing: 6) {
+                if !next { caption(label, ready) }
+                Image(systemName: next ? "arrow.up" : "arrow.down")
+                    .font(.title2.weight(.bold))
+                    .rotationEffect(.degrees(ready ? 180 : 0))
+                    .foregroundStyle(ready ? Color.accentColor : .primary)
+                if next { caption(label, ready) }
             }
-            .foregroundStyle(step == 3 ? Color.accentColor : .secondary)
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            .frame(width: 150, height: min(230, 40 + v * 1.7))
+            .clipped()
             .glassEffect(.regular, in: Capsule())
-            .opacity(step == 1 ? 0.6 : 1)
-            .animation(.easeOut(duration: 0.15), value: step)
+            .opacity(min(1, v / 30))
+            .animation(.easeOut(duration: 0.18), value: ready)
             .allowsHitTesting(false)
         }
+    }
+
+    @ViewBuilder private func caption(_ l: (kind: String, name: String), _ ready: Bool) -> some View {
+        VStack(spacing: 1) {
+            Text(ready ? "Отпустите" : l.kind).font(.caption2.weight(.semibold)).foregroundStyle(ready ? Color.accentColor : .secondary)
+            Text(l.name).font(.footnote.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .padding(.horizontal, 8)
     }
 }
 
@@ -298,7 +317,7 @@ struct LiveTitle: View {
     let fallback: Int
 
     var body: some View {
-        Text("\(name) \(chapter):\(live.verse[id] ?? fallback)").font(.subheadline.weight(.semibold)).fixedSize()
+        Text("\(name) \(chapter):\(live.verse[id] ?? fallback)").font(.headline).fixedSize()
     }
 }
 
@@ -451,8 +470,8 @@ struct ChapterText: View {
                     panes.step(pane.id, -1, module: module, atEnd: true)
                 }
             }
-            .overlay(alignment: .bottom) { PullHint(state: pull, next: true).padding(.bottom, 14) }
-            .overlay(alignment: .top) { PullHint(state: pull, next: false).padding(.top, 8) }
+            .overlay(alignment: .bottom) { PullHint(state: pull, next: true, label: neighbour(1)).padding(.bottom, 10) }
+            .overlay(alignment: .top) { PullHint(state: pull, next: false, label: neighbour(-1)).padding(.top, 96) }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, verses, heads)
@@ -724,6 +743,21 @@ struct ChapterText: View {
         let chapters = Double(max(1, module.books.first { $0.id == book }?.chapters ?? 1))
         let inChapter = Double(max(0, verse - 1)) / Double(max(1, count))
         panes.live.progress[pane.id] = (Double(chapter - 1) + inChapter) / chapters
+    }
+
+    /// Соседняя глава (или книга, если эта глава крайняя) — что откроется, если потянуть за край
+    private func neighbour(_ delta: Int) -> (kind: String, name: String)? {
+        guard let bi = module.books.firstIndex(where: { $0.id == book }) else { return nil }
+        let b = module.books[bi]
+        let short = b.short.replacingOccurrences(of: ".", with: "")
+        if delta > 0 {
+            if chapter < b.chapters { return ("Следующая глава", "\(short) \(chapter + 1)") }
+            if bi + 1 < module.books.count { return ("Следующая книга", module.books[bi + 1].name) }
+        } else {
+            if chapter > 1 { return ("Предыдущая глава", "\(short) \(chapter - 1)") }
+            if bi > 0 { return ("Предыдущая книга", module.books[bi - 1].name) }
+        }
+        return nil
     }
 
     /// Прокрутка вниз прячет шапку, вверх — возвращает; у самого верха и при выделении — на месте

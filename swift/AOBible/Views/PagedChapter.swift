@@ -78,8 +78,19 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     private var pageSize: CGSize? {
         guard let c = cfg else { return nil }
-        let s = CGSize(width: view.bounds.width - c.insets.left - c.insets.right, height: view.bounds.height - c.insets.top - c.insets.bottom)
+        let i = insets(c)
+        let s = CGSize(width: view.bounds.width - i.left - i.right, height: view.bounds.height - i.top - i.bottom)
         return s.width > 60 && s.height > 100 ? s : nil
+    }
+
+    /// Поля страницы плюс то, что закрывает сверху (шапка) и снизу
+    func insets(_ c: PagedChapter) -> UIEdgeInsets {
+        UIEdgeInsets(top: c.insets.top + view.safeAreaInsets.top, left: c.insets.left, bottom: c.insets.bottom + view.safeAreaInsets.bottom, right: c.insets.right)
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        rebuildIfNeeded()
     }
 
     private func rebuildIfNeeded() {
@@ -232,7 +243,7 @@ final class TextPage: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         guard let c = host?.cfg else { return }
-        textView?.frame = view.bounds.inset(by: c.insets)
+        textView?.frame = view.bounds.inset(by: host?.insets(c) ?? c.insets)
     }
 }
 
