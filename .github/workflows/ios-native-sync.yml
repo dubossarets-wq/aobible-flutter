@@ -56,7 +56,8 @@ jobs:
           SHOTS=$!
           set +e
           xcodebuild test -project AOBible.xcodeproj -scheme AOBibleUITests -destination "id=$DEV" \
-            -derivedDataPath build -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO 2>&1 | tee out/test.log | tail -40
+            -derivedDataPath build -parallel-testing-enabled NO -resultBundlePath out/result.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee out/test.log | tail -40
+          xcrun xcresulttool export attachments --path out/result.xcresult --output-path out/attachments >/dev/null 2>&1 || true
           kill $SHOTS 2>/dev/null || true
           C=$(xcrun simctl get_app_container "$DEV" app.aobible data 2>/dev/null || true)
           [ -n "$C" ] && cp "$C/Documents/sync-trace.csv" out/ 2>/dev/null
