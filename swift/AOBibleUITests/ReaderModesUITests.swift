@@ -40,7 +40,7 @@ final class ReaderModesUITests: XCTestCase {
         sleep(2)
         shot("p05-after-swipe")
         // нажатие в середине (слово) — открывается список словарей
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.2)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.30, dy: 0.225)).tap()
         sleep(3)
         shot("p06-word-tap")
         // дойти до конца главы и перейти в следующую
@@ -49,6 +49,22 @@ final class ReaderModesUITests: XCTestCase {
             usleep(900_000)
         }
         shot("p07-after-many-turns")
+    }
+
+    /// Вытягивание за конец главы: «таблетка» растёт, пока палец держит; отпустили — следующая глава
+    func test3PullToNext() throws {
+        let app = launch([])
+        for _ in 0..<10 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)), withVelocity: 3000, thenHoldForDuration: 0)
+            sleep(2)
+        }
+        shot("u01-end-of-chapter")
+        // тянем выше и держим — по снимкам из цикла видно, как растёт «таблетка»
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)), withVelocity: 250, thenHoldForDuration: 6)
+        sleep(2)
+        shot("u02-after-release")
+        let head = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Быт 2'")).firstMatch
+        XCTAssertTrue(head.waitForExistence(timeout: 3), "следующая глава не открылась")
     }
 
     func test2HideOnScroll() throws {

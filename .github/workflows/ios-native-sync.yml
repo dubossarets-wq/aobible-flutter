@@ -59,8 +59,7 @@ jobs:
           ) &
           SHOTS=$!
           set +e
-          ONLY=""
-          [ -n "${{ inputs.only }}" ] && ONLY="-only-testing:${{ inputs.only }}"
+          ONLY=$(echo "${{ inputs.only }}" | tr ',' ' ' | xargs -n1 2>/dev/null | sed 's/^/-only-testing:/' | tr '\n' ' ')
           xcodebuild test -project AOBible.xcodeproj -scheme AOBibleUITests -destination "id=$DEV" $ONLY \
             -derivedDataPath build -parallel-testing-enabled NO -resultBundlePath out/result.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee out/test.log | tail -40
           xcrun xcresulttool export attachments --path out/result.xcresult --output-path out/attachments >/dev/null 2>&1 || true

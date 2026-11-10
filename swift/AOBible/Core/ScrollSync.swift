@@ -305,6 +305,7 @@ final class ScrollSync {
     /// -debugSync YES: две панели с разными переводами на одной главе (для автотеста и журнала sync-trace.csv)
     static func debugSetup(store: ModuleStore, panes: PanesStore) {
         #if DEBUG
+        SyncTrace.write("L,start")
         guard UserDefaults.standard.bool(forKey: "debugSync"), panes.panes.count < 2 else { return }
         Task { @MainActor in
             for _ in 0..<280 {
