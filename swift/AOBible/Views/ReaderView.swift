@@ -287,31 +287,34 @@ struct PullHint: View {
 
     var body: some View {
         let v = next ? state.bottomShown : state.topShown
-        if v > 6, let label {
+        // появляется только после заметного потягивания, плавно; размер постоянный (не раздувается)
+        let start: CGFloat = 26
+        if v > start, let label {
             let ready = v >= PullState.threshold
-            VStack(spacing: 6) {
-                if !next { caption(label, ready) }
+            let k = min(1, (v - start) / 28)
+            HStack(spacing: 10) {
                 Image(systemName: next ? "arrow.up" : "arrow.down")
-                    .font(.body.weight(.bold))
-                    .rotationEffect(.degrees(ready ? 180 : 0))
-                    .foregroundStyle(ready ? Color.accentColor : .primary)
-                if next { caption(label, ready) }
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(ready ? Color.accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(ready ? "Отпустите" : label.kind)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ready ? Color.accentColor : .secondary)
+                        .lineLimit(1)
+                    Text(label.name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
             }
-            .frame(width: 112, height: min(120, 34 + v * 0.9))
-            .clipped()
-            .glassEffect(.regular, in: Capsule())
-            .opacity(min(1, v / 30))
+            .fixedSize()
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+            .glassEffect(.regular.tint(ready ? Color.accentColor.opacity(0.18) : nil), in: Capsule())
+            .scaleEffect(0.85 + 0.15 * k)
+            .opacity(k)
             .animation(.easeOut(duration: 0.18), value: ready)
             .allowsHitTesting(false)
         }
-    }
-
-    @ViewBuilder private func caption(_ l: (kind: String, name: String), _ ready: Bool) -> some View {
-        VStack(spacing: 1) {
-            Text(ready ? "Отпустите" : l.kind).font(.caption2.weight(.semibold)).foregroundStyle(ready ? Color.accentColor : .secondary)
-            Text(l.name).font(.footnote.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
-        }
-        .padding(.horizontal, 8)
     }
 }
 
@@ -623,7 +626,11 @@ struct ChapterText: View {
                 }
             }
             .overlay(alignment: .bottom) { PullHint(state: pull, next: true, label: neighbour(1)).padding(.bottom, 10) }
-            .overlay(alignment: .top) { PullHint(state: pull, next: false, label: neighbour(-1)).padding(.top, 96) }
+            // сверху — под шапкой (и панелью подстрочника), а не за ними
+            .overlay(alignment: .top) {
+                PullHint(state: pull, next: false, label: neighbour(-1))
+                    .padding(.top, PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0) + 10)
+            }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, verses, heads)
