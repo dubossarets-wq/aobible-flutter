@@ -99,27 +99,9 @@ struct PaneView: View {
         if let p = pane, let m = store.module(p.moduleId) {
             VStack(spacing: 0) {
                 ChapterText(module: m, pane: p)
-                    // шапка — панель сверху: текст проходит под ней, у края — мягкое размытие с градиентом (iOS 26)
-                    .safeAreaBar(edge: .top, spacing: 0) {
-                        VStack(spacing: 0) {
-                            // при прокрутке вниз шапка плавно уходит, при прокрутке вверх — возвращается
-                            if chrome.hidden[paneID] != true {
-                                header(p, m)
-                                    .transition(.move(edge: .top).combined(with: .opacity))
-                            }
-                            planPill(p)
-                            ReadProgress(live: panes.live, id: paneID)
-                        }
-                    }
-                    .overlay(alignment: .top) {
-                        if chrome.hidden[paneID] == true {
-                            LinearGradient(colors: [pal.bg, pal.bg.opacity(0.85), pal.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 64)
-                                .ignoresSafeArea(edges: .top)
-                                .allowsHitTesting(false)
-                                .transition(.opacity)
-                        }
-                    }
+                    // шапка лежит поверх текста и сама уходит вверх / возвращается; место под ней в тексте постоянное,
+                    // поэтому прокрутку она не двигает. Под ней — мягкий градиент, текст у верхнего края как бы растворяется
+                    .overlay(alignment: .top) { chromeOverlay(p, m) }
                     .safeAreaInset(edge: .bottom) {
                         HStack {
                             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
@@ -192,6 +174,28 @@ struct PaneView: View {
 
     private func bookName(_ p: PaneState, _ m: InstalledModule) -> String {
         m.books.first { $0.id == p.book }?.short.replacingOccurrences(of: ".", with: "") ?? Books.info(p.book)?.short ?? p.book
+    }
+
+    /// Высота шапки: столько оставлено в начале текста (постоянно, чтобы шапка не двигала текст)
+    static let headerHeight: CGFloat = 62
+
+    @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
+        let hidden = chrome.hidden[paneID] == true
+        ZStack(alignment: .top) {
+            LinearGradient(colors: [pal.bg, pal.bg.opacity(0.92), pal.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: hidden ? 56 : Self.headerHeight + 40)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            VStack(spacing: 0) {
+                header(p, m)
+                    .offset(y: hidden ? -(Self.headerHeight + 50) : 0)
+                    .opacity(hidden ? 0 : 1)
+                    .allowsHitTesting(!hidden)
+                planPill(p)
+                ReadProgress(live: panes.live, id: paneID)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: hidden)
     }
 
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
@@ -464,7 +468,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .contentMargins(.top, PaneView.headerHeight, for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() {
                     panes.setLive(pane.id, top)
@@ -593,7 +597,7 @@ struct ChapterText: View {
             text: pagedNS(d),
             key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
             focus: focus,
-            insets: UIEdgeInsets(top: 14, left: textMargin + 6, bottom: 34, right: textMargin + 6),
+            insets: UIEdgeInsets(top: 14 + PaneView.headerHeight, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             onTap: { url, vn in tapped(url, vn) },
             onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
             onLong: { vn in longPressed(vn) },
