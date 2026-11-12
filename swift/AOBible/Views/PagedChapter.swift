@@ -11,6 +11,8 @@ struct PagedChapter: UIViewControllerRepresentable {
     /// Стих, с которого открыть; 9999 — последняя страница (пришли назад из следующей главы)
     let focus: Int
     let insets: UIEdgeInsets
+    /// Цвет страницы — фон темы: страница не прозрачная, при перелистывании текст соседней не просвечивает
+    var pageColor: UIColor = .systemBackground
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
     var onLong: (Int) -> Void
@@ -68,7 +70,16 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     func apply(_ c: PagedChapter) {
         cfg = c
-        if isViewLoaded { rebuildIfNeeded() }
+        if isViewLoaded {
+            rebuildIfNeeded()
+            paint()
+        }
+    }
+
+    /// Страницы — цвета фона (не прозрачные)
+    private func paint() {
+        let color = cfg?.pageColor ?? .systemBackground
+        for p in pages where p.view.backgroundColor != color { p.view.backgroundColor = color }
     }
 
     override func viewDidLayoutSubviews() {
@@ -127,6 +138,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         for tc in containers { list.append(TextPage(container: tc, host: self)) }
         list.append(EdgePage(direction: 1))
         pages = list
+        paint()
         let i = pageIndex(forVerse: startVerse)
         current = i
         pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
