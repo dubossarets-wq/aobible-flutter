@@ -74,9 +74,8 @@ final class SyncScrollUITests: XCTestCase {
         let app = launch()
         // долгое нажатие на слове: стих выделен и остаётся выделенным после отпускания
         // при нескольких панелях построены все стихи главы — берём тот, что виден в верхней панели
-        let visible = app.textViews.allElementsBoundByIndex.first { $0.frame.minY > 130 && $0.frame.maxY < 400 && $0.frame.height > 30 }
-        let text = try XCTUnwrap(visible, "нет видимого стиха")
-        text.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.25)).press(forDuration: 0.32)
+        // по координате: перебор всех стихов двух панелей не укладывается в срок поиска симулятора
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.34)).press(forDuration: 0.4)
         XCTAssertTrue(app.staticTexts["Подстрочник"].firstMatch.waitForExistence(timeout: 3), "панель выделения не появилась")
         sleep(1)
         XCTAssertTrue(app.staticTexts["Подстрочник"].firstMatch.exists, "выделение пропало после отпускания")

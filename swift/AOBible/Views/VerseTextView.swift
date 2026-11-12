@@ -42,7 +42,13 @@ struct VerseTextView: UIViewRepresentable {
         let long = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.long(_:)))
         long.minimumPressDuration = 0.25
         long.allowableMovement = 12
-        for g in [single, double, long] as [UIGestureRecognizer] {
+        // палец сдвинулся (свайп, прокрутка) — это не нажатие на слово: системное нажатие терпит сдвиг до ~40 пт,
+        // и короткий свайп по тексту открывал словарь. Детектор сдвига срабатывает с ~10 пт, нажатия ждут его неудачи
+        let mover = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.moved(_:)))
+        c.mover = mover
+        single.require(toFail: mover)
+        double.require(toFail: mover)
+        for g in [single, double, long, mover] as [UIGestureRecognizer] {
             g.delegate = c
             g.cancelsTouchesInView = false
             tv.addGestureRecognizer(g)
@@ -81,24 +87,12 @@ struct VerseTextView: UIViewRepresentable {
         var measuredHeight: CGFloat = 0
         private var lpActive = false
         private var lpEnded = Date.distantPast
-        /// Где палец коснулся: сдвинулся дальше 12 пт — это жест (свайп, прокрутка), а не нажатие на слово
-        /// (системное нажатие терпит сдвиг до ~40 пт, и короткий свайп по тексту открывал словарь)
-        private var downAt: CGPoint?
+        /// Детектор сдвига пальца (см. makeUIView)
+        weak var mover: UIPanGestureRecognizer?
 
         init(_ p: VerseTextView) { parent = p }
 
-        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            if g is UITapGestureRecognizer, (g as? UITapGestureRecognizer)?.numberOfTapsRequired == 1 {
-                downAt = touch.location(in: g.view)
-            }
-            return true
-        }
-
-        private func moved(_ g: UIGestureRecognizer) -> Bool {
-            guard let d = downAt else { return false }
-            let p = g.location(in: g.view)
-            return hypot(p.x - d.x, p.y - d.y) > 12
-        }
+        @objc func moved(_ g: UIPanGestureRecognizer) {}
 
         /// Что под пальцем: ссылка (слово, номер Стронга…) и номер стиха
         private func hit(_ tv: UITextView, _ p: CGPoint) -> (url: URL?, verse: Int) {
@@ -120,7 +114,7 @@ struct VerseTextView: UIViewRepresentable {
         @objc func tap(_ g: UITapGestureRecognizer) {
             guard g.state == .ended, let tv = g.view as? UITextView else { return }
             // отпускание пальца после долгого нажатия — не нажатие
-            if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 || moved(g) { return }
+            if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
             let h = hit(tv, g.location(in: tv))
             parent.onTap(h.url, h.verse)
         }
@@ -147,8 +141,10 @@ struct VerseTextView: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            // свои три жеста работают вместе; с прокруткой — по обычным правилам
-            g.view != nil && g.view === other.view
+            // детектор сдвига никому не мешает (прокрутке, свайпу глав); свои три жеста работают вместе;
+            // с прокруткой — по обычным правилам
+            if g === mover || other === mover { return true }
+            return g.view != nil && g.view === other.view
         }
     }
 }

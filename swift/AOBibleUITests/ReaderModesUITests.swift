@@ -53,7 +53,10 @@ final class ReaderModesUITests: XCTestCase {
 
     /// Вытягивание за конец главы: «таблетка» растёт, пока палец держит; отпустили — следующая глава
     func test3PullToNext() throws {
-        let app = launch([])
+        let app = launch(["-readingStyle", "scroll"])
+        // место сохраняется между тестами — глава может быть любой: сравниваем с ней
+        let headNow = app.buttons.matching(NSPredicate(format: "label MATCHES %@", "^[^ ]+ [0-9]+:[0-9]+.*")).firstMatch
+        let c0 = Int(headNow.label.split(separator: " ").dropFirst().first?.split(separator: ":").first ?? "") ?? 0
         for _ in 0..<10 {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)), withVelocity: 3000, thenHoldForDuration: 0)
             sleep(2)
@@ -63,8 +66,8 @@ final class ReaderModesUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)), withVelocity: 250, thenHoldForDuration: 6)
         sleep(2)
         shot("u02-after-release")
-        let head = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Быт 2'")).firstMatch
-        XCTAssertTrue(head.waitForExistence(timeout: 3), "следующая глава не открылась")
+        let head = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Быт \(c0 + 1):")).firstMatch
+        XCTAssertTrue(head.waitForExistence(timeout: 3), "следующая глава не открылась (была \(c0))")
     }
 
     func test2HideOnScroll() throws {
