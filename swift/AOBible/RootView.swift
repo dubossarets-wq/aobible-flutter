@@ -113,7 +113,7 @@ struct TabBarSlider: UIViewRepresentable {
             let anim = CABasicAnimation(keyPath: "sublayerTransform")
             anim.fromValue = NSValue(caTransform3D: from)
             anim.toValue = NSValue(caTransform3D: to)
-            anim.duration = 0.5
+            anim.duration = 0.2
             anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             layer.add(anim, forKey: "aobSlide")
         }
