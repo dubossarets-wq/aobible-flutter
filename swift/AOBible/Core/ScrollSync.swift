@@ -25,8 +25,25 @@ final class VerseViews {
 
     private var refs: [ObjectIdentifier: Ref] = [:]
 
+    /// Точки привязки стихов, у которых нет UITextView (подстрочный вид — столбики)
+    private struct Anchor {
+        weak var view: UIView?
+        let verse: Int
+    }
+
+    private var anchors: [ObjectIdentifier: Anchor] = [:]
+
     func add(_ v: UITextView) {
         refs[ObjectIdentifier(v)] = Ref(view: v)
+    }
+
+    func addAnchor(_ verse: Int, _ v: UIView) {
+        anchors[ObjectIdentifier(v)] = Anchor(view: v, verse: verse)
+    }
+
+    func aliveAnchors() -> [(verse: Int, view: UIView)] {
+        anchors = anchors.filter { $0.value.view != nil }
+        return anchors.values.compactMap { a in a.view.map { (a.verse, $0) } }
     }
 
     func alive() -> [UITextView] {
@@ -228,6 +245,9 @@ final class ScrollSync {
                 let line = lm.lineFragmentRect(forGlyphAt: g, effectiveRange: nil)
                 out[n] = tv.convert(CGPoint(x: 0, y: line.minY + tv.textContainerInset.top), to: sv).y
             }
+        }
+        for a in p.views.aliveAnchors() where a.view.isDescendant(of: sv) && out[a.verse] == nil {
+            out[a.verse] = a.view.convert(CGPoint.zero, to: sv).y
         }
         return out
     }

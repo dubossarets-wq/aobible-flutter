@@ -86,6 +86,7 @@ struct PaneView: View {
     @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
     @State private var headerH: CGFloat = 46
+    @AppStorage("ilBar") private var ilBar = true
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @ObservedObject var chrome: ChromeState
@@ -194,6 +195,8 @@ struct PaneView: View {
             VStack(spacing: 0) {
                 header(p, m)
                 planPill(p)
+                // панель подстрочника — под шапкой, уходит вместе с ней
+                if m.interlinear && ilBar { InterlinearBar() }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
             .offset(y: hidden ? -(headerH + Self.safeTop + 12) : 0)
@@ -242,6 +245,12 @@ struct PaneView: View {
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Закрыть панель")
+            }
+            if m.interlinear && !ilBar {
+                Button { ilBar = true } label: { Image(systemName: "slider.horizontal.3") }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .accessibilityLabel("Подстрочник")
             }
             Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1") }
                 .buttonStyle(.glass)
@@ -417,6 +426,9 @@ struct ChapterText: View {
     @AppStorage("showHeadings") private var showHeadings = true
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
+    @AppStorage("ilGloss") private var ilGloss = true
+    @AppStorage("ilOrig") private var ilOrig = true
+    @AppStorage("ilStrong") private var ilStrong = true
     @Environment(\.readerPalette) private var pal
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
@@ -479,7 +491,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .contentMargins(.top, PaneView.headerHeight, for: .scrollContent)
+            .contentMargins(.top, PaneView.headerHeight + (module.interlinear ? 40 : 0), for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() {
                     panes.setLive(pane.id, top)
@@ -657,7 +669,7 @@ struct ChapterText: View {
         let verses = d.verses
         let heads = d.heads
         let views = panes.scrollSync.views(pane.id)
-        if continuous {
+        if continuous && !module.interlinear {
             // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
             ForEach(blocks(verses, heads)) { blk in
                 VStack(alignment: .leading, spacing: 6) {
@@ -678,14 +690,36 @@ struct ChapterText: View {
             ForEach(verses) { v in
                 VStack(alignment: .leading, spacing: 6) {
                     if showHeadings, let h = heads[v.num] { headingText(h) }
-                    VerseTextView(
-                        text: d.attr[v.num] ?? NSAttributedString(),
-                        verse: v.num,
-                        onTap: { url, vn in tapped(url, vn) },
-                        onDouble: { _ in doubleTapped(v) },
-                        onLong: { vn in longPressed(vn) },
-                        views: views
-                    )
+                    Group {
+                        if module.interlinear {
+                            // подстрочный перевод: слова столбиками «перевод / оригинал / Стронг»
+                            InterlinearVerse(
+                                verse: v, fontSize: fontSize, fontFamily: fontFamily, fontWeight: fontWeight,
+                                showNumber: showNumbers, numberColor: pal.verseNum, textColor: pal.text, accent: pal.accent,
+                                showGloss: ilGloss, showOrig: ilOrig, showStrong: ilStrong,
+                                favorite: favNums.contains(v.num),
+                                xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0,
+                                mark: { wi in
+                                    if let r = partRange(v.num), r.contains(wi) { return pal.accent.opacity(0.24) }
+                                    if let r = favPartRange(v.num), r.contains(wi) { return Color(hex: 0xd9475e).opacity(0.2) }
+                                    return nil
+                                },
+                                onTap: { url, vn in tapped(url, vn) },
+                                onDouble: { _ in doubleTapped(v) },
+                                onLong: { vn in longPressed(vn) },
+                                views: views
+                            )
+                        } else {
+                            VerseTextView(
+                                text: d.attr[v.num] ?? NSAttributedString(),
+                                verse: v.num,
+                                onTap: { url, vn in tapped(url, vn) },
+                                onDouble: { _ in doubleTapped(v) },
+                                onLong: { vn in longPressed(vn) },
+                                views: views
+                            )
+                        }
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)

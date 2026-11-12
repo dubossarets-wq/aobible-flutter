@@ -51,9 +51,17 @@ struct TabBarSlider: UIViewRepresentable {
                 SyncTrace.write("T,after,\(hide),frame=\(tb.frame),tr=\(tb.transform),alpha=\(tb.alpha),hidden=\(tb.isHidden)")
             }
             #endif
-            UIView.animate(withDuration: 0.5, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
-                tb.transform = hide ? CGAffineTransform(translationX: 0, y: 200) : .identity
-            }
+            // сдвигаем не саму панель (система при каждой раскладке возвращает ей место), а её содержимое
+            let layer = tb.layer
+            let from = layer.presentation()?.sublayerTransform ?? layer.sublayerTransform
+            let to = hide ? CATransform3DMakeTranslation(0, 140, 0) : CATransform3DIdentity
+            layer.sublayerTransform = to
+            let anim = CABasicAnimation(keyPath: "sublayerTransform")
+            anim.fromValue = NSValue(caTransform3D: from)
+            anim.toValue = NSValue(caTransform3D: to)
+            anim.duration = 0.5
+            anim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(anim, forKey: "aobSlide")
         }
 
         override func didMoveToWindow() {
@@ -61,7 +69,7 @@ struct TabBarSlider: UIViewRepresentable {
             // ушли со вкладки — меню на месте
             if window == nil, shown, let tb = tabBar() {
                 shown = false
-                tb.transform = .identity
+                tb.layer.sublayerTransform = CATransform3DIdentity
             }
         }
     }
