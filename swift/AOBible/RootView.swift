@@ -15,8 +15,46 @@ struct TabBarHider: ViewModifier {
     func body(content: Content) -> some View {
         let hidden = active && (primary.flatMap { chrome.hidden[$0] } ?? false)
         content
-            .toolbarVisibility(hidden ? .hidden : .visible, for: .tabBar)
-            .animation(.easeInOut(duration: 0.5), value: hidden)
+            .background(TabBarSlider(hidden: hidden))
+    }
+}
+
+/// Нижнее меню физически уезжает вниз за край экрана и выезжает обратно (системное скрытие только растворяет его)
+struct TabBarSlider: UIViewRepresentable {
+    let hidden: Bool
+
+    func makeUIView(context: Context) -> Finder { Finder() }
+
+    func updateUIView(_ v: Finder, context: Context) { v.apply(hidden) }
+
+    final class Finder: UIView {
+        private var shown = false   // меню сейчас уехало
+
+        private func tabBar() -> UITabBar? {
+            var r: UIResponder? = self
+            while let cur = r {
+                if let tbc = cur as? UITabBarController { return tbc.tabBar }
+                r = cur.next
+            }
+            return nil
+        }
+
+        func apply(_ hide: Bool) {
+            guard hide != shown, let tb = tabBar() else { return }
+            shown = hide
+            UIView.animate(withDuration: 0.5, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
+                tb.transform = hide ? CGAffineTransform(translationY: 200) : .identity
+            }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // ушли со вкладки — меню на месте
+            if window == nil, shown, let tb = tabBar() {
+                shown = false
+                tb.transform = .identity
+            }
+        }
     }
 }
 
@@ -87,7 +125,7 @@ struct RootView: View {
             Tab("Библия", systemImage: "book", value: AppTab.bible) {
                 // уход нижнего меню задаётся изнутри вкладки — так его понимает система
                 ReaderView()
-                    .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll))
+                    .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
             }
             Tab("Закладки", systemImage: "heart", value: AppTab.saved) {
                 BookmarksView()

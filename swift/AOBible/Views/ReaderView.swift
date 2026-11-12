@@ -121,6 +121,7 @@ struct PaneView: View {
                         .controlSize(.large)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
+                        .offset(y: chrome.hidden[paneID] == true ? 110 : 0)
                     }
             }
             .animation(.easeInOut(duration: 0.5), value: chrome.hidden[paneID])
@@ -195,8 +196,7 @@ struct PaneView: View {
                 planPill(p)
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
-            .offset(y: hidden ? -(headerH + 20) : 0)
-            .opacity(hidden ? 0 : 1)
+            .offset(y: hidden ? -(headerH + Self.safeTop + 12) : 0)
             .allowsHitTesting(!hidden)
             ReadProgress(live: panes.live, id: paneID)
                 .offset(y: lineY)
