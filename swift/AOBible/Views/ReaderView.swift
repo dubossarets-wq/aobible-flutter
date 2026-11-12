@@ -517,6 +517,7 @@ struct ChapterText: View {
     @State private var pulseVerse = 0
     @State private var pulseAmt = 0.0
     @State private var req = StudyRequests()
+    @State private var paneWidth: CGFloat = 400
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
@@ -622,6 +623,21 @@ struct ChapterText: View {
                 }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
+        // свайп влево — следующая глава, вправо — предыдущая. Чтобы не срабатывал случайно: только явный
+        // горизонтальный жест (не меньше 80 пт и в 2,5 раза больше, чем по вертикали), не от самого края экрана
+        // (там системные жесты) и не во время выделения
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30).onEnded { g in
+                let dx = g.translation.width
+                let dy = g.translation.height
+                let x0 = g.startLocation.x
+                guard selected.isEmpty, partVerse == nil,
+                      x0 > 24, x0 < paneWidth - 24,
+                      abs(dx) >= 80, abs(dx) > abs(dy) * 2.5 else { return }
+                panes.step(pane.id, dx < 0 ? 1 : -1, module: module)
+            }
+        )
         .id("\(module.id)|\(book)|\(chapter)")
         }
         }
