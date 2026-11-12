@@ -199,7 +199,18 @@ final class ScrollSync {
     }
 
     func detach(_ id: UUID) {
+        panes[id]?.observation?.invalidate()
         panes[id] = nil
+        if session?.leader == id { session = nil }
+    }
+
+    /// Лист панели уходит с экрана (сменилась глава): наблюдение снимаем ДО того, как лист освободится, иначе
+    /// система падает с «объект освобождён, пока за ним следят»
+    func release(_ id: UUID, _ sv: UIScrollView) {
+        guard let p = panes[id], p.scrollView === sv else { return }
+        p.observation?.invalidate()
+        p.observation = nil
+        p.scrollView = nil
         if session?.leader == id { session = nil }
     }
 
@@ -360,10 +371,16 @@ struct ScrollFinder: UIViewRepresentable {
 
     final class FinderView: UIView {
         var onFound: ((UIScrollView) -> Void)?
+        var onGone: ((UIScrollView) -> Void)?
+        private weak var found: UIScrollView?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            lookUp()
+            if window == nil {
+                if let sv = found { onGone?(sv) }
+            } else {
+                lookUp()
+            }
         }
 
         func lookUp() {
@@ -371,6 +388,7 @@ struct ScrollFinder: UIViewRepresentable {
             var v = superview
             while let cur = v {
                 if let sv = cur as? UIScrollView {
+                    found = sv
                     onFound?(sv)
                     return
                 }
@@ -383,6 +401,7 @@ struct ScrollFinder: UIViewRepresentable {
         let v = FinderView()
         v.isUserInteractionEnabled = false
         v.onFound = { [sync, paneID] sv in sync.attach(paneID, sv) }
+        v.onGone = { [sync, paneID] sv in sync.release(paneID, sv) }
         return v
     }
 
