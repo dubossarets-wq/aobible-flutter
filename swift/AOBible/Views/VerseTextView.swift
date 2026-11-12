@@ -81,8 +81,24 @@ struct VerseTextView: UIViewRepresentable {
         var measuredHeight: CGFloat = 0
         private var lpActive = false
         private var lpEnded = Date.distantPast
+        /// Где палец коснулся: сдвинулся дальше 12 пт — это жест (свайп, прокрутка), а не нажатие на слово
+        /// (системное нажатие терпит сдвиг до ~40 пт, и короткий свайп по тексту открывал словарь)
+        private var downAt: CGPoint?
 
         init(_ p: VerseTextView) { parent = p }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            if g is UITapGestureRecognizer, (g as? UITapGestureRecognizer)?.numberOfTapsRequired == 1 {
+                downAt = touch.location(in: g.view)
+            }
+            return true
+        }
+
+        private func moved(_ g: UIGestureRecognizer) -> Bool {
+            guard let d = downAt else { return false }
+            let p = g.location(in: g.view)
+            return hypot(p.x - d.x, p.y - d.y) > 12
+        }
 
         /// Что под пальцем: ссылка (слово, номер Стронга…) и номер стиха
         private func hit(_ tv: UITextView, _ p: CGPoint) -> (url: URL?, verse: Int) {
@@ -104,7 +120,7 @@ struct VerseTextView: UIViewRepresentable {
         @objc func tap(_ g: UITapGestureRecognizer) {
             guard g.state == .ended, let tv = g.view as? UITextView else { return }
             // отпускание пальца после долгого нажатия — не нажатие
-            if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
+            if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 || moved(g) { return }
             let h = hit(tv, g.location(in: tv))
             parent.onTap(h.url, h.verse)
         }

@@ -315,6 +315,13 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
     private weak var textView: UITextView?
     private var lpActive = false
     private var lpEnded = Date.distantPast
+    /// Где палец коснулся: сдвинулся дальше 12 пт — это листание, а не нажатие
+    private var downAt: CGPoint?
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if let t = g as? UITapGestureRecognizer, t.numberOfTapsRequired == 1 { downAt = touch.location(in: g.view) }
+        return true
+    }
 
     init(host: PagerHost, textView: UITextView) {
         self.host = host
@@ -358,6 +365,7 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
         guard g.state == .ended, let v = g.view else { return }
         if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
         let p = g.location(in: v)
+        if let d = downAt, hypot(p.x - d.x, p.y - d.y) > 12 { return }
         // у краёв страницы — листание, как в «Книгах»
         if p.x < v.bounds.width * 0.22 { host?.turn(-1); return }
         if p.x > v.bounds.width * 0.78 { host?.turn(1); return }

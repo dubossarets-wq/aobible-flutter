@@ -101,6 +101,8 @@ final class NavigationUITests: XCTestCase {
         drag(app, from: CGVector(dx: 0.7, dy: 0.65), to: CGVector(dx: 0.45, dy: 0.35), velocity: 900)
         sleep(1)
         XCTAssertEqual(place(app).chapter, c0, "глава сменилась от короткого или косого жеста")
+        XCTAssertFalse(app.buttons["Готово"].firstMatch.exists, "короткий жест открыл окно слова")
+        if app.buttons["Готово"].firstMatch.exists { shot("n04b-word-sheet-from-drag"); app.buttons["Готово"].firstMatch.tap(); sleep(1) }
 
         // прокрутка вверх-вниз работает каждый раз и главу не меняет
         app.buttons["Следующая глава"].firstMatch.tap()
@@ -223,9 +225,10 @@ final class NavigationUITests: XCTestCase {
         XCTAssertEqual(place(app).chapter, c0 + 1, "кнопка «Следующая глава» в страницах")
         XCTAssertEqual(counter(app)?.0, 1)
         // нажатие на слово в середине — окно слова
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.3)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.42)).tap()
         let done = app.buttons["Готово"].firstMatch
-        if done.waitForExistence(timeout: 4) {
+        XCTAssertTrue(done.waitForExistence(timeout: 4), "нажатие на слово в «Страницах» не открыло окно")
+        if done.exists {
             shot("p05-word")
             done.tap()
             sleep(1)

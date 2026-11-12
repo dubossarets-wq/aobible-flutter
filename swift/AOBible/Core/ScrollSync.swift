@@ -417,6 +417,13 @@ final class ReaderGestures: NSObject, UIGestureRecognizerDelegate {
         pinch = z
     }
 
+    /// Прокрутка ушла с экрана: снимаем жесты, только если они висят именно на ней. При смене главы новая прокрутка
+    /// появляется раньше, чем уходит старая, — иначе старая сняла бы жесты с новой и свайп глав переставал работать
+    func detach(from sv: UIScrollView) {
+        guard scrollView === sv else { return }
+        detach()
+    }
+
     func detach() {
         if let p = pan { p.view?.removeGestureRecognizer(p) }
         if let z = pinch { z.view?.removeGestureRecognizer(z) }
@@ -489,7 +496,7 @@ struct ScrollFinder: UIViewRepresentable {
         }
         v.onGone = { [sync, paneID, gestures] sv in
             sync.release(paneID, sv)
-            gestures?.detach()
+            gestures?.detach(from: sv)
         }
         return v
     }
