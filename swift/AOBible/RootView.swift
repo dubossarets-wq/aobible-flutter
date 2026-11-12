@@ -40,8 +40,17 @@ struct TabBarSlider: UIViewRepresentable {
         }
 
         func apply(_ hide: Bool) {
+            #if DEBUG
+            SyncTrace.write("T,apply,\(hide),shown=\(shown),found=\(tabBar() != nil)")
+            #endif
             guard hide != shown, let tb = tabBar() else { return }
             shown = hide
+            #if DEBUG
+            SyncTrace.write("T,go,\(hide),frame=\(tb.frame),super=\(String(describing: type(of: tb.superview))),tr=\(tb.transform)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                SyncTrace.write("T,after,\(hide),frame=\(tb.frame),tr=\(tb.transform),alpha=\(tb.alpha),hidden=\(tb.isHidden)")
+            }
+            #endif
             UIView.animate(withDuration: 0.5, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
                 tb.transform = hide ? CGAffineTransform(translationX: 0, y: 200) : .identity
             }
