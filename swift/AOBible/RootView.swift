@@ -16,7 +16,7 @@ struct TabBarHider: ViewModifier {
         let hidden = active && (primary.flatMap { chrome.hidden[$0] } ?? false)
         content
             .toolbarVisibility(hidden ? .hidden : .visible, for: .tabBar)
-            .animation(.easeOut(duration: 0.2), value: hidden)
+            .animation(.easeInOut(duration: 0.5), value: hidden)
     }
 }
 

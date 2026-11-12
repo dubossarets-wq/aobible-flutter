@@ -123,7 +123,7 @@ struct PaneView: View {
                         .padding(.bottom, 4)
                     }
             }
-            .animation(.easeOut(duration: 0.2), value: chrome.hidden[paneID])
+            .animation(.easeInOut(duration: 0.5), value: chrome.hidden[paneID])
             .sheet(item: Binding(get: { planDay }, set: { planDay = $0 })) { r in
                 PlanDayView(uid: r.uid, day: r.day)
             }
@@ -202,7 +202,7 @@ struct PaneView: View {
                 .offset(y: lineY)
                 .allowsHitTesting(false)
         }
-        .animation(.easeOut(duration: 0.2), value: hidden)
+        .animation(.easeInOut(duration: 0.5), value: hidden)
     }
 
     /// Высота системной строки состояния (до края экрана)
@@ -817,7 +817,7 @@ struct ChapterText: View {
         // переходы к стиху, возврат на сохранённое место, прокрутка второй панели — не повод прятать шапку
         guard touchScroll.user else { return }
         func set(_ h: Bool) {
-            if (panes.chrome.hidden[pane.id] ?? false) != h { panes.chrome.hidden[pane.id] = h }
+            if (panes.chrome.hidden[pane.id] ?? false) != h { withAnimation(.easeInOut(duration: 0.5)) { panes.chrome.hidden[pane.id] = h } }
         }
         guard hideOnScroll, selected.isEmpty, partVerse == nil, y > 80 else {
             chromeAcc = 0
