@@ -39,6 +39,9 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
     private var containers: [NSTextContainer] = []
     /// 0 — переход в предыдущую главу, последняя — в следующую, между ними — страницы текста
     private var pages: [UIViewController] = []
+    /// Обороты страниц: лист двусторонний, при загибе видна сплошная обратная сторона цвета фона (а не светлая
+    /// полупрозрачная изнанка, которую система рисует у одностороннего листа)
+    private var backs: [UIViewController] = []
     private var current = 1
     private(set) var cfg: PagedChapter?
     private var builtKey = ""
@@ -54,7 +57,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         storage.addLayoutManager(layout)
         pvc.dataSource = self
         pvc.delegate = self
-        pvc.isDoubleSided = false
+        pvc.isDoubleSided = true
         addChild(pvc)
         view.addSubview(pvc.view)
         pvc.didMove(toParent: self)
@@ -79,7 +82,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
     /// Страницы — цвета фона (не прозрачные)
     private func paint() {
         let color = cfg?.pageColor ?? .systemBackground
-        for p in pages where p.view.backgroundColor != color { p.view.backgroundColor = color }
+        for p in pages + backs where p.view.backgroundColor != color { p.view.backgroundColor = color }
     }
 
     override func viewDidLayoutSubviews() {
@@ -138,10 +141,11 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         for tc in containers { list.append(TextPage(container: tc, host: self)) }
         list.append(EdgePage(direction: 1))
         pages = list
+        backs = list.map { _ in UIViewController() }
         paint()
         let i = pageIndex(forVerse: startVerse)
         current = i
-        pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
+        pvc.setViewControllers([pages[i], backs[i]], direction: .forward, animated: false)
         report(i)
     }
 
@@ -167,7 +171,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
     private func show(_ i: Int, animated: Bool) {
         guard i >= 0, i < pages.count else { return }
         let dir: UIPageViewController.NavigationDirection = i >= current ? .forward : .reverse
-        pvc.setViewControllers([pages[i]], direction: dir, animated: animated) { [weak self] done in
+        pvc.setViewControllers([pages[i], backs[i]], direction: dir, animated: animated) { [weak self] done in
             if done { self?.landed(i) }
         }
         if !animated { landed(i) }
@@ -213,14 +217,17 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     // MARK: - Листание жестом
 
+    // двусторонний лист: за страницей — её оборот, за оборотом — следующая страница
     func pageViewController(_ p: UIPageViewController, viewControllerBefore vc: UIViewController) -> UIViewController? {
+        if let i = backs.firstIndex(of: vc) { return pages[i] }
         guard let i = pages.firstIndex(of: vc), i > 0 else { return nil }
-        return pages[i - 1]
+        return backs[i - 1]
     }
 
     func pageViewController(_ p: UIPageViewController, viewControllerAfter vc: UIViewController) -> UIViewController? {
+        if let i = backs.firstIndex(of: vc) { return i + 1 < pages.count ? pages[i + 1] : nil }
         guard let i = pages.firstIndex(of: vc), i < pages.count - 1 else { return nil }
-        return pages[i + 1]
+        return backs[i]
     }
 
     func pageViewController(_ p: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
