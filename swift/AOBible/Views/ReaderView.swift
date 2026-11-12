@@ -85,6 +85,7 @@ struct PaneView: View {
     @EnvironmentObject private var plans: PlansStore
     @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
+    @State private var headerH: CGFloat = 62
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @ObservedObject var chrome: ChromeState
@@ -181,25 +182,25 @@ struct PaneView: View {
 
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
         let hidden = chrome.hidden[paneID] == true
+        // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
+        // От полосы до верхнего края всегда размытый фон
+        let lineY: CGFloat = hidden ? 0 : headerH
         ZStack(alignment: .top) {
-            LinearGradient(colors: [pal.bg, pal.bg.opacity(0.92), pal.bg.opacity(0)], startPoint: .top, endPoint: .bottom)
-                .frame(height: hidden ? 56 : Self.headerHeight + 40)
-                .ignoresSafeArea(edges: .top)
+            Rectangle().fill(.ultraThinMaterial).opacity(0.6)
+                .frame(height: Self.safeTop + lineY)
+                .offset(y: -Self.safeTop)
                 .allowsHitTesting(false)
             VStack(spacing: 0) {
                 header(p, m)
-                    .offset(y: hidden ? -(Self.headerHeight + 50) : 0)
-                    .opacity(hidden ? 0 : 1)
-                    .allowsHitTesting(!hidden)
                 planPill(p)
             }
-            // полоса прочтения — в самом верху экрана; от неё до верхнего края размытый фон (под ним проходит текст)
-            VStack(spacing: 0) {
-                Rectangle().fill(.ultraThinMaterial).frame(height: Self.safeTop)
-                ReadProgress(live: panes.live, id: paneID)
-            }
-            .offset(y: -Self.safeTop)
-            .allowsHitTesting(false)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
+            .offset(y: hidden ? -(headerH + 20) : 0)
+            .opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            ReadProgress(live: panes.live, id: paneID)
+                .offset(y: lineY)
+                .allowsHitTesting(false)
         }
         .animation(.easeOut(duration: 0.2), value: hidden)
     }
