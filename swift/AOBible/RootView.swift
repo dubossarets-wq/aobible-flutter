@@ -43,7 +43,7 @@ struct TabBarSlider: UIViewRepresentable {
             guard hide != shown, let tb = tabBar() else { return }
             shown = hide
             UIView.animate(withDuration: 0.5, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction]) {
-                tb.transform = hide ? CGAffineTransform(translationY: 200) : .identity
+                tb.transform = hide ? CGAffineTransform(translationX: 0, y: 200) : .identity
             }
         }
 
