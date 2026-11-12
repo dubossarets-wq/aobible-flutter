@@ -564,7 +564,7 @@ struct ChapterText: View {
             }
             .contentMargins(.top, PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
-                if let top = ids.min() {
+                if let top = ids.filter({ $0 > 0 }).min() {
                     panes.setLive(pane.id, top)
                     updateProgress(top, verses.count)
                 }
@@ -728,6 +728,16 @@ struct ChapterText: View {
             ps.paragraphSpacingBefore = before
             return ps
         }
+        if let first = d.verses.first {
+            if chapter == 1 {
+                out.append(NSAttributedString(string: bookName + "\n", attributes: [
+                    .font: uiFont(fontSize * 0.9, 600), .foregroundColor: UIColor(pal.muted), .aobVerse: first.num, .paragraphStyle: para(2),
+                ]))
+            }
+            out.append(NSAttributedString(string: chapterTitleText + "\n", attributes: [
+                .font: uiFont(fontSize * 2.1, 800), .foregroundColor: ink, .aobVerse: first.num, .paragraphStyle: para(fontSize * 0.5),
+            ]))
+        }
         for v in d.verses {
             if showHeadings, let h = d.heads[v.num] {
                 out.append(NSAttributedString(string: h + "\n", attributes: [
@@ -746,10 +756,33 @@ struct ChapterText: View {
     }
 
     /// Строки главы: стихи (или сплошные блоки) и метка конца главы
+    /// «Глава N» («Псалом N»); у первой главы над ним — название книги
+    private var chapterTitleText: String {
+        book == "Ps" ? String(localized: "Псалом \(chapter)") : String(localized: "Глава \(chapter)")
+    }
+
+    private var chapterTitle: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if chapter == 1 {
+                Text(bookName)
+                    .font(ReadingFonts.font(fontFamily, size: fontSize * 0.9, weight: 600))
+                    .foregroundStyle(pal.muted)
+            }
+            Text(chapterTitleText)
+                .font(ReadingFonts.font(fontFamily, size: fontSize * 2.1, weight: 800))
+                .foregroundStyle(pal.text)
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, fontSize * 0.3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(.isHeader)
+    }
+
     @ViewBuilder private func rows(_ d: ChapterCache) -> some View {
         let verses = d.verses
         let heads = d.heads
         let views = panes.scrollSync.views(pane.id)
+        if !verses.isEmpty { chapterTitle.id(0) }
         if continuous && !module.interlinear {
             // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
             ForEach(blocks(verses, heads)) { blk in
@@ -894,7 +927,7 @@ struct ChapterText: View {
 
     private func scroll(_ proxy: ScrollViewProxy, _ verses: [Verse], _ heads: [Int: String]) {
         guard focus > 0 else { return }
-        var target = focus
+        var target = focus == 1 ? 0 : focus
         if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == focus } }) {
             target = blk.id
         }
