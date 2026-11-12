@@ -292,12 +292,12 @@ struct PullHint: View {
             VStack(spacing: 6) {
                 if !next { caption(label, ready) }
                 Image(systemName: next ? "arrow.up" : "arrow.down")
-                    .font(.title2.weight(.bold))
+                    .font(.body.weight(.bold))
                     .rotationEffect(.degrees(ready ? 180 : 0))
                     .foregroundStyle(ready ? Color.accentColor : .primary)
                 if next { caption(label, ready) }
             }
-            .frame(width: 150, height: min(230, 40 + v * 1.7))
+            .frame(width: 112, height: min(120, 34 + v * 0.9))
             .clipped()
             .glassEffect(.regular, in: Capsule())
             .opacity(min(1, v / 30))
@@ -393,6 +393,7 @@ struct StudySheets: View {
                         var d = DictRequest(text: r.text, strongs: r.strongs, morph: r.morph, book: r.book, chapter: r.chapter, verse: r.verse)
                         d.preselect = (moduleId, key)
                         d.wordIndex = r.wordIndex
+                        d.origWord = r.origWord
                         req.sheet = .dict(d)
                     }
                 case .dict(let r):
@@ -1378,7 +1379,14 @@ struct ChapterText: View {
         req.openedAt = Date()
         // номер слова в стихе RST+ — по нему в статье видна форма слова оригинала
         let wi = (!t.strongs.isEmpty && module.id == Align.taggedRu(store)?.id) ? partWordIndex(url) : nil
-        req.sheet = .word(WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0], wordIndex: wi))
+        // подстрочник: слово оригинала известно сразу, его разбор — из греческого (еврейского) текста стиха
+        var ow: OrigInfo?
+        if module.interlinear, let o = t.orig, let n = t.strongs.first {
+            let key = Align.strongNum(n)
+            let occ = toks[..<p[1]].filter { $0.strongs.first.map(Align.strongNum) == key }.count
+            ow = OrigInfo(orig: o, morph: t.morph.first ?? Align.origMorph(store: store, book: book, chapter: chapter, verse: p[0], num: n, occurrence: occ), num: key)
+        }
+        req.sheet = .word(WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0], wordIndex: wi, origWord: ow))
     }
 
     // MARK: - Панель действий

@@ -126,6 +126,19 @@ enum Align {
         store.bibles.first { $0.id == "rst-plus" } ?? store.bibles.first { $0.strongs && $0.language == "ru" && !$0.interlinear }
     }
 
+    /// Разбор слова оригинала из подстрочника (у Винокурова морфологии нет): то же по счёту слово с этим номером
+    /// в греческом (еврейском) тексте стиха — его код Робинсона / OSHB
+    @MainActor
+    static func origMorph(store: ModuleStore, book: String, chapter: Int, verse: Int, num: String, occurrence: Int) -> String? {
+        guard let id = originalFor(book), store.module(id) != nil,
+              let raw = store.verseRaw(module: id, book: book, chapter: chapter, verse: verse) else { return nil }
+        let key = strongNum(num)
+        let names = Set(aliases[key] ?? [key])
+        let same = tokenize(raw).filter { $0.isWord && $0.strongs.first.map { names.contains(strongNum($0)) } == true }
+        guard !same.isEmpty else { return nil }
+        return same[min(occurrence, same.count - 1)].morph.first
+    }
+
     /// Слова синодального стиха, под каждым — слово оригинала (если нашлось)
     @MainActor
     static func ruWords(store: ModuleStore, book: String, chapter: Int, verse: Int) -> [RuWord]? {

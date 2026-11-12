@@ -10,6 +10,8 @@ struct WordRequest: Identifiable {
     var verse = 0
     /// номер слова в стихе RST+ (для формы слова в оригинале)
     var wordIndex: Int? = nil
+    /// слово оригинала из подстрочника
+    var origWord: OrigInfo? = nil
 }
 
 /// Выбор словаря у слова (как всплывающая карточка Flutter-версии): места («Название · Карта»), затем статьи

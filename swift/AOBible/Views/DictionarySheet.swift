@@ -67,23 +67,22 @@ struct DictionarySheet: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 header
-                Divider()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) { content }
+                    VStack(alignment: .leading, spacing: 14) { content }
                         .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                        .padding(.top, 6)
                         .padding(.bottom, 40)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .background(pal.bg)
+            .background(Color(.systemGroupedBackground))
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { num in
                 ConcordanceView(num: num, lemma: lemmaFor(num), onOpenRef: onOpenRef)
             }
         }
         .tint(pal.accent)
-        .presentationBackground(pal.bg)
+        .presentationBackground(Color(.systemGroupedBackground))
         // два положения: во всю высоту и маленькое (без среднего), затем — закрыть
         .presentationDetents([.height(200), .large], selection: $detent)
         .task {
@@ -151,32 +150,7 @@ struct DictionarySheet: View {
             if case .strong(let num, _)? = stack.last { return "Статья \(num)" }
             return "Слово: \(req.text)"
         }()
-        return HStack(spacing: 6) {
-            if let back = backAction {
-                Button(action: back) {
-                    Image(systemName: "chevron.left").font(.system(size: 19, weight: .semibold)).frame(width: 40, height: 44)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(pal.text)
-                .accessibilityLabel("Назад")
-            } else {
-                Spacer().frame(width: 10)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 19, weight: .bold)).lineLimit(1).foregroundStyle(pal.text)
-                Text(subtitle).font(.system(size: 14)).foregroundStyle(pal.muted).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 19, weight: .medium)).frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(pal.text)
-            .accessibilityLabel("Закрыть")
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, 14)
-        .padding(.bottom, 6)
+        return SheetHeader(title: title, subtitle: subtitle, onBack: backAction) { dismiss() }
     }
 
     // MARK: - Содержимое
@@ -354,7 +328,7 @@ struct StrongEntryView: View {
         let refs = entry["refs"] as? [String]
         let lex = module.id == Lexicon.symphonyId ? [] : Lexicon.lexiconEntries(store: store, num: num)
 
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 18) {
             headCard(exact: exact, morph: morph)
             if let d = str("definition") {
                 section("Значение") { linked(d, size: 17) }
@@ -369,7 +343,7 @@ struct StrongEntryView: View {
                 section("В Синодальном переводе") { RenderingsView(rows: r) }
             }
             if let t = str("text") {
-                Text(t).lineSpacing(5).foregroundStyle(pal.text)
+                Text(t).lineSpacing(4).foregroundStyle(.primary).iosCard()
             }
             if let refs, !refs.isEmpty {
                 section(renderings != nil ? "Где встречается" : "Связанные стихи") {
@@ -395,7 +369,7 @@ struct StrongEntryView: View {
     private func section<C: View>(_ title: String, @ViewBuilder _ c: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             SecTitle(text: title)
-            c()
+            c().iosCard()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -408,8 +382,8 @@ struct StrongEntryView: View {
         }
         return Text(a)
             .font(.system(size: size))
-            .lineSpacing(size * 0.4)
-            .foregroundStyle(pal.text)
+            .lineSpacing(size * 0.25)
+            .foregroundStyle(.primary)
             .environment(\.openURL, OpenURLAction { url in
                 if let k = StrongLinks.key(from: url) { onOpenStrong(k) }
                 return .handled
@@ -439,9 +413,9 @@ struct StrongEntryView: View {
                 }
             }
         }
-        .padding(EdgeInsets(top: 10, leading: 16, bottom: 14, trailing: 16))
+        .padding(EdgeInsets(top: 12, leading: 16, bottom: 14, trailing: 16))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(pal.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var metaLine: some View {
@@ -461,10 +435,10 @@ struct StrongEntryView: View {
     private func hereRow(_ label: String, first: Bool, _ value: () -> Text) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             if first {
-                Rectangle().fill(pal.accent.opacity(0.16)).frame(height: 1).padding(.bottom, 10)
+                Rectangle().fill(Color(.separator)).frame(height: 0.5).padding(.bottom, 10)
             }
-            Text(label).font(.system(size: 13.1)).foregroundStyle(pal.muted)
-            value().font(.system(size: 15.2)).foregroundStyle(pal.text).lineSpacing(3)
+            Text(label).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+            value().font(.system(size: 16)).foregroundStyle(.primary).lineSpacing(3)
         }
         .padding(.top, first ? 6 : 6)
     }
@@ -479,10 +453,10 @@ struct SecTitle: View {
     var extra: String? = nil
 
     var body: some View {
-        (Text(text.uppercased()).font(.system(size: 11.5, weight: .bold)).kerning(0.8)
-            + Text(extra.map { " · " + $0 } ?? "").font(.system(size: 11.5, weight: .medium)))
-            .foregroundStyle(pal.muted)
-            .padding(.bottom, 2)
+        (Text(text).font(.system(size: 17, weight: .semibold))
+            + Text(extra.map { " · " + $0 } ?? "").font(.system(size: 17, weight: .regular)))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
     }
 }
 
@@ -536,11 +510,10 @@ struct RefChip: View {
                 Text(label).font(.system(size: 16)).lineLimit(1)
                 if let count { Text("\(count)").font(.system(size: 13)).foregroundStyle(on ? pal.accent : pal.muted) }
             }
-            .foregroundStyle(on ? pal.accent : pal.text)
+            .foregroundStyle(on ? Color.white : Color.primary)
             .padding(.horizontal, 14)
-            .frame(height: 38)
-            .background(on ? pal.accent.opacity(0.12) : Color.clear, in: Capsule())
-            .overlay(Capsule().stroke(on ? pal.accent.opacity(0.5) : pal.muted.opacity(0.25), lineWidth: 1))
+            .frame(height: 36)
+            .background(on ? pal.accent : Color(.secondarySystemGroupedBackground), in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -578,6 +551,17 @@ struct UnderlineTabs: View {
     let onTap: (Int) -> Void
 
     var body: some View {
+        if labels.count <= 4 {
+            Picker("", selection: Binding(get: { index }, set: { i in withAnimation(.easeInOut(duration: 0.24)) { onTap(i) } })) {
+                ForEach(Array(labels.enumerated()), id: \.offset) { i, l in Text(l).tag(i) }
+            }
+            .pickerStyle(.segmented)
+        } else {
+            PillTabs(labels: labels, index: index, onTap: onTap)
+        }
+    }
+
+    private var underlined: some View {
         VStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 22) {
@@ -651,10 +635,10 @@ struct DictRow: View {
                     .multilineTextAlignment(.trailing).lineLimit(2)
                     .frame(maxWidth: 120, alignment: .trailing)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .contentShape(Rectangle())
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(pal.muted.opacity(0.25), lineWidth: 1))
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -671,10 +655,13 @@ struct LexSection: View {
         let long = text.count > 420
         VStack(alignment: .leading, spacing: 6) {
             SecTitle(text: name)
-            Text(text).lineSpacing(5).lineLimit(long && !open ? 7 : nil).foregroundStyle(pal.text)
-            if long {
-                MoreLink(label: open ? "Свернуть" : "Развернуть") { open.toggle() }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(text).lineSpacing(4).lineLimit(long && !open ? 7 : nil).foregroundStyle(.primary)
+                if long {
+                    MoreLink(label: open ? "Свернуть" : "Развернуть") { open.toggle() }
+                }
             }
+            .iosCard()
         }
     }
 }
@@ -700,26 +687,26 @@ struct BarsView: View {
 
     var body: some View {
         let mx = max(1, rows.map { $0.1 }.max() ?? 1)
-        VStack(spacing: books ? 3 : 4) {
+        VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, r in
                 GeometryReader { g in
                     let labelW = books ? 56 : (g.size.width - 46 - 20) * 0.4
                     let barW = g.size.width - labelW - 46 - 20
                     let w = min(1, max(0.03, CGFloat(r.1) / CGFloat(mx)))
                     HStack(spacing: 10) {
-                        Text(r.0).font(.system(size: books ? 15 : 17)).foregroundStyle(books ? pal.muted : pal.text)
+                        Text(r.0).font(.system(size: books ? 14 : 16)).foregroundStyle(books ? Color.secondary : Color.primary)
                             .lineLimit(1).frame(width: labelW, alignment: .leading)
                         ZStack(alignment: .leading) {
-                            Capsule().fill(pal.muted.opacity(0.15))
+                            Capsule().fill(Color(.tertiarySystemFill))
                             Capsule().fill(pal.accent).frame(width: barW * w)
                         }
                         .frame(width: barW, height: 6)
-                        Text("\(r.1)").font(.system(size: 15).monospacedDigit()).foregroundStyle(pal.muted)
+                        Text("\(r.1)").font(.system(size: 14).monospacedDigit()).foregroundStyle(.secondary)
                             .frame(width: 36, alignment: .trailing)
                     }
                     .frame(maxHeight: .infinity)
                 }
-                .frame(height: books ? 26 : 30)
+                .frame(height: books ? 22 : 25)
             }
         }
     }
@@ -777,7 +764,7 @@ struct WordStatsBlock: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(pal.muted.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     @ViewBuilder private func stats(_ st: WordStats) -> some View {
@@ -792,10 +779,13 @@ struct WordStatsBlock: View {
                 tile(books, ruPlural(books, ["книга", "книги", "книг"]))
             }
             if books > 1 {
-                BarsView(rows: top.map { ((Books.info($0.0)?.short ?? $0.0).replacingOccurrences(of: ".", with: ""), $0.1) }, books: true)
-            }
-            if books > top.count {
-                Text("И ещё в \(books - top.count) книгах.").font(.system(size: 15)).foregroundStyle(pal.muted)
+                VStack(alignment: .leading, spacing: 6) {
+                    BarsView(rows: top.map { ((Books.info($0.0)?.short ?? $0.0).replacingOccurrences(of: ".", with: ""), $0.1) }, books: true)
+                    if books > top.count {
+                        Text("И ещё в \(books - top.count) книгах.").font(.system(size: 14)).foregroundStyle(.secondary)
+                    }
+                }
+                .iosCard()
             }
             FlowRow {
                 ForEach(st.refs.prefix(8)) { r in
@@ -804,11 +794,11 @@ struct WordStatsBlock: View {
             }
             Button(action: onOpenAll) {
                 Text("Все места (\(st.verses))")
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(pal.text)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(pal.accent)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(pal.muted.opacity(0.3), lineWidth: 1))
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -834,27 +824,13 @@ struct ConcordanceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 19, weight: .semibold)).frame(width: 40, height: 44)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(pal.text)
-                .accessibilityLabel("Назад")
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Все места · \(num)" + ((lemma?.isEmpty == false) ? " \(lemma!)" : ""))
-                        .font(.system(size: 19, weight: .bold)).lineLimit(1).foregroundStyle(pal.text)
-                    if let st, st.total > 0 {
-                        Text("\(st.total) \(ruPlural(st.total, ["раз", "раза", "раз"])) в \(st.verses) \(ruPlural(st.verses, ["стихе", "стихах", "стихах"])) · \(st.module)")
-                            .font(.system(size: 14)).foregroundStyle(pal.muted).lineLimit(1)
-                    }
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
-            Divider()
+            SheetHeader(
+                title: "Все места · \(num)" + ((lemma?.isEmpty == false) ? " \(lemma!)" : ""),
+                subtitle: (st.map { $0.total > 0 } ?? false)
+                    ? "\(st!.total) \(ruPlural(st!.total, ["раз", "раза", "раз"])) в \(st!.verses) \(ruPlural(st!.verses, ["стихе", "стихах", "стихах"])) · \(st!.module)" : "",
+                onBack: { dismiss() },
+                onClose: nil
+            )
             if !loaded {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -868,7 +844,7 @@ struct ConcordanceView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(pal.bg)
+        .background(Color(.systemGroupedBackground))
         .toolbar(.hidden, for: .navigationBar)
         .task {
             st = await StrongStats.load(store: store, num: num)
@@ -962,26 +938,30 @@ struct ConcordanceView: View {
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 12)
-                ForEach(filtered.prefix(shown)) { r in
-                    Button { onOpenRef(r.book, r.chapter, r.verse) } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(shortRef(r.book, r.chapter, r.verse)).font(.system(size: 14, weight: .bold)).foregroundStyle(pal.accent)
-                            Text(highlighted(r)).font(.system(size: 16)).lineSpacing(5).foregroundStyle(pal.text)
+                VStack(spacing: 0) {
+                    ForEach(Array(filtered.prefix(shown).enumerated()), id: \.element.id) { i, r in
+                        if i > 0 { Rectangle().fill(Color(.separator)).frame(height: 0.5).padding(.leading, 16) }
+                        Button { onOpenRef(r.book, r.chapter, r.verse) } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(shortRef(r.book, r.chapter, r.verse)).font(.system(size: 14, weight: .bold)).foregroundStyle(pal.accent)
+                                Text(highlighted(r)).font(.system(size: 16)).lineSpacing(4).foregroundStyle(.primary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    Rectangle().fill(pal.muted.opacity(0.18)).frame(height: 1)
                 }
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.horizontal, 16)
                 if filtered.count > shown {
                     Button { shown += 40 } label: {
                         Text("Показать ещё (\(filtered.count - shown))")
-                            .font(.system(size: 17, weight: .medium)).foregroundStyle(pal.text)
+                            .font(.system(size: 17, weight: .semibold)).foregroundStyle(pal.accent)
                             .frame(maxWidth: .infinity).frame(height: 50)
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(pal.muted.opacity(0.3), lineWidth: 1))
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .padding(16)
@@ -1004,6 +984,56 @@ struct ConcordanceView: View {
             out += piece
         }
         return out
+    }
+}
+
+// MARK: - Стиль iOS
+
+extension View {
+    /// Карточка группы iOS: белая (в тёмной теме — серая) плашка со скруглением
+    func iosCard() -> some View {
+        self
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// Шапка листа: слева «назад», по центру заголовок с подписью, справа «закрыть» — круглые стеклянные кнопки
+struct SheetHeader: View {
+    let title: String
+    let subtitle: String
+    var onBack: (() -> Void)?
+    var onClose: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let onBack {
+                Button(action: onBack) { Image(systemName: "chevron.left").chromeCircle() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Назад")
+            } else {
+                Color.clear.frame(width: 40, height: 40)
+            }
+            VStack(spacing: 1) {
+                Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            if let onClose {
+                Button(action: onClose) { Image(systemName: "xmark").chromeCircle() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Закрыть")
+            } else {
+                Color.clear.frame(width: 40, height: 40)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
     }
 }
 
