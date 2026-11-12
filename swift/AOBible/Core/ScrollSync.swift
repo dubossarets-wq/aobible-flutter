@@ -205,6 +205,9 @@ final class ScrollSync {
 
     func views(_ id: UUID) -> VerseViews { pane(id).views }
 
+    /// Прокрутка панели (UIScrollView), если она уже найдена
+    func scrollView(_ id: UUID) -> UIScrollView? { panes[id]?.scrollView }
+
     /// Прокрутка панели найдена (см. ScrollFinder): следим за её смещением
     func attach(_ id: UUID, _ sv: UIScrollView) {
         let p = pane(id)

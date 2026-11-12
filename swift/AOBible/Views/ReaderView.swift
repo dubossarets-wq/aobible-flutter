@@ -605,8 +605,10 @@ struct ChapterText: View {
                 trackChrome(y)
             }
             // потянули за конец главы вверх (или за начало вниз) и отпустили — открывается соседняя глава, как в «ТикТоке»
+            // насколько потянули за конец главы — по самой прокрутке UIKit (сводка SwiftUI внизу неточно учитывала
+            // нижние кнопки и меню, и до порога было не дотянуть)
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.containerSize.height - $0.contentSize.height - $0.contentInsets.bottom }) { _, over in
-                pull.setBottom(max(0, over))
+                pull.setBottom(max(0, bottomOver(fallback: over)))
             }
             .onScrollGeometryChange(for: CGFloat.self, of: { -($0.contentOffset.y + $0.contentInsets.top) }) { _, over in
                 pull.setTop(max(0, over))
@@ -617,7 +619,7 @@ struct ChapterText: View {
                 SyncTrace.write("P,phase,\(old),\(new),bottom=\(pull.bottom),top=\(pull.top)")
                 #endif
                 guard old == .interacting, new != .interacting else { return }
-                if pull.bottom >= PullState.threshold {
+                if max(pull.bottom, bottomOver(fallback: 0)) >= PullState.threshold {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     panes.step(pane.id, 1, module: module)
                 } else if pull.top >= PullState.threshold {
@@ -977,6 +979,13 @@ struct ChapterText: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
         }
+    }
+
+    /// На сколько текст вытянут вверх за конец главы (0 — не вытянут): смещение прокрутки сверх наибольшего
+    private func bottomOver(fallback: CGFloat) -> CGFloat {
+        guard let sv = panes.scrollSync.scrollView(pane.id), sv.window != nil else { return fallback }
+        let maxY = max(-sv.adjustedContentInset.top, sv.contentSize.height + sv.adjustedContentInset.bottom - sv.bounds.height)
+        return sv.contentOffset.y - maxY
     }
 
     /// Сколько прочитано книги: главы до этой плюс доля этой главы
