@@ -628,7 +628,7 @@ struct ChapterText: View {
                 scroll(proxy, verses, heads)
                 // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»
                 if UserDefaults.standard.bool(forKey: "debugWord"), req.sheet == nil {
-                    req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
+                    req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1))
                 }
                 // -debugSelect YES: выделен первый стих (панель действий)
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
