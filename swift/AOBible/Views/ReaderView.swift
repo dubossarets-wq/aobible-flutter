@@ -186,7 +186,7 @@ struct PaneView: View {
         // От полосы до верхнего края всегда размытый фон
         let lineY: CGFloat = hidden ? 0 : headerH
         ZStack(alignment: .top) {
-            Rectangle().fill(.ultraThinMaterial).opacity(0.6)
+            Rectangle().fill(.ultraThinMaterial).opacity(0.85)
                 .frame(height: Self.safeTop + lineY)
                 .offset(y: -Self.safeTop)
                 .allowsHitTesting(false)
