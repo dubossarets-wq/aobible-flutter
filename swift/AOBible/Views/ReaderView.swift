@@ -253,6 +253,9 @@ final class PullState: ObservableObject {
     func setBottom(_ v: CGFloat) {
         bottom = v
         bottomShown = v
+        #if DEBUG
+        if v > 5 { SyncTrace.write("P,bottom,\(v)") }
+        #endif
     }
 
     func setTop(_ v: CGFloat) {
