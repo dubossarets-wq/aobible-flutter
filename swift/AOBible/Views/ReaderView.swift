@@ -138,7 +138,8 @@ struct PaneView: View {
                 NavigationStack {
                     ModulesList(selected: Binding(
                         get: { p.moduleId },
-                        set: { panes.setModule(paneID, $0, store) }
+                        // выбрали перевод — окно закрывается само
+                        set: { panes.setModule(paneID, $0, store); showModules = false }
                     ))
                     .navigationTitle("Перевод")
                     .navigationBarTitleDisplayMode(.inline)
