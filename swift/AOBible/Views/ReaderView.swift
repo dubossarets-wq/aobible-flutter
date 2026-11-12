@@ -243,7 +243,7 @@ struct PaneView: View {
 /// Насколько потянули за край главы (в точках): по нему показывается подсказка, а при отпускании — переход к соседней главе
 @MainActor
 final class PullState: ObservableObject {
-    static let threshold: CGFloat = 90
+    static let threshold: CGFloat = 70
     private(set) var bottom: CGFloat = 0
     private(set) var top: CGFloat = 0
     /// Для подсказки: меняется плавно вместе с пальцем (перерисовывается только сама подсказка)
@@ -480,6 +480,9 @@ struct ChapterText: View {
             }
             .onScrollPhaseChange { old, new in
                 touchScroll.user = (new == .interacting || new == .decelerating)
+                #if DEBUG
+                SyncTrace.write("P,phase,\(old),\(new),bottom=\(pull.bottom),top=\(pull.top)")
+                #endif
                 guard old == .interacting, new != .interacting else { return }
                 if pull.bottom >= PullState.threshold {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()

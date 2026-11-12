@@ -60,7 +60,7 @@ final class ReaderModesUITests: XCTestCase {
         }
         shot("u01-end-of-chapter")
         // тянем выше и держим — по снимкам из цикла видно, как растёт «таблетка»
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)), withVelocity: 250, thenHoldForDuration: 6)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).press(forDuration: 0.02, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)), withVelocity: 250, thenHoldForDuration: 6)
         sleep(2)
         shot("u02-after-release")
         let head = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Быт 2'")).firstMatch
