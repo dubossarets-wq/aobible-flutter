@@ -49,6 +49,8 @@ final class PanesStore: ObservableObject {
     @Published var panes: [PaneState] = []
     let live = LivePlace()
     let chrome = ChromeState()
+    /// История всех мест с датой и временем («Ещё» → «История»)
+    let log = ReadingHistory()
     /// Синхронная прокрутка панелей
     let scrollSync = ScrollSync()
     private var liveTask: Task<Void, Never>?
@@ -84,6 +86,7 @@ final class PanesStore: ObservableObject {
     func setLive(_ id: UUID, _ verse: Int) {
         guard index(id) != nil, live.verse[id] != verse else { return }
         live.verse[id] = verse
+        if let i = index(id), verse > 0 { log.record(panes[i].book, panes[i].chapter, verse) }
         liveTask?.cancel()
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -144,6 +147,7 @@ final class PanesStore: ObservableObject {
         panes[i].chapter = chapter
         panes[i].verse = verse
         live.verse[id] = nil
+        log.record(book, chapter, verse)
         if record {
             var h = Array(panes[i].history.prefix(panes[i].hIndex + 1))
             let p = Place(book: book, chapter: chapter, verse: verse)
@@ -198,6 +202,7 @@ final class PanesStore: ObservableObject {
         panes[i].book = p.book
         panes[i].chapter = p.chapter
         panes[i].verse = p.verse
+        log.record(p.book, p.chapter, p.verse)
         save()
     }
 
@@ -208,6 +213,7 @@ final class PanesStore: ObservableObject {
         panes[i].book = p.book
         panes[i].chapter = p.chapter
         panes[i].verse = p.verse
+        log.record(p.book, p.chapter, p.verse)
         save()
     }
 

@@ -16,6 +16,13 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink {
+                        HistoryView()
+                    } label: {
+                        IconLabel(title: "История", symbol: "clock.arrow.circlepath", color: .blue)
+                    }
+                }
+                Section {
                     Button {
                         if let p = panes.panes.first, let here = panes.livePlace(p.id) {
                             // закладка на текущее место (верхний видимый стих): повторное нажатие снимает её
