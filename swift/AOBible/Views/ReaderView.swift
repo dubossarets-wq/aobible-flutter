@@ -192,10 +192,21 @@ struct PaneView: View {
                     .opacity(hidden ? 0 : 1)
                     .allowsHitTesting(!hidden)
                 planPill(p)
+            }
+            // полоса прочтения — в самом верху экрана; от неё до верхнего края размытый фон (под ним проходит текст)
+            VStack(spacing: 0) {
+                Rectangle().fill(.ultraThinMaterial).frame(height: Self.safeTop)
                 ReadProgress(live: panes.live, id: paneID)
             }
+            .offset(y: -Self.safeTop)
+            .allowsHitTesting(false)
         }
         .animation(.easeOut(duration: 0.2), value: hidden)
+    }
+
+    /// Высота системной строки состояния (до края экрана)
+    static var safeTop: CGFloat {
+        (UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first?.keyWindow?.safeAreaInsets.top) ?? 54
     }
 
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
