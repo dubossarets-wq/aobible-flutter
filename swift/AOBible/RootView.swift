@@ -85,7 +85,9 @@ struct RootView: View {
                 PlansView()
             }
             Tab("Библия", systemImage: "book", value: AppTab.bible) {
+                // уход нижнего меню задаётся изнутри вкладки — так его понимает система
                 ReaderView()
+                    .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll))
             }
             Tab("Закладки", systemImage: "heart", value: AppTab.saved) {
                 BookmarksView()
@@ -99,7 +101,6 @@ struct RootView: View {
         }
         // при прокрутке вниз нижнее меню (вместе с поиском) уходит вниз целиком, как и верхнее, при прокрутке вверх — возвращается
         .tabBarMinimizeBehavior(.never)
-        .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
         // мини-проигрыватель над нижним меню, пока идёт аудио
         .modifier(AudioAccessory(active: audio.active))
         // проверка на симуляторе: -debugView appearance|settings|mydata|about|news|help|library|dictionary|maps|audio|sermons
