@@ -108,7 +108,7 @@ struct InterlinearVerse: View {
             if favorite {
                 Text("♥").font(.system(size: fontSize * 0.62)).foregroundStyle(Color(hex: 0xd9475e))
             }
-            ForEach(words()) { column($0) }
+            ForEach(words().filter { showOrig || showStrong || !["·", ""].contains($0.gloss.trimmingCharacters(in: .whitespaces)) }) { column($0) }
             if xrefs > 0 {
                 Text("⇅\(xrefs)")
                     .font(.system(size: fontSize * 0.62, weight: .medium))
@@ -197,6 +197,8 @@ struct VerseAnchor: UIViewRepresentable {
 
 /// Панель подстрочника под шапкой: что показывать в столбике (перевод, оригинал, номер Стронга) и «Свернуть»
 struct InterlinearBar: View {
+    /// Высота панели вместе с отступом снизу
+    static let height: CGFloat = 46
     @AppStorage("ilGloss") private var gloss = true
     @AppStorage("ilOrig") private var orig = true
     @AppStorage("ilStrong") private var strong = true
@@ -214,7 +216,7 @@ struct InterlinearBar: View {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
-                .frame(height: 30)
+                .frame(height: 34)
                 .background(b.wrappedValue ? pal.accent.opacity(0.18) : Color.clear, in: Capsule())
                 .foregroundStyle(b.wrappedValue ? pal.accent : pal.muted)
         }
@@ -228,17 +230,18 @@ struct InterlinearBar: View {
                 part("Оригинал", $orig)
                 part("Стронг", $strong)
             }
-            .padding(2)
+            .padding(3)
+            .frame(height: 40)
             .glassEffect(.regular, in: Capsule())
             Spacer(minLength: 4)
             Button { open = false } label: {
-                Image(systemName: "chevron.up").font(.footnote.weight(.bold)).frame(width: 30, height: 30)
+                Image(systemName: "chevron.up").chromeCircle()
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
+            .buttonStyle(.plain)
             .accessibilityLabel("Свернуть")
         }
         .padding(.horizontal, 20)
-        .frame(height: 40)
+        .padding(.bottom, 6)
+        .frame(height: Self.height)
     }
 }

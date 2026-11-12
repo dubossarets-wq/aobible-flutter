@@ -85,7 +85,7 @@ struct PaneView: View {
     @EnvironmentObject private var plans: PlansStore
     @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
-    @State private var headerH: CGFloat = 46
+    @State private var headerH: CGFloat = 52
     @AppStorage("ilBar") private var ilBar = true
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
@@ -181,7 +181,7 @@ struct PaneView: View {
     }
 
     /// Высота шапки: столько оставлено в начале текста (постоянно, чтобы шапка не двигала текст)
-    static let headerHeight: CGFloat = 46
+    static let headerHeight: CGFloat = 52
 
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
         let hidden = chrome.hidden[paneID] == true
@@ -210,49 +210,45 @@ struct PaneView: View {
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
             Button { showModules = true } label: {
-                Text(m.shortName).font(.headline).fixedSize().padding(.horizontal, 4)
+                Text(m.shortName).font(.headline).fixedSize().chromePill()
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
             Button { showGoto = true } label: {
                 HStack(spacing: 5) {
                     LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
                     Image(systemName: "chevron.down").font(.caption.weight(.bold))
                 }
-                .padding(.horizontal, 4)
+                .font(.headline)
+                .chromePill()
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.plain)
             Spacer(minLength: 4)
             if panes.canBack(paneID) {
-                Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward") }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward").chromeCircle() }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Назад")
             }
             if panes.canForward(paneID) {
-                Button { panes.forward(paneID) } label: { Image(systemName: "arrow.uturn.forward") }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                Button { panes.forward(paneID) } label: { Image(systemName: "arrow.uturn.forward").chromeCircle() }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Вперёд")
             }
             if panes.panes.count > 1 {
-                Button(role: .destructive) { panes.closePane(paneID) } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                Button { panes.closePane(paneID) } label: { Image(systemName: "xmark").chromeCircle() }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Закрыть панель")
             }
             if m.interlinear && !ilBar {
-                Button { ilBar = true } label: { Image(systemName: "slider.horizontal.3") }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                Button { ilBar = true } label: { Image(systemName: "slider.horizontal.3").chromeCircle() }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Подстрочник")
             }
-            Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1") }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
+            Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle() }
+                .buttonStyle(.plain)
                 .disabled(panes.panes.count >= maxPanes)
+                .opacity(panes.panes.count >= maxPanes ? 0.4 : 1)
                 .accessibilityLabel("Добавить панель")
         }
-        .controlSize(.regular)
         .padding(.horizontal, 20)
         .padding(.vertical, 6)
     }
@@ -322,6 +318,7 @@ struct PullHint: View {
 /// Шапка, полоска прочтения и размытый фон двигаются одним анимируемым значением p (0 — шапка на месте, 1 — ушла):
 /// шапка уезжает за верхний край, полоска всё время висит под ней и останавливается у верха экрана, размытие — до полоски
 struct SlidingChrome<Header: View, Line: View>: View, Animatable {
+    @Environment(\.readerPalette) private var pal
     var p: CGFloat
     let headerH: CGFloat
     let safeTop: CGFloat
@@ -346,7 +343,10 @@ struct SlidingChrome<Header: View, Line: View>: View, Animatable {
         let shift = p * travel
         let lineY = max(0, headerH - shift)
         ZStack(alignment: .top) {
-            Rectangle().fill(.ultraThinMaterial).opacity(0.85)
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                Rectangle().fill(pal.bg.opacity(0.55))
+            }
                 .frame(height: safeTop + lineY)
                 .offset(y: -safeTop)
                 .allowsHitTesting(false)
@@ -374,6 +374,27 @@ struct StudySheets: View {
         Color.clear
             .sheet(item: $req.strong) { r in StrongSheet(keys: [r.key]) }
             .sheet(item: $req.word) { r in WordSheet(req: r) }
+    }
+}
+
+/// Кнопки шапки и панели подстрочника — одной высоты: плашка и круг по 40 пт, стекло iOS 26
+extension View {
+    func chromePill() -> some View {
+        self
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .frame(height: 40)
+            .contentShape(Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
+    }
+
+    func chromeCircle() -> some View {
+        self
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(.primary)
+            .frame(width: 40, height: 40)
+            .contentShape(Circle())
+            .glassEffect(.regular.interactive(), in: Circle())
     }
 }
 
@@ -540,7 +561,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .contentMargins(.top, PaneView.headerHeight + (module.interlinear ? 40 : 0), for: .scrollContent)
+            .contentMargins(.top, PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.min() {
                     panes.setLive(pane.id, top)
