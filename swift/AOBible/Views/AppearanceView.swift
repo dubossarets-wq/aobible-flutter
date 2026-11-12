@@ -66,10 +66,7 @@ struct AppearanceView: View {
                 row("Поля по бокам: \(Int(textMargin))", value: $textMargin, range: 8...48, step: 2, def: 14)
             }
             Section("Текст") {
-                Picker("Режим чтения", selection: $readingStyle) {
-                    Text("Прокрутка").tag("scroll")
-                    Text("Страницы, как в книге").tag("pages")
-                }
+                // «Режим чтения» (прокрутка / страницы) — в «Ещё»
                 Toggle("Номера стихов", isOn: $showNumbers)
                 if showNumbers {
                     Picker("Номер стиха", selection: $verseNumPos) {

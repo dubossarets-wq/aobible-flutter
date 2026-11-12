@@ -32,14 +32,16 @@ struct PagedChapter: UIViewControllerRepresentable {
     }
 }
 
-final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
     private let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
     private let storage = NSTextStorage()
     private let layout = NSLayoutManager()
     private var containers: [NSTextContainer] = []
-    /// 0 — переход в предыдущую главу, последняя — в следующую, между ними — страницы текста
+    /// Страницы текста (номер — как у containers)
     private var pages: [UIViewController] = []
-    private var current = 1
+    private var current = 0
+    /// Листнули за край главы: соседняя глава ляжет с перелистыванием в эту сторону (+1 вперёд, −1 назад)
+    private var pendingDir = 0
     private(set) var cfg: PagedChapter?
     private var builtKey = ""
     private var builtSize = CGSize.zero
@@ -61,6 +63,11 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         pvc.view.backgroundColor = .clear
         // встроенные нажатия у краёв заменены своими (см. PageTouch): рядом со словами они мешали бы
         for g in pvc.gestureRecognizers where g is UITapGestureRecognizer { g.isEnabled = false }
+        // за первой и последней страницей листать нечего (система не начинает загиб) — свой жест открывает соседнюю главу
+        let edgePan = UIPanGestureRecognizer(target: self, action: #selector(edgePanned(_:)))
+        edgePan.delegate = self
+        edgePan.cancelsTouchesInView = false
+        pvc.view.addGestureRecognizer(edgePan)
         counter.font = .systemFont(ofSize: 12, weight: .medium)
         counter.textColor = .secondaryLabel
         counter.textAlignment = .center
@@ -118,8 +125,20 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             }
             return
         }
-        // пересборка: первый раз — на стихе из панели, дальше — на том же стихе, что был у верха страницы
-        let startVerse = builtKey.isEmpty ? c.focus : topVerse
+        // пересборка: первый раз — на стихе из панели, дальше — на том же стихе, что был у верха страницы;
+        // перешли в соседнюю главу — на стихе из панели (начало или конец главы)
+        let dir = pendingDir
+        pendingDir = 0
+        let startVerse = builtKey.isEmpty || dir != 0 || c.key.split(separator: "|").prefix(3) != builtKey.split(separator: "|").prefix(3) ? c.focus : topVerse
+        // снимок нынешней страницы — с него соседняя глава перелистнётся (старые страницы сейчас потеряют текст)
+        if dir != 0, let snap = pvc.view.snapshotView(afterScreenUpdates: false) {
+            let vc = UIViewController()
+            vc.view.backgroundColor = c.pageColor
+            snap.frame = vc.view.bounds
+            snap.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            vc.view.addSubview(snap)
+            pvc.setViewControllers([vc], direction: .forward, animated: false)
+        }
         builtKey = c.key
         builtSize = size
         lastFocus = c.focus
@@ -134,22 +153,23 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             layout.ensureLayout(for: tc)
             if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
         }
-        var list: [UIViewController] = [EdgePage(direction: -1)]
-        for tc in containers { list.append(TextPage(container: tc, host: self)) }
-        list.append(EdgePage(direction: 1))
-        pages = list
+        pages = containers.map { TextPage(container: $0, host: self) }
         paint()
         let i = pageIndex(forVerse: startVerse)
         current = i
-        pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
+        if dir != 0 {
+            pvc.setViewControllers([pages[i]], direction: dir > 0 ? .forward : .reverse, animated: true)
+        } else {
+            pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
+        }
         report(i)
     }
 
     /// Страница (номер в pages), на которой стих
     private func pageIndex(forVerse v: Int) -> Int {
-        guard pages.count > 2 else { return 1 }
-        if v >= 9999 { return pages.count - 2 }
-        guard v > 0, storage.length > 0 else { return 1 }
+        guard !pages.isEmpty else { return 0 }
+        if v >= 9999 { return pages.count - 1 }
+        guard v > 0, storage.length > 0 else { return 0 }
         var loc: Int?
         storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { val, r, stop in
             if (val as? Int) == v {
@@ -157,11 +177,11 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
                 stop.pointee = true
             }
         }
-        guard let l = loc else { return 1 }
+        guard let l = loc else { return 0 }
         var range = NSRange()
         guard let tc = layout.textContainer(forGlyphAt: layout.glyphIndexForCharacter(at: l), effectiveRange: &range),
-              let idx = containers.firstIndex(where: { $0 === tc }) else { return 1 }
-        return idx + 1
+              let idx = containers.firstIndex(where: { $0 === tc }) else { return 0 }
+        return idx
     }
 
     private func show(_ i: Int, animated: Bool) {
@@ -179,36 +199,52 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         SyncTrace.write("T,turn,\(d),current=\(current),pages=\(pages.count)")
         #endif
         let t = current + d
-        guard t >= 0, t < pages.count else { return }
+        if t < 0 { edge(-1); return }
+        if t >= pages.count { edge(1); return }
         show(t, animated: true)
+    }
+
+    /// За краем главы — сразу соседняя глава (без пустой страницы-перехода)
+    private func edge(_ d: Int) {
+        guard pendingDir == 0 else { return }
+        pendingDir = d
+        cfg?.onEdge(d)
+        // в начале или конце Библии главы нет — ключ не сменится, ждать нечего
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.pendingDir = 0 }
+    }
+
+    @objc private func edgePanned(_ g: UIPanGestureRecognizer) {
+        guard g.state == .ended, !pages.isEmpty else { return }
+        let t = g.translation(in: g.view)
+        guard abs(t.x) > 50, abs(t.x) > abs(t.y) * 1.5 else { return }
+        if t.x > 0, current == 0 { edge(-1) }
+        if t.x < 0, current == pages.count - 1 { edge(1) }
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 
     private func landed(_ i: Int) {
         #if DEBUG
         SyncTrace.write("T,landed,\(i)")
         #endif
-        if i == 0 {
-            cfg?.onEdge(-1)
-        } else if i == pages.count - 1 {
-            cfg?.onEdge(1)
-        } else {
-            current = i
-            report(i)
-        }
+        current = i
+        report(i)
     }
 
     private func report(_ i: Int) {
-        guard i >= 1, i - 1 < containers.count else { return }
-        let gr = layout.glyphRange(for: containers[i - 1])
+        guard i >= 0, i < containers.count else { return }
+        let gr = layout.glyphRange(for: containers[i])
         let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
         var verse = 1
         if cr.length > 0, cr.location < storage.length {
             verse = (storage.attribute(.aobVerse, at: cr.location, effectiveRange: nil) as? Int) ?? 1
         }
         topVerse = verse
-        let total = max(1, pages.count - 2)
-        counter.text = "\(i) / \(total)"
-        cfg?.onPage(verse, i, total)
+        let total = max(1, pages.count)
+        counter.text = "\(i + 1) / \(total)"
+        cfg?.onPage(verse, i + 1, total)
     }
 
     // MARK: - Листание жестом
@@ -352,29 +388,5 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         g.view != nil && g.view === other.view
-    }
-}
-
-/// Страница-переход: показывается, пока листаете к соседней главе; когда страница легла — глава меняется
-final class EdgePage: UIViewController {
-    private let direction: Int
-
-    init(direction: Int) {
-        self.direction = direction
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        let l = UILabel()
-        l.text = direction > 0 ? "Следующая глава" : "Предыдущая глава"
-        l.font = .systemFont(ofSize: 15, weight: .medium)
-        l.textColor = .secondaryLabel
-        l.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(l)
-        NSLayoutConstraint.activate([l.centerXAnchor.constraint(equalTo: view.centerXAnchor), l.centerYAnchor.constraint(equalTo: view.centerYAnchor)])
     }
 }

@@ -6,6 +6,7 @@ struct MoreView: View {
     @EnvironmentObject private var marks: MarksStore
     @AppStorage("panesStacked") private var panesStacked = true
     @AppStorage("syncScroll") private var syncScroll = true
+    @AppStorage("readingStyle") private var readingStyle = "scroll"
     @State private var bookmarkedMessage: String?
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
@@ -54,6 +55,13 @@ struct MoreView: View {
                     }
                 }
                 Section {
+                    Picker(selection: $readingStyle) {
+                        Text("Прокрутка").tag("scroll")
+                        Text("Страницы").tag("pages")
+                    } label: {
+                        IconLabel(title: "Режим чтения", symbol: "book.pages.fill", color: .orange)
+                    }
+                    .pickerStyle(.menu)
                     Toggle(isOn: $panesStacked) {
                         IconLabel(title: "Панели друг над другом", symbol: "rectangle.split.1x2.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
                     }

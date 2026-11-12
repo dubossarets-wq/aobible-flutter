@@ -123,6 +123,7 @@ private struct HistoryList: View {
 
     var body: some View {
         List {
+            // переключатель — сам по себе, без карточки; день или месяц — своей карточкой под ним
             Section {
                 Picker("Показать", selection: $mode) {
                     Text("Всё").tag(Mode.all)
@@ -132,8 +133,12 @@ private struct HistoryList: View {
                 .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
-                if mode == .day { dayBar }
-                if mode == .month { monthBar }
+                .listRowSeparator(.hidden)
+            }
+            if mode != .all {
+                Section {
+                    if mode == .day { dayBar } else { monthBar }
+                }
             }
             if groups.isEmpty {
                 Section {
@@ -149,6 +154,7 @@ private struct HistoryList: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(14)
         .navigationTitle("История")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
