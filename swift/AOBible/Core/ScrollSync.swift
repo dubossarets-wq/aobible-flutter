@@ -388,9 +388,69 @@ enum SyncTrace {
 #endif
 
 /// Находит UIScrollView, в котором лежит содержимое SwiftUI-панели, и подключает её к синхронной прокрутке
+/// Свайп глав и щипок размера букв — жесты UIKit прямо на прокрутке главы. Они распознаются одновременно с прокруткой
+/// и не могут её отнять. (Жесты SwiftUI на содержимом после закрытия окон — картинки, карты — начинали через раз
+/// перехватывать касание, и текст прокручивался не с первого раза.)
+final class ReaderGestures: NSObject, UIGestureRecognizerDelegate {
+    /// dx, dy, x начала, ширина панели
+    var onSwipe: (CGFloat, CGFloat, CGFloat, CGFloat) -> Void = { _, _, _, _ in }
+    var onPinch: (UIGestureRecognizer.State, CGFloat) -> Void = { _, _ in }
+    private weak var scrollView: UIScrollView?
+    private var pan: UIPanGestureRecognizer?
+    private var pinch: UIPinchGestureRecognizer?
+    private var startX: CGFloat = 0
+
+    func attach(_ sv: UIScrollView) {
+        guard scrollView !== sv else { return }
+        detach()
+        scrollView = sv
+        let p = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        let z = UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:)))
+        for g in [p, z] as [UIGestureRecognizer] {
+            g.delegate = self
+            g.cancelsTouchesInView = false
+            g.delaysTouchesBegan = false
+            g.delaysTouchesEnded = false
+            sv.addGestureRecognizer(g)
+        }
+        pan = p
+        pinch = z
+    }
+
+    func detach() {
+        if let p = pan { p.view?.removeGestureRecognizer(p) }
+        if let z = pinch { z.view?.removeGestureRecognizer(z) }
+        pan = nil
+        pinch = nil
+        scrollView = nil
+    }
+
+    @objc private func panned(_ g: UIPanGestureRecognizer) {
+        guard let v = g.view else { return }
+        switch g.state {
+        case .began:
+            startX = g.location(in: v).x - v.bounds.minX - g.translation(in: v).x
+        case .ended:
+            let t = g.translation(in: v)
+            onSwipe(t.x, t.y, startX, v.bounds.width)
+        default:
+            break
+        }
+    }
+
+    @objc private func pinched(_ g: UIPinchGestureRecognizer) {
+        onPinch(g.state, g.scale)
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
+}
+
 struct ScrollFinder: UIViewRepresentable {
     let sync: ScrollSync
     let paneID: UUID
+    var gestures: ReaderGestures? = nil
 
     final class FinderView: UIView {
         var onFound: ((UIScrollView) -> Void)?
@@ -423,13 +483,22 @@ struct ScrollFinder: UIViewRepresentable {
     func makeUIView(context: Context) -> FinderView {
         let v = FinderView()
         v.isUserInteractionEnabled = false
-        v.onFound = { [sync, paneID] sv in sync.attach(paneID, sv) }
-        v.onGone = { [sync, paneID] sv in sync.release(paneID, sv) }
+        v.onFound = { [sync, paneID, gestures] sv in
+            sync.attach(paneID, sv)
+            gestures?.attach(sv)
+        }
+        v.onGone = { [sync, paneID, gestures] sv in
+            sync.release(paneID, sv)
+            gestures?.detach()
+        }
         return v
     }
 
     func updateUIView(_ v: FinderView, context: Context) {
-        v.onFound = { [sync, paneID] sv in sync.attach(paneID, sv) }
+        v.onFound = { [sync, paneID, gestures] sv in
+            sync.attach(paneID, sv)
+            gestures?.attach(sv)
+        }
         v.lookUp()
     }
 }

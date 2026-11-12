@@ -560,8 +560,33 @@ struct ChapterText: View {
     @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
     @State private var pinchBase: Double?
+    @State private var gestures = ReaderGestures()
 
     private var book: String { pane.book }
+
+    /// Свежие действия для жестов UIKit (вызывается при каждой перестройке экрана)
+    private func bindGestures() -> Bool {
+        gestures.onSwipe = { dx, dy, x0, width in
+            // свайп влево — следующая глава, вправо — предыдущая. Чтобы не срабатывал случайно: только явный
+            // горизонтальный жест (не меньше 80 пт и в 2,5 раза больше, чем по вертикали), не от самого края экрана
+            // (там системные жесты) и не во время выделения
+            guard selected.isEmpty, partVerse == nil,
+                  x0 > 24, x0 < width - 24,
+                  abs(dx) >= 80, abs(dx) > abs(dy) * 2.5 else { return }
+            panes.step(pane.id, dx < 0 ? 1 : -1, module: module)
+        }
+        gestures.onPinch = { state, scale in
+            switch state {
+            case .began:
+                pinchBase = fontSize
+            case .changed:
+                fontSize = min(40, max(13, (pinchBase ?? fontSize) * Double(scale)))
+            default:
+                pinchBase = nil
+            }
+        }
+        return true
+    }
     private var chapter: Int { pane.chapter }
     private var focus: Int { pane.verse }
 
@@ -573,6 +598,7 @@ struct ChapterText: View {
         let d = chapterData()
         let verses = d.verses
         let heads = d.heads
+        let _ = bindGestures()
         Group {
         if readingStyle == "pages" {
             pagedView(d)
@@ -590,7 +616,7 @@ struct ChapterText: View {
                             .scrollTargetLayout()
                     }
                 }
-                .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id))
+                .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id, gestures: gestures))
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
@@ -662,31 +688,19 @@ struct ChapterText: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
-        // свайп влево — следующая глава, вправо — предыдущая. Чтобы не срабатывал случайно: только явный
-        // горизонтальный жест (не меньше 80 пт и в 2,5 раза больше, чем по вертикали), не от самого края экрана
-        // (там системные жесты) и не во время выделения
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 30).onEnded { g in
-                let dx = g.translation.width
-                let dy = g.translation.height
-                let x0 = g.startLocation.x
-                guard selected.isEmpty, partVerse == nil,
-                      x0 > 24, x0 < paneWidth - 24,
-                      abs(dx) >= 80, abs(dx) > abs(dy) * 2.5 else { return }
-                panes.step(pane.id, dx < 0 ? 1 : -1, module: module)
-            }
-        )
+        // свайп глав и щипок размера букв — жесты UIKit на самой прокрутке (ReaderGestures, см. bindGestures)
         .id("\(module.id)|\(book)|\(chapter)")
         }
         }
-        // два пальца: размер букв
+        // два пальца: размер букв (в режиме «Страницы»; при прокрутке — через ReaderGestures)
         .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { g in
                     if pinchBase == nil { pinchBase = fontSize }
                     fontSize = min(40, max(13, (pinchBase ?? fontSize) * g.magnification))
                 }
-                .onEnded { _ in pinchBase = nil }
+                .onEnded { _ in pinchBase = nil },
+            including: readingStyle == "pages" ? .all : .subviews
         )
         .safeAreaInset(edge: .bottom) {
             // сплошной текст: панель внизу; иначе она стоит между стихами, под последним выделенным
