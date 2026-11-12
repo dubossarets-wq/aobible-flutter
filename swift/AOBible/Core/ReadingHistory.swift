@@ -33,6 +33,16 @@ final class ReadingHistory: ObservableObject {
         dec.dateDecodingStrategy = .millisecondsSince1970
         if let d = try? Data(contentsOf: url), let list = try? dec.decode([HistoryEntry].self, from: d) {
             items = list
+        } else if let s = UserDefaults.standard.string(forKey: "flutter.readingHistory"), let d = s.data(using: .utf8),
+                  let list = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] {
+            // установлено поверх Flutter-версии: её история ({b, c, v, s, t}, время в мс)
+            items = list.compactMap { m in
+                guard let b = m["b"] as? String, let c = (m["c"] as? NSNumber)?.intValue,
+                      let t = (m["t"] as? NSNumber)?.doubleValue else { return nil }
+                let v = (m["v"] as? NSNumber)?.intValue ?? 0
+                let s = (m["s"] as? NSNumber)?.doubleValue ?? t
+                return HistoryEntry(book: b, chapter: c, verse: v, start: Date(timeIntervalSince1970: s / 1000), time: Date(timeIntervalSince1970: t / 1000))
+            }
         }
     }
 

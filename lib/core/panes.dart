@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'books.dart';
 import 'modules.dart';
+import 'reading_history.dart';
 import 'settings.dart';
 
 class PaneState {
@@ -66,6 +67,7 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     if (hist.last != to) hist.add(to);
     state = [for (var k = 0; k < state.length; k++) k == i ? p.copyWith(ref: to, nav: p.nav + 1, history: hist, hIndex: hist.length - 1) : state[k]];
     livePositions[i]?.value = to;
+    ReadingHistory.instance.record(to);
     _save();
   }
 
@@ -104,6 +106,7 @@ class PanesNotifier extends Notifier<List<PaneState>> {
     hist[p.hIndex] = livePositions[i]?.value ?? p.ref;
     state = [for (var k = 0; k < state.length; k++) k == i ? p.copyWith(ref: hist[h], nav: p.nav + 1, history: hist, hIndex: h) : state[k]];
     livePositions[i]?.value = hist[h];
+    ReadingHistory.instance.record(hist[h]);
     _save();
   }
 
@@ -176,7 +179,8 @@ class PanesNotifier extends Notifier<List<PaneState>> {
   /// Место при прокрутке: сохраняем без перехода (раз в полсекунды, а не на каждом кадре)
   void remember(int i, VerseRef at) {
     if (i >= state.length || state[i].ref == at) return;
-    state = [for (var k = 0; k < state.length; k++) k == i ? state[k].copyWith(ref: at) : state[k]];
+    ReadingHistory.instance.record(at);
+    state =[for (var k = 0; k < state.length; k++) k == i ? state[k].copyWith(ref: at) : state[k]];
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 500), _save);
   }

@@ -15,6 +15,7 @@ import '../../core/settings.dart';
 import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../bookmarks/marks.dart' show marksProvider;
+import '../history/history_sheet.dart' show openHistory;
 import '../hub.dart';
 import 'about_sheet.dart';
 import 'appearance_sheet.dart';
@@ -74,6 +75,8 @@ class MoreSheet extends ConsumerWidget {
         };
 
     final entries = <_Entry>[
+      // «История» — первой строкой, своей группой: все места чтения по дням (features/history)
+      _Entry(icon: LucideIcons.history, label: t('История'), keep: true, order: 0, run: (c, r) => openHistory(c, idx)),
       _Entry(
         icon: marked ? LucideIcons.bookmarkCheck : LucideIcons.bookmark,
         label: marked ? t('Убрать закладку') : t('Закладка на это место'),
@@ -146,7 +149,7 @@ class MoreSheet extends ConsumerWidget {
     for (final (k, e) in list.indexed) {
       final o = sepOther || (e.keep && e.order >= 500 && e.order < 900);
       final w = sepOwn || e.order >= 900;
-      final lastInGroup = k == list.length - 1 || startsGroup(list[k + 1], o, w);
+      final lastInGroup = k == list.length - 1 || e.order == 0 || startsGroup(list[k + 1], o, w);
       // Линии между группами (как menu-sep в moreItems.jsx): перед переключателями и перед своими пунктами
       if (!sepOther && e.keep && e.order >= 500 && e.order < 900 && children.isNotEmpty) {
         children.add(const MenuSep(full: true));
@@ -171,6 +174,8 @@ class MoreSheet extends ConsumerWidget {
               )
             : _Row2(entry: e, onTap: () => e.run(context, ref)),
       ));
+      // «История» — отдельной карточкой сверху
+      if (e.order == 0 && k < list.length - 1) children.add(const MenuSep(full: true));
     }
     // строки — от края до края окна (подсветка и линии), отступы — у содержимого строки
     return AppSheet(title: t('Ещё'), padding: const EdgeInsets.fromLTRB(0, 8, 0, 20), gap: 0, children: children);

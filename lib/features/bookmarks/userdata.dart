@@ -16,7 +16,7 @@ const dataFormat = 'aob-userdata';
 
 /// Служебные ключи: в файл и копии не попадают и при восстановлении не трогаются
 /// (копии, сведения этого телефона — скачанные книги и аудио, ход переноса)
-const serviceKeys = {'backups', 'offlineAudio', 'autoAudio', 'lastBuild', 'activeBuild', 'autoUpdate2', 'knownBuilds', 'notifiedBuild', 'lateStarter', 'bootstrapped', 'errorLog', 'playUpdateNotified', legacyDoneKey, legacyDumpKey};
+const serviceKeys = {'backups', 'offlineAudio', 'autoAudio', 'lastBuild', 'activeBuild', 'autoUpdate2', 'knownBuilds', 'notifiedBuild', 'lateStarter', 'bootstrapped', 'errorLog', 'playUpdateNotified', 'readingHistory', legacyDoneKey, legacyDumpKey};
 const _maxBackups = 5;
 const _budget = 1500000;
 
