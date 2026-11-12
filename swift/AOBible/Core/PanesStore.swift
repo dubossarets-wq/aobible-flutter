@@ -36,6 +36,9 @@ final class LivePlace: ObservableObject {
 @MainActor
 final class ChromeState: ObservableObject {
     @Published var hidden: [UUID: Bool] = [:]
+    /// На сколько опустить кнопки «глава назад / слушать / вперёд», когда нижнее меню ушло: их нижний край встаёт
+    /// ровно туда, где был нижний край меню (меряется на устройстве)
+    @Published var bottomShift: CGFloat = 50
 }
 
 

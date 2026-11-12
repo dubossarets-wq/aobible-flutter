@@ -122,7 +122,7 @@ struct PaneView: View {
                         .controlSize(.large)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
-                        .offset(y: chrome.hidden[paneID] == true ? 50 : 0)
+                        .offset(y: chrome.hidden[paneID] == true ? chrome.bottomShift : 0)
                     }
             }
             .animation(.easeInOut(duration: 0.5), value: chrome.hidden[paneID])

@@ -15,20 +15,74 @@ struct TabBarHider: ViewModifier {
     func body(content: Content) -> some View {
         let hidden = active && (primary.flatMap { chrome.hidden[$0] } ?? false)
         content
-            .background(TabBarSlider(hidden: hidden))
+            .background(TabBarSlider(hidden: hidden) { v in
+                if abs(chrome.bottomShift - v) > 0.5 { chrome.bottomShift = v }
+            })
     }
 }
 
 /// Нижнее меню физически уезжает вниз за край экрана и выезжает обратно (системное скрытие только растворяет его)
 struct TabBarSlider: UIViewRepresentable {
     let hidden: Bool
+    /// Измерено: на сколько опустить нижние кнопки, чтобы они встали на место меню
+    var onMeasure: (CGFloat) -> Void = { _ in }
 
     func makeUIView(context: Context) -> Finder { Finder() }
 
-    func updateUIView(_ v: Finder, context: Context) { v.apply(hidden) }
+    func updateUIView(_ v: Finder, context: Context) {
+        v.onMeasure = onMeasure
+        v.apply(hidden)
+    }
 
     final class Finder: UIView {
         private var shown = false   // меню сейчас уехало
+        var onMeasure: (CGFloat) -> Void = { _ in }
+
+        /// Плашка меню — самый широкий видимый блок внутри панели, не во всю ширину экрана (меню в iOS 26 «парит»)
+        private func platterBottom(_ tb: UITabBar, in win: UIWindow) -> CGFloat? {
+            var best: (w: CGFloat, bottom: CGFloat)?
+            func walk(_ v: UIView, _ depth: Int) {
+                guard depth <= 5 else { return }
+                for s in v.subviews where !s.isHidden && s.alpha > 0.05 {
+                    let r = s.convert(s.bounds, to: win)
+                    if r.width > 60, r.width < tb.bounds.width - 8, r.height > 36, r.height < 120 {
+                        if best == nil || r.width > best!.w { best = (r.width, r.maxY) }
+                    }
+                    walk(s, depth + 1)
+                }
+            }
+            walk(tb, 0)
+            return best?.bottom
+        }
+
+        /// Нижний край кнопок сейчас — низ области содержимого (кнопки стоят у него с отступом 4)
+        func measure() {
+            guard !shown, let win = window, let tb = tabBar() else { return }
+            let contentBottom = convert(bounds, to: win).maxY - 4
+            var shift: CGFloat
+            if let pb = platterBottom(tb, in: win) {
+                shift = pb - contentBottom
+            } else {
+                shift = tb.frame.height - win.safeAreaInsets.bottom
+            }
+            if shift < 0 || shift > 200 { shift = max(0, tb.frame.height - win.safeAreaInsets.bottom) }
+            onMeasure(shift)
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window != nil { DispatchQueue.main.async { [weak self] in self?.measure() } }
+            // ушли со вкладки — меню на месте
+            if window == nil, shown, let tb = tabBar() {
+                shown = false
+                tb.layer.sublayerTransform = CATransform3DIdentity
+            }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            DispatchQueue.main.async { [weak self] in self?.measure() }
+        }
 
         private func tabBar() -> UITabBar? {
             var r: UIResponder? = self
@@ -64,14 +118,6 @@ struct TabBarSlider: UIViewRepresentable {
             layer.add(anim, forKey: "aobSlide")
         }
 
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            // ушли со вкладки — меню на месте
-            if window == nil, shown, let tb = tabBar() {
-                shown = false
-                tb.layer.sublayerTransform = CATransform3DIdentity
-            }
-        }
     }
 }
 
