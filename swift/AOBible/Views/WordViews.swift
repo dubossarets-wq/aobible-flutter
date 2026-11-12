@@ -8,6 +8,8 @@ struct WordRequest: Identifiable {
     let book: String
     var chapter = 0
     var verse = 0
+    /// номер слова в стихе RST+ (для формы слова в оригинале)
+    var wordIndex: Int? = nil
 }
 
 /// Выбор словаря у слова (как всплывающая карточка Flutter-версии): места («Название · Карта»), затем статьи
@@ -16,6 +18,8 @@ struct WordSheet: View {
     @EnvironmentObject private var store: ModuleStore
     @Environment(\.dismiss) private var dismiss
     let req: WordRequest
+    /// выбор статьи: окно закрывается, открывается окно статьи (как во Flutter)
+    var onPick: ((String, String) -> Void)? = nil
     @State private var chosen: String?
     @State private var detent: PresentationDetent = .height(160)
     @State private var res: LookupResult?
@@ -48,7 +52,7 @@ struct WordSheet: View {
                 }
                 ForEach(places) { p in
                     NavigationLink {
-                        PlaceDetail(place: p).onAppear { detent = .medium }
+                        PlaceDetail(place: p).onAppear { detent = .large }
                     } label: {
                         HStack {
                             Image(systemName: "mappin.and.ellipse").foregroundStyle(.tint)
@@ -59,8 +63,19 @@ struct WordSheet: View {
                     }
                 }
                 ForEach(rows) { r in
+                    if let onPick {
+                        Button { onPick(r.module.id, r.found.key) } label: {
+                            HStack(spacing: 10) {
+                                rowLabel(r)
+                                Spacer(minLength: 6)
+                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
                     NavigationLink {
-                        EntryDetail(module: r.module, found: r.found).onAppear { detent = r.isStrong ? .large : .medium }
+                        EntryDetail(module: r.module, found: r.found).onAppear { detent = .large }
                     } label: {
                         HStack(spacing: 10) {
                             if r.isStrong {
@@ -74,6 +89,7 @@ struct WordSheet: View {
                             }
                             Text(r.module.name).foregroundStyle(.primary).lineLimit(1)
                         }
+                    }
                     }
                 }
                 if let res, rows.isEmpty && places.isEmpty {
@@ -91,7 +107,7 @@ struct WordSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(height), .medium, .large], selection: $detent)
+        .presentationDetents([.height(height), .large], selection: $detent)
         .task {
             // окно уже показано; поиск по словарям — после первого кадра и только один раз
             await Task.yield()
@@ -102,6 +118,23 @@ struct WordSheet: View {
             let all = r.results.reduce(0) { $0 + $1.found.count }
             let n = all + places.count + (r.mapping.mode == "approx" ? 1 : 0)
             detent = .height(CGFloat(min(max(n, 1), 7)) * 56 + 90)
+        }
+    }
+}
+
+extension WordSheet {
+    @ViewBuilder private func rowLabel(_ r: Row) -> some View {
+        HStack(spacing: 10) {
+            if r.isStrong {
+                Text(r.found.key)
+                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                    .foregroundStyle(.tint)
+            } else {
+                Text(r.found.label.isEmpty ? r.found.key : r.found.label).fontWeight(.semibold)
+            }
+            Text(r.module.name).foregroundStyle(.primary).lineLimit(1)
         }
     }
 }

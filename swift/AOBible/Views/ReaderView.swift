@@ -360,20 +360,48 @@ struct SlidingChrome<Header: View, Line: View>: View, Animatable {
 }
 
 /// Какое окно слова / Стронга открыть. Отдельный объект: его смена перерисовывает только StudySheets, а не главу
+enum StudySheet: Identifiable {
+    case word(WordRequest)
+    case dict(DictRequest)
+
+    var id: String {
+        switch self {
+        case .word(let r): return "w" + r.id.uuidString
+        case .dict(let r): return "d" + r.id.uuidString
+        }
+    }
+}
+
 @MainActor
 final class StudyRequests: ObservableObject {
-    @Published var word: WordRequest?
-    @Published var strong: StrongRequest?
+    @Published var sheet: StudySheet?
     var openedAt = Date.distantPast
 }
 
+/// Окна слова: список словарей у слова → статья (выбор строки закрывает список и открывает статью)
 struct StudySheets: View {
     @ObservedObject var req: StudyRequests
+    @EnvironmentObject private var store: ModuleStore
+    var onOpenRef: (String, Int, Int) -> Void
 
     var body: some View {
         Color.clear
-            .sheet(item: $req.strong) { r in StrongSheet(keys: [r.key]) }
-            .sheet(item: $req.word) { r in WordSheet(req: r) }
+            .sheet(item: $req.sheet) { s in
+                switch s {
+                case .word(let r):
+                    WordSheet(req: r) { moduleId, key in
+                        var d = DictRequest(text: r.text, strongs: r.strongs, morph: r.morph, book: r.book, chapter: r.chapter, verse: r.verse)
+                        d.preselect = (moduleId, key)
+                        d.wordIndex = r.wordIndex
+                        req.sheet = .dict(d)
+                    }
+                case .dict(let r):
+                    DictionarySheet(req: r) { b, c, v in
+                        req.sheet = nil
+                        onOpenRef(b, c, v)
+                    }
+                }
+            }
     }
 }
 
@@ -599,8 +627,8 @@ struct ChapterText: View {
             .onAppear {
                 scroll(proxy, verses, heads)
                 // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»
-                if UserDefaults.standard.bool(forKey: "debugWord"), req.word == nil {
-                    req.word = WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
+                if UserDefaults.standard.bool(forKey: "debugWord"), req.sheet == nil {
+                    req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
                 }
                 // -debugSelect YES: выделен первый стих (панель действий)
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
@@ -671,7 +699,14 @@ struct ChapterText: View {
             }
         }
         .animation(.default, value: toast)
-        .background(StudySheets(req: req))
+        .background(StudySheets(req: req) { b, c, v in
+            // место из словаря: из первой панели — во второй, из остальных — в самой панели
+            if panes.index(pane.id) == 0 {
+                panes.openSecond(from: pane.id, b, c, v)
+            } else {
+                panes.go(pane.id, b, c, v)
+            }
+        })
         .sheet(item: $imageReq) { r in
             VerseImageSheet(text: r.text, ref: r.ref)
         }
@@ -1178,8 +1213,7 @@ struct ChapterText: View {
     private func doubleTapped(_ v: Verse?) {
         guard let v, selected.isEmpty else { return }
         if Date().timeIntervalSince(req.openedAt) < 0.5 {
-            req.word = nil
-            req.strong = nil
+            req.sheet = nil
         }
         let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
@@ -1211,7 +1245,8 @@ struct ChapterText: View {
         }
         if let k = StrongLinks.key(from: url) {
             req.openedAt = Date()
-            req.strong = StrongRequest(key: k)
+            // номер Стронга в тексте — сразу статья словаря Стронга на всю высоту
+            req.sheet = .dict(DictRequest(text: k, strongs: [k], morph: [], book: book, chapter: chapter, verse: verseOf(url) ?? focus, autoOpen: true))
             return
         }
         if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
@@ -1341,7 +1376,9 @@ struct ChapterText: View {
             text = ns.substring(with: ms[p[2]].range)
         }
         req.openedAt = Date()
-        req.word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0])
+        // номер слова в стихе RST+ — по нему в статье видна форма слова оригинала
+        let wi = (!t.strongs.isEmpty && module.id == Align.taggedRu(store)?.id) ? partWordIndex(url) : nil
+        req.sheet = .word(WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0], wordIndex: wi))
     }
 
     // MARK: - Панель действий
