@@ -211,28 +211,25 @@ struct InterlinearBar: View {
         b.wrappedValue.toggle()
     }
 
+    /// Отдельная плашка высотой 40, как кнопки шапки; включённая — подкрашена цветом акцента
     private func part(_ title: LocalizedStringKey, _ b: Binding<Bool>) -> some View {
         Button { toggle(b) } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .background(b.wrappedValue ? pal.accent.opacity(0.18) : Color.clear, in: Capsule())
                 .foregroundStyle(b.wrappedValue ? pal.accent : pal.muted)
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .contentShape(Capsule())
+                .glassEffect(.regular.tint(b.wrappedValue ? pal.accent.opacity(0.18) : nil).interactive(), in: Capsule())
         }
         .buttonStyle(.plain)
     }
 
     var body: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 0) {
-                part("Перевод", $gloss)
-                part("Оригинал", $orig)
-                part("Стронг", $strong)
-            }
-            .padding(3)
-            .frame(height: 40)
-            .glassEffect(.regular, in: Capsule())
+            part("Перевод", $gloss)
+            part("Оригинал", $orig)
+            part("Стронг", $strong)
             Spacer(minLength: 4)
             Button { open = false } label: {
                 Image(systemName: "chevron.up").chromeCircle()
