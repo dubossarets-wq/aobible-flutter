@@ -102,6 +102,7 @@ class Settings {
     'textMargin': -1.0, // поля текста по бокам, px; -1 — как принято (20 в стиле iPhone, иначе 16)
     'focusMode': false,
     'bookMode': false,
+    'readingStyle': 'scroll', // scroll — лентой; pages — страницами, листаются вбок (как в Swift-версии)
     'continuousVerses': false,
     'showXrefButtons': true,
     'showIllustrations': true,

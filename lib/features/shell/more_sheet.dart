@@ -118,6 +118,15 @@ class MoreSheet extends ConsumerWidget {
               });
             },
           ),
+      // Режим чтения: лентой или страницами (как в Swift-версии) — всегда в «Ещё»
+      _Entry(
+        icon: LucideIcons.bookOpen,
+        label: t('Режим чтения'),
+        extra: s.get<String>('readingStyle') == 'pages' ? t('Страницы') : t('Прокрутка'),
+        keep: true,
+        order: 500,
+        run: (_, r) => r.read(settingsProvider.notifier).set({'readingStyle': s.get<String>('readingStyle') == 'pages' ? 'scroll' : 'pages'}),
+      ),
       // Переключатели, которые человек сам вынес в меню (Настройки → «Меню «Ещё»»)
       if (menuFlag(s, 'focus'))
         _Entry(icon: s.get<bool>('focusMode') ? LucideIcons.eyeOff : LucideIcons.eye, label: t('Режим чтения'), extra: onOff(s.get<bool>('focusMode')), keep: true, order: 500, run: (_, r) => r.read(settingsProvider.notifier).set({'focusMode': !s.get<bool>('focusMode')})),

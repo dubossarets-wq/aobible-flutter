@@ -26,6 +26,7 @@ import '../features/shell/sheet.dart' show Loading;
 import 'kit.dart';
 import 'glass.dart' show glassMaxPanes;
 import 'ios_style.dart';
+import 'paged_chapter.dart';
 import 'verse_view.dart';
 
 /// Подсветка найденного слова держится столько после перехода (HL_MS в ChapterView.jsx)
@@ -1005,6 +1006,28 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
       },
     );
 
+    // Режим «Страницы»: вместо ленты книги — глава страницами (paged_chapter.dart)
+    final paged = s.get<String>('readingStyle') == 'pages';
+    final live = livePositions[widget.index]?.value ?? p.ref;
+    if (paged && (!_wasPaged || p.nav != _pgNav || _pgRef?.book != book.book)) {
+      // включили режим — с того места, где читали; переход — на его место (назад из следующей главы — на последнюю страницу)
+      _pgStart = _wasPaged && p.nav != _pgNav ? (_pgAtEnd ? 9999 : p.ref.verse) : live.verse;
+      _pgRef = _wasPaged && p.nav != _pgNav ? p.ref : live;
+      _pgNav = p.nav;
+      _pgAtEnd = false;
+    }
+    if (!paged && _wasPaged) {
+      // вернулись к ленте — на то место, где была страница
+      _initialIndex = _rowOf[_itemOf(live)];
+      _listKey++;
+      _alignAfterFrame(live);
+    }
+    _wasPaged = paged;
+    if (paged && widget.index == 0 && focusHidden.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => focusHidden.value = false); // листать нечем — меню на месте
+    }
+    final body = paged ? _pagedView(book, s, margin, pal) : list;
+
     return LayoutBuilder(builder: (context, cons) {
       _vh = cons.maxHeight.isFinite && cons.maxHeight > 0 ? cons.maxHeight : _vh;
       return Listener(
@@ -1035,7 +1058,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
                 textDirection: rtl ? TextDirection.rtl : Directionality.of(context),
                 child: ValueListenableBuilder<(double, double)>(
                   valueListenable: _drag,
-                  child: list,
+                  child: body,
                   // Всегда в одной обёртке: иначе список пересоздавался бы и терял место при каждом свайпе
                   builder: (context, d, child) => Opacity(opacity: d.$2, child: Transform.translate(offset: Offset(d.$1, 0), child: child)),
                 ),
@@ -1114,6 +1137,68 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   }
 
   void _goBook(String id, int chapter) => ref.read(panesProvider.notifier).navigate(widget.index, VerseRef(id, chapter, 1), flash: false);
+
+  // ---- режим «Страницы» ----
+  bool _wasPaged = false;
+  int _pgNav = -1;
+  VerseRef? _pgRef; // глава, которую листаем
+  int _pgStart = 1; // с какого стиха открыть (9999 — с последней страницы)
+  bool _pgAtEnd = false; // листнули назад за первую страницу — предыдущая глава откроется с конца
+
+  Widget _pagedView(BookText book, Settings s, double margin, Palette pal) {
+    final at = _pgRef!;
+    final ch = at.chapter;
+    final rows = <int>[for (var i = 0; i < _rows.length; i++) if (book.items[_rows[i].start].chapter == ch) i];
+    Widget column() => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final i in rows)
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: s.d('textWidth') * s.d('fontSize')),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: VerseView(item: book.items[_rows[i].start], para: _rows[i].para ? _rows[i].verses : null, row: i, mark: _markFor(i), book: book.book, settings: s, pane: widget.index, moduleId: book.module),
+                  ),
+                ),
+              ),
+          ],
+        );
+    final inset = MediaQuery.paddingOf(context).bottom;
+    return PagedChapter(
+      key: ValueKey('pg|${book.module}|${book.book}|$ch|$_pgNav'),
+      column: column,
+      margin: margin,
+      // кнопки глав внизу (16 + 56) и номер страницы над ними
+      bottom: inset + 16 + 56 + 30,
+      startVerse: _pgStart,
+      locked: _pinching,
+      counterColor: pal.muted,
+      verseTops: (rowTops) {
+        final out = <(double, int)>[];
+        for (var j = 0; j < rows.length && j < rowTops.length; j++) {
+          final r = _rows[rows[j]];
+          if (r.para) {
+            final h = blockHandle(widget.index, rows[j]);
+            for (final v in r.verses) {
+              if (v.kind == ItemKind.verse) out.add((rowTops[j] + (h?.verseTop(v.verse) ?? 0), v.verse));
+            }
+          } else {
+            final it = book.items[r.start];
+            if (it.kind == ItemKind.verse) out.add((rowTops[j], it.verse));
+          }
+        }
+        return out;
+      },
+      onPage: (verse, page, total) => _remember(VerseRef(book.book, ch, verse)),
+      onEdge: (dir) {
+        if (_target(dir) == null) return;
+        _pgAtEnd = dir < 0;
+        _chapter(dir);
+      },
+    );
+  }
 }
 
 class _Progress extends StatelessWidget {
