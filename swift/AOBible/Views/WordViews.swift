@@ -18,6 +18,8 @@ struct WordSheet: View {
     let req: WordRequest
     @State private var chosen: String?
     @State private var detent: PresentationDetent = .height(160)
+    @State private var res: LookupResult?
+    @State private var places: [BiblePlace] = []
 
     private struct Row: Identifiable {
         let id: String
@@ -27,15 +29,20 @@ struct WordSheet: View {
     }
 
     var body: some View {
-        let res = Lexicon.lookupWord(store: store, text: req.text, strongs: req.strongs, morph: req.morph, book: req.book)
-        let all = res.results.flatMap { r in r.found.map { Row(id: r.module.id + "|" + $0.key, module: r.module, found: $0) } }
+        let all = (res?.results ?? []).flatMap { r in r.found.map { Row(id: r.module.id + "|" + $0.key, module: r.module, found: $0) } }
         let rows = all.filter { $0.isStrong } + all.filter { !$0.isStrong }
-        let places = store.placesFor(word: req.text, book: req.book, chapter: req.chapter, verse: req.verse)
-        let count = rows.count + places.count + (res.mapping.mode == "approx" ? 1 : 0)
+        let approx = res?.mapping.mode == "approx"
+        let count = rows.count + places.count + (approx ? 1 : 0)
         let height = CGFloat(min(max(count, 1), 7)) * 56 + 90
         NavigationStack {
             List {
-                if res.mapping.mode == "approx" {
+                if res == nil {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Ищу в словарях…").foregroundStyle(.secondary)
+                    }
+                }
+                if approx {
                     Text("≈ приблизительно: перевод без номеров Стронга")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -69,7 +76,7 @@ struct WordSheet: View {
                         }
                     }
                 }
-                if rows.isEmpty && places.isEmpty {
+                if let res, rows.isEmpty && places.isEmpty {
                     Text("Статей для «\(req.text)» нет").foregroundStyle(.secondary)
                     if res.dictionaryCount == 0 {
                         Text("Словари в библиотеке: «Ещё» → «Библиотека модулей»").font(.footnote).foregroundStyle(.secondary)
@@ -85,7 +92,17 @@ struct WordSheet: View {
             }
         }
         .presentationDetents([.height(height), .medium, .large], selection: $detent)
-        .onAppear { detent = .height(height) }
+        .task {
+            // окно уже показано; поиск по словарям — после первого кадра и только один раз
+            await Task.yield()
+            guard res == nil else { return }
+            let r = Lexicon.lookupWord(store: store, text: req.text, strongs: req.strongs, morph: req.morph, book: req.book)
+            places = store.placesFor(word: req.text, book: req.book, chapter: req.chapter, verse: req.verse)
+            res = r
+            let all = r.results.reduce(0) { $0 + $1.found.count }
+            let n = all + places.count + (r.mapping.mode == "approx" ? 1 : 0)
+            detent = .height(CGFloat(min(max(n, 1), 7)) * 56 + 90)
+        }
     }
 }
 

@@ -125,7 +125,7 @@ struct InterlinearVerse: View {
         .background(VerseAnchor(verse: verse.num, views: views))
         .contentShape(Rectangle())
         .onTapGesture { onTap(nil, verse.num) }
-        .highPriorityGesture(TapGesture(count: 2).onEnded { onDouble(verse.num) })
+        .simultaneousGesture(TapGesture(count: 2).onEnded { onDouble(verse.num) })
         .onLongPressGesture(minimumDuration: 0.25) { onLong(verse.num) }
     }
 }

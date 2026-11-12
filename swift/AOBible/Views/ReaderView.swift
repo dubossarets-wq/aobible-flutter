@@ -359,6 +359,24 @@ struct SlidingChrome<Header: View, Line: View>: View, Animatable {
     }
 }
 
+/// Какое окно слова / Стронга открыть. Отдельный объект: его смена перерисовывает только StudySheets, а не главу
+@MainActor
+final class StudyRequests: ObservableObject {
+    @Published var word: WordRequest?
+    @Published var strong: StrongRequest?
+    var openedAt = Date.distantPast
+}
+
+struct StudySheets: View {
+    @ObservedObject var req: StudyRequests
+
+    var body: some View {
+        Color.clear
+            .sheet(item: $req.strong) { r in StrongSheet(keys: [r.key]) }
+            .sheet(item: $req.word) { r in WordSheet(req: r) }
+    }
+}
+
 /// Идёт ли сейчас прокрутка пальцем (без перерисовки при записи)
 final class PhaseBox {
     var user = false
@@ -477,16 +495,13 @@ struct ChapterText: View {
     @State private var collectItems: [MarkItem] = []
     @State private var pulseVerse = 0
     @State private var pulseAmt = 0.0
-    @State private var wordTask: Task<Void, Never>?
-    @State private var noWordUntil = Date.distantPast
+    @State private var req = StudyRequests()
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
     @State private var noteVerse: Int?
     @State private var noteText = ""
-    @State private var strong: StrongRequest?
     @State private var imageReq: ImageRequest?
-    @State private var word: WordRequest?
     @State private var panel: StudyPanel?
     @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
@@ -562,8 +577,8 @@ struct ChapterText: View {
             .onAppear {
                 scroll(proxy, verses, heads)
                 // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»
-                if UserDefaults.standard.bool(forKey: "debugWord"), word == nil {
-                    word = WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
+                if UserDefaults.standard.bool(forKey: "debugWord"), req.word == nil {
+                    req.word = WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1)
                 }
                 // -debugSelect YES: выделен первый стих (панель действий)
                 if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
@@ -619,12 +634,7 @@ struct ChapterText: View {
             }
         }
         .animation(.default, value: toast)
-        .sheet(item: $strong) { r in
-            StrongSheet(keys: [r.key])
-        }
-        .sheet(item: $word) { r in
-            WordSheet(req: r)
-        }
+        .background(StudySheets(req: req))
         .sheet(item: $imageReq) { r in
             VerseImageSheet(text: r.text, ref: r.ref)
         }
@@ -1097,8 +1107,10 @@ struct ChapterText: View {
     /// Двойное касание — любимый стих (без выделения)
     private func doubleTapped(_ v: Verse?) {
         guard let v, selected.isEmpty else { return }
-        wordTask?.cancel()
-        noWordUntil = Date().addingTimeInterval(0.6)
+        if Date().timeIntervalSince(req.openedAt) < 0.5 {
+            req.word = nil
+            req.strong = nil
+        }
         let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
         show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
@@ -1110,7 +1122,6 @@ struct ChapterText: View {
     /// Долгое нажатие в любом месте стиха (и на слове) выделяет его
     private func longPressed(_ verse: Int) {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        wordTask?.cancel()
         partVerse = nil
         selected.insert(verse)
     }
@@ -1129,7 +1140,8 @@ struct ChapterText: View {
             return
         }
         if let k = StrongLinks.key(from: url) {
-            strong = StrongRequest(key: k)
+            req.openedAt = Date()
+            req.strong = StrongRequest(key: k)
             return
         }
         if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
@@ -1137,12 +1149,7 @@ struct ChapterText: View {
             return
         }
         if url.scheme == "aobword" {
-            if Date() < noWordUntil { return }
-            wordTask?.cancel()
-            wordTask = Task {
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                if !Task.isCancelled { openWord(url) }
-            }
+            openWord(url)
             return
         }
         if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
@@ -1263,7 +1270,8 @@ struct ChapterText: View {
             guard p[2] < ms.count else { return }
             text = ns.substring(with: ms[p[2]].range)
         }
-        word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0])
+        req.openedAt = Date()
+        req.word = WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0])
     }
 
     // MARK: - Панель действий
