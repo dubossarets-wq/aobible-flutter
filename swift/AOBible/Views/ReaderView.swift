@@ -122,7 +122,7 @@ struct PaneView: View {
                         .controlSize(.large)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
-                        .offset(y: chrome.hidden[paneID] == true ? 110 : 0)
+                        .offset(y: chrome.hidden[paneID] == true ? 50 : 0)
                     }
             }
             .animation(.easeInOut(duration: 0.5), value: chrome.hidden[paneID])
@@ -186,12 +186,7 @@ struct PaneView: View {
         let hidden = chrome.hidden[paneID] == true
         // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
         // От полосы до верхнего края всегда размытый фон
-        let lineY: CGFloat = hidden ? 0 : headerH
-        ZStack(alignment: .top) {
-            Rectangle().fill(.ultraThinMaterial).opacity(0.85)
-                .frame(height: Self.safeTop + lineY)
-                .offset(y: -Self.safeTop)
-                .allowsHitTesting(false)
+        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH, safeTop: Self.safeTop) {
             VStack(spacing: 0) {
                 header(p, m)
                 planPill(p)
@@ -199,11 +194,9 @@ struct PaneView: View {
                 if m.interlinear && ilBar { InterlinearBar() }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
-            .offset(y: hidden ? -(headerH + Self.safeTop + 12) : 0)
             .allowsHitTesting(!hidden)
+        } line: {
             ReadProgress(live: panes.live, id: paneID)
-                .offset(y: lineY)
-                .allowsHitTesting(false)
         }
         .animation(.easeInOut(duration: 0.5), value: hidden)
     }
@@ -322,6 +315,46 @@ struct PullHint: View {
             Text(l.name).font(.footnote.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
         }
         .padding(.horizontal, 8)
+    }
+}
+
+/// Шапка, полоска прочтения и размытый фон двигаются одним анимируемым значением p (0 — шапка на месте, 1 — ушла):
+/// шапка уезжает за верхний край, полоска всё время висит под ней и останавливается у верха экрана, размытие — до полоски
+struct SlidingChrome<Header: View, Line: View>: View, Animatable {
+    var p: CGFloat
+    let headerH: CGFloat
+    let safeTop: CGFloat
+    let header: Header
+    let line: Line
+
+    init(p: CGFloat, headerH: CGFloat, safeTop: CGFloat, @ViewBuilder header: () -> Header, @ViewBuilder line: () -> Line) {
+        self.p = p
+        self.headerH = headerH
+        self.safeTop = safeTop
+        self.header = header()
+        self.line = line()
+    }
+
+    var animatableData: CGFloat {
+        get { p }
+        set { p = newValue }
+    }
+
+    var body: some View {
+        let travel = headerH + safeTop + 12
+        let shift = p * travel
+        let lineY = max(0, headerH - shift)
+        ZStack(alignment: .top) {
+            Rectangle().fill(.ultraThinMaterial).opacity(0.85)
+                .frame(height: safeTop + lineY)
+                .offset(y: -safeTop)
+                .allowsHitTesting(false)
+            header
+                .offset(y: -shift)
+            line
+                .offset(y: lineY)
+                .allowsHitTesting(false)
+        }
     }
 }
 
