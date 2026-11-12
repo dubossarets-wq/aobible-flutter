@@ -6,6 +6,20 @@ enum AppTab: Hashable {
     case plans, bible, saved, more, search
 }
 
+/// Нижнее меню уходит вниз целиком вместе с верхним (когда в чтении прокрутка вниз)
+struct TabBarHider: ViewModifier {
+    @ObservedObject var chrome: ChromeState
+    let primary: UUID?
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        let hidden = active && (primary.flatMap { chrome.hidden[$0] } ?? false)
+        content
+            .toolbarVisibility(hidden ? .hidden : .visible, for: .tabBar)
+            .animation(.easeOut(duration: 0.2), value: hidden)
+    }
+}
+
 struct RootView: View {
     // начальная вкладка (для проверки на симуляторе: -debugTab more|plans|saved|bible)
     @State private var tab: AppTab = Self.startTab()
@@ -83,8 +97,9 @@ struct RootView: View {
                 Color.clear
             }
         }
-        // при прокрутке вниз нижнее меню сворачивается, при прокрутке вверх — возвращается (системное поведение iOS 26)
-        .tabBarMinimizeBehavior(hideOnScroll ? .onScrollDown : .never)
+        // при прокрутке вниз нижнее меню (вместе с поиском) уходит вниз целиком, как и верхнее, при прокрутке вверх — возвращается
+        .tabBarMinimizeBehavior(.never)
+        .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
         // мини-проигрыватель над нижним меню, пока идёт аудио
         .modifier(AudioAccessory(active: audio.active))
         // проверка на симуляторе: -debugView appearance|settings|mydata|about|news|help|library|dictionary|maps|audio|sermons

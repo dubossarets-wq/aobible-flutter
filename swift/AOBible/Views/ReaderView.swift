@@ -85,7 +85,7 @@ struct PaneView: View {
     @EnvironmentObject private var plans: PlansStore
     @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
-    @State private var headerH: CGFloat = 62
+    @State private var headerH: CGFloat = 46
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @ObservedObject var chrome: ChromeState
@@ -178,7 +178,7 @@ struct PaneView: View {
     }
 
     /// Высота шапки: столько оставлено в начале текста (постоянно, чтобы шапка не двигала текст)
-    static let headerHeight: CGFloat = 62
+    static let headerHeight: CGFloat = 46
 
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
         let hidden = chrome.hidden[paneID] == true
@@ -216,7 +216,6 @@ struct PaneView: View {
                 Text(m.shortName).font(.headline).fixedSize().padding(.horizontal, 4)
             }
             .buttonStyle(.glass)
-            .controlSize(.large)
             Button { showGoto = true } label: {
                 HStack(spacing: 5) {
                     LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
@@ -225,7 +224,6 @@ struct PaneView: View {
                 .padding(.horizontal, 4)
             }
             .buttonStyle(.glass)
-            .controlSize(.large)
             Spacer(minLength: 4)
             if panes.canBack(paneID) {
                 Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward") }
@@ -251,6 +249,7 @@ struct PaneView: View {
                 .disabled(panes.panes.count >= maxPanes)
                 .accessibilityLabel("Добавить панель")
         }
+        .controlSize(.regular)
         .padding(.horizontal, 20)
         .padding(.vertical, 6)
     }
