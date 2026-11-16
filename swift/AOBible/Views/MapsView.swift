@@ -153,9 +153,9 @@ struct InterlinearSheet: View {
     @State private var moduleId = ""
     @State private var word: WordRequest?
 
-    /// Синодальный подстрочник здесь не показываем — только подстрочник Винокурова (и другие, если установлены)
+    /// Все установленные подстрочники (Винокуров, синодальный) — переключатель сверху
     private var modules: [InstalledModule] {
-        store.bibles.filter { $0.interlinear && $0.id != "rst-interlinear" }
+        store.bibles.filter { $0.interlinear }
     }
 
     var body: some View {
