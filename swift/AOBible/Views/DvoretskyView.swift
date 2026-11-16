@@ -8,17 +8,31 @@ struct KeyWordRenderer: TextRenderer {
     var color: Color
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        // одно слово может состоять из нескольких отрезков (буквы с краткостью рисуются запасным шрифтом) —
+        // подряд идущие отмеченные отрезки объединяются в одну подложку
         for line in layout {
-            for run in line where run[KeyWordAttribute.self] != nil {
-                let rect = run.typographicBounds.rect.insetBy(dx: -3, dy: -1)
-                context.fill(Path(roundedRect: rect, cornerRadius: 6, style: .continuous), with: .color(color))
+            var word: CGRect? = nil
+            for run in line {
+                if run[KeyWordAttribute.self] != nil {
+                    let r = run.typographicBounds.rect
+                    word = word.map { $0.union(r) } ?? r
+                } else if let w = word {
+                    fill(w, &context)
+                    word = nil
+                }
             }
+            if let w = word { fill(w, &context) }
         }
         for line in layout {
             for run in line {
                 context.draw(run)
             }
         }
+    }
+
+    private func fill(_ rect: CGRect, _ context: inout GraphicsContext) {
+        let r = rect.insetBy(dx: -3, dy: -1)
+        context.fill(Path(roundedRect: r, cornerRadius: 6, style: .continuous), with: .color(color))
     }
 }
 
@@ -123,13 +137,16 @@ struct DvoretskyArticle: View {
                     line(b["m"], size: 17)
                 }
             }
-            // авторы и примеры — на всю ширину, без отступа под номер
-            if let authors {
-                Text(authors).font(.system(size: 14)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            // авторы и примеры — вровень с текстом значения (под ним, не под номером)
+            VStack(alignment: .leading, spacing: 6) {
+                if let authors {
+                    Text(authors).font(.system(size: 14)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(Array(examples.enumerated()), id: \.offset) { _, x in
+                    example(x)
+                }
             }
-            ForEach(Array(examples.enumerated()), id: \.offset) { _, x in
-                example(x)
-            }
+            .padding(.leading, numberWidth > 0 ? numberWidth + 4 : 0)
         }
         .padding(.leading, CGFloat(level) * 14)
     }
