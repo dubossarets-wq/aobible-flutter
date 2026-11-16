@@ -9,6 +9,8 @@ struct InterlinearVerse: View {
     let fontSize: CGFloat
     let fontFamily: String
     let fontWeight: Double
+    /// Межстрочный интервал из настроек (1.45 — обычный): расстояние между строками столбиков
+    var lineHeight: Double = 1.45
     let showNumber: Bool
     let numberColor: Color
     let textColor: Color
@@ -100,7 +102,8 @@ struct InterlinearVerse: View {
     }
 
     var body: some View {
-        InterlinearFlow(hSpacing: 6, vSpacing: 10) {
+        // при обычном интервале (1.45) — около 10 пт, как было; больше интервал — дальше строки друг от друга
+        InterlinearFlow(hSpacing: 6, vSpacing: max(2, fontSize * CGFloat(lineHeight - 1) * 1.1)) {
             if showNumber {
                 Text("\(verse.num)")
                     .font(.system(size: fontSize * 0.62, weight: .semibold))

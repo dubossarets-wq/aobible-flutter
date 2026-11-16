@@ -978,7 +978,7 @@ struct ChapterText: View {
                         if module.interlinear {
                             // подстрочный перевод: слова столбиками «перевод / оригинал / Стронг»
                             InterlinearVerse(
-                                verse: v, fontSize: fontSize, fontFamily: fontFamily, fontWeight: fontWeight,
+                                verse: v, fontSize: fontSize, fontFamily: fontFamily, fontWeight: fontWeight, lineHeight: lineHeight,
                                 showNumber: showNumbers, numberColor: pal.verseNum, textColor: pal.text, accent: pal.accent,
                                 showGloss: ilGloss, showOrig: ilOrig, showStrong: ilStrong,
                                 favorite: favNums.contains(v.num),
