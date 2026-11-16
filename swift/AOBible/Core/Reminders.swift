@@ -14,17 +14,36 @@ struct ReminderItem: Codable, Identifiable, Hashable {
     var until: String
     var days: [Int]
     var alarm: Bool?
+    /// Конкретные даты «yyyy-MM-dd» (календарь — например, при сменном графике); заданы — дни недели не действуют
+    var dates: [String]?
+    /// Напоминание выключено (остаётся в списке)
+    var off: Bool?
 
-    init(id: String = String(Int(Date().timeIntervalSince1970 * 1_000_000), radix: 36), time: String = "08:00", every: Int = 0, until: String = "20:00", days: [Int] = [], alarm: Bool = false) {
+    init(id: String = String(Int(Date().timeIntervalSince1970 * 1_000_000), radix: 36), time: String = "08:00", every: Int = 0, until: String = "20:00", days: [Int] = [], alarm: Bool = false, dates: [String]? = nil) {
         self.id = id
         self.time = time
         self.every = every
         self.until = until
         self.days = days
         self.alarm = alarm ? true : nil
+        self.dates = dates
     }
 
     var isAlarm: Bool { alarm == true }
+    var isOn: Bool { off != true }
+    var byCalendar: Bool { !(dates ?? []).isEmpty }
+
+    /// Срабатывает ли в этот день: по датам календаря, иначе по дням недели (1 = понедельник … 7 = воскресенье)
+    func applies(weekday wd: Int, day: String) -> Bool {
+        if let ds = dates, !ds.isEmpty { return ds.contains(day) }
+        return days.isEmpty || days.contains(wd)
+    }
+
+    /// «2026-11-16» для даты
+    static func dayKey(_ date: Date) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 2000, c.month ?? 1, c.day ?? 1)
+    }
 }
 
 struct ReminderData: Codable {
@@ -158,7 +177,8 @@ enum Reminders {
             // 1 = понедельник … 7 = воскресенье
             let wd = (cal.component(.weekday, from: day) + 5) % 7 + 1
             var byMinute: [Int: Bool] = [:]
-            for r in d.list where r.days.isEmpty || r.days.contains(wd) {
+            let dk = ReminderItem.dayKey(day)
+            for r in d.list where r.isOn && r.applies(weekday: wd, day: dk) {
                 for m in times(r) { byMinute[m] = (byMinute[m] ?? false) || r.isAlarm }
             }
             if byMinute.isEmpty { continue }
