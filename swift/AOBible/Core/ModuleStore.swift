@@ -194,6 +194,42 @@ final class ModuleStore: ObservableObject {
         return result
     }
 
+    /// Модули, вложенные в сборку: папка `BundledModules` внутри приложения (`<id>.json.gz` или `<id>.json`, формат aob-module).
+    /// В репозитории таких файлов нет — их кладут в .ipa локально (словарь Дворецкого — по разрешению). Ставятся при запуске;
+    /// у каждого запоминается подпись файла: той же версии заново не ставим — и модуль, удалённый человеком, не возвращается
+    func installBundled() async {
+        guard let folder = Bundle.main.url(forResource: "BundledModules", withExtension: nil) else { return }
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        let ud = UserDefaults.standard
+        for f in files {
+            let name = f.lastPathComponent
+            guard name.hasSuffix(".json.gz") || name.hasSuffix(".json") else { continue }
+            let id = name.replacingOccurrences(of: ".json.gz", with: "").replacingOccurrences(of: ".json", with: "")
+            guard id.range(of: "^[A-Za-z0-9-]+$", options: .regularExpression) != nil else { continue }
+            let size = (try? f.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            let sig = "\(name):\(size)"
+            if ud.string(forKey: "bundledModule.\(id)") == sig { continue }
+            busy[id] = "Подготовка…"
+            let target = dir.appendingPathComponent("\(id).db")
+            opened[id] = nil
+            let ok: Bool = await Task.detached(priority: .utility) { () -> Bool in
+                do {
+                    let data = try Data(contentsOf: f)
+                    let raw = (data.count > 2 && data[0] == 0x1f && data[1] == 0x8b) ? try Gzip.decode(data) : data
+                    try ModuleConverter.convert(json: raw, to: target, catalogVersion: "")
+                    return true
+                } catch {
+                    return false
+                }
+            }.value
+            busy[id] = nil
+            if ok {
+                ud.set(sig, forKey: "bundledModule.\(id)")
+                scan()
+            }
+        }
+    }
+
     func remove(_ id: String) {
         opened[id] = nil
         if let m = module(id) {

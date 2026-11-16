@@ -232,7 +232,8 @@ struct RootView: View {
                 ud.set(true, forKey: "flutterImported")
             }
             Reminders.schedule(plans.plans)
-            // первый запуск: основной перевод, затем остальное в фоне
+            // модули, вложенные в сборку (если есть), затем первый запуск: основной перевод и остальное в фоне
+            await store.installBundled()
             await Starter.run(store: store, lang: lang)
         }
         // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
