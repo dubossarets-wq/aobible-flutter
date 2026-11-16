@@ -199,6 +199,10 @@ struct VerseAnchor: UIViewRepresentable {
 struct InterlinearBar: View {
     /// Высота панели вместе с отступом снизу
     static let height: CGFloat = 46
+    /// Плавное скрытие и показ панели: лёгкая пружина без отскока
+    static let motion = Animation.spring(response: 0.38, dampingFraction: 0.88)
+    /// Общая с шапкой область: кнопка «свернуть» перетекает в кнопку фильтра и обратно
+    let ns: Namespace.ID
     @AppStorage("ilGloss") private var gloss = true
     @AppStorage("ilOrig") private var orig = true
     @AppStorage("ilStrong") private var strong = true
@@ -231,10 +235,11 @@ struct InterlinearBar: View {
             part("Оригинал", $orig)
             part("Стронг", $strong)
             Spacer(minLength: 4)
-            Button { open = false } label: {
+            Button { withAnimation(Self.motion) { open = false } } label: {
                 Image(systemName: "chevron.up").chromeCircle()
             }
             .buttonStyle(.plain)
+            .matchedGeometryEffect(id: "ilToggle", in: ns)
             .accessibilityLabel("Свернуть")
         }
         .padding(.horizontal, 20)

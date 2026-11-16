@@ -99,6 +99,11 @@ struct VerseImageSheet: View {
     @State private var offset = CGSize.zero
     @State private var dragBase = CGSize.zero
     @State private var pinchBase: Double?
+    /// Привязка к центру (как во Flutter): ближе 2,5 % к середине — текст прилипает, видны направляющие
+    @State private var dragging = false
+    @State private var snapX = false
+    @State private var snapY = false
+    private static let snap: CGFloat = 0.025
     @State private var rendered: UIImage?
     @State private var item: PhotosPickerItem?
 
@@ -129,11 +134,17 @@ struct VerseImageSheet: View {
             ScrollView {
                 VStack(spacing: 14) {
                     ArtView(text: text, ref: ref, photo: photo, gradient: gradient, light: light, size: size, scale: scale, offset: offset)
+                        .overlay { guides }
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        // касания — только по самой картинке: текст, сдвинутый за край, не ловит свайпы рядом с ней
+                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .gesture(
                             DragGesture()
-                                .onChanged { offset = CGSize(width: dragBase.width + $0.translation.width, height: dragBase.height + $0.translation.height) }
-                                .onEnded { _ in dragBase = offset }
+                                .onChanged { drag($0.translation) }
+                                .onEnded { _ in
+                                    dragBase = offset
+                                    withAnimation(.easeOut(duration: 0.14)) { dragging = false }
+                                }
                         )
                         .simultaneousGesture(
                             MagnifyGesture()
@@ -153,8 +164,15 @@ struct VerseImageSheet: View {
                     HStack {
                         Text("Размер текста")
                         Slider(value: $scale, in: 0.5...2.5)
-                        Button("как было") { scale = 1; offset = .zero; dragBase = .zero }
-                            .font(.subheadline)
+                        Button {
+                            withAnimation(.easeOut(duration: 0.2)) { scale = 1; offset = .zero }
+                            dragBase = .zero
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.circle)
+                        .accessibilityLabel("Сбросить")
                     }
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
@@ -204,8 +222,8 @@ struct VerseImageSheet: View {
             .navigationTitle("Картинка со стихом")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
+                // слева — отправить, справа — крестик
+                ToolbarItem(placement: .topBarLeading) {
                     if let img = rendered {
                         ShareLink(item: Image(uiImage: img), preview: SharePreview(ref, image: Image(uiImage: img))) {
                             Label("Поделиться", systemImage: "square.and.arrow.up")
@@ -213,6 +231,10 @@ struct VerseImageSheet: View {
                     } else {
                         ProgressView()
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Закрыть")
                 }
             }
             .task {
@@ -236,6 +258,29 @@ struct VerseImageSheet: View {
                 }
             }
         }
+    }
+
+    /// Ведут текст: смещение не дальше 45 % от центра; у середины — прилипает с «щелчком»
+    private func drag(_ t: CGSize) {
+        if !dragging { withAnimation(.easeOut(duration: 0.14)) { dragging = true } }
+        let fx = min(0.45, max(-0.45, (dragBase.width + t.width) / size.width))
+        let fy = min(0.45, max(-0.45, (dragBase.height + t.height) / size.height))
+        let sx = abs(fx) < Self.snap, sy = abs(fy) < Self.snap
+        if (sx && !snapX) || (sy && !snapY) { UISelectionFeedbackGenerator().selectionChanged() }
+        withAnimation(.easeOut(duration: 0.14)) {
+            snapX = sx
+            snapY = sy
+        }
+        offset = CGSize(width: sx ? 0 : fx * size.width, height: sy ? 0 : fy * size.height)
+    }
+
+    /// Направляющие по центру — пока текст ведут и он прилип к середине (в готовую картинку не попадают)
+    private var guides: some View {
+        ZStack {
+            Rectangle().fill(Color.white.opacity(0.7)).frame(width: 1).opacity(dragging && snapX ? 1 : 0)
+            Rectangle().fill(Color.white.opacity(0.7)).frame(height: 1).opacity(dragging && snapY ? 1 : 0)
+        }
+        .allowsHitTesting(false)
     }
 
     private func pick(_ id: String) {

@@ -21,7 +21,7 @@ enum Starter {
         var ids: [String] = [homeBible(lang), "rst-plus", "xrefs-rst", "rst-symphony", "strongs-ru-hebrew", "strongs-ru-greek", "bible-places", "bible-illustrations", "oshb", "byz-rp2018", dictionary[lang] ?? "easton"]
         if let nt = ntBible[lang] { ids.append(nt) }
         if !cyrillic.contains(lang) { ids.append(contentsOf: ["strongs-hebrew", "strongs-greek"]) }
-        ids.append(contentsOf: ["bible-maps", "lopukhin", "vin-interlinear", "rst-interlinear", "dvoretsky-gr"])
+        ids.append(contentsOf: ["bible-maps", "lopukhin", "vin-interlinear", "dvoretsky-gr"])
         var seen = Set<String>()
         return ids.filter { seen.insert($0).inserted }
     }

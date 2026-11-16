@@ -87,6 +87,8 @@ struct PaneView: View {
     @State private var planDay: PlanReturn?
     @State private var headerH: CGFloat = 52
     @AppStorage("ilBar") private var ilBar = true
+    /// Кнопка «свернуть» панели подстрочника и кнопка фильтра в шапке — одна и та же кнопка, перетекает при скрытии
+    @Namespace private var ilNS
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @ObservedObject var chrome: ChromeState
@@ -192,8 +194,12 @@ struct PaneView: View {
                 header(p, m)
                 planPill(p)
                 // панель подстрочника — под шапкой, уходит вместе с ней
-                if m.interlinear && ilBar { InterlinearBar() }
+                if m.interlinear && ilBar {
+                    InterlinearBar(ns: ilNS)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .animation(InterlinearBar.motion, value: ilBar)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
             .allowsHitTesting(!hidden)
         } line: {
@@ -239,9 +245,12 @@ struct PaneView: View {
                     .accessibilityLabel("Закрыть панель")
             }
             if m.interlinear && !ilBar {
-                Button { ilBar = true } label: { Image(systemName: "slider.horizontal.3").chromeCircle() }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Подстрочник")
+                Button { withAnimation(InterlinearBar.motion) { ilBar = true } } label: {
+                    Image(systemName: "slider.horizontal.3").chromeCircle()
+                }
+                .buttonStyle(.plain)
+                .matchedGeometryEffect(id: "ilToggle", in: ilNS)
+                .accessibilityLabel("Подстрочник")
             }
             Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle() }
                 .buttonStyle(.plain)
@@ -257,16 +266,28 @@ struct PaneView: View {
 /// Насколько потянули за край главы (в точках): по нему показывается подсказка, а при отпускании — переход к соседней главе
 @MainActor
 final class PullState: ObservableObject {
-    static let threshold: CGFloat = 70
+    /// Сколько тянуть, чтобы глава сменилась: чуть больше прежних 70 — быстрая прокрутка не листает главу случайно
+    static let threshold: CGFloat = 92
     private(set) var bottom: CGFloat = 0
     private(set) var top: CGFloat = 0
     /// Для подсказки: меняется плавно вместе с пальцем (перерисовывается только сама подсказка)
     @Published private(set) var bottomShown: CGFloat = 0
     @Published private(set) var topShown: CGFloat = 0
+    /// Уже «Отпустите» — вибрация один раз при переходе через порог (без звука)
+    private var bottomReady = false
+    private var topReady = false
+    private let haptic = UIImpactFeedbackGenerator(style: .medium)
+
+    private func crossed(_ v: CGFloat, _ was: inout Bool) {
+        let now = v >= Self.threshold
+        if now && !was { haptic.impactOccurred() } else if !now && v > 20 && !was { haptic.prepare() }
+        was = now
+    }
 
     func setBottom(_ v: CGFloat) {
         bottom = v
         bottomShown = v
+        crossed(v, &bottomReady)
         #if DEBUG
         if v > 5 { SyncTrace.write("P,bottom,\(v)") }
         #endif
@@ -275,6 +296,7 @@ final class PullState: ObservableObject {
     func setTop(_ v: CGFloat) {
         top = v
         topShown = v
+        crossed(v, &topReady)
     }
 }
 
@@ -556,6 +578,8 @@ struct ChapterText: View {
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var imageReq: ImageRequest?
+    /// «В проповедь»: окно выбора проповеди
+    @State private var sermonPick: SermonPick?
     @State private var panel: StudyPanel?
     @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
@@ -733,6 +757,9 @@ struct ChapterText: View {
         })
         .sheet(item: $imageReq) { r in
             VerseImageSheet(text: r.text, ref: r.ref)
+        }
+        .sheet(item: $sermonPick) { p in
+            SermonPickerSheet(onPick: p.onPick)
         }
         .sheet(item: $panel) { p in
             switch p {
@@ -1178,10 +1205,13 @@ struct ChapterText: View {
         var wi = 0
         let sel = partRange(v.num)
         let fav = favPartRange(v.num)
-        func mark(_ i: Int) -> [K: Any] {
-            if let r = sel, r.contains(i) { return [.backgroundColor: UIColor(pal.accent.opacity(0.24))] }
-            if let r = fav, r.contains(i) { return [.backgroundColor: UIColor(Color(hex: 0xd9475e).opacity(0.2))] }
-            return [:]
+        // выделенная часть стиха и любимая часть — не подсветка каждого слова, а одна цельная плашка от начала
+        // первого слова до конца последнего (вместе с пробелами), её рисует PlateLayoutManager — как во Flutter
+        var selSpan: (Int, Int)?
+        var favSpan: (Int, Int)?
+        func track(_ i: Int, _ a: Int, _ b: Int) {
+            if let r = sel, r.contains(i) { selSpan = (selSpan?.0 ?? a, b) }
+            if let r = fav, r.contains(i) { favSpan = (favSpan?.0 ?? a, b) }
         }
         for (ti, t) in Markup.parse(v.text).enumerated() {
             let slant: [K: Any] = t.italic ? [.obliqueness: 0.2] : [:]
@@ -1189,9 +1219,10 @@ struct ChapterText: View {
                 // слово с номером Стронга — целиком одна ссылка на окно слова
                 var a = slant
                 a[.aobURL] = URL(string: "aobword:\(v.num),\(ti),-1")!
-                a.merge(mark(wi)) { _, new in new }
-                wi += 1
+                let at = out.length
                 add(t.text, a)
+                track(wi, at, out.length)
+                wi += 1
                 if showStrongs {
                     // номера Стронга — ссылки: нажатие открывает словарную статью
                     for key in t.strongs {
@@ -1209,14 +1240,21 @@ struct ChapterText: View {
                     }
                     var a = slant
                     a[.aobURL] = URL(string: "aobword:\(v.num),\(ti),\(k)")!
-                    a.merge(mark(wi)) { _, new in new }
+                    let at = out.length
                     add(ns.substring(with: m.range), a)
+                    track(wi, at, out.length)
                     wi += 1
                     k += 1
                     pos = m.range.location + m.range.length
                 }
                 if pos < ns.length { add(ns.substring(from: pos), slant) }
             }
+        }
+        if let f = favSpan, f.1 > f.0 {
+            out.addAttribute(.aobPlate, value: PlateStyle(UIColor(Color(hex: 0xd9475e).opacity(0.2)), radius: 6, inflate: 2), range: NSRange(location: f.0, length: f.1 - f.0))
+        }
+        if let f = selSpan, f.1 > f.0 {
+            out.addAttribute(.aobPlate, value: PlateStyle(UIColor(pal.accent.opacity(0.24)), radius: 6, inflate: 2), range: NSRange(location: f.0, length: f.1 - f.0))
         }
         if xrefs > 0 {
             // число параллельных мест после стиха: нажатие открывает их список
@@ -1236,6 +1274,9 @@ struct ChapterText: View {
     private func tapped(_ url: URL?, _ verse: Int) {
         if let url {
             openLink(url)
+        } else if case .word? = req.sheet {
+            // маленькое окно слова открыто, текст под ним живой: нажатие мимо слова закрывает окно
+            req.sheet = nil
         } else if !selected.isEmpty {
             toggle(verse)
         }
@@ -1352,13 +1393,9 @@ struct ChapterText: View {
                         show("♥ Часть стиха — в любимых")
                         endPart()
                     }
-                    Menu {
-                        ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
-                            Button(s.title.isEmpty ? "Без названия" : s.title) { partToSermon(s.id, v.num, text) }
-                        }
-                        Button("Новая проповедь") { partToSermon(sermons.create("Новая проповедь").id, v.num, text) }
-                    } label: { barLabel("scroll", "В проповедь") }
-                        .tint(.primary)
+                    barButton("scroll", "В проповедь") {
+                        sermonPick = SermonPick { id in partToSermon(id, v.num, text) }
+                    }
                     barButton("doc.on.doc", "Копировать") {
                         UIPasteboard.general.string = quote
                         show("Часть стиха скопирована")
@@ -1466,16 +1503,9 @@ struct ChapterText: View {
                 Task { await audio.listen(store: store, moduleId: module.id, from: Place(book: book, chapter: chapter, verse: first)) }
                 selected = []
             }
-            Menu {
-                ForEach(sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }.prefix(10)) { s in
-                    Button(s.title.isEmpty ? "Без названия" : s.title) { addToSermon(s.id, verses) }
-                }
-                Button("Новая проповедь") {
-                    let s = sermons.create("Новая проповедь")
-                    addToSermon(s.id, verses)
-                }
-            } label: { barLabel("scroll", "В проповедь") }
-                .tint(.primary)
+            barButton("scroll", "В проповедь") {
+                sermonPick = SermonPick { id in addToSermon(id, verses) }
+            }
             if selected.count == 1 && readingStyle != "pages" {
                 barButton("selection.pin.in.out", "Часть стиха") {
                     partVerse = first

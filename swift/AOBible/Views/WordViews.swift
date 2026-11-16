@@ -39,7 +39,7 @@ struct WordSheet: View {
         let rows = all.filter { $0.isStrong } + all.filter { !$0.isStrong }
         let approx = res?.mapping.mode == "approx"
         let count = rows.count + places.count + (approx ? 1 : 0)
-        let height = CGFloat(min(max(count, 1), 7)) * 56 + 90
+        let height = CGFloat(min(max(count, 1), 7)) * 56 + 72
         NavigationStack {
             List {
                 if res == nil {
@@ -101,6 +101,9 @@ struct WordSheet: View {
                     }
                 }
             }
+            // словари сразу под шапкой: без большого отступа списка сверху
+            .contentMargins(.top, 4, for: .scrollContent)
+            .listSectionSpacing(.compact)
             .navigationTitle(req.text)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -110,6 +113,9 @@ struct WordSheet: View {
             }
         }
         .presentationDetents([.height(height), .large], selection: $detent)
+        // текст под маленьким окном остаётся живым: после закрытия (и даже до него) можно сразу нажать куда нужно,
+        // не дожидаясь конца анимации
+        .presentationBackgroundInteraction(.enabled(upThrough: .height(height)))
         .task {
             // окно уже показано; поиск по словарям — после первого кадра и только один раз
             await Task.yield()
@@ -119,7 +125,7 @@ struct WordSheet: View {
             res = r
             let all = r.results.reduce(0) { $0 + $1.found.count }
             let n = all + places.count + (r.mapping.mode == "approx" ? 1 : 0)
-            detent = .height(CGFloat(min(max(n, 1), 7)) * 56 + 90)
+            detent = .height(CGFloat(min(max(n, 1), 7)) * 56 + 72)
         }
     }
 }

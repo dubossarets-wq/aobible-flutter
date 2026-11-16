@@ -153,8 +153,9 @@ struct InterlinearSheet: View {
     @State private var moduleId = ""
     @State private var word: WordRequest?
 
+    /// Синодальный подстрочник здесь не показываем — только подстрочник Винокурова (и другие, если установлены)
     private var modules: [InstalledModule] {
-        store.bibles.filter { $0.interlinear }
+        store.bibles.filter { $0.interlinear && $0.id != "rst-interlinear" }
     }
 
     var body: some View {
@@ -167,12 +168,13 @@ struct InterlinearSheet: View {
                     }
                 } else {
                     if modules.count > 1 {
-                        Section {
-                            Picker("Подстрочник", selection: $moduleId) {
-                                ForEach(modules) { m in Text(m.name).tag(m.id) }
-                            }
-                            .pickerStyle(.segmented)
+                        // переключатель — как в окне Стронга: сегменты прямо на фоне, без белой карточки вокруг
+                        Picker("Подстрочник", selection: $moduleId) {
+                            ForEach(modules) { m in Text(m.name).tag(m.id) }
                         }
+                        .pickerStyle(.segmented)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     }
                     Section {
                         let id = modules.contains { $0.id == moduleId } ? moduleId : (modules.first?.id ?? "")

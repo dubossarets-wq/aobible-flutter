@@ -24,7 +24,15 @@ struct VerseTextView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView(usingTextLayoutManager: false)
+        // своя связка TextKit 1: раскладка рисует цельные скруглённые плашки (PlateLayoutManager)
+        let storage = NSTextStorage()
+        let layout = PlateLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layout.addTextContainer(container)
+        let tv = UITextView(frame: .zero, textContainer: container)
+        context.coordinator.storage = storage
         tv.isEditable = false
         tv.isSelectable = false
         tv.isScrollEnabled = false
@@ -82,6 +90,8 @@ struct VerseTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: VerseTextView
+        /// Текст поля (держим сами: UITextView со своей связкой TextKit его не удерживает)
+        var storage: NSTextStorage?
         var lastText: NSAttributedString?
         var measuredWidth: CGFloat = -1
         var measuredHeight: CGFloat = 0
@@ -111,16 +121,29 @@ struct VerseTextView: UIViewRepresentable {
             return (storage.attribute(.aobURL, at: idx, effectiveRange: nil) as? URL, verse)
         }
 
+        /// Одиночное касание ждёт, не будет ли второго: иначе первое открывало окно слова, и второе попадало
+        /// уже в окно — двойное касание («в любимые») не срабатывало
+        private var pendingTap: DispatchWorkItem?
+
         @objc func tap(_ g: UITapGestureRecognizer) {
             guard g.state == .ended, let tv = g.view as? UITextView else { return }
             // отпускание пальца после долгого нажатия — не нажатие
             if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
             let h = hit(tv, g.location(in: tv))
-            parent.onTap(h.url, h.verse)
+            pendingTap?.cancel()
+            let item = DispatchWorkItem { [weak self] in
+                self?.pendingTap = nil
+                self?.parent.onTap(h.url, h.verse)
+            }
+            pendingTap = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.26, execute: item)
         }
 
         @objc func double(_ g: UITapGestureRecognizer) {
             guard g.state == .ended, let tv = g.view as? UITextView else { return }
+            pendingTap?.cancel()
+            pendingTap = nil
+            if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
             parent.onDouble(hit(tv, g.location(in: tv)).verse)
         }
 
@@ -129,6 +152,8 @@ struct VerseTextView: UIViewRepresentable {
             switch g.state {
             case .began:
                 lpActive = true
+                pendingTap?.cancel()
+                pendingTap = nil
                 parent.onLong(hit(tv, g.location(in: tv)).verse)
             case .ended, .cancelled, .failed:
                 if lpActive {

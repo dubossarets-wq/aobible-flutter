@@ -35,7 +35,7 @@ struct PagedChapter: UIViewControllerRepresentable {
 final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
     private let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
     private let storage = NSTextStorage()
-    private let layout = NSLayoutManager()
+    private let layout = PlateLayoutManager()
     private var containers: [NSTextContainer] = []
     /// Страницы текста (номер — как у containers)
     private var pages: [UIViewController] = []
@@ -370,11 +370,23 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
         if p.x < v.bounds.width * 0.22 { host?.turn(-1); return }
         if p.x > v.bounds.width * 0.78 { host?.turn(1); return }
         let h = hit(p, in: v)
-        host?.cfg?.onTap(h.url, h.verse)
+        // ждём, не будет ли второго касания (см. VerseTextView)
+        pendingTap?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.pendingTap = nil
+            self?.host?.cfg?.onTap(h.url, h.verse)
+        }
+        pendingTap = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.26, execute: item)
     }
+
+    private var pendingTap: DispatchWorkItem?
 
     @objc func double(_ g: UITapGestureRecognizer) {
         guard g.state == .ended, let v = g.view else { return }
+        pendingTap?.cancel()
+        pendingTap = nil
+        if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
         host?.cfg?.onDouble(hit(g.location(in: v), in: v).verse)
     }
 
@@ -383,6 +395,8 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
         switch g.state {
         case .began:
             lpActive = true
+            pendingTap?.cancel()
+            pendingTap = nil
             host?.cfg?.onLong(hit(g.location(in: v), in: v).verse)
         case .ended, .cancelled, .failed:
             if lpActive {
