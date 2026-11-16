@@ -437,6 +437,13 @@ final class StudyRequests: ObservableObject {
     func open(_ s: StudySheet) {
         if sheet == nil && onScreen {
             pending = s
+            // страховка: если система не сообщила о закрытии — всё равно открыть, окна не должны «застрять»
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, self.pending?.id == s.id, self.sheet == nil else { return }
+                self.pending = nil
+                self.onScreen = false
+                self.sheet = s
+            }
         } else {
             sheet = s
         }
