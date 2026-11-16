@@ -428,6 +428,28 @@ enum StudySheet: Identifiable {
 final class StudyRequests: ObservableObject {
     @Published var sheet: StudySheet?
     var openedAt = Date.distantPast
+    /// Окно на экране (в том числе пока уезжает вниз после закрытия)
+    private var onScreen = false
+    /// Нажали другое слово, пока прежнее окно ещё уезжало: SwiftUI в это время новое окно не показывает
+    /// (запрос терялся — приходилось ждать и нажимать снова). Откроем сразу, как только прежнее закроется
+    private var pending: StudySheet?
+
+    func open(_ s: StudySheet) {
+        if sheet == nil && onScreen {
+            pending = s
+        } else {
+            sheet = s
+        }
+    }
+
+    func appeared() { onScreen = true }
+
+    func dismissed() {
+        onScreen = false
+        guard let p = pending else { return }
+        pending = nil
+        DispatchQueue.main.async { [weak self] in self?.sheet = p }
+    }
 }
 
 /// Окна слова: список словарей у слова → статья (выбор строки закрывает список и открывает статью)
@@ -438,7 +460,12 @@ struct StudySheets: View {
 
     var body: some View {
         Color.clear
-            .sheet(item: $req.sheet) { s in
+            .sheet(item: $req.sheet, onDismiss: { req.dismissed() }) { s in
+                sheetContent(s).onAppear { req.appeared() }
+            }
+    }
+
+    @ViewBuilder private func sheetContent(_ s: StudySheet) -> some View {
                 switch s {
                 case .word(let r):
                     WordSheet(req: r) { moduleId, key in
@@ -454,7 +481,6 @@ struct StudySheets: View {
                         onOpenRef(b, c, v)
                     }
                 }
-            }
     }
 }
 
@@ -1346,7 +1372,7 @@ struct ChapterText: View {
         if let k = StrongLinks.key(from: url) {
             req.openedAt = Date()
             // номер Стронга в тексте — сразу статья словаря Стронга на всю высоту
-            req.sheet = .dict(DictRequest(text: k, strongs: [k], morph: [], book: book, chapter: chapter, verse: verseOf(url) ?? focus, autoOpen: true))
+            req.open(.dict(DictRequest(text: k, strongs: [k], morph: [], book: book, chapter: chapter, verse: verseOf(url) ?? focus, autoOpen: true)))
             return
         }
         if url.scheme == "aobxref", let v = Int(url.absoluteString.dropFirst("aobxref:".count)) {
@@ -1481,7 +1507,7 @@ struct ChapterText: View {
             let occ = toks[..<p[1]].filter { $0.strongs.first.map(Align.strongNum) == key }.count
             ow = OrigInfo(orig: o, morph: t.morph.first ?? Align.origMorph(store: store, book: book, chapter: chapter, verse: p[0], num: n, occurrence: occ), num: key)
         }
-        req.sheet = .word(WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0], wordIndex: wi, origWord: ow))
+        req.open(.word(WordRequest(text: text, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: p[0], wordIndex: wi, origWord: ow)))
     }
 
     // MARK: - Панель действий
