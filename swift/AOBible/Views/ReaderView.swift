@@ -326,41 +326,47 @@ final class PullState: ObservableObject {
     }
 }
 
-/// Растягивающаяся «таблетка» у края: растёт вслед за пальцем, внутри стрелка и название того, что откроется;
-/// когда потянули достаточно — стрелка разворачивается и она подсвечивается
+/// Подсказка у края (как «Новый чат» в ChatGPT): кольцо заполняется вслед за пальцем, под ним — что откроется.
+/// Кольцо замкнулось — можно отпускать (вибрация — в PullState)
 struct PullHint: View {
     @ObservedObject var state: PullState
     let next: Bool
     let label: (kind: String, name: String)?
+    @Environment(\.readerPalette) private var pal
 
     var body: some View {
         let v = next ? state.bottomShown : state.topShown
-        // появляется только после заметного потягивания, плавно; размер постоянный (не раздувается)
-        let start: CGFloat = 26
+        // появляется после небольшого потягивания; заполняется до порога смены главы
+        let start: CGFloat = 14
         if v > start, let label {
             let ready = v >= PullState.threshold
-            let k = min(1, (v - start) / 28)
-            HStack(spacing: 10) {
-                Image(systemName: next ? "arrow.up" : "arrow.down")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(ready ? Color.accentColor : .secondary)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(ready ? "Отпустите" : label.kind)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ready ? Color.accentColor : .secondary)
-                        .lineLimit(1)
-                    Text(label.name)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+            let progress = min(1, max(0, (v - start) / (PullState.threshold - start)))
+            let k = min(1, (v - start) / 22)
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .stroke(pal.muted.opacity(0.25), lineWidth: 3.5)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(pal.accent, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: next ? "arrow.up" : "arrow.down")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(pal.accent)
+                        .opacity(ready ? 1 : 0)
+                        .scaleEffect(ready ? 1 : 0.5)
                 }
+                .frame(width: 34, height: 34)
+                .scaleEffect(ready ? 1.08 : 1)
+                Text(ready ? "Отпустите" : label.name)
+                    .font(.subheadline.weight(ready ? .semibold : .regular))
+                    .foregroundStyle(ready ? pal.text : pal.muted)
+                    .lineLimit(1)
+                    .contentTransition(.opacity)
             }
             .fixedSize()
-            .padding(.horizontal, 16)
-            .frame(height: 48)
-            .glassEffect(.regular.tint(ready ? Color.accentColor.opacity(0.18) : nil), in: Capsule())
-            .scaleEffect(0.85 + 0.15 * k)
             .opacity(k)
-            .animation(.easeOut(duration: 0.18), value: ready)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: ready)
             .allowsHitTesting(false)
         }
     }
