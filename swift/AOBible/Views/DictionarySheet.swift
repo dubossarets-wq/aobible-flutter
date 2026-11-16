@@ -275,7 +275,6 @@ struct DictionarySheet: View {
                 }
             }
         }
-        SourceNote(lines: ["\(m.name) · \(m.license)"])
     }
 }
 
@@ -357,12 +356,6 @@ struct StrongEntryView: View {
                 }
             }
             WordStatsBlock(num: num, onOpenRef: onOpenRef, onOpenAll: onOpenAll)
-            SourceNote(lines: {
-                var l = ["\(module.name) · \(module.license)"]
-                if sym != nil, renderings != nil, let s = store.module(Lexicon.symphonyId) { l.append("\(s.name) · \(s.license)") }
-                for (m, _) in lex { l.append("\(m.name): \(m.author)" + (m.license.isEmpty ? "" : " · \(m.license)")) }
-                return l
-            }())
         }
     }
 
@@ -508,7 +501,7 @@ struct RefChip: View {
             HStack(spacing: 5) {
                 if let icon { Image(systemName: icon).font(.system(size: 13)) }
                 Text(label).font(.system(size: 16)).lineLimit(1)
-                if let count { Text("\(count)").font(.system(size: 13)).foregroundStyle(on ? pal.accent : pal.muted) }
+                if let count { Text("\(count)").font(.system(size: 13)).foregroundStyle(on ? Color.white.opacity(0.85) : pal.muted) }
             }
             .foregroundStyle(on ? Color.white : Color.primary)
             .padding(.horizontal, 14)
