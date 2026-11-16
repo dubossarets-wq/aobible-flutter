@@ -206,7 +206,6 @@ struct InterlinearBar: View {
     @AppStorage("ilGloss") private var gloss = true
     @AppStorage("ilOrig") private var orig = true
     @AppStorage("ilStrong") private var strong = true
-    @AppStorage("ilBar") private var open = true
     @Environment(\.readerPalette) private var pal
 
     private func toggle(_ b: Binding<Bool>) {
@@ -235,12 +234,9 @@ struct InterlinearBar: View {
             part("Оригинал", $orig)
             part("Стронг", $strong)
             Spacer(minLength: 4)
-            Button { withAnimation(Self.motion) { open = false } } label: {
-                Image(systemName: "chevron.up").chromeCircle()
-            }
-            .buttonStyle(.plain)
-            .matchedGeometryEffect(id: "ilToggle", in: ns)
-            .accessibilityLabel("Свернуть")
+            // место кнопки «свернуть»; сама кнопка общая с шапкой (PaneView.ilToggle) — она переезжает и меняет иконку
+            Color.clear.frame(width: 40, height: 40)
+                .matchedGeometryEffect(id: "ilSlot", in: ns)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 6)

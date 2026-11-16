@@ -189,23 +189,49 @@ struct PaneView: View {
         let hidden = chrome.hidden[paneID] == true
         // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
         // От полосы до верхнего края всегда размытый фон
-        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH, safeTop: Self.safeTop) {
-            VStack(spacing: 0) {
-                header(p, m)
-                planPill(p)
-                // панель подстрочника — под шапкой, уходит вместе с ней
-                if m.interlinear && ilBar {
+        let barShown = m.interlinear && ilBar
+        // высота фона шапки меняется вместе с панелью подстрочника (плавно, SlidingChrome её анимирует)
+        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH + (barShown ? InterlinearBar.height : 0), safeTop: Self.safeTop) {
+            ZStack(alignment: .topLeading) {
+                // панель подстрочника лежит ПОД строкой шапки: при скрытии уезжает вверх за кнопки перевода и книги
+                // и растворяется под ними
+                if m.interlinear {
                     InterlinearBar(ns: ilNS)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        // сдвиг — отступом (а не offset): так место кнопки в панели известно matchedGeometryEffect
+                        .padding(.top, barShown ? headerH : max(0, headerH - InterlinearBar.height))
+                        .opacity(barShown ? 1 : 0)
+                        .allowsHitTesting(barShown)
                 }
+                VStack(spacing: 0) {
+                    header(p, m)
+                    planPill(p)
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
+            }
+            .frame(height: headerH + (barShown ? InterlinearBar.height : 0), alignment: .top)
+            // одна кнопка на оба положения: в панели — «свернуть», в шапке — «фильтр»; иконка превращается
+            .overlay(alignment: .topLeading) {
+                if m.interlinear { ilToggle }
             }
             .animation(InterlinearBar.motion, value: ilBar)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
             .allowsHitTesting(!hidden)
         } line: {
             ReadProgress(live: panes.live, id: paneID)
         }
         .animation(.easeInOut(duration: 0.2), value: hidden)
+    }
+
+    /// Кнопка панели подстрочника: стоит на месте ilSlot (в панели или в шапке), при переключении переезжает,
+    /// а иконка векторно превращается: стрелка «свернуть» ⇄ «фильтр»
+    private var ilToggle: some View {
+        Button { withAnimation(InterlinearBar.motion) { ilBar.toggle() } } label: {
+            Image(systemName: ilBar ? "chevron.up" : "slider.horizontal.3")
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
+                .chromeCircle()
+        }
+        .buttonStyle(.plain)
+        .matchedGeometryEffect(id: "ilSlot", in: ilNS, properties: .position, isSource: false)
+        .accessibilityLabel(ilBar ? "Свернуть" : "Подстрочник")
     }
 
     /// Высота системной строки состояния (до края экрана)
@@ -245,12 +271,9 @@ struct PaneView: View {
                     .accessibilityLabel("Закрыть панель")
             }
             if m.interlinear && !ilBar {
-                Button { withAnimation(InterlinearBar.motion) { ilBar = true } } label: {
-                    Image(systemName: "slider.horizontal.3").chromeCircle()
-                }
-                .buttonStyle(.plain)
-                .matchedGeometryEffect(id: "ilToggle", in: ilNS)
-                .accessibilityLabel("Подстрочник")
+                // место кнопки фильтра; сама кнопка — в ilToggle (переезжает сюда из панели)
+                Color.clear.frame(width: 40, height: 40)
+                    .matchedGeometryEffect(id: "ilSlot", in: ilNS)
             }
             Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle() }
                 .buttonStyle(.plain)
@@ -345,7 +368,7 @@ struct PullHint: View {
 struct SlidingChrome<Header: View, Line: View>: View, Animatable {
     @Environment(\.readerPalette) private var pal
     var p: CGFloat
-    let headerH: CGFloat
+    var headerH: CGFloat
     let safeTop: CGFloat
     let header: Header
     let line: Line
@@ -358,9 +381,13 @@ struct SlidingChrome<Header: View, Line: View>: View, Animatable {
         self.line = line()
     }
 
-    var animatableData: CGFloat {
-        get { p }
-        set { p = newValue }
+    /// Анимируются и уход шапки (p), и её высота (появилась или скрылась панель подстрочника)
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(p, headerH) }
+        set {
+            p = newValue.first
+            headerH = newValue.second
+        }
     }
 
     var body: some View {
