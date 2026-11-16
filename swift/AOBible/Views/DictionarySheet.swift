@@ -336,7 +336,7 @@ struct StrongEntryView: View {
                 section("Происхождение") { linked(d, size: 16) }
             }
             ForEach(Array(lex.enumerated()), id: \.offset) { _, x in
-                LexSection(name: x.0.name, text: x.1)
+                LexSection(name: x.0.name, text: x.1, rich: store.dictEntry(module: x.0, key: num)?["rich"] as? [[String: Any]])
             }
             if let r = renderings, !r.isEmpty {
                 section("В Синодальном переводе") { RenderingsView(rows: r) }
@@ -642,14 +642,25 @@ struct LexSection: View {
     @Environment(\.readerPalette) private var pal
     let name: String
     let text: String
+    /// Структура статьи (поле rich): если есть — статья рисуется для чтения, иначе плоским текстом
+    var rich: [[String: Any]]? = nil
     @State private var open = false
 
+    /// Свёрнуто: заглавная строка и первые три значения
+    private var richLong: Bool {
+        (rich ?? []).filter { ($0["k"] as? String) == "s" }.count > 3
+    }
+
     var body: some View {
-        let long = text.count > 420
+        let long = rich != nil ? richLong : text.count > 420
         VStack(alignment: .leading, spacing: 6) {
             SecTitle(text: name)
             VStack(alignment: .leading, spacing: 4) {
-                Text(text).lineSpacing(4).lineLimit(long && !open ? 7 : nil).foregroundStyle(.primary)
+                if let rich {
+                    DvoretskyArticle(blocks: rich, limit: long && !open ? 4 : nil)
+                } else {
+                    Text(text).lineSpacing(4).lineLimit(long && !open ? 7 : nil).foregroundStyle(.primary)
+                }
                 if long {
                     MoreLink(label: open ? "Свернуть" : "Развернуть") { open.toggle() }
                 }

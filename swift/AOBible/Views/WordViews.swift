@@ -189,7 +189,11 @@ struct EntryDetail: View {
                 ForEach(Lexicon.lexiconIds, id: \.self) { id in
                     if let m = store.module(id), let e = store.dictEntry(module: m, key: found.key), let t = e["text"] as? String, !t.isEmpty {
                         Section {
-                            Text(t)
+                            if let rich = e["rich"] as? [[String: Any]] {
+                                DvoretskyArticle(blocks: rich)
+                            } else {
+                                Text(t)
+                            }
                         } header: {
                             Text(m.name)
                         }
