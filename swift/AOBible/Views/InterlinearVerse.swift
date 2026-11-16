@@ -91,6 +91,9 @@ struct InterlinearVerse: View {
         .padding(.horizontal, 2)
         .background(mark(w.id).map { c in RoundedRectangle(cornerRadius: 4, style: .continuous).fill(c) })
         .contentShape(Rectangle())
+        // двойное касание объявлено первым: одиночное (окно слова) ждёт, не будет ли второго, —
+        // иначе словари открывались сразу и двойное «в любимые» не срабатывало
+        .onTapGesture(count: 2) { onDouble(verse.num) }
         .onTapGesture {
             onTap(URL(string: "aobword:\(verse.num),\(w.ti),\(w.k)"), verse.num)
         }
@@ -124,8 +127,8 @@ struct InterlinearVerse: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(VerseAnchor(verse: verse.num, views: views))
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) { onDouble(verse.num) }
         .onTapGesture { onTap(nil, verse.num) }
-        .simultaneousGesture(TapGesture(count: 2).onEnded { onDouble(verse.num) })
         .onLongPressGesture(minimumDuration: 0.25) { onLong(verse.num) }
     }
 }
