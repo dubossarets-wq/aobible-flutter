@@ -108,6 +108,10 @@ struct DvoretskyArticle: View {
             switch st {
             case "g":
                 a.font = .system(size: size + 1, design: .serif)
+            case "k":
+                // изучаемое слово в примере (в нужной форме): жирным и цветной подложкой
+                a.font = .system(size: size + 1, weight: .bold, design: .serif)
+                a.backgroundColor = pal.accent.opacity(0.2)
             case "h":
                 a.font = .system(size: size + 6, weight: .bold, design: .serif)
             case "b":
