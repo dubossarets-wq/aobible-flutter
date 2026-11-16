@@ -88,7 +88,6 @@ struct PaneView: View {
     @State private var headerH: CGFloat = 52
     @AppStorage("ilBar") private var ilBar = true
     /// Кнопка «свернуть» панели подстрочника и кнопка фильтра в шапке — одна и та же кнопка, перетекает при скрытии
-    @Namespace private var ilNS
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
     @ObservedObject var chrome: ChromeState
@@ -196,8 +195,7 @@ struct PaneView: View {
                 // панель подстрочника лежит ПОД строкой шапки: при скрытии уезжает вверх за кнопки перевода и книги
                 // и растворяется под ними
                 if m.interlinear {
-                    InterlinearBar(ns: ilNS)
-                        // сдвиг — отступом (а не offset): так место кнопки в панели известно matchedGeometryEffect
+                    InterlinearBar()
                         .padding(.top, barShown ? headerH : max(0, headerH - InterlinearBar.height))
                         .opacity(barShown ? 1 : 0)
                         .allowsHitTesting(barShown)
@@ -210,8 +208,15 @@ struct PaneView: View {
             }
             .frame(height: headerH + (barShown ? InterlinearBar.height : 0), alignment: .top)
             // одна кнопка на оба положения: в панели — «свернуть», в шапке — «фильтр»; иконка превращается
+            // место считается явно (а не matchedGeometryEffect: тот при запуске не успевал пересчитаться, и кнопка
+            // вставала поверх кнопки «две панели»). В шапке — сразу слева от неё, в панели — у правого края
             .overlay(alignment: .topLeading) {
-                if m.interlinear { ilToggle }
+                if m.interlinear {
+                    GeometryReader { g in
+                        let barTop = barShown ? headerH : max(0, headerH - InterlinearBar.height)
+                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : CGPoint(x: g.size.width - 88, y: 26))
+                    }
+                }
             }
             .animation(InterlinearBar.motion, value: ilBar)
             .allowsHitTesting(!hidden)
@@ -230,7 +235,6 @@ struct PaneView: View {
                 .chromeCircle()
         }
         .buttonStyle(.plain)
-        .matchedGeometryEffect(id: "ilSlot", in: ilNS, properties: .position, isSource: false)
         .accessibilityLabel(ilBar ? "Свернуть" : "Подстрочник")
     }
 
@@ -273,7 +277,6 @@ struct PaneView: View {
             if m.interlinear && !ilBar {
                 // место кнопки фильтра; сама кнопка — в ilToggle (переезжает сюда из панели)
                 Color.clear.frame(width: 40, height: 40)
-                    .matchedGeometryEffect(id: "ilSlot", in: ilNS)
             }
             Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle() }
                 .buttonStyle(.plain)
@@ -635,6 +638,9 @@ struct ChapterText: View {
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
+    /// Стихи под системным выделением (долгое нажатие, ручки) и выделенная им часть стиха
+    @State private var nativeVerses: Set<Int> = []
+    @State private var nativePart: NativePart?
     @State private var noteVerse: Int?
     @State private var noteText = ""
     @State private var imageReq: ImageRequest?
@@ -789,13 +795,22 @@ struct ChapterText: View {
         .safeAreaInset(edge: .bottom) {
             // сплошной текст: панель внизу; иначе она стоит между стихами, под последним выделенным
             if !selected.isEmpty && (continuous || readingStyle == "pages") {
-                selectionBar(verses)
+                if let np = nativePart, selected == [np.verse], let v = verses.first(where: { $0.num == np.verse }) {
+                    partBar(v, range: np.range)
+                } else {
+                    selectionBar(verses)
+                }
             }
         }
         .sheet(isPresented: Binding(get: { noteVerse != nil }, set: { if !$0 { noteVerse = nil } })) {
             noteEditor
         }
         .onChange(of: chapter) { _, _ in selected = [] }
+        .onChange(of: selected) { _, new in
+            // выделение сняли (действие на панели, крестик) — системное тоже
+            if !nativeVerses.isSubset(of: new) { nativeVerses.formIntersection(new) }
+            if let np = nativePart, new != [np.verse] { nativePart = nil }
+        }
         .overlay(alignment: .top) {
             if let t = toast {
                 Text(t)
@@ -941,7 +956,9 @@ struct ChapterText: View {
                         onTap: { url, vn in tapped(url, vn) },
                         onDouble: { vn in doubleTapped(verses.first { $0.num == vn }) },
                         onLong: { vn in longPressed(vn) },
-                        views: views
+                        views: views,
+                        selActive: !nativeVerses.isEmpty,
+                        onSelect: { nativeSelected($0) }
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -977,7 +994,9 @@ struct ChapterText: View {
                                 onTap: { url, vn in tapped(url, vn) },
                                 onDouble: { _ in doubleTapped(v) },
                                 onLong: { vn in longPressed(vn) },
-                                views: views
+                                views: views,
+                                selActive: !nativeVerses.isEmpty,
+                                onSelect: { nativeSelected($0) }
                             )
                         }
                     }
@@ -996,6 +1015,8 @@ struct ChapterText: View {
                     }
                     if partVerse == v.num {
                         partBar(v).frame(maxWidth: .infinity)
+                    } else if let np = nativePart, np.verse == v.num, selected == [v.num] {
+                        partBar(v, range: np.range).frame(maxWidth: .infinity)
                     } else if v.num == selected.max() {
                         selectionBar(verses).frame(maxWidth: .infinity)
                     }
@@ -1163,7 +1184,7 @@ struct ChapterText: View {
     }
 
     private func background(_ n: Int) -> Color {
-        if selected.contains(n) { return pal.accent.opacity(continuous ? 0.16 : 0.09) }
+        if selected.contains(n) && !nativeVerses.contains(n) { return pal.accent.opacity(continuous ? 0.16 : 0.09) }
         // звучащий стих подсвечен
         if audio.active, audio.moduleId == module.id, let c = audio.current, c.book == book, c.chapter == chapter, c.verse == n {
             return pal.accent.opacity(0.16)
@@ -1423,8 +1444,8 @@ struct ChapterText: View {
         return out
     }
 
-    private func partText(_ num: Int) -> String {
-        guard let r = partRange(num) else { return "" }
+    private func partText(_ num: Int, _ range: ClosedRange<Int>? = nil) -> String {
+        guard let r = range ?? partRange(num) else { return "" }
         let w = verseWords(num)
         guard r.lowerBound < w.count else { return "" }
         return w[r.lowerBound...min(r.upperBound, w.count - 1)].joined(separator: " ")
@@ -1437,32 +1458,34 @@ struct ChapterText: View {
     }
 
     /// Выбор части стиха прямо в тексте: нажмите первое и последнее слово — они закрашиваются; действия — под стихом
-    private func partBar(_ v: Verse) -> some View {
-        let text = partText(v.num)
+    /// range — часть, выделенная системным выделением (иначе — нажатиями по словам)
+    private func partBar(_ v: Verse, range native: ClosedRange<Int>? = nil) -> some View {
+        let text = partText(v.num, native)
+        let done: () -> Void = native == nil ? { endPart() } : { selected = [] }
         let short = Books.info(book)?.short ?? bookName
         let quote = "\"\(text)\" - \(short) \(chapter):\(v.num)"
         return VStack(spacing: 8) {
-            if partFrom == nil {
+            if native == nil && partFrom == nil {
                 Text(partTo == nil ? "Нажмите первое и последнее слово части" : "")
                     .font(.footnote).foregroundStyle(pal.muted)
             }
             HStack(spacing: 4) {
-                if !text.isEmpty, let r = partRange(v.num) {
+                if !text.isEmpty, let r = native ?? partRange(v.num) {
                     barButton("heart", "В любимые") {
                         marks.setFavoritePart(book, chapter, v.num, text: text, part: Part(from: r.lowerBound, to: r.upperBound))
                         show("♥ Часть стиха — в любимых")
-                        endPart()
+                        done()
                     }
                     barButton("scroll", "В проповедь") {
-                        sermonPick = SermonPick { id in partToSermon(id, v.num, text) }
+                        sermonPick = SermonPick { id in partToSermon(id, v.num, text, done) }
                     }
                     barButton("doc.on.doc", "Копировать") {
                         UIPasteboard.general.string = quote
                         show("Часть стиха скопирована")
-                        endPart()
+                        done()
                     }
                 }
-                barButton("xmark", "Отмена") { endPart() }
+                barButton("xmark", "Отмена") { done() }
             }
             .padding(.horizontal, 8)
             .glassEffect(.regular, in: Capsule())
@@ -1470,10 +1493,31 @@ struct ChapterText: View {
         .padding(.bottom, 8)
     }
 
-    private func partToSermon(_ id: String, _ num: Int, _ text: String) {
+    private func partToSermon(_ id: String, _ num: Int, _ text: String, _ done: () -> Void) {
         sermons.addVerses(to: id, items: [VerseItem(book: book, chapter: chapter, verse: num, text: text, moduleId: module.id, part: true)], moduleId: module.id)
         show("Добавлено в проповедь")
+        done()
+    }
+
+    /// Системное выделение изменилось (ручки сдвинули) или снято (nil): задетые стихи — выделенные стихи,
+    /// один стих не целиком — часть стиха (действия с частью)
+    private func nativeSelected(_ s: NativeSel?) {
+        guard let s else {
+            selected.subtract(nativeVerses)
+            nativeVerses = []
+            nativePart = nil
+            return
+        }
         endPart()
+        let now = Set(s.verses)
+        let next = selected.subtracting(nativeVerses).union(now)
+        if next != selected { selected = next }
+        if nativeVerses != now { nativeVerses = now }
+        var part: NativePart?
+        if s.partial, let v = s.verses.first, let a = s.firstWord.flatMap(partWordIndex), let b = s.lastWord.flatMap(partWordIndex) {
+            part = NativePart(verse: v, range: min(a, b)...max(a, b))
+        }
+        if part != nativePart { nativePart = part }
     }
 
     private func barLabel(_ icon: String, _ title: LocalizedStringKey) -> some View {
@@ -1566,7 +1610,7 @@ struct ChapterText: View {
             barButton("scroll", "В проповедь") {
                 sermonPick = SermonPick { id in addToSermon(id, verses) }
             }
-            if selected.count == 1 && readingStyle != "pages" {
+            if selected.count == 1 && readingStyle != "pages" && module.interlinear {
                 barButton("selection.pin.in.out", "Часть стиха") {
                     partVerse = first
                     partFrom = nil

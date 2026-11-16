@@ -12,6 +12,9 @@ struct SermonPickerSheet: View {
     @EnvironmentObject private var sermons: SermonStore
     @Environment(\.dismiss) private var dismiss
     let onPick: (String) -> Void
+    /// Созданная проповедь: окно разворачивается и сразу открывает её
+    @State private var newId: String?
+    @State private var detent: PresentationDetent = .medium
 
     var body: some View {
         let list = sermons.sermons.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
@@ -48,8 +51,10 @@ struct SermonPickerSheet: View {
             .contentMargins(.top, 4, for: .scrollContent)
             .safeAreaInset(edge: .bottom) {
                 Button {
-                    onPick(sermons.create("Новая проповедь").id)
-                    dismiss()
+                    let id = sermons.create("Новая проповедь").id
+                    onPick(id)
+                    withAnimation { detent = .large }
+                    newId = id
                 } label: {
                     Label("Новая проповедь", systemImage: "plus")
                         .font(.headline)
@@ -62,6 +67,16 @@ struct SermonPickerSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
+            .navigationDestination(item: $newId) { id in
+                SermonEditor(id: id)
+                    .navigationBarBackButtonHidden()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button { dismiss() } label: { Image(systemName: "xmark") }
+                                .accessibilityLabel("Закрыть")
+                        }
+                    }
+            }
             .navigationTitle("В проповедь")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -71,7 +86,7 @@ struct SermonPickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
     }
 
     /// «Подзаголовок · дата»

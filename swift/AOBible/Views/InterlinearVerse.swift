@@ -204,8 +204,6 @@ struct InterlinearBar: View {
     static let height: CGFloat = 46
     /// Плавное скрытие и показ панели: лёгкая пружина без отскока
     static let motion = Animation.spring(response: 0.38, dampingFraction: 0.88)
-    /// Общая с шапкой область: кнопка «свернуть» перетекает в кнопку фильтра и обратно
-    let ns: Namespace.ID
     @AppStorage("ilGloss") private var gloss = true
     @AppStorage("ilOrig") private var orig = true
     @AppStorage("ilStrong") private var strong = true
@@ -239,7 +237,6 @@ struct InterlinearBar: View {
             Spacer(minLength: 4)
             // место кнопки «свернуть»; сама кнопка общая с шапкой (PaneView.ilToggle) — она переезжает и меняет иконку
             Color.clear.frame(width: 40, height: 40)
-                .matchedGeometryEffect(id: "ilSlot", in: ns)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 6)
