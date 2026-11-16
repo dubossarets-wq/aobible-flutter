@@ -23,21 +23,34 @@ struct KeyWordRenderer: TextRenderer {
 }
 
 /// Статья словаря Дворецкого в удобном для чтения виде (поле `rich` модуля dvoretsky-gr):
-/// слово крупно, значения под номерами, у значения авторы отдельной строкой, греческие примеры с переводом —
-/// каждый на своей строке с чертой слева, внизу — годы авторов, названных в примерах.
+/// слово крупно, под ним формы (степени сравнения, времена) по строкам, значения под номерами, у значения авторы
+/// отдельной строкой, греческие примеры с переводом — каждый на своей строке с чертой слева, внизу — годы авторов.
 struct DvoretskyArticle: View {
     @Environment(\.readerPalette) private var pal
     let blocks: [[String: Any]]
-    /// Сколько блоков показывать (nil — все): для свёрнутого вида
+    /// Сколько значений показывать (nil — все): для свёрнутого вида; шапка и формы показываются всегда
     var limit: Int? = nil
 
     private var shown: [[String: Any]] {
         guard let limit else { return blocks }
-        return Array(blocks.prefix(limit)).filter { ($0["k"] as? String) != "legend" }
+        var out: [[String: Any]] = []
+        var senses = 0
+        for b in blocks {
+            let k = b["k"] as? String
+            if k == "legend" { continue }
+            if k == "s" {
+                senses += 1
+                if senses > limit { break }
+            }
+            out.append(b)
+        }
+        return out
     }
 
-    private var hasNumbers: Bool {
-        blocks.contains { ($0["n"] as? String) != nil }
+    /// Ширина колонки номера по самому длинному номеру («9.» уже, чем «10.»)
+    private var numberWidth: CGFloat {
+        let longest = blocks.compactMap { $0["n"] as? String }.map { $0.count }.max() ?? 0
+        return longest == 0 ? 0 : CGFloat(longest) * 9 + 3
     }
 
     private var keyRenderer: KeyWordRenderer {
@@ -45,7 +58,7 @@ struct DvoretskyArticle: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
                 blockView(b)
             }
@@ -59,6 +72,8 @@ struct DvoretskyArticle: View {
             line(b["s"], size: 17)
         case "p":
             line(b["s"], size: 17)
+        case "f":
+            forms(b)
         case "hr":
             Divider().padding(.vertical, 2)
         case "legend":
@@ -74,37 +89,54 @@ struct DvoretskyArticle: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// Формы слова: «Сравнительная степень» — слова; «Будущее время» — слово…
+    private func forms(_ b: [String: Any]) -> some View {
+        let rows = (b["rows"] as? [[String: Any]]) ?? []
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, r in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text((r["label"] as? String) ?? "")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    line(r["s"], size: 16)
+                }
+            }
+        }
+    }
+
     private func sense(_ b: [String: Any]) -> some View {
         let level = (b["l"] as? Int) ?? 0
         let num = b["n"] as? String
         let hasMeaning = !plain(b["m"]).isEmpty
         let authors = b["au"] as? String
         let examples = (b["x"] as? [[String: Any]]) ?? []
-        return HStack(alignment: .top, spacing: 8) {
-            if hasNumbers {
-                Text(num ?? "")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(pal.accent)
-                    .frame(width: 26, alignment: .trailing)
-            }
-            VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 6) {
+            // номер и значение: номер у левого края, перенос строк — под текстом значения
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if numberWidth > 0 {
+                    Text(num ?? "")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(pal.accent)
+                        .frame(width: numberWidth, alignment: .leading)
+                }
                 if hasMeaning {
                     line(b["m"], size: 17)
                 }
-                if let authors {
-                    Text(authors).font(.system(size: 14)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                ForEach(Array(examples.enumerated()), id: \.offset) { _, x in
-                    example(x)
-                }
+            }
+            // авторы и примеры — на всю ширину, без отступа под номер
+            if let authors {
+                Text(authors).font(.system(size: 14)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(Array(examples.enumerated()), id: \.offset) { _, x in
+                example(x)
             }
         }
-        .padding(.leading, CGFloat(level) * 18)
+        .padding(.leading, CGFloat(level) * 14)
     }
 
     private func example(_ x: [String: Any]) -> some View {
         let hasTr = !plain(x["t"]).isEmpty
-        return VStack(alignment: .leading, spacing: 3) {
+        return VStack(alignment: .leading, spacing: 2) {
             line(x["q"], size: 16)
             if hasTr {
                 rich(x["t"], size: 15)
@@ -112,7 +144,7 @@ struct DvoretskyArticle: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.leading, 12)
+        .padding(.leading, 10)
         .overlay(alignment: .leading) {
             Rectangle().fill(pal.accent.opacity(0.35)).frame(width: 3)
         }

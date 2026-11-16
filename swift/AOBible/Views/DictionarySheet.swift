@@ -657,7 +657,7 @@ struct LexSection: View {
             SecTitle(text: name)
             VStack(alignment: .leading, spacing: 4) {
                 if let rich {
-                    DvoretskyArticle(blocks: rich, limit: long && !open ? 4 : nil)
+                    DvoretskyArticle(blocks: rich, limit: long && !open ? 3 : nil)
                 } else {
                     Text(text).lineSpacing(4).lineLimit(long && !open ? 7 : nil).foregroundStyle(.primary)
                 }
