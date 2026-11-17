@@ -63,6 +63,7 @@ enum SermonPDF {
         return out
     }
 
+    @MainActor
     static func html(_ s: Sermon) -> String {
         let ui = "'PT Sans',Helvetica,Arial,sans-serif"
         var h = """
