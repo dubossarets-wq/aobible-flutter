@@ -1480,5 +1480,8 @@
  "Календарь": "Kalenda",
  "Выбрано дат: {n}": "Tarehe zilizochaguliwa: {n}",
  "Снять все даты": "Ondoa tarehe zote",
- "Время читать Библию": "Ni wakati wa kusoma Biblia"
+ "Время читать Библию": "Ni wakati wa kusoma Biblia",
+ "Слово или номер Стронга": "Word or Strong's number",
+ "Введите слово или номер Стронга, например G26 или H430.": "Enter a word or a Strong's number, for example G26 or H430.",
+ "Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».": "No dictionaries yet. Install them: More → Module library → Dictionaries."
 }

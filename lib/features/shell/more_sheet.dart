@@ -16,6 +16,7 @@ import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
 import '../bookmarks/marks.dart' show marksProvider;
 import '../history/history_sheet.dart' show openHistory;
+import '../study/dictionary_search.dart' show openDictionarySearch;
 import '../hub.dart';
 import 'about_sheet.dart';
 import 'appearance_sheet.dart';
@@ -138,6 +139,7 @@ class MoreSheet extends ConsumerWidget {
       ],
       // Свои пункты — после остальных, отдельной группой
       // модули — сразу из «Ещё» (по просьбе владельца), а не только через «Настройки»
+      _Entry(icon: LucideIcons.bookA, label: t('Словарь'), keep: true, order: 885, run: (c, r) => openDictionarySearch(c)),
       _Entry(icon: LucideIcons.library, label: t('Библиотека модулей'), keep: true, order: 890, run: (c, r) => openLibrary(c)),
       _Entry(icon: LucideIcons.palette, label: t('Оформление'), keep: true, order: 900, run: (c, r) => openAppearance(c)),
       _Entry(icon: LucideIcons.settings, label: t('Настройки'), keep: true, order: 910, run: (c, r) => openPrefs(c)),
