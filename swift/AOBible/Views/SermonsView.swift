@@ -64,13 +64,63 @@ struct SermonEditor: View {
     @EnvironmentObject private var sermons: SermonStore
     @EnvironmentObject private var panes: PanesStore
     @EnvironmentObject private var store: ModuleStore
+    @Environment(\.dismiss) private var dismiss
     let id: String
     @State private var showAddVerse = false
     @State private var editing = false
+    /// «Отменить / Повторить»: снимки проповеди (до 50 шагов); правки текста, идущие подряд, — один шаг
+    @State private var undo: [Sermon] = []
+    @State private var redo: [Sermon] = []
+    @State private var lastEdit = Date.distantPast
+    /// растёт при отмене и возврате — поля текста перечитывают содержимое
+    @State private var version = 0
+    @State private var askDelete = false
+    @State private var copyId: String?
+    /// после какого блока вставлять стих (nil — в конец)
+    @State private var insertAfter: String?
 
     private var binding: Binding<Sermon>? {
         guard let s = sermons.get(id) else { return nil }
-        return Binding(get: { sermons.get(id) ?? s }, set: { sermons.upsert($0) })
+        return Binding(get: { sermons.get(id) ?? s }, set: { record(); sermons.upsert($0) })
+    }
+
+    private func record() {
+        guard let cur = sermons.get(id) else { return }
+        let now = Date()
+        if undo.isEmpty || now.timeIntervalSince(lastEdit) > 0.8 {
+            undo.append(cur)
+            if undo.count > 50 { undo.removeFirst() }
+            redo.removeAll()
+        }
+        lastEdit = now
+    }
+
+    private func step(back: Bool) {
+        guard let cur = sermons.get(id) else { return }
+        if back {
+            guard let p = undo.popLast() else { return }
+            redo.append(cur)
+            sermons.upsert(p)
+        } else {
+            guard let p = redo.popLast() else { return }
+            undo.append(cur)
+            sermons.upsert(p)
+        }
+        lastEdit = .distantPast
+        version += 1
+    }
+
+    private func add(_ b: SermonBlock, after: String?) {
+        record()
+        sermons.insert([b], into: id, after: after)
+    }
+
+    /// «Добавить блок» — в конце списка или под нажатым блоком (контекстное меню)
+    @ViewBuilder
+    private func addMenu(after: String?) -> some View {
+        Button { insertAfter = after; showAddVerse = true } label: { Label("Стих", systemImage: "book") }
+        Button { add(SermonBlock(type: "text", text: ""), after: after) } label: { Label("Свой текст", systemImage: "text.alignleft") }
+        Button { add(SermonBlock(type: "note", text: ""), after: after) } label: { Label("Заметка для себя", systemImage: "note.text") }
     }
 
     var body: some View {
@@ -94,16 +144,24 @@ struct SermonEditor: View {
                                 sb.wrappedValue.blocks[i] = updated
                             }
                         }
+                        .id("\(b.id)-\(version)")
+                        .contextMenu {
+                            Menu {
+                                addMenu(after: b.id)
+                            } label: { Label("Добавить блок", systemImage: "plus.circle") }
+                        }
                     }
                     .onMove { from, to in sb.wrappedValue.blocks.move(fromOffsets: from, toOffset: to) }
                     .onDelete { sb.wrappedValue.blocks.remove(atOffsets: $0) }
                     Menu {
-                        Button { showAddVerse = true } label: { Label("Стих", systemImage: "book") }
-                        Button { sb.wrappedValue.blocks.append(SermonBlock(type: "text", text: "")) } label: { Label("Свой текст", systemImage: "text.alignleft") }
-                        Button { sb.wrappedValue.blocks.append(SermonBlock(type: "note", text: "")) } label: { Label("Заметка для себя", systemImage: "note.text") }
+                        addMenu(after: nil)
                     } label: {
                         Label("Добавить блок", systemImage: "plus.circle.fill")
                     }
+                }
+                Section {
+                    Button { if let n = sermons.duplicate(id) { copyId = n } } label: { Label("Сделать копию", systemImage: "doc.on.doc") }
+                    Button(role: .destructive) { askDelete = true } label: { Label("Удалить проповедь", systemImage: "trash") }
                 }
             }
             .environment(\.editMode, .constant(editing ? .active : .inactive))
@@ -123,12 +181,33 @@ struct SermonEditor: View {
                     }
                     .accessibilityLabel("Кафедра")
                     ShareLink(item: SermonStore.text(s)) { Image(systemName: "square.and.arrow.up") }
+                    Menu {
+                        Button { step(back: true) } label: { Label("Отменить", systemImage: "arrow.uturn.backward") }
+                            .disabled(undo.isEmpty)
+                        Button { step(back: false) } label: { Label("Повторить", systemImage: "arrow.uturn.forward") }
+                            .disabled(redo.isEmpty)
+                        ShareLink(item: SermonPDFFile(sermon: s), preview: SharePreview(s.title.isEmpty ? "PDF" : s.title)) {
+                            Label("Печать и PDF", systemImage: "printer")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
             .sheet(isPresented: $showAddVerse) {
                 AddVerseSheet { items, moduleId in
-                    sermons.addVerses(to: id, items: items, moduleId: moduleId)
+                    record()
+                    let blocks = SermonStore.versesToBlocks(items, moduleId: moduleId)
+                    sermons.insert(blocks, into: id, after: insertAfter)
                 }
+            }
+            .navigationDestination(item: $copyId) { SermonEditor(id: $0) }
+            .confirmationDialog("Удалить проповедь?", isPresented: $askDelete, titleVisibility: .visible) {
+                Button("Удалить проповедь", role: .destructive) {
+                    sermons.remove(id)
+                    dismiss()
+                }
+                Button("Отмена", role: .cancel) {}
             }
         } else {
             ContentUnavailableView("Проповедь удалена", systemImage: "scroll")
