@@ -1,7 +1,22 @@
 import SwiftUI
+import UserNotifications
+
+/// Уведомления видны и когда приложение открыто (иначе iOS их молча прячет)
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+}
 
 @main
 struct AOBibleApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var phase
     @StateObject private var store = ModuleStore()
     @StateObject private var marks = MarksStore()
     @StateObject private var plans = PlansStore()
@@ -18,6 +33,10 @@ struct AOBibleApp: App {
                 .environmentObject(panes)
                 .environmentObject(sermons)
                 .environmentObject(audio)
+                // открыли приложение — звонящий будильник замолкает
+                .onChange(of: phase) { _, p in
+                    if p == .active { Reminders.stopRinging() }
+                }
         }
     }
 }

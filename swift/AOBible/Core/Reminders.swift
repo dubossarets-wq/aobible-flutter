@@ -3,6 +3,7 @@ import SwiftUI
 import UserNotifications
 #if canImport(AlarmKit)
 import AlarmKit
+import AppIntents
 #endif
 
 /// Одно напоминание: время (или промежуток «с — до» с шагом every минут), дни недели, обычное или будильник.
@@ -159,8 +160,23 @@ enum Reminders {
     }
 
     /// Пересобрать расписание (при запуске и при любом изменении планов и напоминаний)
+    /// Пересборки идут строго по очереди: две одновременные теряли будильники (их номера затирались,
+    /// и такой будильник уже нельзя было отменить)
+    private static var running: Task<Void, Never>?
+
     static func schedule(_ plans: [Plan]) {
-        Task { await rebuild(plans) }
+        let prev = running
+        running = Task {
+            await prev?.value
+            await rebuild(plans)
+        }
+    }
+
+    /// Звонящий будильник — остановить (приложение открыли: значит, услышали)
+    static func stopRinging() {
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) { Alarms.stopAlerting() }
+        #endif
     }
 
     private static func rebuild(_ plans: [Plan]) async {
@@ -168,7 +184,7 @@ enum Reminders {
         center.removeAllPendingNotificationRequests()
         await cancelAlarms()
         let d = data
-        guard d.on, !plans.isEmpty else { return }
+        guard d.on else { return }
         let cal = Calendar.current
         let now = Date()
         var moments: [Moment] = []
@@ -187,8 +203,9 @@ enum Reminders {
                 guard let i = planDayOn(p, day), !PlanLogic.dayDone(p, i) else { continue }
                 lines.append("\(p.name): " + p.readings[i].map { PlanLogic.readingLabel($0) }.joined(separator: ", "))
             }
-            if lines.isEmpty { continue }
-            let body = lines.joined(separator: "\n")
+            // планов нет — простое напоминание; план есть, но на этот день всё прочитано — не беспокоим
+            if lines.isEmpty && !plans.isEmpty { continue }
+            let body = lines.isEmpty ? String(localized: "Время читать Библию") : lines.joined(separator: "\n")
             for m in byMinute.keys.sorted() {
                 guard let at = cal.date(byAdding: .minute, value: m, to: day), at.timeIntervalSince(now) >= 60 else { continue }
                 moments.append(Moment(date: at, alarm: byMinute[m] == true, body: body))
@@ -214,7 +231,7 @@ enum Reminders {
             #endif
             guard used < maxNotifications else { break }
             let c = UNMutableNotificationContent()
-            c.title = String(localized: "Чтение на сегодня")
+            c.title = plans.isEmpty ? "AO Bible" : String(localized: "Чтение на сегодня")
             c.body = m.body
             c.sound = .default
             if m.alarm { c.interruptionLevel = .timeSensitive }
@@ -232,6 +249,8 @@ enum Reminders {
             for s in UserDefaults.standard.stringArray(forKey: alarmIDsKey) ?? [] {
                 if let u = UUID(uuidString: s) { try? AlarmManager.shared.cancel(id: u) }
             }
+            // и все остальные будильники приложения — в том числе «потерянные» прежними версиями
+            Alarms.cancelAll()
         }
         #endif
         UserDefaults.standard.removeObject(forKey: alarmIDsKey)
@@ -258,19 +277,54 @@ enum Alarms {
         }
     }
 
-    /// Один будильник на дату; возвращает его номер для отмены
+    /// Все будильники приложения — отменить
+    static func cancelAll() {
+        for a in (try? AlarmManager.shared.alarms) ?? [] {
+            try? AlarmManager.shared.cancel(id: a.id)
+        }
+    }
+
+    /// Звонящие сейчас — остановить
+    static func stopAlerting() {
+        for a in (try? AlarmManager.shared.alarms) ?? [] where a.state == .alerting {
+            try? AlarmManager.shared.stop(id: a.id)
+        }
+    }
+
+    /// Один будильник на дату; возвращает его номер для отмены. «Стоп» явно останавливает именно его
     static func schedule(at date: Date) async -> String? {
         let stop = AlarmButton(text: "Стоп", textColor: .white, systemImageName: "stop.circle")
         let alert = AlarmPresentation.Alert(title: "Время читать Библию", stopButton: stop)
         let attrs = AlarmAttributes<ReadingAlarmData>(presentation: AlarmPresentation(alert: alert), tintColor: .orange)
         let id = UUID()
-        let cfg = AlarmManager.AlarmConfiguration.alarm(schedule: Alarm.Schedule.fixed(date), attributes: attrs)
+        let cfg = AlarmManager.AlarmConfiguration.alarm(schedule: Alarm.Schedule.fixed(date), attributes: attrs, stopIntent: StopReadingAlarm(id: id))
         do {
             _ = try await AlarmManager.shared.schedule(id: id, configuration: cfg)
             return id.uuidString
         } catch {
             return nil
         }
+    }
+}
+
+/// «Стоп» на будильнике: останавливает его (выполняется системой, приложение не открывается)
+@available(iOS 26.0, *)
+struct StopReadingAlarm: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Остановить будильник"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Будильник")
+    var alarmID: String
+
+    init() {}
+
+    init(id: UUID) {
+        alarmID = id.uuidString
+    }
+
+    func perform() async throws -> some IntentResult {
+        if let u = UUID(uuidString: alarmID) { try? AlarmManager.shared.stop(id: u) }
+        return .result()
     }
 }
 #endif
