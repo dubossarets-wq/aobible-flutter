@@ -522,12 +522,41 @@ typedef OpenRef = void Function(VerseRef r);
 
 /// Текст, в котором ссылки на стихи — кнопки
 class LinkedText extends StatelessWidget {
-  const LinkedText({super.key, required this.text, required this.onOpen, this.style});
+  const LinkedText({super.key, required this.text, required this.onOpen, this.style, this.onWord});
   final String text;
   final OpenRef onOpen;
   final TextStyle? style;
+  /// Слова после «См.» / «Ср.» в статьях словарей «по словам» — нажатие открывает статью этого слова
+  final void Function(String word)? onWord;
+
+  static final _see = RegExp(r'(?:См\.|см\.|Ср\.|ср\.)\s*([А-Яа-яЁё][А-Яа-яЁё\s,\-]*)');
+  static final _word = RegExp(r'[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*');
+
+  /// Кусок текста без ссылок на стихи → куски, где слова после «См.» нажимаются
+  List<(String, VoidCallback?)> _seeParts(String s) {
+    final out = <(String, VoidCallback?)>[];
+    var at = 0;
+    for (final m in _see.allMatches(s)) {
+      final g = m.start == m.end || m.group(1) == null ? null : (start: m.end - m.group(1)!.length, text: m.group(1)!);
+      if (g == null) continue;
+      for (final w in _word.allMatches(g.text)) {
+        if (w.group(0)!.length <= 2) continue;
+        final from = g.start + w.start;
+        if (from > at) out.add((s.substring(at, from), null));
+        final word = w.group(0)!;
+        out.add((word, () => onWord!(word)));
+        at = g.start + w.end;
+      }
+    }
+    if (at < s.length) out.add((s.substring(at), null));
+    return out;
+  }
+
   @override
-  Widget build(BuildContext context) => LinkSpans(parts: [for (final (s, r) in splitRefs(text)) (s, r == null ? null : () => onOpen(r))], style: style);
+  Widget build(BuildContext context) => LinkSpans(parts: [
+        for (final (s, r) in splitRefs(text))
+          if (r != null || onWord == null) (s, r == null ? null : () => onOpen(r)) else ..._seeParts(s),
+      ], style: style);
 }
 
 String refLabel(VerseRef r) => fmtRef(r);

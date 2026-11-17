@@ -266,6 +266,11 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
     );
   }
 
+  /// «См. слово»: статья этого слова (в любом из словарей)
+  void _openWord(String word) {
+    openDictionary(context, DictRequest(text: word, strongs: const [], morph: const [], ref: req.ref, pane: req.pane));
+  }
+
   List<Widget> _wordEntry(Palette pal, ModResult current, Found f) {
     final e = f.entry;
     final refs = (e['refs'] as List?)?.cast<String>() ?? const [];
@@ -274,7 +279,7 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
       if (f.match == 'stem') WarnBox(icon: false, child: Text(t('Найдено по основе «{word}» — возможно, это другое слово.', {'word': req.text}))),
       if (f.match == 'root') WarnBox(icon: false, child: Text(t('Найдено по корню «{word}».', {'word': req.text}))),
       if (e['original'] != null) Text(e['original'].toString(), style: const TextStyle(fontSize: 36.8, height: 1.25)),
-      LinkedText(text: (e['text'] ?? e['definition'] ?? '').toString(), onOpen: _openRef, style: const TextStyle(height: 1.55)),
+      LinkedText(text: (e['text'] ?? e['definition'] ?? '').toString(), onOpen: _openRef, onWord: _openWord, style: const TextStyle(height: 1.55)),
       if (refs.isNotEmpty)
         ChipWrap([
           for (final r in refs)
