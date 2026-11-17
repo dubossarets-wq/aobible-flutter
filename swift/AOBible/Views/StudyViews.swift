@@ -276,12 +276,8 @@ struct IllustrationsSheet: View {
             TabView {
                 ForEach(items) { it in
                     VStack(spacing: 10) {
-                        AsyncImage(url: URL(string: it.img)) { img in
-                            img.resizable().scaledToFit()
-                        } placeholder: {
-                            ProgressView()
-                        }
-                        .frame(maxHeight: .infinity)
+                        ZoomableImage(url: URL(string: it.img))
+                            .frame(maxHeight: .infinity)
                         Text(it.title).font(.headline).multilineTextAlignment(.center)
                         Text([it.author, it.year].filter { !$0.isEmpty }.joined(separator: ", ") + (it.license.isEmpty ? "" : " · \(it.license)"))
                             .font(.footnote)
@@ -302,6 +298,57 @@ struct IllustrationsSheet: View {
             }
         }
         .presentationDetents([.large])
+    }
+}
+
+/// Картинка с увеличением: щипок (до 6×), двойное касание — 2,5× и обратно, при увеличении — сдвиг пальцем
+struct ZoomableImage: View {
+    let url: URL?
+    @State private var scale: CGFloat = 1
+    @State private var base: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var dragBase: CGSize = .zero
+
+    private func reset() {
+        scale = 1
+        base = 1
+        offset = .zero
+        dragBase = .zero
+    }
+
+    var body: some View {
+        AsyncImage(url: url) { img in
+            img.resizable().scaledToFit()
+                .scaleEffect(scale)
+                .offset(offset)
+                .gesture(
+                    MagnifyGesture()
+                        .onChanged { scale = max(1, min(6, base * $0.magnification)) }
+                        .onEnded { _ in
+                            base = scale
+                            if scale <= 1 { reset() }
+                        }
+                )
+                .simultaneousGesture(
+                    DragGesture()
+                        .onChanged { offset = CGSize(width: dragBase.width + $0.translation.width, height: dragBase.height + $0.translation.height) }
+                        .onEnded { _ in dragBase = offset },
+                    including: scale > 1 ? .all : .none
+                )
+                .onTapGesture(count: 2) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        if scale > 1 {
+                            reset()
+                        } else {
+                            scale = 2.5
+                            base = 2.5
+                        }
+                    }
+                }
+        } placeholder: {
+            ProgressView()
+        }
+        .clipped()
     }
 }
 
