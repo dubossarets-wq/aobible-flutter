@@ -48,9 +48,11 @@ struct CatalogEntry: Identifiable {
     var isHelloao: Bool { json["helloao"] != nil }
     /// Название языка по-английски (у переводов helloao — для редких языков, которых нет в таблице системы)
     var languageEnglish: String? { (json["languageEnglish"] as? String) ?? (json["languageName"] as? String) }
-    /// Можно скачать целиком одним файлом (кроме переводов API.Bible, которые читаются по сети)
+    /// Перевод API.Bible: в приложение попадает список книг, главы читаются по сети
+    var isOnline: Bool { json["online"] != nil }
+    /// Можно добавить: скачать целиком одним файлом (или список книг перевода по сети)
     var downloadable: Bool {
-        json["online"] == nil && json["unavailable"] as? Bool != true && (url != nil || urlGz != nil)
+        json["unavailable"] as? Bool != true && (url != nil || urlGz != nil)
     }
 }
 
@@ -124,9 +126,13 @@ final class ModuleStore: ObservableObject {
         scan()
     }
 
+    /// Переводы Библии (в том числе читаемые по сети — главы приходят, когда их открывают)
     var bibles: [InstalledModule] {
-        installed.filter { $0.type == "bible" && !$0.online }
+        installed.filter { $0.type == "bible" }
     }
+
+    /// Сбросить открытую базу модуля — после записи в неё
+    func forgetCached(_ id: String) { opened[id] = nil }
 
     func module(_ id: String) -> InstalledModule? {
         installed.first { $0.id == id }
@@ -357,12 +363,16 @@ final class ModuleStore: ObservableObject {
             let version = e.version
             let target = dir.appendingPathComponent("\(id).db")
             let helloao = e.isHelloao ? e.json : nil
+            let online = e.isOnline ? e.json : nil
             opened[id] = nil
             try await Task.detached(priority: .userInitiated) {
                 var raw = gz ? try Gzip.decode(data) : data
                 if let entry = helloao {
                     guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any] else { throw ConvertError.format }
                     raw = try JSONSerialization.data(withJSONObject: Helloao.module(from: j, entry: entry))
+                } else if let entry = online {
+                    guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any] else { throw ConvertError.format }
+                    raw = try JSONSerialization.data(withJSONObject: ApiBible.module(entry: entry, books: j))
                 }
                 try ModuleConverter.convert(json: raw, to: target, catalogVersion: version)
             }.value

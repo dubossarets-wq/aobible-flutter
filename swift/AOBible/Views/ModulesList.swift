@@ -24,7 +24,7 @@ struct ModulesList: View {
     @State private var lang = "all"
 
     private var shownInstalled: [InstalledModule] {
-        store.allInstalled.filter { $0.type == kind && !$0.online && (lang == "all" || $0.language == lang) }
+        store.allInstalled.filter { $0.type == kind && (lang == "all" || $0.language == lang) }
     }
 
     /// Языки модулей этого типа — установленных и из каталога

@@ -632,6 +632,9 @@ struct ChapterText: View {
     @AppStorage("commentView") private var commentView = "below"
     @AppStorage("commentaryFontSize") private var commentaryFontSize = 19.0
     @State private var expandedComm: Set<String> = []
+    /// перевод по сети (API.Bible): глава приходит, когда её открывают
+    @State private var onlineTick = 0
+    @State private var onlineErr: String?
     @State private var commBox = CommBox()
     @AppStorage("fontFamily") private var fontFamily = "system"
     @AppStorage("fontWeight") private var fontWeight = 400.0
@@ -834,6 +837,7 @@ struct ChapterText: View {
             }
         }
         .animation(.default, value: toast)
+        .task(id: "\(module.id)|\(book)|\(chapter)|\(onlineTick)") { await loadOnline() }
         .background(StudySheets(req: req) { b, c, v in
             // место из словаря: из первой панели — во второй, из остальных — в самой панели
             if panes.index(pane.id) == 0 {
@@ -1041,8 +1045,19 @@ struct ChapterText: View {
             }
         }
         if verses.isEmpty {
-            Text("В этом переводе нет такой главы.")
-                .foregroundStyle(pal.muted)
+            if module.online {
+                if let e = onlineErr {
+                    Text(e).foregroundStyle(pal.muted).multilineTextAlignment(.center)
+                } else {
+                    HStack(spacing: 8) { ProgressView(); Text("Загрузка…").foregroundStyle(pal.muted) }
+                }
+            } else {
+                Text("В этом переводе нет такой главы.")
+                    .foregroundStyle(pal.muted)
+            }
+        } else if module.online {
+            let c = store.onlineCopyright(module.id)
+            if !c.isEmpty { Text(c).font(.system(size: 11.5)).foregroundStyle(pal.muted).padding(.top, 12) }
         }
         // конец главы на экране и прошло достаточно времени — глава прочитана (записывается в историю
         // и засчитывается в планы). Именно видимость при прокрутке: при нескольких панелях все строки строятся сразу
@@ -1056,7 +1071,7 @@ struct ChapterText: View {
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
         let favs = favNums
-        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(expandedComm.sorted())"
+        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(expandedComm.sorted())|\(onlineTick)"
         if let c = cacheBox.value, c.key == key { return c }
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
@@ -1367,6 +1382,20 @@ struct ChapterText: View {
         out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: mainLength))
         if !continuous { appendComments(out, v) }
         return out
+    }
+
+    /// Перевод по сети: главы ещё нет — загрузить и показать
+    private func loadOnline() async {
+        guard module.online, !store.hasChapter(module.id, book, chapter) else { return }
+        onlineErr = nil
+        do {
+            try await store.loadOnlineChapter(module.id, book, chapter)
+            onlineTick += 1
+        } catch let e as OnlineError {
+            onlineErr = e.message
+        } catch {
+            onlineErr = OnlineError.net.message
+        }
     }
 
     /// Включённые для текста комментарии: не выбрано ничего — все установленные
