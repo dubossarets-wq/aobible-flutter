@@ -234,27 +234,9 @@ struct PlanPreview: View {
                     LabeledContent("В день", value: String(format: "%.1f", Double(n) / Double(readings.count)))
                 }
             }
-            Section {
-                if added {
+            if added {
+                Section {
                     Label("План уже добавлен", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                } else {
-                    Button {
-                        Task {
-                            starting = true
-                            await onStart()
-                            starting = false
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if starting { ProgressView() } else { Text("Начать план").font(.headline) }
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.glassProminent)
-                    .listRowBackground(Color.clear)
-                    .disabled(starting)
                 }
             }
             if failed {
@@ -269,6 +251,37 @@ struct PlanPreview: View {
                         }
                     }
                 }
+            }
+        }
+        // «Начать» — как в «Своём плане»: крупная кнопка, закреплена внизу
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !added {
+                Button {
+                    Task {
+                        starting = true
+                        await onStart()
+                        starting = false
+                        dismiss()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if starting {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "play.fill")
+                            Text(String(localized: "Начать") + " · " + String(localized: "\(readings.isEmpty ? meta.days : readings.count) дн."))
+                                .font(.headline)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(starting)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
             }
         }
         .navigationTitle(meta.name)
