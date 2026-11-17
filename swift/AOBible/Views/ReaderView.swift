@@ -589,6 +589,7 @@ enum StudyPanel: Identifiable {
     case interlinear(Int)
     case illustrations(Int)
     case collect(Int)
+    case guide(Int)
 
     var id: String {
         switch self {
@@ -598,6 +599,7 @@ enum StudyPanel: Identifiable {
         case .interlinear(let v): return "i\(v)"
         case .illustrations(let v): return "p\(v)"
         case .collect(let v): return "k\(v)"
+        case .guide(let v): return "g\(v)"
         }
     }
 }
@@ -850,6 +852,10 @@ struct ChapterText: View {
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
             case .collect:
                 CollectSheet(items: collectItems) { show("Добавлено в подборку «\($0)»") }
+            case .guide(let v):
+                VerseGuideSheet(module: module, book: book, chapter: chapter, verse: v) { b, c, vv in
+                    panes.openSecond(from: pane.id, b, c, vv)
+                }
             }
         }
     }
@@ -1638,6 +1644,9 @@ struct ChapterText: View {
                     panel = .collect(first)
                     selected = []
                 } label: { Label("В подборку…", systemImage: "folder.badge.plus") }
+                if selected.count == 1 {
+                    Button { panel = .guide(first) } label: { Label("Всё о стихе", systemImage: "list.bullet.rectangle") }
+                }
                 Button { panel = .commentary(first) } label: { Label("Толкования", systemImage: "text.book.closed") }
                 if selected.count == 1 {
                     Button { panel = .xrefs(first) } label: { Label("Параллельные места", systemImage: "arrow.triangle.branch") }
