@@ -324,10 +324,44 @@ final class ModuleStore: ObservableObject {
         return data
     }
 
+    /// Свой каталог (файл aob-catalog по адресу); пусто — встроенный
+    var catalogSource: String { UserDefaults.standard.string(forKey: "catalogSource") ?? "" }
+
+    func setCatalogSource(_ address: String) {
+        let s = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty { UserDefaults.standard.removeObject(forKey: "catalogSource") } else { UserDefaults.standard.set(s, forKey: "catalogSource") }
+        catalog = []
+        objectWillChange.send()
+    }
+
+    /// Каталог по своему адресу: адреса файлов в нём — относительно самого каталога
+    private func loadCustomCatalog(_ address: String) async throws {
+        guard let base = URL(string: address) else { throw ConvertError.format }
+        let data = try await fetchAbsolute(address)
+        guard let j = (try JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let list = j["modules"] as? [[String: Any]] else { throw ConvertError.format }
+        catalog = list.map { m in
+            var x = m
+            for k in ["url", "urlGz"] {
+                if let rel = m[k] as? String, let u = URL(string: rel, relativeTo: base)?.absoluteString { x[k] = u }
+            }
+            return CatalogEntry(json: x)
+        }
+    }
+
     func loadCatalog() async {
         catalogLoading = true
         catalogError = nil
         defer { catalogLoading = false }
+        if !catalogSource.isEmpty {
+            do {
+                try await loadCustomCatalog(catalogSource)
+            } catch {
+                catalog = []
+                catalogError = String(localized: "Не удалось загрузить каталог. Проверьте интернет.")
+            }
+            return
+        }
         do {
             let data = try await fetch("modules/catalog.json")
             guard let j = (try JSONSerialization.jsonObject(with: data)) as? [String: Any],

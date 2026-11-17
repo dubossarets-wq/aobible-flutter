@@ -17,6 +17,7 @@ struct ModulesList: View {
     @State private var importError: String?
     @State private var deleting: InstalledModule?
     @State private var query = ""
+    @State private var sourceText = ""
     @EnvironmentObject private var panes: PanesStore
 
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
@@ -104,6 +105,29 @@ struct ModulesList: View {
                     }
                 }
             }
+            Section {
+                TextField("https://…/catalog.json", text: $sourceText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                Button("Подключить") {
+                    store.setCatalogSource(sourceText)
+                    Task { await store.loadCatalog() }
+                }
+                .disabled(sourceText.trimmingCharacters(in: .whitespaces).isEmpty)
+                if !store.catalogSource.isEmpty {
+                    Button("Встроенный каталог") {
+                        sourceText = ""
+                        store.setCatalogSource("")
+                        Task { await store.loadCatalog() }
+                    }
+                }
+                Button("Обновить список") { Task { await store.loadCatalog() } }
+            } header: {
+                Text("Источник каталога")
+            } footer: {
+                Text(store.catalogSource.isEmpty ? "Встроенный каталог" : store.catalogSource)
+            }
         }
         .searchable(text: $query, prompt: "Поиск: Лопухин, Стронг, KJV…")
         .toolbar {
@@ -134,6 +158,7 @@ struct ModulesList: View {
             Text(importError ?? "")
         }
         .task {
+            sourceText = store.catalogSource
             if store.catalog.isEmpty { await store.loadCatalog() }
         }
     }
