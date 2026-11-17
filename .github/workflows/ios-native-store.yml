@@ -62,7 +62,7 @@ jobs:
           shot() { # имя, пауза, остальные параметры запуска
             name=$1; wait=$2; shift 2
             xcrun simctl terminate "$DEV" app.aobible || true
-            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru -AppleLanguages "(ru)" -AppleLocale ru_RU -inlineCommentaries "[]" "$@"
+            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru -AppleLanguages "(ru)" -AppleLocale ru_RU -inlineCommentaries none "$@"
             sleep $wait
             xcrun simctl io "$DEV" screenshot "shots/$name.png"
           }
