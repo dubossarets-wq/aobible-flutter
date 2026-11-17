@@ -16,7 +16,7 @@ private func planEnd(_ plan: Plan, _ lang: String) -> String? {
     return f.string(from: end)
 }
 
-/// Карточка плана на вкладке «Планы»: заголовок с кольцом, лента дней вокруг сегодняшнего, отрывки дня, «Читать»/«Догнать»,
+/// Карточка плана на вкладке «Планы»: заголовок с полосой прогресса, лента дней вокруг сегодняшнего, отрывки дня, «Читать»/«Догнать»,
 /// меню с удалением плана
 struct PlanCard: View {
     @EnvironmentObject private var plans: PlansStore
@@ -32,72 +32,48 @@ struct PlanCard: View {
         let readings = today < total ? plan.readings[today] : []
         let behind = PlanLogic.behindDays(plan)
         let doneDays = plan.done.count
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             header(today: today, total: total, doneDays: doneDays)
             strip(today: today, total: total)
             if !readings.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(Array(readings.enumerated()), id: \.offset) { i, r in
-                        let done = PlanLogic.readingDone(plan, today, r)
-                        HStack(spacing: 12) {
-                            Button {
-                                plans.mark(uid: plan.uid, day: today, keys: PlanLogic.readingUnits(r).map { $0.key })
-                            } label: {
-                                Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                                    .font(.title3)
-                                    .foregroundStyle(done ? Color.green : Color.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            Button {
-                                let t = PlanLogic.readingTarget(r)
-                                openVerse(t.book, t.chapter, t.verse)
-                            } label: {
-                                HStack {
-                                    Text(PlanLogic.readingLabel(r))
-                                        .foregroundStyle(done ? .secondary : .primary)
-                                        .strikethrough(done, color: .secondary)
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
-                                }
-                            }
-                            .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Сегодня")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    VStack(spacing: 0) {
+                        ForEach(Array(readings.enumerated()), id: \.offset) { i, r in
+                            readingRow(r, today: today)
+                            if i < readings.count - 1 { Divider().padding(.leading, 40) }
                         }
-                        .padding(.vertical, 9)
-                        if i < readings.count - 1 { Divider() }
                     }
                 }
             } else if today >= total, total > 0 {
                 Label("План пройден — поздравляем!", systemImage: "party.popper.fill")
+                    .font(.headline)
                     .foregroundStyle(.green)
             }
-            HStack(spacing: 10) {
-                if today < total {
-                    Button { dayRef = DayRef(id: today) } label: {
-                        Label("Читать день", systemImage: "book.fill").frame(maxWidth: .infinity)
+            if today < total || !behind.isEmpty {
+                HStack(spacing: 10) {
+                    if today < total {
+                        bigButton("Читать день", icon: "book.fill", fill: Color.accentColor, text: .white) { dayRef = DayRef(id: today) }
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                if let first = behind.first {
-                    Button { dayRef = DayRef(id: first) } label: {
-                        Label("Догнать · \(behind.count)", systemImage: "forward.end.fill").frame(maxWidth: .infinity)
+                    if let first = behind.first {
+                        bigButton("Догнать · \(behind.count)", icon: "forward.end.fill", fill: Color.orange.opacity(0.16), text: .orange) { dayRef = DayRef(id: first) }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.orange)
                 }
             }
-            .controlSize(.large)
             NavigationLink {
                 PlanDetailView(uid: plan.uid)
             } label: {
                 HStack {
-                    Text("Все дни")
+                    Label("Все дни", systemImage: "list.bullet")
                     Spacer()
-                    Text("\(doneDays) из \(total)").foregroundStyle(.secondary)
+                    Text("\(doneDays) из \(total)").foregroundStyle(.secondary).monospacedDigit()
                 }
-                .font(.subheadline)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
         .sheet(item: $dayRef) { PlanDayView(uid: plan.uid, day: $0.id) }
         .alert("Удалить план «\(plan.name)»?", isPresented: $confirmDelete) {
             Button("Удалить", role: .destructive) { plans.remove(plan.uid) }
@@ -107,55 +83,134 @@ struct PlanCard: View {
         }
     }
 
-    private func header(today: Int, total: Int, doneDays: Int) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: plan.calendar ? "calendar" : "calendar.badge.checkmark")
-                .font(.title3)
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.65)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plan.name).font(.headline).lineLimit(2)
-                Text("День \(min(today + 1, total)) из \(total)" + (planEnd(plan, lang).map { " · до \($0)" } ?? ""))
-                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            ProgressRing(value: Double(doneDays) / Double(max(1, total)))
-                .frame(width: 46, height: 46)
-            Menu {
-                NavigationLink { PlanDetailView(uid: plan.uid) } label: { Label("Все дни", systemImage: "list.bullet") }
-                Button(role: .destructive) { confirmDelete = true } label: { Label("Удалить план", systemImage: "trash") }
+    /// Отрывок дня: кружок «прочитано» и название (открывает текст)
+    private func readingRow(_ r: String, today: Int) -> some View {
+        let done = PlanLogic.readingDone(plan, today, r)
+        return HStack(spacing: 12) {
+            Button {
+                plans.mark(uid: plan.uid, day: today, keys: PlanLogic.readingUnits(r).map { $0.key })
             } label: {
-                Image(systemName: "ellipsis.circle").font(.title3).foregroundStyle(.secondary)
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(done ? Color.green : Color.secondary.opacity(0.6))
+                    .frame(width: 28)
+            }
+            .buttonStyle(.plain)
+            Button {
+                let t = PlanLogic.readingTarget(r)
+                openVerse(t.book, t.chapter, t.verse)
+            } label: {
+                HStack {
+                    Text(PlanLogic.readingLabel(r))
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(done ? .secondary : .primary)
+                        .strikethrough(done, color: .secondary)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 10)
+    }
+
+    /// Крупная кнопка-капсула: текст и значок точно по центру
+    private func bigButton(_ title: LocalizedStringKey, icon: String, fill: Color, text: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                Text(title).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .font(.headline)
+            .foregroundStyle(text)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(fill, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Заголовок: название, «День N из M · до …», меню; под ним — полоса прогресса с процентом
+    private func header(today: Int, total: Int, doneDays: Int) -> some View {
+        let part = Double(doneDays) / Double(max(1, total))
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(plan.name)
+                        .font(.title2.weight(.bold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("День \(min(today + 1, total)) из \(total)" + (planEnd(plan, lang).map { " · до \($0)" } ?? ""))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                Spacer(minLength: 8)
+                Menu {
+                    NavigationLink { PlanDetailView(uid: plan.uid) } label: { Label("Все дни", systemImage: "list.bullet") }
+                    Button(role: .destructive) { confirmDelete = true } label: { Label("Удалить план", systemImage: "trash") }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.secondary.opacity(0.12), in: Circle())
+                }
+                .accessibilityLabel("Ещё")
+            }
+            HStack(spacing: 10) {
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.15))
+                        Capsule().fill(Color.accentColor)
+                            .frame(width: part > 0 ? max(8, g.size.width * part) : 0)
+                    }
+                }
+                .frame(height: 8)
+                Text("\(Int((part * 100).rounded())) %")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    /// Семь дней вокруг сегодняшнего: прочитан — галочка, сегодня — кольцо акцента, пропущен — оранжевый
+    /// Семь дней вокруг сегодняшнего: сегодня — закрашен акцентом, прочитан — зелёная галочка, пропущен — оранжевый
     private func strip(today: Int, total: Int) -> some View {
         let start = max(0, min(today - 3, total - 7))
         let days = Array(start..<min(total, start + 7))
-        return HStack(spacing: 6) {
+        return HStack(spacing: 0) {
             ForEach(days, id: \.self) { d in
                 let done = PlanLogic.dayDone(plan, d)
                 let missed = d < today && !done
+                let isToday = d == today
                 Button { dayRef = DayRef(id: d) } label: {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle().fill(done ? Color.green : (missed ? Color.orange.opacity(0.18) : Color.secondary.opacity(0.12)))
-                            if d == today { Circle().stroke(Color.accentColor, lineWidth: 2) }
-                            if done {
-                                Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.white)
-                            } else {
-                                Text("\(d + 1)").font(.caption2.weight(.semibold))
-                                    .foregroundStyle(missed ? Color.orange : (d == today ? Color.accentColor : Color.secondary))
-                            }
+                    ZStack {
+                        Circle().fill(
+                            done ? Color.green
+                                : isToday ? Color.accentColor
+                                : missed ? Color.orange.opacity(0.18)
+                                : Color.secondary.opacity(0.12)
+                        )
+                        if done {
+                            Image(systemName: "checkmark").font(.body.weight(.bold)).foregroundStyle(.white)
+                        } else {
+                            Text("\(d + 1)")
+                                .font(.body.weight(.semibold))
+                                .monospacedDigit()
+                                .minimumScaleFactor(0.6)
+                                .foregroundStyle(isToday ? Color.white : (missed ? Color.orange : Color.primary.opacity(0.7)))
                         }
-                        .frame(width: 34, height: 34)
                     }
+                    .frame(width: 42, height: 42)
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("День \(d + 1)")
             }
         }
     }
