@@ -845,7 +845,7 @@ struct ChapterText: View {
                     panes.openSecond(from: pane.id, b, c, vv)
                 }
             case .compare(let v):
-                CompareSheet(book: book, chapter: chapter, verse: v)
+                CompareSheet(book: book, chapter: chapter, verses: selected.isEmpty ? [v] : selected.sorted())
             case .interlinear(let v):
                 InterlinearSheet(book: book, chapter: chapter, verse: v)
             case .illustrations(let v):
@@ -1711,15 +1711,32 @@ struct CompareSheet: View {
     @Environment(\.dismiss) private var dismiss
     let book: String
     let chapter: Int
-    let verse: Int
+    /// выделенные стихи (один или несколько) — сравнивается весь отрывок
+    let verses: [Int]
+
+    /// «16–18, 20»
+    private var rangeLabel: String {
+        var out: [String] = []
+        var i = 0
+        while i < verses.count {
+            var j = i
+            while j + 1 < verses.count, verses[j + 1] == verses[j] + 1 { j += 1 }
+            out.append(j > i ? "\(verses[i])–\(verses[j])" : "\(verses[i])")
+            i = j + 1
+        }
+        return "\(Books.info(book)?.short ?? book) \(chapter):" + out.joined(separator: ", ")
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(store.bibles) { m in
-                    if let t = store.verseText(module: m.id, book: book, chapter: chapter, verse: verse) {
+                    let parts = verses.compactMap { v in store.verseText(module: m.id, book: book, chapter: chapter, verse: v).map { (v, $0) } }
+                    if !parts.isEmpty {
                         Section {
-                            Text(t).font(.system(size: 18, design: .serif))
+                            ForEach(parts, id: \.0) { part in
+                                Text(verses.count > 1 ? "\(part.0) \(part.1)" : part.1).font(.system(size: 18, design: .serif))
+                            }
                         } header: {
                             Text("\(m.name) — \(m.title)")
                         }
@@ -1727,6 +1744,7 @@ struct CompareSheet: View {
                 }
             }
             .navigationTitle("Сравнить переводы")
+            .navigationSubtitle(rangeLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

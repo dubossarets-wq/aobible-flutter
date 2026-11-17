@@ -187,8 +187,15 @@ final class AudioEngine: ObservableObject {
     @Published private(set) var sleepLeft: Int?
     /// Таймер сна «До конца главы»
     @Published private(set) var sleepAtChapterEnd = false
-    @Published var rate: Float = 1.0 {
-        didSet { if playing { player?.rate = rate } }
+    /// Скорость запоминается между запусками (ключ audioRate, как у Flutter-версии)
+    @Published var rate: Float = {
+        let v = UserDefaults.standard.float(forKey: "audioRate")
+        return v > 0 ? v : 1.0
+    }() {
+        didSet {
+            UserDefaults.standard.set(rate, forKey: "audioRate")
+            if playing { player?.rate = rate }
+        }
     }
     @Published var message: String?
 
@@ -252,10 +259,20 @@ final class AudioEngine: ObservableObject {
         play(book: place.book, chapter: place.chapter, verse: max(1, place.verse))
     }
 
+    private var interruptObserver: NSObjectProtocol?
+
     private func setupSession() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playback, mode: .spokenAudio)
         try? s.setActive(true)
+        // звонок и другие прерывания: система останавливает звук сама — кнопка тоже встаёт на «Слушать»
+        if interruptObserver == nil {
+            interruptObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] n in
+                guard let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+                Task { @MainActor in self?.pause() }
+            }
+        }
         guard !commandsReady else { return }
         commandsReady = true
         let c = MPRemoteCommandCenter.shared()
