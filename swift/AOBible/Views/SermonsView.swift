@@ -75,6 +75,8 @@ struct SermonEditor: View {
     /// растёт при отмене и возврате — поля текста перечитывают содержимое
     @State private var version = 0
     @State private var askDelete = false
+    /// Масштаб текста в редакторе: 70–200 %, шаг 10 (ключ sermonZoom — как у Flutter-версии)
+    @AppStorage("sermonZoom") private var zoom = 100
     @State private var copyId: String?
     /// после какого блока вставлять стих (nil — в конец)
     @State private var insertAfter: String?
@@ -82,6 +84,18 @@ struct SermonEditor: View {
     private var binding: Binding<Sermon>? {
         guard let s = sermons.get(id) else { return nil }
         return Binding(get: { sermons.get(id) ?? s }, set: { record(); sermons.upsert($0) })
+    }
+
+    private var typeSize: DynamicTypeSize {
+        switch zoom {
+        case ..<75: return .small
+        case ..<90: return .medium
+        case ..<110: return .large
+        case ..<125: return .xLarge
+        case ..<145: return .xxLarge
+        case ..<175: return .xxxLarge
+        default: return .accessibility1
+        }
     }
 
     private func record() {
@@ -164,6 +178,7 @@ struct SermonEditor: View {
                     Button(role: .destructive) { askDelete = true } label: { Label("Удалить проповедь", systemImage: "trash") }
                 }
             }
+            .dynamicTypeSize(typeSize)
             .environment(\.editMode, .constant(editing ? .active : .inactive))
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture {
@@ -186,6 +201,13 @@ struct SermonEditor: View {
                             .disabled(undo.isEmpty)
                         Button { step(back: false) } label: { Label("Повторить", systemImage: "arrow.uturn.forward") }
                             .disabled(redo.isEmpty)
+                        Divider()
+                        Button { zoom = max(70, zoom - 10) } label: { Label("Уменьшить", systemImage: "textformat.size.smaller") }
+                            .disabled(zoom <= 70)
+                        Button { zoom = 100 } label: { Label("\(zoom) %", systemImage: "textformat.size") }
+                        Button { zoom = min(200, zoom + 10) } label: { Label("Увеличить", systemImage: "textformat.size.larger") }
+                            .disabled(zoom >= 200)
+                        Divider()
                         ShareLink(item: SermonPDFFile(sermon: s), preview: SharePreview(s.title.isEmpty ? "PDF" : s.title)) {
                             Label("Печать и PDF", systemImage: "printer")
                         }
