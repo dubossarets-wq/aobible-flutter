@@ -93,6 +93,17 @@ String fmtDay(DateTime d, {bool full = false, bool year = false}) {
   return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}${year ? '.${d.year}' : ''}';
 }
 
+/// «Ноябрь 2026» (русский, украинский, английский; для остальных языков — «11.2026»)
+String fmtMonthYear(int year, int month) {
+  const ru = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const uk = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
+  final l = currentLang;
+  if (l == 'ru') return '${ru[month - 1]} $year';
+  if (l == 'uk') return '${uk[month - 1]} $year';
+  if (l == 'en') return '${_monthsEn[month - 1]} $year';
+  return '${month.toString().padLeft(2, '0')}.$year';
+}
+
 /// Первая буква дня недели (1 — понедельник … 7 — воскресенье)
 String weekdayLetter(int weekday) => (currentLang == 'ru' ? _weekRu : currentLang == 'uk' ? _weekUk : _weekEn)[weekday - 1];
 

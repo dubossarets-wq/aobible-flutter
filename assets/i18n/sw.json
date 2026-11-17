@@ -1476,5 +1476,9 @@
  "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Tafsiri huru (kikoa cha umma na Creative Commons) kutoka Free Use Bible API — bible.helloao.org, kwa nyenzo za eBible.org. Leseni na chanzo cha kila moja vimeonyeshwa katika «Maktaba ya moduli», kwenye maelezo ya tafsiri.",
  "Перейти к {name}": "Nenda kwa {name}",
  "Панель {n}": "Kidirisha {n}",
- "Ещё одна панель": "Kidirisha kingine"
+ "Ещё одна панель": "Kidirisha kingine",
+ "Календарь": "Kalenda",
+ "Выбрано дат: {n}": "Tarehe zilizochaguliwa: {n}",
+ "Снять все даты": "Ondoa tarehe zote",
+ "Время читать Библию": "Ni wakati wa kusoma Biblia"
 }

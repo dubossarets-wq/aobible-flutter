@@ -1500,5 +1500,9 @@
  "Свободные переводы (общественное достояние и Creative Commons) из Free Use Bible API — bible.helloao.org, по материалам eBible.org. Лицензия и источник каждого указаны в «Библиотеке модулей» в подробностях перевода.": "Volné překlady (volné dílo a Creative Commons) z Free Use Bible API — bible.helloao.org, podle materiálů eBible.org. Licence a zdroj každého jsou uvedeny v „Knihovně modulů“ v podrobnostech překladu.",
  "Перейти к {name}": "Přejít na {name}",
  "Панель {n}": "Panel {n}",
- "Ещё одна панель": "Další panel"
+ "Ещё одна панель": "Další panel",
+ "Календарь": "Kalendář",
+ "Выбрано дат: {n}": "Vybraná data: {n}",
+ "Снять все даты": "Zrušit všechna data",
+ "Время читать Библию": "Čas číst Bibli"
 }

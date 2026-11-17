@@ -38,11 +38,21 @@ String repeatLabel(int n) => n == 0
 
 /// Одно напоминание: время (или промежуток time…until с шагом every минут) и дни недели (пусто — каждый день)
 class ReminderItem {
-  const ReminderItem({required this.id, this.time = '08:00', this.every = 0, this.until = '20:00', this.days = const [], this.alarm = false});
+  const ReminderItem({required this.id, this.time = '08:00', this.every = 0, this.until = '20:00', this.days = const [], this.alarm = false, this.dates = const [], this.off = false});
   final String id, time, until;
   final int every;
   final List<int> days;
   final bool alarm; // будильник, а не тихое уведомление
+  final List<String> dates; // конкретные даты «ГГГГ-ММ-ДД» (для сменной работы); не пусто — дни недели не учитываются
+  final bool off; // выключено, но не удалено
+
+  bool get byCalendar => dates.isNotEmpty;
+
+  /// «ГГГГ-ММ-ДД» — так даты хранятся (и в Swift-версии)
+  static String dayKey(DateTime d) => '${d.year}-${'${d.month}'.padLeft(2, '0')}-${'${d.day}'.padLeft(2, '0')}';
+
+  /// Бывает ли напоминание в этот день: по датам, если они выбраны, иначе по дням недели (пусто — каждый день)
+  bool applies(DateTime day) => byCalendar ? dates.contains(dayKey(day)) : (days.isEmpty || days.contains(day.weekday));
 
   factory ReminderItem.fresh(String time, {bool alarm = false}) => ReminderItem(id: DateTime.now().microsecondsSinceEpoch.toRadixString(36), time: time, alarm: alarm);
   factory ReminderItem.fromJson(Map j) => ReminderItem(
@@ -52,10 +62,12 @@ class ReminderItem {
         until: (j['until'] as String?) ?? '20:00',
         days: [for (final d in (j['days'] as List? ?? const [])) (d as num).toInt()],
         alarm: j['alarm'] == true,
+        dates: [for (final d in (j['dates'] as List? ?? const [])) '$d'],
+        off: j['off'] == true,
       );
-  Map<String, dynamic> toJson() => {'id': id, 'time': time, 'every': every, 'until': until, 'days': days, if (alarm) 'alarm': true};
-  ReminderItem copyWith({String? time, int? every, String? until, List<int>? days, bool? alarm}) =>
-      ReminderItem(id: id, time: time ?? this.time, every: every ?? this.every, until: until ?? this.until, days: days ?? this.days, alarm: alarm ?? this.alarm);
+  Map<String, dynamic> toJson() => {'id': id, 'time': time, 'every': every, 'until': until, 'days': days, if (alarm) 'alarm': true, if (dates.isNotEmpty) 'dates': dates, if (off) 'off': true};
+  ReminderItem copyWith({String? time, int? every, String? until, List<int>? days, bool? alarm, List<String>? dates, bool? off}) => ReminderItem(
+      id: id, time: time ?? this.time, every: every ?? this.every, until: until ?? this.until, days: days ?? this.days, alarm: alarm ?? this.alarm, dates: dates ?? this.dates, off: off ?? this.off);
 
   static int _mins(String hm) {
     final p = hm.split(':');
@@ -116,7 +128,7 @@ List<({int id, DateTime at, String body, bool alarm})> reminderSchedule(List<Pla
     final day = DateTime(now.year, now.month, now.day + k);
     final alarmAt = <int, bool>{};
     for (final x in items) {
-      if (x.days.isNotEmpty && !x.days.contains(day.weekday)) continue;
+      if (x.off || !x.applies(day)) continue;
       for (final m in x.times) {
         alarmAt[m] = (alarmAt[m] ?? false) || x.alarm;
       }
@@ -131,10 +143,11 @@ List<({int id, DateTime at, String body, bool alarm})> reminderSchedule(List<Pla
       final labels = [for (final r in readingsOf(p)[d]) readingLabel(r)];
       if (labels.isNotEmpty) lines.add('${t('${p['name']}')}: ${labels.join(', ')}');
     }
-    if (lines.isEmpty) continue;
+    if (lines.isEmpty && plans.isNotEmpty) continue;
+    final body = lines.isEmpty ? t('Время читать Библию') : lines.join('\n');
     for (final at in ats) {
       if (out.length >= _max) break;
-      out.add((id: _baseId + out.length, at: at, body: lines.join('\n'), alarm: alarmAt[at.hour * 60 + at.minute] ?? false));
+      out.add((id: _baseId + out.length, at: at, body: body, alarm: alarmAt[at.hour * 60 + at.minute] ?? false));
     }
   }
   return out;
@@ -170,8 +183,8 @@ Future<void> _schedule() async {
     }
     final r = getReminder();
     final plans = loadPlans();
-    if (!r.on || plans.isEmpty) return;
-    final title = t('Чтение на сегодня');
+    if (!r.on) return;
+    final title = plans.isEmpty ? 'Колос' : t('Чтение на сегодня');
     // точно в назначенное время — если разрешено «Будильники и напоминания», иначе Android может отложить
     final mode = await exactAllowed() ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
     for (final n in reminderSchedule(plans, r.list, DateTime.now())) {

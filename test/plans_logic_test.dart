@@ -166,6 +166,20 @@ void main() {
     expect(ReminderItem.fromJson(const ReminderItem(id: 'b', alarm: true).toJson()).alarm, true);
     expect(ReminderItem.fromJson(const {'id': 'x', 'time': '07:00'}).alarm, false);
     expect(readingLabel('Ps.9.1-21'), 'Пс 9:1–21');
+    // календарь: только выбранные даты (дни недели тогда не учитываются); выключенное — молчит
+    final cal = reminderSchedule([p], [const ReminderItem(id: 'a', time: '08:00', days: [1], dates: ['2026-10-25', '2026-10-27'])], now);
+    expect([for (final n in cal) n.at.day], [25, 27]);
+    expect(reminderSchedule([p], [const ReminderItem(id: 'a', time: '08:00', off: true)], now), isEmpty);
+    // даты и «выключено» сохраняются и читаются обратно (формат общий со Swift-версией); у прежних записей их нет
+    final back = ReminderItem.fromJson(const ReminderItem(id: 'b', dates: ['2026-11-02'], off: true).toJson());
+    expect(back.dates, ['2026-11-02']);
+    expect(back.off && back.byCalendar, true);
+    expect(ReminderItem.fromJson(const {'id': 'x'}).dates, isEmpty);
+    expect(const ReminderItem(id: 'x').toJson().containsKey('dates'), false);
+    // планов нет — простое напоминание
+    final bare = reminderSchedule([], at('08:00'), now);
+    expect(bare.length, 14);
+    expect(bare.first.body, 'Время читать Библию');
   });
 
   test('множественное число и даты', () {

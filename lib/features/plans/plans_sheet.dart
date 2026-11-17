@@ -285,7 +285,7 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           gap,
         ],
         // настройка видна везде (и на компьютере — её можно задать заранее); уведомления приходят только на телефоне
-        if (plans.isNotEmpty) ...[_ReminderCard(pal: pal), gap],
+        ...[_ReminderCard(pal: pal), gap],
         _ReadHero(pal: pal, open: (key) {
           final c = key.split('.');
           _go(VerseRef(c[0], int.tryParse(c[1]) ?? 1, 1));
@@ -1128,6 +1128,7 @@ class _ReminderCard extends StatefulWidget {
 class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserver {
   String? _wheel; // открытые колёсики времени: «id:time» или «id:until» (одни на всё окно)
   Reminder _r = getReminder();
+  final Set<String> _cal = {for (final x in getReminder().list) if (x.byCalendar) x.id}; // напоминания, настроенные календарём
   bool _exact = true; // разрешено ли «Будильники и напоминания»
 
   @override
@@ -1229,6 +1230,7 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
             ),
           ),
           const Spacer(),
+          AobSwitch(value: !x.off, onChanged: (v) => _set(x.copyWith(off: !v))),
           if (_r.list.length > 1) IconBtn(icon: LucideIcons.x, size: 17, tooltip: t('Удалить напоминание'), onTap: () => _apply(list: [for (final y in _r.list) if (y.id != x.id) y])),
         ]),
         for (final k in const ['time', 'until'])
@@ -1261,7 +1263,34 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
             ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
+        // «Дни недели / Календарь»: календарь — для тех, кто работает посменно (конкретные даты)
+        Row(children: [
+          for (final cal in const [false, true]) ...[
+            if (cal) const SizedBox(width: 6),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (cal == _cal.contains(x.id)) return;
+                  setState(() => cal ? _cal.add(x.id) : _cal.remove(x.id));
+                  if (!cal && x.dates.isNotEmpty) _set(x.copyWith(dates: const [])); // обратно к дням недели — даты снимаются
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), color: cal == _cal.contains(x.id) ? mix(pal.accent, 0.15, pal.panel) : pal.text.withValues(alpha: 0.06)),
+                  child: Text(cal ? t('Календарь') : t('Дни недели'), style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: cal == _cal.contains(x.id) ? pal.accent : pal.muted)),
+                ),
+              ),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 8),
+        if (_cal.contains(x.id))
+          DatesPicker(pal: pal, dates: x.dates, onChanged: (d) => _set(x.copyWith(dates: d)))
+        else
         // дни недели «Пн Вт Ср…» таблетками: ничего не выбрано — каждый день
         Semantics(
           label: t('Дни недели'),
@@ -1693,5 +1722,89 @@ class _BookPicker extends StatelessWidget {
         ],
         if (value.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(t('Выбрано книг: {n}', {'n': '${value.length}'}), style: TextStyle(fontSize: 13.1, color: pal.muted))),
       ]);
+  }
+}
+
+/// Календарь конкретных дат (для сменной работы): месяц листается стрелками, нажатие ставит или снимает дату.
+/// Прошедшие дни недоступны. Даты хранятся строками «ГГГГ-ММ-ДД» — так же, как в Swift-версии
+class DatesPicker extends StatefulWidget {
+  const DatesPicker({super.key, required this.pal, required this.dates, required this.onChanged});
+  final Palette pal;
+  final List<String> dates;
+  final ValueChanged<List<String>> onChanged;
+  @override
+  State<DatesPicker> createState() => _DatesPickerState();
+}
+
+class _DatesPickerState extends State<DatesPicker> {
+  late DateTime _month = () {
+    final first = widget.dates.isEmpty ? null : DateTime.tryParse(([...widget.dates]..sort()).first);
+    final n = first != null && first.isAfter(DateTime.now()) ? first : DateTime.now();
+    return DateTime(n.year, n.month);
+  }();
+
+  void _toggle(DateTime d) {
+    final k = ReminderItem.dayKey(d);
+    final next = widget.dates.contains(k) ? [for (final x in widget.dates) if (x != k) x] : ([...widget.dates, k]..sort());
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final lead = DateTime(_month.year, _month.month, 1).weekday - 1; // пустых клеток перед первым числом (неделя с понедельника)
+    final count = DateTime(_month.year, _month.month + 1, 0).day;
+    final rows = ((lead + count) / 7).ceil();
+    final canPrev = DateTime(_month.year, _month.month) .isAfter(DateTime(today.year, today.month));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        IconBtn(icon: LucideIcons.chevronLeft, size: 18, tooltip: t('Назад'), onTap: canPrev ? () => setState(() => _month = DateTime(_month.year, _month.month - 1)) : null),
+        Expanded(child: Text(fmtMonthYear(_month.year, _month.month), textAlign: TextAlign.center, style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: pal.text))),
+        IconBtn(icon: LucideIcons.chevronRight, size: 18, tooltip: t('Вперёд'), onTap: () => setState(() => _month = DateTime(_month.year, _month.month + 1))),
+      ]),
+      const SizedBox(height: 4),
+      Row(children: [
+        for (var d = 1; d <= 7; d++) Expanded(child: Center(child: Text(weekdayShort(d), style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: pal.muted)))),
+      ]),
+      const SizedBox(height: 4),
+      for (var r = 0; r < rows; r++)
+        Row(children: [
+          for (var c = 0; c < 7; c++)
+            Expanded(
+              child: Builder(builder: (_) {
+                final n = r * 7 + c - lead + 1;
+                if (n < 1 || n > count) return const SizedBox(height: 38);
+                final d = DateTime(_month.year, _month.month, n);
+                final past = d.isBefore(today);
+                final on = widget.dates.contains(ReminderItem.dayKey(d));
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: past ? null : () => _toggle(d),
+                  child: Container(
+                    height: 38,
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: on ? pal.accent : null, border: d == today && !on ? Border.all(color: pal.accent) : null),
+                    child: Text('$n', style: TextStyle(fontSize: 14.5, fontWeight: on ? FontWeight.w700 : FontWeight.w500, color: on ? Colors.white : (past ? pal.muted.withValues(alpha: 0.4) : pal.text), fontFeatures: const [FontFeature.tabularFigures()])),
+                  ),
+                );
+              }),
+            ),
+        ]),
+      if (widget.dates.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(children: [
+            Expanded(child: Text(t('Выбрано дат: {n}', {'n': '${widget.dates.length}'}), style: TextStyle(fontSize: 13.5, color: pal.muted))),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => widget.onChanged(const []),
+              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8), child: Text(t('Снять все даты'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: pal.accent))),
+            ),
+          ]),
+        ),
+    ]);
   }
 }
