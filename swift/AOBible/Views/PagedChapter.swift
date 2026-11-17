@@ -290,7 +290,8 @@ final class TextPage: UIViewController {
         tv.isSelectable = false
         tv.isScrollEnabled = false
         tv.backgroundColor = .clear
-        tv.textContainerInset = .zero
+        // запас по краям для плашек части стиха (см. VerseTextView.bleed); поле на столько же шире страницы текста
+        tv.textContainerInset = UIEdgeInsets(top: VerseTextView.bleed, left: VerseTextView.bleed, bottom: VerseTextView.bleed, right: VerseTextView.bleed)
         tv.isUserInteractionEnabled = false
         view.addSubview(tv)
         textView = tv
@@ -307,7 +308,7 @@ final class TextPage: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         guard let c = host?.cfg else { return }
-        textView?.frame = view.bounds.inset(by: host?.insets(c) ?? c.insets)
+        textView?.frame = view.bounds.inset(by: host?.insets(c) ?? c.insets).insetBy(dx: -VerseTextView.bleed, dy: -VerseTextView.bleed)
     }
 }
 
@@ -346,7 +347,9 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
 
     private func hit(_ p: CGPoint, in v: UIView) -> (url: URL?, verse: Int) {
         guard let tv = textView else { return (nil, 1) }
-        let q = tv.convert(p, from: v)
+        var q = tv.convert(p, from: v)
+        q.x -= tv.textContainerInset.left
+        q.y -= tv.textContainerInset.top
         let lm = tv.layoutManager
         let tc = tv.textContainer
         var frac: CGFloat = 0

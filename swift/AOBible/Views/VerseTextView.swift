@@ -23,6 +23,11 @@ struct VerseTextView: UIViewRepresentable {
     /// Куда записать текстовый блок (по ним синхронная прокрутка узнаёт положения стихов)
     var views: VerseViews?
 
+    /// Запас поля текста по краям: плашки части стиха чуть шире слов, а рисовать за краем поля нельзя — без запаса
+    /// плашка у строки от левого края (и сверху у первой строки) срезалась. На экране снимается отрицательным
+    /// отступом (.padding(-bleed)), так что текст стоит там же
+    static let bleed: CGFloat = 4
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> UITextView {
@@ -40,7 +45,7 @@ struct VerseTextView: UIViewRepresentable {
         tv.isScrollEnabled = false
         tv.backgroundColor = .clear
         tv.isOpaque = false
-        tv.textContainerInset = .zero
+        tv.textContainerInset = UIEdgeInsets(top: Self.bleed, left: Self.bleed, bottom: Self.bleed, right: Self.bleed)
         tv.textContainer.lineFragmentPadding = 0
         tv.adjustsFontForContentSizeCategory = false
         tv.isUserInteractionEnabled = true

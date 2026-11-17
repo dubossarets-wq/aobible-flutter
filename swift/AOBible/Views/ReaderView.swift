@@ -958,6 +958,7 @@ struct ChapterText: View {
                         selecting: !selected.isEmpty || partVerse != nil,
                         views: views
                     )
+                    .padding(-VerseTextView.bleed)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .id(blk.id)
@@ -996,6 +997,7 @@ struct ChapterText: View {
                                 selecting: !selected.isEmpty || partVerse != nil,
                                 views: views
                             )
+                            .padding(-VerseTextView.bleed)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
