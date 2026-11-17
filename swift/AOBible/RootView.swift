@@ -228,7 +228,18 @@ struct RootView: View {
             let ud = UserDefaults.standard
             if !ud.bool(forKey: "flutterImported") {
                 if let s = ud.string(forKey: "flutter.settings") { UserData.applySettings(s) }
-                if let l = ud.string(forKey: "flutter.lang"), interfaceLanguages.contains(where: { $0.0 == l }) { lang = l }
+                if let l = ud.string(forKey: "flutter.lang"), interfaceLanguages.contains(where: { $0.0 == l }) {
+                    lang = l
+                } else if ud.object(forKey: "interfaceLanguage") == nil {
+                    // первый запуск — язык телефона, если он есть среди наших (как во Flutter-версии)
+                    for pref in Locale.preferredLanguages {
+                        let code = String(pref.prefix { $0 != "-" && $0 != "_" })
+                        if interfaceLanguages.contains(where: { $0.0 == code }) {
+                            lang = code
+                            break
+                        }
+                    }
+                }
                 ud.set(true, forKey: "flutterImported")
             }
             Reminders.schedule(plans.plans)
