@@ -136,6 +136,8 @@ struct RootView: View {
     @EnvironmentObject private var sermons: SermonStore
     @State private var debugView: String? = UserDefaults.standard.string(forKey: "debugView")
     @AppStorage("welcomeSeen") private var welcomeSeen = false
+    /// первая установка основного перевода уже была — экран «Готовлю перевод…» больше не нужен
+    @AppStorage("bootstrapped") private var bootstrapped = false
     @AppStorage("lastBuild") private var lastBuild = ""
     @AppStorage("interfaceLanguage") private var lang = "ru"
     @AppStorage("hideOnScroll") private var hideOnScroll = true
@@ -246,6 +248,23 @@ struct RootView: View {
             // модули, вложенные в сборку (если есть), затем первый запуск: основной перевод и остальное в фоне
             await store.installBundled()
             await Starter.run(store: store, lang: lang)
+        }
+        // первый запуск: пока нет ни одного перевода — экран установки; появился — открывается читалка
+        .overlay {
+            if !bootstrapped && store.bibles.isEmpty {
+                BootstrapView {
+                    Task {
+                        store.catalogError = nil
+                        await store.loadCatalog()
+                        await Starter.run(store: store, lang: lang)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .onAppear { if !store.bibles.isEmpty { bootstrapped = true } }
+        .onChange(of: store.bibles.count) { _, n in
+            if n > 0 { bootstrapped = true }
         }
         // кнопка поиска в меню — вход: страница поиска открывается поверх меню со своей нижней панелью
         // (слева всегда «назад», рядом системное поле поиска), а выбранной остаётся прежняя вкладка
