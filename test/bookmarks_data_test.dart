@@ -48,7 +48,7 @@ void main() {
     expect(b.first.reason, 'перед восстановлением из файла');
   });
 
-  test('файл не от AO Bible отвергается', () {
+  test('файл не от Колоса отвергается', () {
     expect(() => parseDataFile('не json'), throwsFormatException);
     expect(() => parseDataFile('{"format":"x","data":{}}'), throwsFormatException);
     expect(() => parseDataFile('{"format":"aob-userdata"}'), throwsFormatException);

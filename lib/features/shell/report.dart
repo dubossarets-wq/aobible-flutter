@@ -48,7 +48,7 @@ Uri problemReportUri({required String subject, required String intro, required S
   final errors = raw == null ? const [] : (jsonDecode(raw) as List);
   final modules = ModuleStore.instance.installed.map((m) => m.id).toList();
   final info = [
-    'AO Bible $appVersion (Flutter${kReleaseMode ? '' : ', debug'})',
+    'Колос $appVersion (Flutter${kReleaseMode ? '' : ', debug'})',
     '${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
     '${screen.width.round()}×${screen.height.round()} · $currentLang',
     'modules: ${modules.length} — ${modules.take(40).join(', ')}',
@@ -63,7 +63,7 @@ Future<void> reportProblem(BuildContext context) async {
   final size = MediaQuery.sizeOf(context) * MediaQuery.devicePixelRatioOf(context);
   var ok = false;
   try {
-    ok = await launchUrl(problemReportUri(subject: t('AO Bible: проблема'), intro: t('Что случилось и что вы делали перед этим:'), screen: size));
+    ok = await launchUrl(problemReportUri(subject: t('Колос: проблема'), intro: t('Что случилось и что вы делали перед этим:'), screen: size));
   } catch (_) {
     // нет почтовой программы — покажем адрес
   }

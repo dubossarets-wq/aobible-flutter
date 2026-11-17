@@ -182,7 +182,7 @@ final class ModuleStore: ObservableObject {
                 guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any],
                       j["format"] as? String == "aob-module", let id = j["id"] as? String,
                       id.range(of: "^[A-Za-z0-9-]+$", options: .regularExpression) != nil else {
-                    return "Это не модуль AO Bible (нужен файл формата aob-module)."
+                    return "Это не модуль Колоса (нужен файл формата aob-module)."
                 }
                 try ModuleConverter.convert(json: raw, to: dir.appendingPathComponent("\(id).db"), catalogVersion: "")
                 return nil

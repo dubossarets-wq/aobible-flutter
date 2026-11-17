@@ -1,6 +1,6 @@
 # aobible
 
-AO Bible — Библия и Стронг
+Колос — Библия и Стронг
 
 ## Getting Started
 

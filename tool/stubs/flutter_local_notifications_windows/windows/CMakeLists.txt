@@ -1,4 +1,4 @@
-# Заглушка (AO Bible, только проверочная сборка под Windows): пустая библиотека вместо кода с ATL
+# Заглушка (Колос, только проверочная сборка под Windows): пустая библиотека вместо кода с ATL
 cmake_minimum_required(VERSION 3.14)
 set(PROJECT_NAME "flutter_local_notifications_windows")
 project(${PROJECT_NAME} LANGUAGES CXX)

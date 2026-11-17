@@ -30,7 +30,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["appName"] = "AO Bible"
+        manifestPlaceholders["appName"] = "Колос"
     }
 
     // Подпись ключом загрузки Google Play (тот же, что у прежнего приложения): путь и пароль — из окружения
@@ -52,12 +52,12 @@ android {
         // не нужно удалять прежнее приложение, данные людей не трогаются
         debug {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appName"] = "AO Bible Flutter"
+            manifestPlaceholders["appName"] = "Колос Flutter"
         }
         // Проверочная сборка с настоящей скоростью (машинный код, как в выпуске) — тоже рядом с приложением из Play
         getByName("profile") {
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appName"] = "AO Bible Flutter"
+            manifestPlaceholders["appName"] = "Колос Flutter"
         }
         release {
             // TODO: Add your own signing config for the release build.

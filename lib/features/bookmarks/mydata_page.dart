@@ -34,11 +34,11 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
   Future<void> _save() async {
     try {
       final d = DateTime.now();
-      final name = '${t('AO Bible — мои данные')} ${two(d.day)}-${two(d.month)}-${d.year}.json';
+      final name = '${t('Колос — мои данные')} ${two(d.day)}-${two(d.month)}-${d.year}.json';
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}${Platform.pathSeparator}$name');
       await file.writeAsString(jsonEncode(exportData()), flush: true);
-      final r = await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/json')], title: t('AO Bible — мои данные')));
+      final r = await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: 'application/json')], title: t('Колос — мои данные')));
       if (mounted && r.status != ShareResultStatus.dismissed) toast(context, t('Файл сохранён'));
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -55,7 +55,7 @@ class _MyDataPageState extends ConsumerState<MyDataPage> {
     } on FormatException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (e) {
-      if (mounted) setState(() => _error = t('Это не файл с данными AO Bible.'));
+      if (mounted) setState(() => _error = t('Это не файл с данными Колоса.'));
     }
   }
 

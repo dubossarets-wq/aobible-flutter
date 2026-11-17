@@ -21,7 +21,7 @@
 "Время" = "Uhrzeit";
 "Чтение на сегодня" = "Lesung für heute";
 "Сообщить о проблеме" = "Problem melden";
-"AO Bible: проблема" = "AO Bible: Problem";
+"Колос: проблема" = "Колос: Problem";
 "Что случилось и что вы делали перед этим:" = "Was ist passiert und was haben Sie davor gemacht:";
 "Добавлено для изучения: %lld" = "Zum Studium hinzugefügt: %1$lld";
 "Добавлено для изучения: %@" = "Zum Studium hinzugefügt: %1$@";
@@ -309,7 +309,7 @@
 "OpenFreeMap, EOX и jsDelivr — карты (только когда вы открываете карту)." = "OpenFreeMap, EOX und jsDelivr — Karten (nur wenn Sie eine Karte öffnen).";
 "Мы не управляем этими сайтами; у каждого из них своя политика конфиденциальности." = "Wir betreiben diese Seiten nicht; jede hat ihre eigene Datenschutzerklärung.";
 "Доступ к микрофону, камере, контактам и местоположению приложению не нужен и не запрашивается." = "Die App braucht keinen Zugriff auf Mikrofon, Kamera, Kontakte oder Standort und fragt ihn nicht an.";
-"AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "AO Bible ist eine kostenlose App zum Lesen und Studieren der Bibel, ohne Werbung und ohne Registrierung: Übersetzungen, Interlinearansicht mit Hebräisch und Griechisch, Strong-Wörterbücher auf Russisch, Parallelstellen, Illustrationen, Lesungen mit echter Stimme, Predigten und Lesepläne.";
+"Колос — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "Колос ist eine kostenlose App zum Lesen und Studieren der Bibel, ohne Werbung und ohne Registrierung: Übersetzungen, Interlinearansicht mit Hebräisch und Griechisch, Strong-Wörterbücher auf Russisch, Parallelstellen, Illustrationen, Lesungen mit echter Stimme, Predigten und Lesepläne.";
 "Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение." = "Die App ist nicht kommerziell: Einige Materialien (A. Winokurows Interlinearübersetzung, die hebräischen und griechischen Lesungen) werden mit Erlaubnis der Autoren oder unter Lizenzen verwendet, die nur die kostenlose Verbreitung erlauben.";
 "Всё хранится на вашем устройстве; скачанные модули работают без интернета." = "Alles wird auf Ihrem Gerät gespeichert; heruntergeladene Module funktionieren ohne Internet.";
 "Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой." = "Texte, Wörterbücher, Aufnahmen und Illustrationen stammen aus freien Quellen (gemeinfrei und offene Lizenzen) oder werden mit Erlaubnis der Autoren verwendet. Autor und Lizenz jeder Illustration stehen unter dem Bild.";
@@ -355,8 +355,8 @@
 "Тестовое приложение" = "Test-App";
 "ТЕСТ" = "TEST";
 "О приложении" = "Über die App";
-"AO Bible · версия %lld" = "AO Bible · Version %1$lld";
-"AO Bible · версия %@" = "AO Bible · Version %1$@";
+"Колос · версия %lld" = "Колос · Version %1$lld";
+"Колос · версия %@" = "Колос · Version %1$@";
 "Авторы: %lld." = "Autoren: %1$lld.";
 "Авторы: %@." = "Autoren: %1$@.";
 "Оформление" = "Darstellung";
@@ -1191,8 +1191,8 @@
 "Откровение" = "Offenbarung";
 "Другие книги" = "Weitere Bücher";
 "перевод" = "Übersetzung";
-"Это не файл с данными AO Bible." = "Das ist keine Datendatei von AO Bible.";
-"AO Bible — мои данные" = "AO Bible — meine Daten";
+"Это не файл с данными Колоса." = "Das ist keine Datendatei von Колос.";
+"Колос — мои данные" = "Колос — meine Daten";
 "Транзакция прервана" = "Transaktion abgebrochen";
 "Жёлтый" = "Gelb";
 "Голубой" = "Hellblau";
@@ -1751,7 +1751,7 @@
 "Добавить блок" = "Add a block";
 "Добавить панель" = "Add a pane";
 "Добавлено в проповедь" = "Added to the sermon";
-"Добро пожаловать в AO Bible" = "Welcome to AO Bible";
+"Добро пожаловать в Колос" = "Welcome to Колос";
 "Загрузка каталога…" = "Loading the catalog…";
 "Зажмите стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым." = "Press and hold a verse while reading to select it, then use the bar at the bottom. A double tap makes a verse a favorite.";
 "Зажмите стих на полсекунды — появятся действия: заметка, закладка, цвет, перевод рядом." = "Press and hold a verse for half a second — actions appear: note, bookmark, color, a translation beside.";

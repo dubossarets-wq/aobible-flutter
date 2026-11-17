@@ -93,7 +93,7 @@ struct MyDataView: View {
         }
         .navigationTitle("Мои данные")
         .navigationBarTitleDisplayMode(.inline)
-        .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "AO Bible — мои данные") { result in
+        .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "Колос — мои данные") { result in
             if case .success = result { done = "Файл сохранён." }
             if case .failure(let e) = result { error = e.localizedDescription }
         }
@@ -107,7 +107,7 @@ struct MyDataView: View {
                 do {
                     pending = try UserData.parse(try Data(contentsOf: url))
                 } catch {
-                    self.error = "Это не файл с данными AO Bible."
+                    self.error = "Это не файл с данными Колоса."
                 }
             case .failure(let e):
                 error = e.localizedDescription
@@ -139,7 +139,7 @@ struct AboutView: View {
     var body: some View {
         Form {
             Section {
-                Text("AO Bible — бесплатное некоммерческое приложение для чтения Библии: переводы, словари, толкования, планы чтения, аудио и проповеди. Работает без интернета, без рекламы и без отслеживания.")
+                Text("Колос — бесплатное некоммерческое приложение для чтения Библии: переводы, словари, толкования, планы чтения, аудио и проповеди. Работает без интернета, без рекламы и без отслеживания.")
                 LabeledContent("Версия", value: version)
             }
             Section("Контакты") {
@@ -290,7 +290,7 @@ struct ReportView: View {
         let s = UIScreen.main.bounds.size
         let mods = store.installed.map { $0.id }
         return [
-            "AO Bible \(v) (\(b), Swift)",
+            "Колос \(v) (\(b), Swift)",
             "\(d.systemName) \(d.systemVersion), \(d.model)",
             "\(Int(s.width))×\(Int(s.height))",
             "modules: \(mods.count) — \(mods.prefix(40).joined(separator: ", "))",
@@ -310,7 +310,7 @@ struct ReportView: View {
                 Button {
                     var body = text + "\n\n\n— — —\n" + info
                     if body.count > 1800 { body = String(body.prefix(1800)) }
-                    let q = "subject=" + "AO Bible: сообщение о проблеме".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+                    let q = "subject=" + "Колос: сообщение о проблеме".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
                         + "&body=" + body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
                     if let u = URL(string: "mailto:\(supportEmail)?\(q)") { openURL(u) }
                 } label: {
@@ -337,7 +337,7 @@ struct WelcomeSheet: View {
                 .font(.system(size: 54))
                 .foregroundStyle(.tint)
                 .padding(.top, 30)
-            Text("Добро пожаловать в AO Bible")
+            Text("Добро пожаловать в Колос")
                 .font(.title.weight(.bold))
                 .multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {

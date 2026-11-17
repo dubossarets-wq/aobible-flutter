@@ -231,7 +231,7 @@ enum Reminders {
             #endif
             guard used < maxNotifications else { break }
             let c = UNMutableNotificationContent()
-            c.title = plans.isEmpty ? "AO Bible" : String(localized: "Чтение на сегодня")
+            c.title = plans.isEmpty ? "Колос" : String(localized: "Чтение на сегодня")
             c.body = m.body
             c.sound = .default
             if m.alarm { c.interruptionLevel = .timeSensitive }

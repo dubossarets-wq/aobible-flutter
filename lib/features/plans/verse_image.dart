@@ -264,7 +264,7 @@ class _VerseImageSheetState extends ConsumerState<VerseImageSheet> {
     try {
       final f = await _render();
       try {
-        final dir = Directory('/storage/emulated/0/Pictures/AO Bible')..createSync(recursive: true);
+        final dir = Directory('/storage/emulated/0/Pictures/Колос')..createSync(recursive: true);
         await f.copy('${dir.path}${Platform.pathSeparator}${f.uri.pathSegments.last}');
         if (mounted) toast(context, t('Картинка сохранена'));
       } catch (_) {

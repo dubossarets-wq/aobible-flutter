@@ -102,7 +102,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
                 AnimatedBuilder(
                   animation: _float,
                   builder: (context, child) => Transform.translate(offset: Offset(0, -3 * Curves.easeInOut.transform(_float.value)), child: child),
-                  // логотип AO Bible («AΩ Bible») — как значок приложения в Google Play; название уже на нём
+                  // логотип Колос («AΩ Bible») — как значок приложения в Google Play; название уже на нём
                   child: Container(
                     width: 132,
                     height: 132,
@@ -113,7 +113,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> with SingleTi
                         BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2)),
                       ],
                     ),
-                    child: ClipRRect(borderRadius: BorderRadius.circular(29), child: Image.asset('assets/brand/logo.jpg', fit: BoxFit.cover, semanticLabel: 'AO Bible')),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(29), child: Image.asset('assets/brand/logo.jpg', fit: BoxFit.cover, semanticLabel: 'Колос')),
                   ),
                 ),
                 const SizedBox(height: 22),

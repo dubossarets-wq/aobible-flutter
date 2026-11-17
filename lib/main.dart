@@ -1,4 +1,4 @@
-// AO Bible на Flutter. Запуск: настройки, справочник книг, язык, модули — затем сразу экран чтения
+// Колос на Flutter. Запуск: настройки, справочник книг, язык, модули — затем сразу экран чтения
 // (книга читается из SQLite синхронно, без ожидания сети и без промежуточных экранов).
 import 'dart:io' show Platform;
 
@@ -120,7 +120,7 @@ class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObse
     final pal = ref.watch(settingsProvider.select((s) => s.palette));
     final scheme = ColorScheme.fromSeed(seedColor: pal.accent, brightness: pal.dark ? Brightness.dark : Brightness.light).copyWith(primary: pal.accent, surface: pal.panel, onPrimary: pal.onAccent);
     return MaterialApp(
-      title: 'AO Bible',
+      title: 'Колос',
       scaffoldMessengerKey: Hub.messengerKey,
       navigatorKey: Hub.navigatorKey,
       // CNTabBarRouteObserver — системное стекло iOS 26 (glass.dart) не просвечивает сквозь открытые поверх окна

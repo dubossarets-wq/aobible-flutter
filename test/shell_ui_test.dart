@@ -259,7 +259,7 @@ void main() {
     await tester.pumpWidget(app((ctx, r) => openAbout(ctx)));
     await tester.tap(find.text('открыть'));
     await tester.pumpAndSettle();
-    expect(find.text('AO Bible · версия $appVersion'), findsOneWidget);
+    expect(find.text('Колос · версия $appVersion'), findsOneWidget);
     expect(find.text('dubossarets@gmail.com'), findsOneWidget);
     expect(find.text('Telegram'), findsOneWidget);
     // три вкладки не помещаются в ширину — ряд прокручивается, как в веб-версии

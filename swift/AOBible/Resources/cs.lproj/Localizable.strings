@@ -21,7 +21,7 @@
 "Время" = "Čas";
 "Чтение на сегодня" = "Dnešní čtení";
 "Сообщить о проблеме" = "Nahlásit problém";
-"AO Bible: проблема" = "AO Bible: problém";
+"Колос: проблема" = "Колос: problém";
 "Что случилось и что вы делали перед этим:" = "Co se stalo a co jste dělali předtím:";
 "Добавлено для изучения: %lld" = "Přidáno ke studiu: %1$lld";
 "Добавлено для изучения: %@" = "Přidáno ke studiu: %1$@";
@@ -309,7 +309,7 @@
 "OpenFreeMap, EOX и jsDelivr — карты (только когда вы открываете карту)." = "OpenFreeMap, EOX a jsDelivr — mapy (jen když otevřete mapu).";
 "Мы не управляем этими сайтами; у каждого из них своя политика конфиденциальности." = "Tyto weby nespravujeme; každý z nich má vlastní zásady ochrany soukromí.";
 "Доступ к микрофону, камере, контактам и местоположению приложению не нужен и не запрашивается." = "Aplikace nepotřebuje přístup k mikrofonu, fotoaparátu, kontaktům ani poloze a nežádá o něj.";
-"AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "AO Bible je bezplatná aplikace pro čtení a studium Bible, bez reklam a registrace: překlady, meziřádkový překlad s hebrejštinou a řečtinou, Strongovy slovníky v ruštině, paralelní místa, ilustrace, živé čtení, kázání a plány čtení.";
+"Колос — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "Колос je bezplatná aplikace pro čtení a studium Bible, bez reklam a registrace: překlady, meziřádkový překlad s hebrejštinou a řečtinou, Strongovy slovníky v ruštině, paralelní místa, ilustrace, živé čtení, kázání a plány čtení.";
 "Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение." = "Aplikace je nekomerční: část materiálů (meziřádkový překlad A. Vinokurova, nahrávky čtení v hebrejštině a řečtině) se používá se svolením autorů nebo podle licencí, které povolují jen bezplatné šíření.";
 "Всё хранится на вашем устройстве; скачанные модули работают без интернета." = "Vše se ukládá ve vašem zařízení; stažené moduly fungují bez internetu.";
 "Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой." = "Texty, slovníky, nahrávky a ilustrace pocházejí ze svobodných zdrojů (volné dílo a otevřené licence) nebo se používají se svolením autorů. U každé ilustrace je autor a licence uvedena pod obrázkem.";
@@ -355,8 +355,8 @@
 "Тестовое приложение" = "Testovací aplikace";
 "ТЕСТ" = "TEST";
 "О приложении" = "O aplikaci";
-"AO Bible · версия %lld" = "AO Bible · verze %1$lld";
-"AO Bible · версия %@" = "AO Bible · verze %1$@";
+"Колос · версия %lld" = "Колос · verze %1$lld";
+"Колос · версия %@" = "Колос · verze %1$@";
 "Авторы: %lld." = "Autoři: %1$lld.";
 "Авторы: %@." = "Autoři: %1$@.";
 "Оформление" = "Vzhled";
@@ -1191,8 +1191,8 @@
 "Откровение" = "Zjevení";
 "Другие книги" = "Ostatní knihy";
 "перевод" = "překlad";
-"Это не файл с данными AO Bible." = "Toto není datový soubor AO Bible.";
-"AO Bible — мои данные" = "AO Bible — moje data";
+"Это не файл с данными Колоса." = "Toto není datový soubor Колос.";
+"Колос — мои данные" = "Колос — moje data";
 "Транзакция прервана" = "Transakce přerušena";
 "Жёлтый" = "Žlutá";
 "Голубой" = "Modrá";
@@ -1751,7 +1751,7 @@
 "Добавить блок" = "Add a block";
 "Добавить панель" = "Add a pane";
 "Добавлено в проповедь" = "Added to the sermon";
-"Добро пожаловать в AO Bible" = "Welcome to AO Bible";
+"Добро пожаловать в Колос" = "Welcome to Колос";
 "Загрузка каталога…" = "Loading the catalog…";
 "Зажмите стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым." = "Press and hold a verse while reading to select it, then use the bar at the bottom. A double tap makes a verse a favorite.";
 "Зажмите стих на полсекунды — появятся действия: заметка, закладка, цвет, перевод рядом." = "Press and hold a verse for half a second — actions appear: note, bookmark, color, a translation beside.";

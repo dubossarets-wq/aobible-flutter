@@ -21,7 +21,7 @@
 "Время" = "Saa";
 "Чтение на сегодня" = "Somo la leo";
 "Сообщить о проблеме" = "Ripoti tatizo";
-"AO Bible: проблема" = "AO Bible: tatizo";
+"Колос: проблема" = "Колос: tatizo";
 "Что случилось и что вы делали перед этим:" = "Nini kilitokea na ulikuwa ukifanya nini kabla ya hapo:";
 "Добавлено для изучения: %lld" = "Imeongezwa kwa ajili ya kujifunza: %1$lld";
 "Добавлено для изучения: %@" = "Imeongezwa kwa ajili ya kujifunza: %1$@";
@@ -309,7 +309,7 @@
 "OpenFreeMap, EOX и jsDelivr — карты (только когда вы открываете карту)." = "OpenFreeMap, EOX na jsDelivr — ramani (tu unapofungua ramani).";
 "Мы не управляем этими сайтами; у каждого из них своя политика конфиденциальности." = "Hatuendeshi tovuti hizi; kila moja ina sera yake ya faragha.";
 "Доступ к микрофону, камере, контактам и местоположению приложению не нужен и не запрашивается." = "Programu haihitaji wala haiombi ruhusa ya kutumia maikrofoni, kamera, anwani za watu au mahali ulipo.";
-"AO Bible — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "AO Bible ni programu ya bure ya kusoma na kujifunza Biblia, bila matangazo wala usajili: tafsiri, neno kwa neno pamoja na Kiebrania na Kigiriki, kamusi za Strong kwa Kirusi, mistari sambamba, michoro, usomaji wa sauti halisi, mahubiri na mipango ya kusoma.";
+"Колос — бесплатное приложение для чтения и изучения Библии, без рекламы и регистрации: переводы, подстрочник с ивритом и греческим, словари Стронга на русском, параллельные места, иллюстрации, живое чтение, проповеди и планы чтения." = "Колос ni programu ya bure ya kusoma na kujifunza Biblia, bila matangazo wala usajili: tafsiri, neno kwa neno pamoja na Kiebrania na Kigiriki, kamusi za Strong kwa Kirusi, mistari sambamba, michoro, usomaji wa sauti halisi, mahubiri na mipango ya kusoma.";
 "Приложение некоммерческое: часть материалов (подстрочник А. Винокурова, записи чтения на иврите и греческом) используется с разрешения авторов или по лицензиям, которые разрешают только бесплатное распространение." = "Programu si ya kibiashara: baadhi ya nyenzo (neno kwa neno la A. Vinokurov, rekodi za usomaji wa Kiebrania na Kigiriki) zinatumika kwa ruhusa ya waandishi au chini ya leseni zinazoruhusu usambazaji wa bure tu.";
 "Всё хранится на вашем устройстве; скачанные модули работают без интернета." = "Kila kitu huhifadhiwa kwenye kifaa chako; moduli zilizopakuliwa hufanya kazi bila intaneti.";
 "Тексты, словари, записи и иллюстрации взяты из свободных источников (общественное достояние и открытые лицензии) или используются с разрешения авторов. У каждой иллюстрации автор и лицензия указаны под картинкой." = "Maandiko, kamusi, rekodi na michoro vimetoka kwenye vyanzo huru (mali ya umma na leseni wazi) au vinatumika kwa ruhusa ya waandishi. Mwandishi na leseni ya kila mchoro vimeonyeshwa chini ya picha.";
@@ -355,8 +355,8 @@
 "Тестовое приложение" = "Programu ya majaribio";
 "ТЕСТ" = "JARIBIO";
 "О приложении" = "Kuhusu programu";
-"AO Bible · версия %lld" = "AO Bible · toleo %1$lld";
-"AO Bible · версия %@" = "AO Bible · toleo %1$@";
+"Колос · версия %lld" = "Колос · toleo %1$lld";
+"Колос · версия %@" = "Колос · toleo %1$@";
 "Авторы: %lld." = "Waandishi: %1$lld.";
 "Авторы: %@." = "Waandishi: %1$@.";
 "Оформление" = "Mwonekano";
@@ -1191,8 +1191,8 @@
 "Откровение" = "Ufunuo";
 "Другие книги" = "Vitabu vingine";
 "перевод" = "tafsiri";
-"Это не файл с данными AO Bible." = "Hii si faili ya data ya AO Bible.";
-"AO Bible — мои данные" = "AO Bible — data yangu";
+"Это не файл с данными Колоса." = "Hii si faili ya data ya Колос.";
+"Колос — мои данные" = "Колос — data yangu";
 "Транзакция прервана" = "Muamala umekatizwa";
 "Жёлтый" = "Njano";
 "Голубой" = "Samawati";
@@ -1751,7 +1751,7 @@
 "Добавить блок" = "Add a block";
 "Добавить панель" = "Add a pane";
 "Добавлено в проповедь" = "Added to the sermon";
-"Добро пожаловать в AO Bible" = "Welcome to AO Bible";
+"Добро пожаловать в Колос" = "Welcome to Колос";
 "Загрузка каталога…" = "Loading the catalog…";
 "Зажмите стих в чтении, чтобы выбрать его, и воспользуйтесь панелью внизу. Двойное касание делает стих любимым." = "Press and hold a verse while reading to select it, then use the bar at the bottom. A double tap makes a verse a favorite.";
 "Зажмите стих на полсекунды — появятся действия: заметка, закладка, цвет, перевод рядом." = "Press and hold a verse for half a second — actions appear: note, bookmark, color, a translation beside.";

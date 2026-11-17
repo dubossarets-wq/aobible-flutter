@@ -33,7 +33,7 @@ enum UserDataError: LocalizedError {
     case notData
 
     var errorDescription: String? {
-        "Это не файл с данными AO Bible."
+        "Это не файл с данными Колоса."
     }
 }
 

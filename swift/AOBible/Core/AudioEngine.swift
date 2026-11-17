@@ -522,7 +522,7 @@ final class AudioEngine: ObservableObject {
             // название: «От Матфея 1:10»; ниже — кто читает; альбом — перевод и глава (виден на экране блокировки)
             MPMediaItemPropertyTitle: "\(name) \(c.chapter):\(c.verse)",
             MPMediaItemPropertyArtist: pk.reader ?? pk.name,
-            MPMediaItemPropertyAlbumTitle: "\(name) \(c.chapter) · AO Bible",
+            MPMediaItemPropertyAlbumTitle: "\(name) \(c.chapter) · Колос",
             MPMediaItemPropertyArtwork: Self.artwork,
             MPNowPlayingInfoPropertyPlaybackRate: playing ? Double(rate) : 0.0,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: chapterPos,

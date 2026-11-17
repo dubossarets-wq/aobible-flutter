@@ -84,9 +84,9 @@ Map<String, dynamic> parseDataFile(String text) {
   try {
     json = jsonDecode(text);
   } catch (_) {
-    throw FormatException(t('Это не файл с данными AO Bible.'));
+    throw FormatException(t('Это не файл с данными Колоса.'));
   }
-  if (json is! Map || json['format'] != dataFormat || json['data'] is! Map) throw FormatException(t('Это не файл с данными AO Bible.'));
+  if (json is! Map || json['format'] != dataFormat || json['data'] is! Map) throw FormatException(t('Это не файл с данными Колоса.'));
   return json.cast<String, dynamic>();
 }
 

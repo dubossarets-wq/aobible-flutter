@@ -189,7 +189,7 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
             (last) => PrefRow(
                   icon: LucideIcons.refreshCw,
                   title: _available ? t('Обновить приложение') : t('Проверить обновления'),
-                  sub: _available ? t('Нажмите, чтобы обновить') : t('AO Bible · версия {v}', {'v': appVersion}),
+                  sub: _available ? t('Нажмите, чтобы обновить') : t('Колос · версия {v}', {'v': appVersion}),
                   onTap: _checking ? null : _check,
                   last: last,
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [

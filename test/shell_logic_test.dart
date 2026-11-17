@@ -129,12 +129,12 @@ void main() {
     db.close();
     await ModuleStore.initAt(Directory(dir));
     prefs.setString('errorLog', jsonEncode([{'t': '2026-10-24 10:00', 'm': 'тестовая ошибка'}]));
-    final u = problemReportUri(subject: 'AO Bible: проблема', intro: 'Что случилось:', screen: const Size(1080, 2400));
+    final u = problemReportUri(subject: 'Колос: проблема', intro: 'Что случилось:', screen: const Size(1080, 2400));
     expect(u.scheme, 'mailto');
     expect(u.path, supportEmail);
     final body = u.queryParameters['body']!;
-    expect(u.queryParameters['subject'], 'AO Bible: проблема');
-    expect(body, contains('AO Bible $appVersion'));
+    expect(u.queryParameters['subject'], 'Колос: проблема');
+    expect(body, contains('Колос $appVersion'));
     expect(body, contains('1080×2400 · ru'));
     expect(body, contains('modules: 1 — x1'));
     expect(body, contains('тестовая ошибка'));
