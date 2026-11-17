@@ -865,6 +865,7 @@ struct ChapterText: View {
             onTap: { url, vn in tapped(url, vn) },
             onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
             onLong: { vn in longPressed(vn) },
+            selecting: !selected.isEmpty || partVerse != nil,
             onPage: { verse, page, total in
                 panes.setLive(pane.id, verse)
                 panes.live.progress[pane.id] = (Double(chapter - 1) + Double(page - 1) / Double(max(1, total))) / Double(max(1, module.books.first { $0.id == book }?.chapters ?? 1))
@@ -954,6 +955,7 @@ struct ChapterText: View {
                         onTap: { url, vn in tapped(url, vn) },
                         onDouble: { vn in doubleTapped(verses.first { $0.num == vn }) },
                         onLong: { vn in longPressed(vn) },
+                        selecting: !selected.isEmpty || partVerse != nil,
                         views: views
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -981,6 +983,7 @@ struct ChapterText: View {
                                 onTap: { url, vn in tapped(url, vn) },
                                 onDouble: { _ in doubleTapped(v) },
                                 onLong: { vn in longPressed(vn) },
+                                selecting: !selected.isEmpty || partVerse != nil,
                                 views: views
                             )
                         } else {
@@ -990,6 +993,7 @@ struct ChapterText: View {
                                 onTap: { url, vn in tapped(url, vn) },
                                 onDouble: { _ in doubleTapped(v) },
                                 onLong: { vn in longPressed(vn) },
+                                selecting: !selected.isEmpty || partVerse != nil,
                                 views: views
                             )
                         }

@@ -26,6 +26,8 @@ struct InterlinearVerse: View {
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
     var onLong: (Int) -> Void
+    /// Идёт выделение: двойное касание выключено — одиночное срабатывает сразу
+    var selecting = false
     var views: VerseViews?
 
     private static let wordRe = try! NSRegularExpression(pattern: "[\\p{L}\\p{M}]+(?:[-’'][\\p{L}\\p{M}]+)*")
@@ -95,7 +97,7 @@ struct InterlinearVerse: View {
         .contentShape(Rectangle())
         // двойное касание объявлено первым: одиночное (окно слова) ждёт, не будет ли второго, —
         // иначе словари открывались сразу и двойное «в любимые» не срабатывало
-        .onTapGesture(count: 2) { onDouble(verse.num) }
+        .gesture(TapGesture(count: 2).onEnded { onDouble(verse.num) }, including: selecting ? .subviews : .all)
         .onTapGesture {
             onTap(URL(string: "aobword:\(verse.num),\(w.ti),\(w.k)"), verse.num)
         }
@@ -130,7 +132,7 @@ struct InterlinearVerse: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(VerseAnchor(verse: verse.num, views: views))
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { onDouble(verse.num) }
+        .gesture(TapGesture(count: 2).onEnded { onDouble(verse.num) }, including: selecting ? .subviews : .all)
         .onTapGesture { onTap(nil, verse.num) }
         .onLongPressGesture(minimumDuration: 0.25) { onLong(verse.num) }
     }

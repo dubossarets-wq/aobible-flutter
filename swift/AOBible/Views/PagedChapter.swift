@@ -16,6 +16,8 @@ struct PagedChapter: UIViewControllerRepresentable {
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
     var onLong: (Int) -> Void
+    /// Идёт выделение: одиночное касание срабатывает сразу (двойного не ждём)
+    var selecting = false
     /// Страница показана: верхний стих, номер страницы (с 1), число страниц
     var onPage: (Int, Int, Int) -> Void
     /// Дошли до края главы: +1 — следующая, −1 — предыдущая
@@ -370,8 +372,13 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
         if p.x < v.bounds.width * 0.22 { host?.turn(-1); return }
         if p.x > v.bounds.width * 0.78 { host?.turn(1); return }
         let h = hit(p, in: v)
-        // ждём, не будет ли второго касания (см. VerseTextView)
         pendingTap?.cancel()
+        if host?.cfg?.selecting == true {
+            pendingTap = nil
+            host?.cfg?.onTap(h.url, h.verse)
+            return
+        }
+        // ждём, не будет ли второго касания (см. VerseTextView)
         let item = DispatchWorkItem { [weak self] in
             self?.pendingTap = nil
             self?.host?.cfg?.onTap(h.url, h.verse)

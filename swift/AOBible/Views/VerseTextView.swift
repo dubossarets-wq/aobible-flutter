@@ -18,6 +18,8 @@ struct VerseTextView: UIViewRepresentable {
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
     var onLong: (Int) -> Void
+    /// Идёт выделение стихов (или части стиха): двойного касания нет — одиночное срабатывает сразу, без ожидания
+    var selecting = false
     /// Куда записать текстовый блок (по ним синхронная прокрутка узнаёт положения стихов)
     var views: VerseViews?
 
@@ -131,6 +133,11 @@ struct VerseTextView: UIViewRepresentable {
             if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
             let h = hit(tv, g.location(in: tv))
             pendingTap?.cancel()
+            if parent.selecting {
+                pendingTap = nil
+                parent.onTap(h.url, h.verse)
+                return
+            }
             let item = DispatchWorkItem { [weak self] in
                 self?.pendingTap = nil
                 self?.parent.onTap(h.url, h.verse)
