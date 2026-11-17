@@ -290,6 +290,7 @@ struct ReminderEditor: View {
                     }
                 }
 
+                // переключатель — отдельно над карточкой (внутри карточки он срезал её верхние углы)
                 Section {
                     Picker("Когда", selection: $mode.animation()) {
                         Text("Дни недели").tag(0)
@@ -298,6 +299,11 @@ struct ReminderEditor: View {
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
+                } header: {
+                    Text("Когда напоминать")
+                }
+
+                Section {
                     if mode == 0 {
                         weekdays
                     } else {
@@ -306,8 +312,6 @@ struct ReminderEditor: View {
                             Button("Снять все даты", role: .destructive) { picked = [] }
                         }
                     }
-                } header: {
-                    Text("Когда напоминать")
                 } footer: {
                     if mode == 1 {
                         Text(picked.isEmpty
@@ -327,6 +331,8 @@ struct ReminderEditor: View {
                     }
                 }
             }
+            // секции ближе друг к другу: переключатель и его карточка — одна группа
+            .listSectionSpacing(.compact)
             .navigationTitle(isNew ? "Новое напоминание" : "Напоминание")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
