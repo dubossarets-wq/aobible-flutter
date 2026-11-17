@@ -3,13 +3,9 @@ import UniformTypeIdentifiers
 
 private struct LangGroup: Identifiable {
     let code: String
+    let title: String
     let entries: [CatalogEntry]
     var id: String { code }
-
-    var title: String {
-        let name = Locale(identifier: "ru").localizedString(forLanguageCode: code) ?? code
-        return name.prefix(1).uppercased() + name.dropFirst()
-    }
 }
 
 /// Библиотека переводов: установленные (выбрать, удалить свайпом) и каталог по языкам
@@ -20,6 +16,7 @@ struct ModulesList: View {
     @State private var importing = false
     @State private var importError: String?
     @State private var deleting: InstalledModule?
+    @State private var query = ""
     @EnvironmentObject private var panes: PanesStore
 
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
@@ -41,20 +38,26 @@ struct ModulesList: View {
     }
 
     private func langName(_ code: String) -> String {
-        let n = Locale(identifier: "ru").localizedString(forLanguageCode: code) ?? code
+        // редкие языки переводов helloao системе незнакомы — тогда английское название из каталога
+        let sys = Locale(identifier: "ru").localizedString(forLanguageCode: code)
+        let n = (sys != nil && sys != code) ? sys! : (store.catalogLangNames[code] ?? code)
         return n.prefix(1).uppercased() + n.dropFirst()
     }
 
     private var groups: [LangGroup] {
         let installedIds = Set(store.allInstalled.map { $0.id })
-        let list = store.catalog.filter { $0.type == kind && $0.downloadable && !installedIds.contains($0.id) && (lang == "all" || $0.language == lang) }
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let list = store.catalog.filter {
+            $0.type == kind && $0.downloadable && !installedIds.contains($0.id) && (lang == "all" || $0.language == lang)
+                && (q.isEmpty || $0.name.lowercased().contains(q) || $0.title.lowercased().contains(q) || langName($0.language).lowercased().contains(q))
+        }
         let by = Dictionary(grouping: list, by: { $0.language })
         return by.keys
             .sorted { a, b in
                 if (a == "ru") != (b == "ru") { return a == "ru" }
                 return a < b
             }
-            .map { LangGroup(code: $0, entries: by[$0] ?? []) }
+            .map { LangGroup(code: $0, title: langName($0), entries: by[$0] ?? []) }
     }
 
     var body: some View {
@@ -102,6 +105,7 @@ struct ModulesList: View {
                 }
             }
         }
+        .searchable(text: $query, prompt: "Поиск: Лопухин, Стронг, KJV…")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down.on.square") }

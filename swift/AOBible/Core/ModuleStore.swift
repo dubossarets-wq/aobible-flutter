@@ -44,9 +44,13 @@ struct CatalogEntry: Identifiable {
     var url: String? { json["url"] as? String }
     var urlGz: String? { json["urlGz"] as? String }
     var size: Int { (json["sizeGz"] as? Int) ?? (json["size"] as? Int) ?? 0 }
-    /// Можно скачать целиком одним файлом (без переводов по сети и из сторонних источников)
+    /// Перевод bible.helloao.org: скачивается целиком с их сайта и перекладывается в формат модуля
+    var isHelloao: Bool { json["helloao"] != nil }
+    /// Название языка по-английски (у переводов helloao — для редких языков, которых нет в таблице системы)
+    var languageEnglish: String? { (json["languageEnglish"] as? String) ?? (json["languageName"] as? String) }
+    /// Можно скачать целиком одним файлом (кроме переводов API.Bible, которые читаются по сети)
     var downloadable: Bool {
-        json["online"] == nil && json["helloao"] == nil && json["unavailable"] as? Bool != true && (url != nil || urlGz != nil)
+        json["online"] == nil && json["unavailable"] as? Bool != true && (url != nil || urlGz != nil)
     }
 }
 
@@ -70,6 +74,8 @@ final class ModuleStore: ObservableObject {
     @Published private(set) var disabled: Set<String> = []
     @Published private(set) var catalog: [CatalogEntry] = []
     @Published var busy: [String: String] = [:]
+    /// Английские названия языков модулей из каталога (код → название) — для редких языков переводов helloao
+    @Published private(set) var catalogLangNames: [String: String] = [:]
     @Published var catalogLoading = false
     @Published var catalogError: String?
     /// «Устанавливаю модули: 3 из 15» — пока идёт стартовая установка
@@ -302,6 +308,16 @@ final class ModuleStore: ObservableObject {
         throw lastError
     }
 
+    /// Файл по полному адресу (переводы helloao)
+    private func fetchAbsolute(_ address: String) async throws -> Data {
+        guard let url = URL(string: address) else { throw ConvertError.format }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 120
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { throw ConvertError.format }
+        return data
+    }
+
     func loadCatalog() async {
         catalogLoading = true
         catalogError = nil
@@ -310,7 +326,19 @@ final class ModuleStore: ObservableObject {
             let data = try await fetch("modules/catalog.json")
             guard let j = (try JSONSerialization.jsonObject(with: data)) as? [String: Any],
                   let list = j["modules"] as? [[String: Any]] else { throw ConvertError.format }
-            catalog = list.map { CatalogEntry(json: $0) }
+            var all = list.map { CatalogEntry(json: $0) }
+            // переводы bible.helloao.org и API.Bible — отдельным файлом; не открылся — без них
+            if let more = try? await fetch("modules/catalog-more.json"),
+               let mj = (try? JSONSerialization.jsonObject(with: more)) as? [String: Any],
+               let ml = mj["modules"] as? [[String: Any]] {
+                all += ml.map { CatalogEntry(json: $0) }
+            }
+            var names: [String: String] = [:]
+            for e in all {
+                if let n = e.languageEnglish, !n.isEmpty, names[e.language] == nil { names[e.language] = n }
+            }
+            catalogLangNames = names
+            catalog = all
         } catch {
             catalogError = "Не удалось загрузить каталог. Проверьте интернет."
         }
@@ -322,14 +350,20 @@ final class ModuleStore: ObservableObject {
         do {
             let gz = e.urlGz != nil
             guard let path = e.urlGz ?? e.url else { return }
-            let data = try await fetch("modules/" + path)
+            // перевод helloao — полный адрес на их сайте; остальное — относительно modules/ нашего сайта
+            let data = path.hasPrefix("https://") ? try await fetchAbsolute(path) : try await fetch("modules/" + path)
             busy[e.id] = "Подготовка…"
             let id = e.id
             let version = e.version
             let target = dir.appendingPathComponent("\(id).db")
+            let helloao = e.isHelloao ? e.json : nil
             opened[id] = nil
             try await Task.detached(priority: .userInitiated) {
-                let raw = gz ? try Gzip.decode(data) : data
+                var raw = gz ? try Gzip.decode(data) : data
+                if let entry = helloao {
+                    guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any] else { throw ConvertError.format }
+                    raw = try JSONSerialization.data(withJSONObject: Helloao.module(from: j, entry: entry))
+                }
                 try ModuleConverter.convert(json: raw, to: target, catalogVersion: version)
             }.value
             if disabled.remove(id) != nil { saveDisabled() } // поставили заново — включён
