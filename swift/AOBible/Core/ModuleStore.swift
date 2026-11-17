@@ -227,9 +227,16 @@ final class ModuleStore: ObservableObject {
         defer { if ok { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else { return "Не удалось прочитать файл." }
         let dir = self.dir
+        let fileName = url.lastPathComponent
         let result: String? = await Task.detached(priority: .userInitiated) { () -> String? in
             do {
-                let raw = (data.count > 2 && data[0] == 0x1f && data[1] == 0x8b) ? try Gzip.decode(data) : data
+                var raw = (data.count > 2 && data[0] == 0x1f && data[1] == 0x8b) ? try Gzip.decode(data) : data
+                let any = try JSONSerialization.jsonObject(with: raw)
+                // не родной формат — массив книг, плоский список стихов, словарь Стронга, список слов: приводим к aob-module
+                if (any as? [String: Any])?["format"] as? String != "aob-module" {
+                    let m = try ModuleImport.normalize(any, fileName: fileName)
+                    raw = try JSONSerialization.data(withJSONObject: m)
+                }
                 guard let j = (try JSONSerialization.jsonObject(with: raw)) as? [String: Any],
                       j["format"] as? String == "aob-module", let id = j["id"] as? String,
                       id.range(of: "^[A-Za-z0-9-]+$", options: .regularExpression) != nil else {
@@ -237,6 +244,8 @@ final class ModuleStore: ObservableObject {
                 }
                 try ModuleConverter.convert(json: raw, to: dir.appendingPathComponent("\(id).db"), catalogVersion: "")
                 return nil
+            } catch let e as ImportError {
+                return e.message
             } catch {
                 return "Не удалось установить модуль из файла."
             }

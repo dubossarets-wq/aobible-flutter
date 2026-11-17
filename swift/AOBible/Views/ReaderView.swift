@@ -781,7 +781,10 @@ struct ChapterText: View {
                     req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1))
                 }
                 // -debugSelect YES: выделен первый стих (панель действий)
-                if UserDefaults.standard.bool(forKey: "debugSelect") { selected = [1] }
+                if UserDefaults.standard.bool(forKey: "debugSelect") {
+                    let n = UserDefaults.standard.integer(forKey: "debugSelectVerse")
+                    selected = [n > 0 ? n : 1]
+                }
             }
             .onChange(of: focus) { _, v in
                 scroll(proxy, verses, heads)

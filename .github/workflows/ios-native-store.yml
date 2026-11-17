@@ -1,0 +1,88 @@
+# Снимки экранов Swift-версии для App Store: iPhone Pro Max (6,9″ — 1320×2868), русский интерфейс, чистая строка состояния.
+# Запуск: вкладка Actions → «iOS native store shots» → Run workflow; снимки — в артефакте AOBible-store-shots.
+name: iOS native store shots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: XcodeGen
+        run: brew install xcodegen
+
+      - name: Проект
+        working-directory: swift
+        run: xcodegen generate
+
+      - name: Сборка для симулятора
+        working-directory: swift
+        run: |
+          set -o pipefail
+          xcodebuild -project AOBible.xcodeproj -scheme AOBible -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -5
+
+      - name: Снимки
+        working-directory: swift
+        run: |
+          mkdir -p shots
+          DEV=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          best=None
+          for rt,devs in sorted(d.items(), reverse=True):
+              if 'iOS' not in rt: continue
+              for x in devs:
+                  if not x['isAvailable'] or 'iPhone' not in x['name']: continue
+                  score = 3 if ('17 Pro Max' in x['name']) else 2 if ('16 Pro Max' in x['name']) else 1 if 'Pro Max' in x['name'] else 0
+                  if best is None or score > best[0]: best = (score, x['udid'], x['name'])
+          print(best[1])
+          ")
+          echo "device $DEV"
+          xcrun simctl boot "$DEV"
+          xcrun simctl bootstatus "$DEV" -b
+          xcrun simctl status_bar "$DEV" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularMode active --cellularBars 4 --wifiBars 3 || true
+          APP=build/Build/Products/Debug-iphonesimulator/AOBible.app
+          xcrun simctl install "$DEV" "$APP"
+          # первый запуск: стартовая установка модулей (перевод, Стронг, словари…) — ждём
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru
+          sleep 200
+          shot() { # имя, пауза, остальные параметры запуска
+            name=$1; wait=$2; shift 2
+            xcrun simctl terminate "$DEV" app.aobible || true
+            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru "$@"
+            sleep $wait
+            xcrun simctl io "$DEV" screenshot "shots/$name.png"
+          }
+          shot 01-reading 10 -debugRef John.3.16
+          shot 02-select 10 -debugRef John.3.16 -debugSelect YES -debugSelectVerse 16
+          shot 03-word 10 -debugRef John.3.16 -debugWord YES
+          shot 04-plans 8 -debugTab plans
+          shot 05-search 10 -debugSearch "любовь"
+          shot 06-appearance 8 -debugView appearance
+          shot 07-library 10 -debugView library
+          shot 08-more 8 -debugTab more
+          xcrun simctl ui "$DEV" appearance dark
+          shot 09-reading-dark 10 -debugRef Ps.23.1
+          shot 10-select-dark 10 -debugRef Ps.23.1 -debugSelect YES -debugSelectVerse 4
+          ls -la shots
+          python3 -c "
+          from PIL import Image
+          import glob
+          for p in sorted(glob.glob('shots/*.png'))[:2]: print(p, Image.open(p).size)
+          " || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AOBible-store-shots
+          path: swift/shots
+          retention-days: 14

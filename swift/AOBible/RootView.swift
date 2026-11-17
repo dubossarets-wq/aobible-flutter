@@ -245,6 +245,10 @@ struct RootView: View {
                 ud.set(true, forKey: "flutterImported")
             }
             Reminders.schedule(plans.plans)
+            // снимки для магазина: -debugRef John.3.16 открывает место в первой панели
+            if let r = UserDefaults.standard.string(forKey: "debugRef"), let o = OsisRef(r), let first = panes.panes.first {
+                panes.go(first.id, o.book, o.chapter, o.verse)
+            }
             // модули, вложенные в сборку (если есть), затем первый запуск: основной перевод и остальное в фоне
             await store.installBundled()
             await Starter.run(store: store, lang: lang)
