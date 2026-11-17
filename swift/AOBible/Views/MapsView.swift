@@ -65,6 +65,16 @@ struct PlaceDetail: View {
     @Environment(\.openVerse) private var openVerse
     @Environment(\.dismiss) private var dismiss
     let place: BiblePlace
+    /// «Обычная карта / Спутник»
+    @State private var satellite = false
+
+    /// Масштаб по виду места: область — крупно, хребет, долина, река, водоём, пустыня — средне, остальное — город с окрестностями
+    private var span: Double {
+        let t = place.type.lowercased()
+        if ["област", "страна", "регион", "царств", "земля", "провинц", "полуостров", "остров"].contains(where: { t.contains($0) }) { return 6 }
+        if ["хребет", "долин", "рек", "озер", "озёр", "мор", "залив", "пустын", "ручей", "поток"].contains(where: { t.contains($0) }) { return 2.5 }
+        return 0.4
+    }
 
     private func ref(_ osis: String) -> (String, Int, Int)? {
         guard let r = OsisRef(osis) else { return nil }
@@ -75,11 +85,18 @@ struct PlaceDetail: View {
         let coord = CLLocationCoordinate2D(latitude: place.lat, longitude: place.lng)
         List {
             Section {
-                Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 1.2, longitudeDelta: 1.2)))) {
+                Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)))) {
                     Marker(place.name, coordinate: coord)
                 }
+                .mapStyle(satellite ? .hybrid : .standard)
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
+                Picker("Карта", selection: $satellite) {
+                    Text("Обычная карта").tag(false)
+                    Text("Спутник").tag(true)
+                }
+                .pickerStyle(.segmented)
+                Link("Спутник Google", destination: URL(string: "https://www.google.com/maps/@\(place.lat),\(place.lng),2000m/data=!3m1!1e3")!)
             }
             Section {
                 if !place.type.isEmpty { LabeledContent("Что это", value: place.type) }
@@ -102,7 +119,7 @@ struct PlaceDetail: View {
                 }
             }
             Section {
-                Text("\(place.moduleName) · \(place.license)").font(.caption).foregroundStyle(.secondary)
+                Text("\(place.moduleName) · \(place.license.isEmpty ? "OpenBible.info, CC BY 4.0" : place.license)").font(.caption).foregroundStyle(.secondary)
             }
         }
         .navigationTitle(place.name)
