@@ -28,6 +28,8 @@ struct InstalledModule: Identifiable, Hashable {
     var source: String = ""
     /// Подстрочник: у слов в тексте есть слово оригинала
     var interlinear: Bool = false
+    /// Версия из каталога, с которой модуль поставили (нет у импортированных из файла)
+    var catalogVersion: String? = nil
 }
 
 struct CatalogEntry: Identifiable {
@@ -61,7 +63,11 @@ enum ConvertError: Error {
 /// Модули: те же файлы .db (SQLite), что и у Flutter-версии, — лежат в «Application Support/modules»
 @MainActor
 final class ModuleStore: ObservableObject {
-    @Published private(set) var installed: [InstalledModule] = []
+    /// Все модули на устройстве, в том числе выключенные
+    @Published private(set) var allInstalled: [InstalledModule] = []
+    /// Выключенные небиблейские модули (файл disabled.json — тот же, что у Flutter-версии): в списке они есть,
+    /// а в словарях, толкованиях, параллельных местах, иллюстрациях и статистике — нет
+    @Published private(set) var disabled: Set<String> = []
     @Published private(set) var catalog: [CatalogEntry] = []
     @Published var busy: [String: String] = [:]
     @Published var catalogLoading = false
@@ -72,11 +78,43 @@ final class ModuleStore: ObservableObject {
     let dir: URL
     private var opened: [String: SQLiteDB] = [:]
 
+    /// Включённые модули
+    var installed: [InstalledModule] { allInstalled.filter { !disabled.contains($0.id) } }
+
+    private var disabledFile: URL { dir.appendingPathComponent("disabled.json") }
+
+    func isEnabled(_ id: String) -> Bool { !disabled.contains(id) }
+
+    func setEnabled(_ id: String, _ on: Bool) {
+        if on { disabled.remove(id) } else { disabled.insert(id) }
+        opened[id] = nil
+        saveDisabled()
+    }
+
+    private func saveDisabled() {
+        if let d = try? JSONSerialization.data(withJSONObject: disabled.sorted()) {
+            try? d.write(to: disabledFile, options: .atomic)
+        }
+    }
+
+    /// Запись каталога для установленного модуля
+    func catalogEntry(_ id: String) -> CatalogEntry? { catalog.first { $0.id == id } }
+
+    /// В каталоге версия новее той, с которой модуль поставили
+    func hasUpdate(_ m: InstalledModule) -> Bool {
+        guard let c = catalogEntry(m.id), c.downloadable, !c.version.isEmpty, let v = m.catalogVersion else { return false }
+        return c.version != v
+    }
+
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         dir = base.appendingPathComponent("modules", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let d = try? Data(contentsOf: dir.appendingPathComponent("disabled.json")),
+           let ids = (try? JSONSerialization.jsonObject(with: d)) as? [String] {
+            disabled = Set(ids)
+        }
         scan()
     }
 
@@ -125,10 +163,11 @@ final class ModuleStore: ObservableObject {
                 author: j["author"] as? String ?? "",
                 license: j["license"] as? String ?? "",
                 source: j["source"] as? String ?? "",
-                interlinear: ((j["features"] as? [String: Any])?["interlinear"] as? Bool) == true
+                interlinear: ((j["features"] as? [String: Any])?["interlinear"] as? Bool) == true,
+                catalogVersion: j["catalogVersion"].map { "\($0)" }
             ))
         }
-        installed = list.sorted {
+        allInstalled = list.sorted {
             let a = $0.language == "ru" ? 0 : 1
             let b = $1.language == "ru" ? 0 : 1
             return a != b ? a < b : $0.name < $1.name
@@ -232,9 +271,11 @@ final class ModuleStore: ObservableObject {
 
     func remove(_ id: String) {
         opened[id] = nil
-        if let m = module(id) {
+        if let m = allInstalled.first(where: { $0.id == id }) {
             try? FileManager.default.removeItem(atPath: m.path)
         }
+        if disabled.remove(id) != nil { saveDisabled() }
+        if UserDefaults.standard.string(forKey: "primaryModule") == id { UserDefaults.standard.removeObject(forKey: "primaryModule") }
         scan()
     }
 
@@ -291,6 +332,7 @@ final class ModuleStore: ObservableObject {
                 let raw = gz ? try Gzip.decode(data) : data
                 try ModuleConverter.convert(json: raw, to: target, catalogVersion: version)
             }.value
+            if disabled.remove(id) != nil { saveDisabled() } // поставили заново — включён
             scan()
         } catch {
             catalogError = "Не удалось установить «\(e.name)»."

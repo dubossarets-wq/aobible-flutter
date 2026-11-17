@@ -19,18 +19,20 @@ struct ModulesList: View {
     @State private var kind = "bible"
     @State private var importing = false
     @State private var importError: String?
+    @State private var deleting: InstalledModule?
+    @EnvironmentObject private var panes: PanesStore
 
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
 
     @State private var lang = "all"
 
     private var shownInstalled: [InstalledModule] {
-        store.installed.filter { $0.type == kind && !$0.online && (lang == "all" || $0.language == lang) }
+        store.allInstalled.filter { $0.type == kind && !$0.online && (lang == "all" || $0.language == lang) }
     }
 
     /// Языки модулей этого типа — установленных и из каталога
     private var languages: [String] {
-        var set = Set(store.installed.filter { $0.type == kind }.map { $0.language })
+        var set = Set(store.allInstalled.filter { $0.type == kind }.map { $0.language })
         for e in store.catalog where e.type == kind && e.downloadable { set.insert(e.language) }
         return set.sorted { a, b in
             if (a == "ru") != (b == "ru") { return a == "ru" }
@@ -44,7 +46,7 @@ struct ModulesList: View {
     }
 
     private var groups: [LangGroup] {
-        let installedIds = Set(store.installed.map { $0.id })
+        let installedIds = Set(store.allInstalled.map { $0.id })
         let list = store.catalog.filter { $0.type == kind && $0.downloadable && !installedIds.contains($0.id) && (lang == "all" || $0.language == lang) }
         let by = Dictionary(grouping: list, by: { $0.language })
         return by.keys
@@ -75,26 +77,7 @@ struct ModulesList: View {
             }
             if !shownInstalled.isEmpty {
                 Section("Установленные") {
-                    ForEach(shownInstalled) { m in
-                        Button {
-                            if kind == "bible" { selected = m.id }
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(m.name).foregroundStyle(.primary)
-                                    Text(m.title).font(.subheadline).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if kind == "bible" && m.id == selected {
-                                    Image(systemName: "checkmark").foregroundStyle(.tint)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions {
-                            Button("Удалить", role: .destructive) { store.remove(m.id) }
-                        }
-                    }
+                    ForEach(shownInstalled) { m in installedRow(m) }
                 }
             }
             if store.catalogLoading && store.catalog.isEmpty {
@@ -130,6 +113,17 @@ struct ModulesList: View {
                 Task { importError = await store.importFile(url) }
             }
         }
+        .confirmationDialog(
+            deleting?.name ?? "",
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                if let m = deleting { store.remove(m.id) }
+                deleting = nil
+            }
+            Button("Отмена", role: .cancel) { deleting = nil }
+        }
         .alert("Установка из файла", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK") {}
         } message: {
@@ -137,6 +131,63 @@ struct ModulesList: View {
         }
         .task {
             if store.catalog.isEmpty { await store.loadCatalog() }
+        }
+    }
+
+    /// Установленный модуль: перевод — выбор и звёздочка «основной»; остальные — переключатель «включён»;
+    /// «Обновить», когда в каталоге версия новее
+    private func installedRow(_ m: InstalledModule) -> some View {
+        let isBible = kind == "bible"
+        let on = store.isEnabled(m.id)
+        let primary = panes.primaryModule == m.id
+        return HStack {
+            Button {
+                if isBible { selected = m.id }
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(m.name).foregroundStyle(.primary)
+                        Text(m.title).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    if isBible && m.id == selected {
+                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if let state = store.busy[m.id] {
+                ProgressView()
+                Text(state).font(.caption).foregroundStyle(.secondary)
+            } else if store.hasUpdate(m), let e = store.catalogEntry(m.id) {
+                Button("Обновить") { Task { await store.install(e) } }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            if isBible {
+                Button {
+                    panes.setExplicitPrimary(m.id)
+                } label: {
+                    Image(systemName: primary ? "star.fill" : "star")
+                        .foregroundStyle(primary ? Color.yellow : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(primary ? "Основной перевод" : "Сделать основным")
+            } else {
+                Toggle("", isOn: Binding(get: { on }, set: { store.setEnabled(m.id, $0) }))
+                    .labelsHidden()
+            }
+        }
+        .opacity(isBible || on ? 1 : 0.5)
+        .swipeActions {
+            Button("Удалить", role: .destructive) { deleting = m }
+        }
+        .contextMenu {
+            if let e = store.catalogEntry(m.id), e.downloadable {
+                Button { Task { await store.install(e) } } label: { Label("Переустановить", systemImage: "arrow.clockwise") }
+            }
+            Button(role: .destructive) { deleting = m } label: { Label("Удалить", systemImage: "trash") }
         }
     }
 

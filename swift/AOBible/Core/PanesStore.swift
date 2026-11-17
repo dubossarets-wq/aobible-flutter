@@ -119,8 +119,17 @@ final class PanesStore: ObservableObject {
 
     // MARK: - Первая панель (остальной код читает перевод по умолчанию отсюда)
 
+    /// Основной перевод — тот, что отмечен звёздочкой в библиотеке (ключ primaryModule, как у Flutter-версии);
+    /// не отмечен — перевод первой панели. По нему подписываются закладки, планы, проповеди, поиск и «Стих дня»
+    @Published private(set) var explicitPrimary: String = UserDefaults.standard.string(forKey: "primaryModule") ?? ""
+
     var primaryModule: String {
-        panes.first?.moduleId ?? ""
+        explicitPrimary.isEmpty ? (panes.first?.moduleId ?? "") : explicitPrimary
+    }
+
+    func setExplicitPrimary(_ id: String) {
+        explicitPrimary = id
+        UserDefaults.standard.set(id, forKey: "primaryModule")
     }
 
     func setPrimary(_ id: String) {
@@ -130,7 +139,7 @@ final class PanesStore: ObservableObject {
     }
 
     func primaryBinding() -> Binding<String> {
-        Binding(get: { self.primaryModule }, set: { self.setPrimary($0) })
+        Binding(get: { self.panes.first?.moduleId ?? "" }, set: { self.setPrimary($0) })
     }
 
     func index(_ id: UUID) -> Int? {
