@@ -118,6 +118,19 @@ extension ModuleStore {
         return out
     }
 
+    /// Комментарии всей главы по стихам — для текста под стихом (только перечисленные модули)
+    func commentaryChapter(book: String, chapter: Int, modules: [InstalledModule]) -> [Int: [CommentaryItem]] {
+        var out: [Int: [CommentaryItem]] = [:]
+        for m in modules {
+            guard let d = db(m.id) else { continue }
+            let rows = d.query("SELECT verse, title, text FROM comm WHERE book = ? AND chapter = ?", [book, chapter]) {
+                (verse: $0.int(0), title: $0.text(1), text: $0.text(2))
+            }
+            for r in rows { out[r.verse, default: []].append(CommentaryItem(module: m, title: r.title, text: r.text)) }
+        }
+        return out
+    }
+
     /// Параллельные места стиха: из самого перевода, затем из модулей параллельных мест (без повторов)
     func xrefs(module: String, book: String, chapter: Int, verse: Int) -> [OsisRef] {
         var seen = Set<String>()

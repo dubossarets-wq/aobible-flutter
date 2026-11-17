@@ -20,6 +20,10 @@ struct AppearanceView: View {
     @AppStorage("bgImage") private var bgImage = 0
     @AppStorage("bgVeil") private var bgVeil = ReaderBackground.defaultVeil
     @AppStorage("bgBlur") private var bgBlur = 0.0
+    @AppStorage("inlineCommentaries") private var inlineRaw = ""
+    @AppStorage("commentView") private var commentView = "below"
+    @AppStorage("commentaryFontSize") private var commentaryFontSize = 19.0
+    @EnvironmentObject private var store: ModuleStore
 
     @State private var photo: PhotosPickerItem?
     @State private var confirmReset = false
@@ -97,6 +101,30 @@ struct AppearanceView: View {
             } footer: {
                 if bgError { Text("Не удалось открыть эту картинку.").foregroundStyle(.red) }
             }
+            if !store.commentaries.isEmpty {
+                Section {
+                    row("Размер текста: \(Int(commentaryFontSize)) px", value: $commentaryFontSize, range: 14...32, step: 1, def: 19)
+                    Picker("Как показывать", selection: $commentView) {
+                        Text("Под стихом").tag("below")
+                        Text("Меткой после стиха").tag("tag")
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Комментарии в тексте")
+                }
+                Section {
+                    ForEach(store.commentaries) { m in
+                        Toggle(isOn: Binding(get: { inlineOn(m) }, set: { setInline(m, $0) })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(m.name)
+                                if m.title != m.name { Text(m.title).font(.footnote).foregroundStyle(.secondary) }
+                            }
+                        }
+                    }
+                } footer: {
+                    Text("Отмеченные видны после стиха. Остальные — зажмите стих → «Комментарии».")
+                }
+            }
             Section {
                 Button("Сбросить оформление", role: .destructive) { confirmReset = true }
             }
@@ -135,7 +163,22 @@ struct AppearanceView: View {
         return String(localized: "сильное")
     }
 
+    /// Какие комментарии видны в тексте: пусто — все установленные, иначе список номеров модулей (JSON)
+    private func inlineIds() -> [String] {
+        if inlineRaw.isEmpty { return store.commentaries.map { $0.id } }
+        return (try? JSONDecoder().decode([String].self, from: Data(inlineRaw.utf8))) ?? []
+    }
+
+    private func inlineOn(_ m: InstalledModule) -> Bool { inlineIds().contains(m.id) }
+
+    private func setInline(_ m: InstalledModule, _ on: Bool) {
+        var ids = inlineIds()
+        if on { if !ids.contains(m.id) { ids.append(m.id) } } else { ids.removeAll { $0 == m.id } }
+        inlineRaw = (try? String(data: JSONEncoder().encode(ids), encoding: .utf8)) ?? ""
+    }
+
     private func reset() {
+        inlineRaw = ""; commentView = "below"; commentaryFontSize = 19
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
         verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()

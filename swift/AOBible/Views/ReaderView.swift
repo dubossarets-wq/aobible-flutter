@@ -577,6 +577,12 @@ final class CacheBox {
     var value: ChapterCache?
 }
 
+/// Комментарии главы по стихам (для текста под стихом): собираются один раз на главу
+final class CommBox {
+    var key = ""
+    var map: [Int: [CommentaryItem]] = [:]
+}
+
 struct StrongRequest: Identifiable {
     let id = UUID()
     let key: String
@@ -621,6 +627,12 @@ struct ChapterText: View {
     @AppStorage("showStrongs") private var showStrongs = false
     @AppStorage("showXrefs") private var showXrefs = true
     @AppStorage("showIllustrations") private var showIllus = true
+    /// Комментарии в тексте (как во Flutter): пусто — все установленные, иначе список номеров модулей (JSON)
+    @AppStorage("inlineCommentaries") private var inlineRaw = ""
+    @AppStorage("commentView") private var commentView = "below"
+    @AppStorage("commentaryFontSize") private var commentaryFontSize = 19.0
+    @State private var expandedComm: Set<String> = []
+    @State private var commBox = CommBox()
     @AppStorage("fontFamily") private var fontFamily = "system"
     @AppStorage("fontWeight") private var fontWeight = 400.0
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
@@ -1044,7 +1056,7 @@ struct ChapterText: View {
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
         let favs = favNums
-        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)"
+        let key = "\(favs.sorted())|\(partKey)|\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(expandedComm.sorted())"
         if let c = cacheBox.value, c.key == key { return c }
         let verses = store.verses(module: module.id, book: book, chapter: chapter)
         let heads = store.headings(module: module.id, book: book, chapter: chapter)
@@ -1067,6 +1079,8 @@ struct ChapterText: View {
         case "aobstrong": return s.split(separator: "@").last.flatMap { Int($0) }
         case "aobxref": return Int(s.dropFirst("aobxref:".count))
         case "aobillus": return Int(s.dropFirst("aobillus:".count))
+        case "aobcomm": return Int(s.dropFirst("aobcomm:".count))
+        case "aobcommx": return s.dropFirst("aobcommx:".count).split(separator: ",").first.flatMap { Int($0) }
         case "aobverse": return Int(s.dropFirst("aobverse:".count))
         default: return nil
         }
@@ -1349,8 +1363,69 @@ struct ChapterText: View {
             // иллюстрации к стиху: нажатие открывает их
             add(" 🖼\(illus)", [.font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium), .aobURL: URL(string: "aobillus:\(v.num)")!])
         }
-        out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: out.length))
+        let mainLength = out.length
+        out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: mainLength))
+        if !continuous { appendComments(out, v) }
         return out
+    }
+
+    /// Включённые для текста комментарии: не выбрано ничего — все установленные
+    private func inlineModules() -> [InstalledModule] {
+        let all = store.commentaries
+        if inlineRaw.isEmpty { return all }
+        let ids = (try? JSONDecoder().decode([String].self, from: Data(inlineRaw.utf8))) ?? []
+        return all.filter { ids.contains($0.id) }
+    }
+
+    private func inlineComments(_ verse: Int) -> [(module: InstalledModule, text: String)] {
+        let mods = inlineModules()
+        if mods.isEmpty { return [] }
+        let key = "\(book)|\(chapter)|\(mods.map { $0.id })"
+        if commBox.key != key {
+            commBox.map = store.commentaryChapter(book: book, chapter: chapter, modules: mods)
+            commBox.key = key
+        }
+        var order: [String] = []
+        var by: [String: (InstalledModule, [String])] = [:]
+        for it in commBox.map[verse] ?? [] {
+            let t = (it.title.isEmpty ? "" : it.title + ". ") + it.text
+            if by[it.module.id] == nil { order.append(it.module.id); by[it.module.id] = (it.module, []) }
+            by[it.module.id]?.1.append(t)
+        }
+        return order.compactMap { id in by[id].map { (module: $0.0, text: $0.1.joined(separator: " ")) } }
+    }
+
+    /// Комментарии после стиха: текстом под стихом (свёрнут, нажатие раскрывает) или меткой «💬 Название»
+    private func appendComments(_ out: NSMutableAttributedString, _ v: Verse) {
+        let items = inlineComments(v.num)
+        if items.isEmpty { return }
+        let accent = UIColor(pal.accent)
+        if commentView == "tag" {
+            let names = items.map { $0.module.name }.joined(separator: ", ")
+            out.append(NSAttributedString(string: " 💬 " + names, attributes: [
+                .font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium), .foregroundColor: accent,
+                .aobURL: URL(string: "aobcomm:\(v.num)")!, .aobVerse: v.num,
+            ]))
+            return
+        }
+        let size = CGFloat(commentaryFontSize) * 0.86
+        for it in items {
+            let key = "\(v.num),\(it.module.id)"
+            let open = expandedComm.contains(key)
+            let limit = 170
+            let shown = open || it.text.count <= limit ? it.text : String(it.text.prefix(limit)) + "…"
+            let ps = NSMutableParagraphStyle()
+            ps.lineSpacing = size * (lineHeight - 1)
+            ps.firstLineHeadIndent = 12
+            ps.headIndent = 12
+            ps.paragraphSpacingBefore = 3
+            let url = URL(string: "aobcommx:\(key)")!
+            let part = NSMutableAttributedString()
+            part.append(NSAttributedString(string: "\n" + it.module.name + "  ", attributes: [.font: UIFont.systemFont(ofSize: size * 0.8, weight: .bold), .foregroundColor: accent]))
+            part.append(NSAttributedString(string: shown, attributes: [.font: UIFont.systemFont(ofSize: size), .foregroundColor: UIColor(pal.text).withAlphaComponent(0.78)]))
+            part.addAttributes([.aobURL: url, .aobVerse: v.num, .paragraphStyle: ps], range: NSRange(location: 0, length: part.length))
+            out.append(part)
+        }
     }
 
     // MARK: - Нажатия на текст
@@ -1417,6 +1492,16 @@ struct ChapterText: View {
         }
         if url.scheme == "aobillus", let v = Int(url.absoluteString.dropFirst("aobillus:".count)) {
             panel = .illustrations(v)
+            return
+        }
+        if url.scheme == "aobcomm", let v = Int(url.absoluteString.dropFirst("aobcomm:".count)) {
+            panel = .commentary(v)
+            return
+        }
+        if url.scheme == "aobcommx" {
+            // комментарий под стихом: нажатие раскрывает его целиком и сворачивает обратно
+            let k = String(url.absoluteString.dropFirst("aobcommx:".count))
+            if expandedComm.contains(k) { expandedComm.remove(k) } else { expandedComm.insert(k) }
             return
         }
         if url.scheme == "aobverse", let v = Int(url.absoluteString.dropFirst("aobverse:".count)) {
