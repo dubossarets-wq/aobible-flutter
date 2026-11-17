@@ -86,6 +86,7 @@ flutter:
     - assets/i18n/
     - assets/fonts/
     - assets/brand/
+    - assets/bundled/
   # Шрифты текста (Google Fonts, лицензия OFL — тексты лицензий рядом в assets/fonts)
   fonts:
     - family: PT Serif

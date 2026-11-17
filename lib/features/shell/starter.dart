@@ -73,6 +73,7 @@ void prepareFirstRun(String latestNewsId) {
 /// ставит недостающее по одному; модули, которые не нашлись в каталоге, пробуем снова при следующем запуске.
 Future<void> installStarterModules(WidgetRef ref) async {
   final store = ModuleStore.instance;
+  unawaited(store.installBundled()); // модули, вложенные в личную сборку
   for (var i = 0; store.bibles.isEmpty; i++) {
     if (i > 1200) return;
     await Future<void>.delayed(const Duration(milliseconds: 500));

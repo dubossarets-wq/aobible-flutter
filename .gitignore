@@ -1,3 +1,7 @@
+# Модули для личных сборок (словарь Дворецкого и др.) — не публикуются
+assets/bundled/*.json
+assets/bundled/*.json.gz
+
 # Miscellaneous
 *.class
 *.log

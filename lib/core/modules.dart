@@ -8,6 +8,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -232,6 +233,24 @@ class ModuleStore {
     }
     await _finish(e.id, tmp, target);
     onProgress?.call(1, 'Готово');
+  }
+
+  /// Модули, вложенные в сборку (assets/bundled/*.json.gz): для личных сборок с материалами, которые нельзя публиковать
+  /// (словарь Дворецкого). Ставятся при запуске, если ещё не стоят. В публичных сборках и в Google Play папка пуста
+  Future<void> installBundled() async {
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      for (final a in manifest.listAssets()) {
+        if (!a.startsWith('assets/bundled/') || !(a.endsWith('.json.gz') || a.endsWith('.json'))) continue;
+        final id = a.split('/').last.replaceAll(RegExp(r'\.json(\.gz)?$'), '');
+        if (_installed.containsKey(id)) continue;
+        final bytes = (await rootBundle.load(a)).buffer.asUint8List();
+        final target = '${dir.path}${Platform.pathSeparator}$id.db';
+        final tmp = '$target.part';
+        await _convertInIsolate(bytes, a.endsWith('.gz'), tmp, '');
+        await _finish(id, tmp, target);
+      }
+    } catch (_) {}
   }
 
   Future<void> _finish(String id, String tmp, String target) async {
