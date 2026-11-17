@@ -781,6 +781,11 @@ struct ChapterText: View {
                     req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1))
                 }
                 // -debugSelect YES: выделен первый стих (панель действий)
+                // -debugPanel guide | interlinear: окно «Всё о стихе» или подстрочник к стиху -debugSelectVerse (для снимков магазина)
+                if let p = UserDefaults.standard.string(forKey: "debugPanel"), panel == nil {
+                    let v = max(1, UserDefaults.standard.integer(forKey: "debugSelectVerse"))
+                    panel = p == "guide" ? .guide(v) : (p == "interlinear" ? .interlinear(v) : nil)
+                }
                 if UserDefaults.standard.bool(forKey: "debugSelect") {
                     let n = UserDefaults.standard.integer(forKey: "debugSelectVerse")
                     selected = [n > 0 ? n : 1]

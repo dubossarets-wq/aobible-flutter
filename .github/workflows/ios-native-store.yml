@@ -52,28 +52,33 @@ jobs:
           xcrun simctl bootstatus "$DEV" -b
           xcrun simctl status_bar "$DEV" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularMode active --cellularBars 4 --wifiBars 3 || true
           APP=build/Build/Products/Debug-iphonesimulator/AOBible.app
+          # без подсказки «Speed up your typing…» при первом показе клавиатуры
+          xcrun simctl spawn "$DEV" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+          xcrun simctl spawn "$DEV" defaults write com.apple.keyboard.preferences KeyboardDidShowSlideToTypeIntro -bool true || true
           xcrun simctl install "$DEV" "$APP"
           # первый запуск: стартовая установка модулей (перевод, Стронг, словари…) — ждём
-          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru
+          xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru -AppleLanguages "(ru)" -AppleLocale ru_RU
           sleep 200
           shot() { # имя, пауза, остальные параметры запуска
             name=$1; wait=$2; shift 2
             xcrun simctl terminate "$DEV" app.aobible || true
-            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru "$@"
+            xcrun simctl launch "$DEV" app.aobible -welcomeSeen YES -interfaceLanguage ru -AppleLanguages "(ru)" -AppleLocale ru_RU -inlineCommentaries "[]" "$@"
             sleep $wait
             xcrun simctl io "$DEV" screenshot "shots/$name.png"
           }
           shot 01-reading 10 -debugRef John.3.16
           shot 02-select 10 -debugRef John.3.16 -debugSelect YES -debugSelectVerse 16
           shot 03-word 10 -debugRef John.3.16 -debugWord YES
-          shot 04-plans 8 -debugTab plans
-          shot 05-search 10 -debugSearch "любовь"
-          shot 06-appearance 8 -debugView appearance
-          shot 07-library 10 -debugView library
-          shot 08-more 8 -debugTab more
+          shot 04-guide 12 -debugRef John.3.16 -debugPanel guide -debugSelectVerse 16
+          shot 05-interlinear 12 -debugRef John.3.16 -debugPanel interlinear -debugSelectVerse 16
+          shot 06-plans 8 -debugTab plans
+          shot 07-search 10 -debugSearch "любовь"
+          shot 08-appearance 8 -debugView appearance
+          shot 09-library 10 -debugView library
+          shot 10-more 8 -debugTab more
           xcrun simctl ui "$DEV" appearance dark
-          shot 09-reading-dark 10 -debugRef Ps.23.1
-          shot 10-select-dark 10 -debugRef Ps.23.1 -debugSelect YES -debugSelectVerse 4
+          shot 11-reading-dark 10 -debugRef Ps.23.1
+          shot 12-select-dark 10 -debugRef Ps.23.1 -debugSelect YES -debugSelectVerse 4
           ls -la shots
           python3 -c "
           from PIL import Image
