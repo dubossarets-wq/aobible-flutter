@@ -635,6 +635,13 @@ final class CacheBox {
     var value: ChapterCache?
 }
 
+/// Следующая глава под текущей (лента книги): готовый текст и откуда он
+final class PreviewBox {
+    var key = ""
+    var ref: (book: String, chapter: Int)?
+    var data: ChapterCache?
+}
+
 /// Комментарии главы по стихам (для текста под стихом): собираются один раз на главу
 final class CommBox {
     var key = ""
@@ -696,6 +703,15 @@ struct ChapterText: View {
     @State private var onlineTick = 0
     @State private var onlineErr: String?
     @State private var commBox = CommBox()
+    @State private var previewCommBox = CommBox()
+    /// Лента книги: под текущей главой показана следующая (статичный текст). Доскроллили до неё — она становится текущей
+    @AppStorage("ribbonBook") private var ribbonBook = true
+    @State private var previewBox = PreviewBox()
+    @State private var previewTick = 0
+    /// человек уже листал пальцем в этой главе (без этого начальная раскладка не считается прокруткой)
+    @State private var ribbonArmed = false
+    /// следующая прокрутка к стиху — сразу, без анимации (переход на следующую главу)
+    @State private var snapInstant = false
     @AppStorage("fontFamily") private var fontFamily = "system"
     @AppStorage("fontWeight") private var fontWeight = 400.0
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
@@ -786,8 +802,11 @@ struct ChapterText: View {
                         VStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
                             .scrollTargetLayout()
                     } else {
-                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
-                            .scrollTargetLayout()
+                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
+                            rows(d)
+                            ribbonTail()
+                        }
+                        .scrollTargetLayout()
                     }
                 }
                 .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id, gestures: gestures))
@@ -796,9 +815,15 @@ struct ChapterText: View {
             }
             .contentMargins(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
-                if let top = ids.filter({ $0 > 0 }).min() {
+                // стихи текущей главы — 1…, её заголовок — 0; превью следующей — от 100 000
+                let cur = ids.filter { $0 >= 0 && $0 < Self.ribbonBase }
+                if let top = cur.filter({ $0 > 0 }).min() {
                     panes.setLive(pane.id, top)
                     updateProgress(top, verses.count)
+                } else if cur.isEmpty, ribbonOn, ribbonArmed, previewBox.data != nil, let nx = previewBox.ref,
+                          let nv = ids.filter({ $0 >= Self.ribbonBase }).min() {
+                    // текущая глава ушла за верхний край, на экране следующая — делаем её текущей
+                    promote(nx, nv == Self.ribbonBase ? 0 : nv - Self.ribbonBase)
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
@@ -815,11 +840,12 @@ struct ChapterText: View {
             }
             .onScrollPhaseChange { old, new in
                 touchScroll.user = (new == .interacting || new == .decelerating)
+                if new == .interacting { ribbonArmed = true }
                 #if DEBUG
                 SyncTrace.write("P,phase,\(old),\(new),bottom=\(pull.bottom),top=\(pull.top)")
                 #endif
                 guard old == .interacting, new != .interacting else { return }
-                if max(pull.bottom, bottomOver(fallback: 0)) >= PullState.threshold {
+                if max(pull.bottom, bottomOver(fallback: 0)) >= PullState.threshold, !(ribbonOn && previewBox.data != nil) {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     panes.step(pane.id, 1, module: module)
                 } else if pull.top >= PullState.threshold {
@@ -893,7 +919,10 @@ struct ChapterText: View {
         .sheet(isPresented: Binding(get: { noteVerse != nil }, set: { if !$0 { noteVerse = nil } })) {
             noteEditor
         }
-        .onChange(of: chapter) { _, _ in selected = [] }
+        .onChange(of: chapter) { _, _ in
+            selected = []
+            ribbonArmed = false
+        }
         .overlay(alignment: .top) {
             if let t = toast {
                 Text(t)
@@ -906,6 +935,10 @@ struct ChapterText: View {
         }
         .animation(.default, value: toast)
         .task(id: "\(module.id)|\(book)|\(chapter)|\(onlineTick)") { await loadOnline() }
+        .task(id: "\(module.id)|\(book)|\(chapter)|\(ribbonOn)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(onlineTick)|\(showHeadings)") {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            if !Task.isCancelled { buildPreview() }
+        }
         .background(StudySheets(req: req) { b, c, v in
             // место из словаря: из первой панели — во второй, из остальных — в самой панели
             if panes.index(pane.id) == 0 {
@@ -1014,14 +1047,17 @@ struct ChapterText: View {
         book == "Ps" ? String(localized: "Псалом \(chapter)") : String(localized: "Глава \(chapter)")
     }
 
-    private var chapterTitle: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if chapter == 1 {
-                Text(bookName)
+    private var chapterTitle: some View { chapterTitleFor(book, chapter) }
+
+    private func chapterTitleFor(_ b: String, _ c: Int) -> some View {
+        let name = module.books.first { $0.id == b }?.name ?? Books.info(b)?.name ?? b
+        return VStack(alignment: .leading, spacing: 2) {
+            if c == 1 {
+                Text(name)
                     .font(ReadingFonts.font(fontFamily, size: fontSize * 0.9, weight: 600))
                     .foregroundStyle(pal.muted)
             }
-            Text(chapterTitleText)
+            Text(b == "Ps" ? String(localized: "Псалом \(c)") : String(localized: "Глава \(c)"))
                 .font(ReadingFonts.font(fontFamily, size: fontSize * 2.1, weight: 800))
                 .foregroundStyle(pal.text)
         }
@@ -1137,6 +1173,84 @@ struct ChapterText: View {
             }
     }
 
+    // MARK: - Лента книги
+
+    static let ribbonBase = 100_000
+
+    /// Лента работает при чтении прокруткой в одной панели (не «Страницы», не сплошной текст и не подстрочник)
+    private var ribbonOn: Bool {
+        ribbonBook && readingStyle != "pages" && panes.panes.count == 1 && !continuous && !module.interlinear
+    }
+
+    /// Следующая глава (через границу книги — первая глава следующей); nil — дальше некуда
+    private func nextRef() -> (book: String, chapter: Int)? {
+        guard let bi = module.books.firstIndex(where: { $0.id == book }) else { return nil }
+        if chapter < module.books[bi].chapters { return (book, chapter + 1) }
+        guard bi < module.books.count - 1 else { return nil }
+        return (module.books[bi + 1].id, 1)
+    }
+
+    private func buildPreview() {
+        guard ribbonOn, let nx = nextRef() else {
+            previewBox.data = nil
+            previewBox.ref = nil
+            previewTick += 1
+            return
+        }
+        let verses = store.verses(module: module.id, book: nx.book, chapter: nx.chapter)
+        guard !verses.isEmpty else {
+            previewBox.data = nil
+            previewBox.ref = nil
+            previewTick += 1
+            return
+        }
+        let heads = store.headings(module: module.id, book: nx.book, chapter: nx.chapter)
+        let xc = showXrefs ? store.xrefCounts(module: module.id, book: nx.book, chapter: nx.chapter) : [:]
+        let ic = showIllus ? store.illustrationCounts(book: nx.book, chapter: nx.chapter) : [:]
+        var attr: [Int: NSAttributedString] = [:]
+        for v in verses {
+            attr[v.num] = attributedNS(v, xrefs: xc[v.num] ?? 0, illus: ic[v.num] ?? 0, number: true, numberLink: false, preview: nx)
+        }
+        previewBox.data = ChapterCache(key: "", verses: verses, heads: heads, xcounts: xc, icounts: ic, attr: attr)
+        previewBox.ref = nx
+        previewTick += 1
+    }
+
+    /// Следующая глава стала текущей (доскроллили до неё или нажали на неё)
+    private func promote(_ r: (book: String, chapter: Int), _ verse: Int) {
+        ribbonArmed = false
+        snapInstant = verse > 0
+        panes.go(pane.id, r.book, r.chapter, verse, record: false)
+    }
+
+    /// Под текущей главой — следующая: заголовок и стихи (без выделения и отметок — они появятся, когда она станет текущей)
+    @ViewBuilder private func ribbonTail() -> some View {
+        if ribbonOn, previewTick >= 0, let pd = previewBox.data, let nx = previewBox.ref {
+            chapterTitleFor(nx.book, nx.chapter)
+                .padding(.top, fontSize * 1.2)
+                .id(Self.ribbonBase)
+            ForEach(pd.verses) { v in
+                VStack(alignment: .leading, spacing: 6) {
+                    if showHeadings, let h = pd.heads[v.num] { headingText(h) }
+                    VerseTextView(
+                        text: pd.attr[v.num] ?? NSAttributedString(),
+                        verse: v.num,
+                        onTap: { _, _ in promote(nx, v.num) },
+                        onDouble: { _ in promote(nx, v.num) },
+                        onLong: { _ in promote(nx, v.num) },
+                        selecting: false,
+                        views: nil
+                    )
+                    .padding(-VerseTextView.bleed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .id(Self.ribbonBase + v.num)
+            }
+        }
+    }
+
     /// Глава, её заголовки, числа параллельных мест и иллюстраций и готовый текст стихов — собираются один раз и
     /// пересобираются только при смене главы, перевода или оформления (выделение стиха их не трогает)
     private func chapterData() -> ChapterCache {
@@ -1201,6 +1315,14 @@ struct ChapterText: View {
         var target = focus == 1 ? 0 : focus
         if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == focus } }) {
             target = blk.id
+        }
+        if snapInstant {
+            // переход на следующую главу при прокрутке: встаём на то же место сразу, без «подъезда»
+            snapInstant = false
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
+            return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
@@ -1372,7 +1494,7 @@ struct ChapterText: View {
     }
 
     /// Текст стиха для UIKit: слова, номера Стронга, метки — с ссылками (aobURL) и номером стиха (aobVerse)
-    private func attributedNS(_ v: Verse, xrefs: Int, illus: Int, number: Bool, numberLink: Bool) -> NSAttributedString {
+    private func attributedNS(_ v: Verse, xrefs: Int, illus: Int, number: Bool, numberLink: Bool, preview: (book: String, chapter: Int)? = nil) -> NSAttributedString {
         typealias K = NSAttributedString.Key
         let out = NSMutableAttributedString()
         let base = uiFont(fontSize)
@@ -1388,12 +1510,12 @@ struct ChapterText: View {
             if numberLink { a[.aobURL] = URL(string: "aobverse:\(v.num)")! }
             add("\(v.num) ", a)
         }
-        if favNums.contains(v.num) {
+        if preview == nil && favNums.contains(v.num) {
             add("♥ ", [.font: UIFont.systemFont(ofSize: fontSize * 0.62), .foregroundColor: UIColor(Color(hex: 0xd9475e))])
         }
         var wi = 0
-        let sel = partRange(v.num)
-        let fav = favPartRange(v.num)
+        let sel = preview == nil ? partRange(v.num) : nil
+        let fav = preview == nil ? favPartRange(v.num) : nil
         // выделенная часть стиха и любимая часть — не подсветка каждого слова, а одна цельная плашка от начала
         // первого слова до конца последнего (вместе с пробелами), её рисует PlateLayoutManager — как во Flutter
         var selSpan: (Int, Int)?
@@ -1455,7 +1577,7 @@ struct ChapterText: View {
         }
         let mainLength = out.length
         out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: mainLength))
-        if !continuous { appendComments(out, v) }
+        if !continuous { appendComments(out, v, preview) }
         return out
     }
 
@@ -1481,17 +1603,21 @@ struct ChapterText: View {
         return all.filter { ids.contains($0.id) }
     }
 
-    private func inlineComments(_ verse: Int) -> [(module: InstalledModule, text: String)] {
+    private func inlineComments(_ verse: Int, _ ctx: (book: String, chapter: Int)? = nil) -> [(module: InstalledModule, text: String)] {
         let mods = inlineModules()
         if mods.isEmpty { return [] }
-        let key = "\(book)|\(chapter)|\(mods.map { $0.id })"
-        if commBox.key != key {
-            commBox.map = store.commentaryChapter(book: book, chapter: chapter, modules: mods)
-            commBox.key = key
+        let b = ctx?.book ?? book
+        let c = ctx?.chapter ?? chapter
+        // у превью следующей главы свой ящик, чтобы не сбивать комментарии текущей
+        let box = ctx == nil ? commBox : previewCommBox
+        let key = "\(b)|\(c)|\(mods.map { $0.id })"
+        if box.key != key {
+            box.map = store.commentaryChapter(book: b, chapter: c, modules: mods)
+            box.key = key
         }
         var order: [String] = []
         var by: [String: (InstalledModule, [String])] = [:]
-        for it in commBox.map[verse] ?? [] {
+        for it in box.map[verse] ?? [] {
             let t = (it.title.isEmpty ? "" : it.title + ". ") + it.text
             if by[it.module.id] == nil { order.append(it.module.id); by[it.module.id] = (it.module, []) }
             by[it.module.id]?.1.append(t)
@@ -1500,8 +1626,8 @@ struct ChapterText: View {
     }
 
     /// Комментарии после стиха: текстом под стихом (свёрнут, нажатие раскрывает) или меткой «💬 Название»
-    private func appendComments(_ out: NSMutableAttributedString, _ v: Verse) {
-        let items = inlineComments(v.num)
+    private func appendComments(_ out: NSMutableAttributedString, _ v: Verse, _ ctx: (book: String, chapter: Int)? = nil) {
+        let items = inlineComments(v.num, ctx)
         if items.isEmpty { return }
         let accent = UIColor(pal.accent)
         if commentView == "tag" {
