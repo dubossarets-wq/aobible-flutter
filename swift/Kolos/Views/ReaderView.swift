@@ -138,7 +138,11 @@ struct PaneView: View {
                     ModulesList(selected: Binding(
                         get: { p.moduleId },
                         // выбрали перевод — окно закрывается само
-                        set: { panes.setModule(paneID, $0, store); showModules = false }
+                        // сначала закрываем окно, потом перестраиваем панель: окно не «висит» на время перерисовки текста
+                        set: { id in
+                            showModules = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { panes.setModule(paneID, id, store) }
+                        }
                     ))
                     .navigationTitle("Перевод")
                     .navigationBarTitleDisplayMode(.inline)

@@ -24,28 +24,40 @@ struct ModulesList: View {
 
     @State private var lang = "all"
 
-    private var shownInstalled: [InstalledModule] {
-        store.allInstalled.filter { $0.type == kind && (lang == "all" || $0.language == lang) }
+    /// Списки считаются один раз при смене типа, языка, поиска и каталога — а не при каждой перерисовке окна
+    /// (в каталоге больше тысячи переводов; пересчёт на каждое изменение панелей за окном заметно тормозил выбор перевода)
+    private struct Cache {
+        var installed: [InstalledModule] = []
+        var languages: [String] = []
+        var groups: [LangGroup] = []
     }
 
-    /// Языки модулей этого типа — установленных и из каталога
-    private var languages: [String] {
-        var set = Set(store.allInstalled.filter { $0.type == kind }.map { $0.language })
-        for e in store.catalog where e.type == kind && e.downloadable { set.insert(e.language) }
-        return set.sorted { a, b in
-            if (a == "ru") != (b == "ru") { return a == "ru" }
-            return langName(a) < langName(b)
-        }
-    }
+    @State private var cache = Cache()
+    private static let ruLocale = Locale(identifier: "ru")
+    nonisolated(unsafe) private static var nameMemo: [String: String] = [:]
+
+    private var shownInstalled: [InstalledModule] { cache.installed }
+    private var languages: [String] { cache.languages }
+    private var groups: [LangGroup] { cache.groups }
 
     private func langName(_ code: String) -> String {
+        if let n = Self.nameMemo[code] { return n }
         // редкие языки переводов helloao системе незнакомы — тогда английское название из каталога
-        let sys = Locale(identifier: "ru").localizedString(forLanguageCode: code)
+        let sys = Self.ruLocale.localizedString(forLanguageCode: code)
         let n = (sys != nil && sys != code) ? sys! : (store.catalogLangNames[code] ?? code)
-        return n.prefix(1).uppercased() + n.dropFirst()
+        let out = n.prefix(1).uppercased() + n.dropFirst()
+        if sys != nil && sys != code || store.catalogLangNames[code] != nil { Self.nameMemo[code] = out }
+        return out
     }
 
-    private var groups: [LangGroup] {
+    private func rebuild() {
+        let installedHere = store.allInstalled.filter { $0.type == kind && (lang == "all" || $0.language == lang) }
+        var set = Set(store.allInstalled.filter { $0.type == kind }.map { $0.language })
+        for e in store.catalog where e.type == kind && e.downloadable { set.insert(e.language) }
+        let langs = set.map { ($0, langName($0)) }.sorted { a, b in
+            if (a.0 == "ru") != (b.0 == "ru") { return a.0 == "ru" }
+            return a.1 < b.1
+        }.map { $0.0 }
         let installedIds = Set(store.allInstalled.map { $0.id })
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         let list = store.catalog.filter {
@@ -53,12 +65,13 @@ struct ModulesList: View {
                 && (q.isEmpty || $0.name.lowercased().contains(q) || $0.title.lowercased().contains(q) || langName($0.language).lowercased().contains(q))
         }
         let by = Dictionary(grouping: list, by: { $0.language })
-        return by.keys
+        let grp = by.keys
             .sorted { a, b in
                 if (a == "ru") != (b == "ru") { return a == "ru" }
                 return a < b
             }
             .map { LangGroup(code: $0, title: langName($0), entries: by[$0] ?? []) }
+        cache = Cache(installed: installedHere, languages: langs, groups: grp)
     }
 
     var body: some View {
@@ -77,7 +90,11 @@ struct ModulesList: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .onChange(of: kind) { _, _ in lang = "all" }
+                .onChange(of: kind) { _, _ in
+                    lang = "all"
+                    rebuild()
+                }
+                .onChange(of: lang) { _, _ in rebuild() }
             }
             if !shownInstalled.isEmpty {
                 Section("Установленные") {
@@ -157,6 +174,10 @@ struct ModulesList: View {
         } message: {
             Text(importError ?? "")
         }
+        .onAppear { rebuild() }
+        .onChange(of: query) { _, _ in rebuild() }
+        .onChange(of: store.catalog.count) { _, _ in rebuild() }
+        .onChange(of: store.allInstalled) { _, _ in rebuild() }
         .task {
             sourceText = store.catalogSource
             if store.catalog.isEmpty { await store.loadCatalog() }
