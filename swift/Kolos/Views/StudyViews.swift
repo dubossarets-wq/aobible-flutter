@@ -165,10 +165,12 @@ struct CommentarySheet: View {
     let book: String
     let chapter: Int
     let verse: Int
+    /// только этот комментарий (нажали на метку после стиха); nil — все
+    var moduleId: String? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let items = store.commentary(book: book, chapter: chapter, verse: verse)
+        let items = store.commentary(book: book, chapter: chapter, verse: verse).filter { moduleId == nil || $0.module.id == moduleId }
         NavigationStack {
             List {
                 if items.isEmpty {
@@ -189,7 +191,7 @@ struct CommentarySheet: View {
                     }
                 }
             }
-            .navigationTitle("Толкования")
+            .navigationTitle(moduleId != nil ? (items.first?.module.name ?? "") : String(localized: "Толкования"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

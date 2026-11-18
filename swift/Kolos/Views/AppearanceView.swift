@@ -21,7 +21,7 @@ struct AppearanceView: View {
     @AppStorage("bgVeil") private var bgVeil = ReaderBackground.defaultVeil
     @AppStorage("bgBlur") private var bgBlur = 0.0
     @AppStorage("inlineCommentaries") private var inlineRaw = ""
-    @AppStorage("commentView") private var commentView = "below"
+    @AppStorage("commentView") private var commentView = "tag"
     @AppStorage("commentaryFontSize") private var commentaryFontSize = 19.0
     @EnvironmentObject private var store: ModuleStore
 
@@ -178,7 +178,7 @@ struct AppearanceView: View {
     }
 
     private func reset() {
-        inlineRaw = ""; commentView = "below"; commentaryFontSize = 19
+        inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
         verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()

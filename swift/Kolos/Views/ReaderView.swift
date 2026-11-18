@@ -590,6 +590,7 @@ struct StrongRequest: Identifiable {
 
 enum StudyPanel: Identifiable {
     case commentary(Int)
+    case commentaryOf(Int, String)
     case xrefs(Int)
     case compare(Int)
     case interlinear(Int)
@@ -600,6 +601,7 @@ enum StudyPanel: Identifiable {
     var id: String {
         switch self {
         case .commentary(let v): return "c\(v)"
+        case .commentaryOf(let v, let m): return "co\(v)-\(m)"
         case .xrefs(let v): return "x\(v)"
         case .compare(let v): return "v\(v)"
         case .interlinear(let v): return "i\(v)"
@@ -629,7 +631,7 @@ struct ChapterText: View {
     @AppStorage("showIllustrations") private var showIllus = true
     /// Комментарии в тексте (как во Flutter): пусто — все установленные, иначе список номеров модулей (JSON)
     @AppStorage("inlineCommentaries") private var inlineRaw = ""
-    @AppStorage("commentView") private var commentView = "below"
+    @AppStorage("commentView") private var commentView = "tag"
     @AppStorage("commentaryFontSize") private var commentaryFontSize = 19.0
     @State private var expandedComm: Set<String> = []
     /// перевод по сети (API.Bible): глава приходит, когда её открывают
@@ -864,6 +866,8 @@ struct ChapterText: View {
             switch p {
             case .commentary(let v):
                 CommentarySheet(book: book, chapter: chapter, verse: v)
+            case .commentaryOf(let v, let m):
+                CommentarySheet(book: book, chapter: chapter, verse: v, moduleId: m)
             case .xrefs(let v):
                 XrefsSheet(module: module, book: book, chapter: chapter, verse: v) { b, c, vv in
                     panes.openSecond(from: pane.id, b, c, vv)
@@ -1102,7 +1106,7 @@ struct ChapterText: View {
         case "aobstrong": return s.split(separator: "@").last.flatMap { Int($0) }
         case "aobxref": return Int(s.dropFirst("aobxref:".count))
         case "aobillus": return Int(s.dropFirst("aobillus:".count))
-        case "aobcomm": return Int(s.dropFirst("aobcomm:".count))
+        case "aobcomm": return s.dropFirst("aobcomm:".count).split(separator: ",").first.flatMap { Int($0) }
         case "aobcommx": return s.dropFirst("aobcommx:".count).split(separator: ",").first.flatMap { Int($0) }
         case "aobverse": return Int(s.dropFirst("aobverse:".count))
         default: return nil
@@ -1438,11 +1442,15 @@ struct ChapterText: View {
         if items.isEmpty { return }
         let accent = UIColor(pal.accent)
         if commentView == "tag" {
-            let names = items.map { $0.module.name }.joined(separator: ", ")
-            out.append(NSAttributedString(string: " 💬 " + names, attributes: [
-                .font: UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium), .foregroundColor: accent,
-                .aobURL: URL(string: "aobcomm:\(v.num)")!, .aobVerse: v.num,
-            ]))
+            // метки после стиха: серое название каждого комментария; нажатие открывает всплывающее окно с его текстом
+            for it in items {
+                out.append(NSAttributedString(string: "  ", attributes: [.font: uiFont(fontSize * 0.7), .aobVerse: v.num]))
+                out.append(NSAttributedString(string: it.module.name, attributes: [
+                    .font: UIFont.systemFont(ofSize: fontSize * 0.7, weight: .semibold),
+                    .foregroundColor: UIColor(pal.muted),
+                    .aobURL: URL(string: "aobcomm:\(v.num),\(it.module.id)")!, .aobVerse: v.num,
+                ]))
+            }
             return
         }
         let size = CGFloat(commentaryFontSize) * 0.86
@@ -1531,8 +1539,9 @@ struct ChapterText: View {
             panel = .illustrations(v)
             return
         }
-        if url.scheme == "aobcomm", let v = Int(url.absoluteString.dropFirst("aobcomm:".count)) {
-            panel = .commentary(v)
+        if url.scheme == "aobcomm" {
+            let p = url.absoluteString.dropFirst("aobcomm:".count).split(separator: ",", maxSplits: 1).map(String.init)
+            if let v = p.first.flatMap({ Int($0) }) { panel = p.count > 1 ? .commentaryOf(v, p[1]) : .commentary(v) }
             return
         }
         if url.scheme == "aobcommx" {
