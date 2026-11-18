@@ -1879,3 +1879,10 @@
 "Время читать Библию" = "Time to read the Bible";
 "Лента книги: главы идут подряд" = "Book ribbon: chapters continue one after another";
 "Слова в заданном порядке" = "Words in the given order";
+"Избранные" = "Favorites";
+"Остальные" = "Others";
+"Скачать другие переводы" = "Download more translations";
+"Звёздочкой отметьте любимые переводы — они всегда наверху. Можно выбрать несколько." = "Star your favorite translations — they always stay on top. You can pick several.";
+"основной" = "primary";
+"Убрать из избранного" = "Remove from favorites";
+"В избранное" = "Add to favorites";

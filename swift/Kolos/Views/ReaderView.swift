@@ -93,6 +93,8 @@ struct PaneView: View {
     @ObservedObject var chrome: ChromeState
     @State private var showGoto = UserDefaults.standard.bool(forKey: "debugGoto")
     @State private var showModules = false
+    /// Перевод, выбранный в окне: применяется, когда окно закрылось
+    @State private var pendingModule: String?
 
     private var pane: PaneState? {
         panes.panes.first { $0.id == paneID }
@@ -133,17 +135,18 @@ struct PaneView: View {
                     panes.go(paneID, b, c, v)
                 }
             }
-            .sheet(isPresented: $showModules) {
+            .sheet(isPresented: $showModules, onDismiss: {
+                // окно уже закрыто — только теперь перестраиваем панель, окно не «висит» на время перерисовки текста
+                if let id = pendingModule {
+                    pendingModule = nil
+                    if id != p.moduleId { panes.setModule(paneID, id, store) }
+                }
+            }) {
                 NavigationStack {
-                    ModulesList(selected: Binding(
-                        get: { p.moduleId },
-                        // выбрали перевод — окно закрывается само
-                        // сначала закрываем окно, потом перестраиваем панель: окно не «висит» на время перерисовки текста
-                        set: { id in
-                            showModules = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { panes.setModule(paneID, id, store) }
-                        }
-                    ))
+                    TranslationPicker(current: p.moduleId) { id in
+                        pendingModule = id
+                        showModules = false
+                    }
                     .navigationTitle("Перевод")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -152,6 +155,8 @@ struct PaneView: View {
                         }
                     }
                 }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         } else {
             Color.clear

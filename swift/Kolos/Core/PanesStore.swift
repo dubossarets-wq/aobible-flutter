@@ -132,6 +132,24 @@ final class PanesStore: ObservableObject {
         UserDefaults.standard.set(id, forKey: "primaryModule")
     }
 
+    // MARK: - Избранные переводы
+
+    /// Избранные переводы (можно несколько): в окне выбора перевода они стоят наверху, в порядке добавления.
+    /// Раньше «звёздочка» отмечала один основной перевод — он становится первым избранным
+    @Published private(set) var favorites: [String] = {
+        let d = UserDefaults.standard
+        if let a = d.stringArray(forKey: "favoriteModules") { return a }
+        if let p = d.string(forKey: "primaryModule"), !p.isEmpty { return [p] }
+        return []
+    }()
+
+    func isFavorite(_ id: String) -> Bool { favorites.contains(id) }
+
+    func toggleFavorite(_ id: String) {
+        if let i = favorites.firstIndex(of: id) { favorites.remove(at: i) } else { favorites.append(id) }
+        UserDefaults.standard.set(favorites, forKey: "favoriteModules")
+    }
+
     func setPrimary(_ id: String) {
         guard !panes.isEmpty else { return }
         panes[0].moduleId = id

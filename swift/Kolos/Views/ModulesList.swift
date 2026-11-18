@@ -189,20 +189,19 @@ struct ModulesList: View {
     private func installedRow(_ m: InstalledModule) -> some View {
         let isBible = kind == "bible"
         let on = store.isEnabled(m.id)
-        let primary = panes.primaryModule == m.id
+        let primary = panes.isFavorite(m.id)
         return HStack {
             Button {
                 if isBible { selected = m.id }
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(m.name).foregroundStyle(.primary)
+                        Text(m.name)
+                            .font(.body.weight(isBible && m.id == selected ? .semibold : .regular))
+                            .foregroundStyle(isBible && m.id == selected ? Color.accentColor : Color.primary)
                         Text(m.title).font(.subheadline).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 4)
-                    if isBible && m.id == selected {
-                        Image(systemName: "checkmark").foregroundStyle(.tint)
-                    }
                 }
                 .contentShape(Rectangle())
             }
@@ -217,13 +216,14 @@ struct ModulesList: View {
             }
             if isBible {
                 Button {
-                    panes.setExplicitPrimary(m.id)
+                    panes.toggleFavorite(m.id)
                 } label: {
                     Image(systemName: primary ? "star.fill" : "star")
                         .foregroundStyle(primary ? Color.yellow : Color.secondary)
+                        .symbolEffect(.bounce, value: primary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(primary ? "Основной перевод" : "Сделать основным")
+                .accessibilityLabel(primary ? "Убрать из избранного" : "В избранное")
             } else {
                 Toggle("", isOn: Binding(get: { on }, set: { store.setEnabled(m.id, $0) }))
                     .labelsHidden()
