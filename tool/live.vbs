@@ -8,9 +8,12 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 root = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 
 Set wmi = GetObject("winmgmts:\\.\root\cimv2")
-Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = 'aobible.exe'")
+Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name = 'kolos.exe'")
 If procs.Count > 0 Then
-  sh.AppActivate "aobible"
+  Dim pr
+  For Each pr In procs
+    sh.AppActivate pr.ProcessId
+  Next
   WScript.Quit
 End If
 

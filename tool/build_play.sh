@@ -6,9 +6,9 @@
 cd "$(dirname "$0")/.."
 NAME=${1:-2.0}
 CODE=$(( 40000000 + ( $(date -u +%s) - $(date -u -d 2026-01-01 +%s) ) / 60 ))
-export AOB_KEYSTORE=G:/android-build/keys/aobible-upload.jks
+export AOB_KEYSTORE=G:/android-build/keys/kolos-upload.jks
 export AOB_KEY_PASS="$(tr -d '\r\n' < /g/android-build/keys/password.txt)"
 flutter build appbundle --release --build-name="$NAME" --build-number="$CODE" || exit 1
 mkdir -p /g/android-build/out
-cp build/app/outputs/bundle/release/app-release.aab "/g/android-build/out/aobible-flutter-$NAME-$CODE.aab"
-echo "ГОТОВО: G:/android-build/out/aobible-flutter-$NAME-$CODE.aab (versionCode $CODE)"
+cp build/app/outputs/bundle/release/app-release.aab "/g/android-build/out/kolos-$NAME-$CODE.aab"
+echo "ГОТОВО: G:/android-build/out/kolos-$NAME-$CODE.aab (versionCode $CODE)"
