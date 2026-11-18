@@ -126,7 +126,6 @@ struct VerseOfDayCard: View {
     @AppStorage("interfaceLanguage") private var lang = "ru"
     @State private var verse: DayVerse?
     @State private var photo: URL?
-    @State private var imageReq: ImageRequest?
 
     private var label: String {
         guard let v = verse else { return "" }
@@ -159,38 +158,6 @@ struct VerseOfDayCard: View {
                     Text(label)
                         .font(.headline)
                         .foregroundStyle(.white)
-                    HStack {
-                        Button {
-                            openVerse(v.book, v.chapter, v.verse)
-                        } label: {
-                            HStack(spacing: 6) { Image(systemName: "book"); Text("Читать") }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, 14).padding(.vertical, 10)
-                                .background(.white, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        Button {
-                            imageReq = ImageRequest(text: v.text, ref: label)
-                        } label: {
-                            HStack(spacing: 6) { Image(systemName: "photo"); Text("Картинка") }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 10)
-                                .background(.black.opacity(0.45), in: Capsule())
-                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                        ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))") {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 40, height: 40)
-                                .background(.black.opacity(0.45), in: Circle())
-                                .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                    }
                 } else {
                     Text("Скачайте перевод Библии, чтобы увидеть стих дня.")
                         .foregroundStyle(.white)
@@ -199,8 +166,29 @@ struct VerseOfDayCard: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, minHeight: 240)
+        // «Отправить» — сверху справа, с ровными отступами от краёв карточки
+        .overlay(alignment: .topTrailing) {
+            if let v = verse {
+                ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))") {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(.black.opacity(0.35), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.45), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .padding(16)
+                .accessibilityLabel("Поделиться")
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .sheet(item: $imageReq) { VerseImageSheet(text: $0.text, ref: $0.ref) }
+        // нажатие на карточку — переход к стиху
+        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .onTapGesture {
+            if let v = verse { openVerse(v.book, v.chapter, v.verse) }
+        }
+        .accessibilityAddTraits(.isButton)
         .task(id: moduleId + lang + "\(store.installed.count)") {
             verse = VerseOfDay.load(store: store, preferred: moduleId, language: lang)
             if photo == nil, let j = await Net.json("images/verse-bg/index.json"),
@@ -301,37 +289,75 @@ struct PlanPreview: View {
 struct StatsCard: View {
     let stats: ReadStats
 
+    /// Доля Библии, прочитанная целиком (1189 глав)
+    private var part: Double { min(1, Double(stats.total) / 1189) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 0) {
-                stat("\(stats.today)", "сегодня")
-                stat("\(stats.week)", "за неделю")
-                stat("\(stats.total)", "всего глав")
-                stat("\(stats.streak)", "дней подряд")
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 16) {
+                // кольцо «сколько Библии прочитано»
+                ZStack {
+                    Circle().stroke(Color.secondary.opacity(0.18), lineWidth: 7)
+                    Circle()
+                        .trim(from: 0, to: max(0.012, part))
+                        .stroke(AngularGradient(colors: [Color.accentColor.opacity(0.55), Color.accentColor], center: .center, startAngle: .degrees(0), endAngle: .degrees(360 * max(0.05, part))),
+                                style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 0) {
+                        Text(part > 0 && part < 0.01 ? "<1%" : "\(Int(part * 100))%").font(.headline.weight(.bold))
+                        Text("Библии").font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 76, height: 76)
+                VStack(alignment: .leading, spacing: 8) {
+                    // серия дней — главное число: с пламенем
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: "flame.fill")
+                            .font(.title3)
+                            .foregroundStyle(stats.streak > 0 ? Color.orange : Color.secondary.opacity(0.4))
+                            .symbolRenderingMode(.hierarchical)
+                        Text("\(stats.streak)").font(.system(size: 34, weight: .bold, design: .rounded))
+                        Text("дней подряд").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 18) {
+                        mini("\(stats.today)", "сегодня")
+                        mini("\(stats.week)", "за неделю")
+                        mini("\(stats.total)", "всего глав")
+                    }
+                }
+                Spacer(minLength: 0)
             }
-            HStack(alignment: .bottom, spacing: 8) {
+            // неделя: сегодняшний день — акцентом, остальные приглушены
+            HStack(alignment: .bottom, spacing: 10) {
                 let top = max(1, stats.days7.map { $0.n }.max() ?? 1)
                 ForEach(stats.days7) { d in
-                    VStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(d.n > 0 ? Color.accentColor : Color.secondary.opacity(0.25))
-                            .frame(height: d.n > 0 ? max(8, 56 * CGFloat(d.n) / CGFloat(top)) : 4)
-                        Text(weekday(d.day)).font(.caption2).foregroundStyle(.secondary)
+                    let isToday = d.id == stats.days7.last?.id
+                    VStack(spacing: 5) {
+                        Text(d.n > 0 && isToday ? "\(d.n)" : " ")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.accentColor)
+                        Capsule()
+                            .fill(d.n == 0 ? AnyShapeStyle(Color.secondary.opacity(0.2))
+                                  : isToday ? AnyShapeStyle(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.65)], startPoint: .top, endPoint: .bottom))
+                                  : AnyShapeStyle(Color.accentColor.opacity(0.4)))
+                            .frame(height: d.n > 0 ? max(10, 40 * CGFloat(d.n) / CGFloat(top)) : 6)
+                        Text(weekday(d.day))
+                            .font(.caption2.weight(isToday ? .bold : .regular))
+                            .foregroundStyle(isToday ? Color.primary : Color.secondary)
                     }
                     .frame(maxWidth: .infinity)
                 }
             }
             .frame(height: 76, alignment: .bottom)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
-    private func stat(_ n: String, _ label: LocalizedStringKey) -> some View {
-        VStack(spacing: 2) {
-            Text(n).font(.title2.weight(.semibold))
-            Text(label).font(.caption).foregroundStyle(.secondary)
+    private func mini(_ n: String, _ label: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(n).font(.headline.weight(.semibold))
+            Text(label).font(.caption2).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private func weekday(_ day: String) -> String {
