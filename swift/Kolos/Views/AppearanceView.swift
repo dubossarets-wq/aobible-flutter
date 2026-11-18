@@ -16,7 +16,6 @@ struct AppearanceView: View {
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
     @AppStorage("hideOnScroll") private var hideOnScroll = true
-    @AppStorage("ribbonBook") private var ribbonBook = true
     @AppStorage("readingStyle") private var readingStyle = "scroll"
     @AppStorage("bgImage") private var bgImage = 0
     @AppStorage("bgVeil") private var bgVeil = ReaderBackground.defaultVeil
@@ -82,7 +81,6 @@ struct AppearanceView: View {
                 Toggle("Заголовки разделов", isOn: $showHeadings)
                 Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous)
                 Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
-                Toggle("Лента книги: главы идут подряд", isOn: $ribbonBook)
             }
             Section {
                 PhotosPicker(selection: $photo, matching: .images) {
@@ -180,7 +178,7 @@ struct AppearanceView: View {
     }
 
     private func reset() {
-        inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19; ribbonBook = true
+        inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
         verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()

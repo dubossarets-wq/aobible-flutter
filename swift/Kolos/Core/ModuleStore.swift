@@ -200,6 +200,21 @@ final class ModuleStore: ObservableObject {
         }
     }
 
+    /// Вся книга одним проходом — для сплошного текста книги: номера стихов по главам и стихи, перед которыми заголовок
+    /// раздела (сам текст глав читается, когда до них доходит прокрутка)
+    func bookLayout(module: String, book: String) -> (verses: [Int: [Int]], headed: [Int: Set<Int>]) {
+        guard let d = db(module) else { return ([:], [:]) }
+        var verses: [Int: [Int]] = [:]
+        for (c, v) in d.query("SELECT chapter, verse FROM verses WHERE book = ? ORDER BY chapter, verse", [book], { ($0.int(0), $0.int(1)) }) {
+            verses[c, default: []].append(v)
+        }
+        var headed: [Int: Set<Int>] = [:]
+        for (c, v) in d.query("SELECT chapter, verse FROM headings WHERE book = ?", [book], { ($0.int(0), $0.int(1)) }) {
+            headed[c, default: []].insert(v)
+        }
+        return (verses, headed)
+    }
+
     func headings(module: String, book: String, chapter: Int) -> [Int: String] {
         guard let d = db(module) else { return [:] }
         var out: [Int: String] = [:]

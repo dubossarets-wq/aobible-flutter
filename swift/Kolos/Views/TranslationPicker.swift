@@ -44,6 +44,8 @@ struct TranslationPicker: View {
                 Text("Звёздочкой отметьте любимые переводы — они всегда наверху. Можно выбрать несколько.")
             }
         }
+        // строки во всю ширину экрана, без карточек со скруглёнными краями
+        .listStyle(.plain)
         .animation(.snappy(duration: 0.3), value: panes.favorites)
         .sensoryFeedback(.selection, trigger: panes.favorites)
     }
@@ -91,12 +93,8 @@ struct TranslationPicker: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(fav ? "Убрать из избранного" : "В избранное")
         }
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isCurrent ? Color.accentColor.opacity(0.16) : Color(uiColor: .secondarySystemGroupedBackground))
-                .padding(.horizontal, isCurrent ? 6 : 0)
-                .padding(.vertical, isCurrent ? 2 : 0)
-        )
+        // выбранный перевод — подсветка во всю строку, как у остальных строк: без скруглений и отступов
+        .listRowBackground(isCurrent ? Color.accentColor.opacity(0.14) : Color.clear)
         .contextMenu {
             Button { panes.toggleFavorite(m.id) } label: {
                 Label(fav ? "Убрать из избранного" : "В избранное", systemImage: fav ? "star.slash" : "star")

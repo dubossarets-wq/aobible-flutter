@@ -28,6 +28,8 @@ let maxPanes = 6
 @MainActor
 final class LivePlace: ObservableObject {
     @Published var verse: [UUID: Int] = [:]
+    /// Глава верхнего видимого стиха — в сплошном тексте книги она меняется прямо при прокрутке
+    @Published var chapter: [UUID: Int] = [:]
     /// Сколько прочитано книги, 0…1 (полоска вверху панели)
     @Published var progress: [UUID: Double] = [:]
 }
@@ -78,15 +80,22 @@ final class PanesStore: ObservableObject {
     private func save() {
         // место на диске — то, где человек сейчас читает (верхний видимый стих)
         var out = panes
-        for i in out.indices { if let v = live.verse[out[i].id] { out[i].verse = v } }
+        for i in out.indices {
+            if let v = live.verse[out[i].id] { out[i].verse = v }
+            if let c = live.chapter[out[i].id] { out[i].chapter = c }
+        }
         if let d = try? JSONEncoder().encode(out) { try? d.write(to: url, options: .atomic) }
     }
 
     /// Верхний видимый стих панели (при прокрутке); на диск пишется не чаще раза в секунду
-    func setLive(_ id: UUID, _ verse: Int) {
-        guard index(id) != nil, live.verse[id] != verse else { return }
+    /// chapter — глава этого стиха (сплошной текст книги: прокрутка уже в другой главе, а текущей она станет при остановке)
+    func setLive(_ id: UUID, _ verse: Int, chapter: Int? = nil) {
+        guard let i = index(id) else { return }
+        let c = chapter ?? panes[i].chapter
+        guard live.verse[id] != verse || (live.chapter[id] ?? panes[i].chapter) != c else { return }
         live.verse[id] = verse
-        if let i = index(id), verse > 0 { log.record(panes[i].book, panes[i].chapter, verse) }
+        if chapter != nil, live.chapter[id] != c { live.chapter[id] = c }
+        if verse > 0 { log.record(panes[i].book, c, verse) }
         liveTask?.cancel()
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -99,6 +108,7 @@ final class PanesStore: ObservableObject {
         guard let i = index(id) else { return nil }
         var p = panes[i].place
         if let v = live.verse[id] { p.verse = v }
+        if let c = live.chapter[id] { p.chapter = c }
         return p
     }
 
@@ -181,6 +191,7 @@ final class PanesStore: ObservableObject {
         panes[i].chapter = chapter
         panes[i].verse = verse
         live.verse[id] = nil
+        live.chapter[id] = nil
         log.record(book, chapter, verse)
         if record {
             var h = Array(panes[i].history.prefix(panes[i].hIndex + 1))
@@ -233,6 +244,8 @@ final class PanesStore: ObservableObject {
         guard let i = index(id), panes[i].hIndex > 0 else { return }
         panes[i].hIndex -= 1
         let p = panes[i].history[panes[i].hIndex]
+        live.verse[id] = nil
+        live.chapter[id] = nil
         panes[i].book = p.book
         panes[i].chapter = p.chapter
         panes[i].verse = p.verse
@@ -244,6 +257,8 @@ final class PanesStore: ObservableObject {
         guard let i = index(id), panes[i].hIndex < panes[i].history.count - 1 else { return }
         panes[i].hIndex += 1
         let p = panes[i].history[panes[i].hIndex]
+        live.verse[id] = nil
+        live.chapter[id] = nil
         panes[i].book = p.book
         panes[i].chapter = p.chapter
         panes[i].verse = p.verse
@@ -271,6 +286,9 @@ final class PanesStore: ObservableObject {
 
     func setModule(_ id: UUID, _ moduleId: String, _ store: ModuleStore) {
         guard let i = index(id) else { return }
+        // другой перевод открывается там, где читали (верхний видимый стих), а не там, куда переходили последний раз
+        if let c = live.chapter[id] { panes[i].chapter = c }
+        if let v = live.verse[id] { panes[i].verse = v }
         panes[i].moduleId = moduleId
         // в другом переводе может не быть этой книги — тогда первая
         if let m = store.module(moduleId), !m.books.contains(where: { $0.id == panes[i].book }), let f = m.books.first {
@@ -287,6 +305,7 @@ final class PanesStore: ObservableObject {
         guard panes.count < maxPanes, let i = index(id) else { return }
         var here = panes[i].place
         if let v = live.verse[id] { here.verse = v }
+        if let c = live.chapter[id] { here.chapter = c }
         let p = PaneState(moduleId: moduleId, book: here.book, chapter: here.chapter, verse: here.verse, history: [here])
         panes.insert(p, at: i + 1)
         save()
