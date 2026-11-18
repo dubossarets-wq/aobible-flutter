@@ -9,6 +9,8 @@ struct TranslationPicker: View {
     let current: String
     /// Выбрали перевод (окно закрывает вызывающий)
     let onPick: (String) -> Void
+    /// Перевод, который спрашиваем удалить
+    @State private var deleting: InstalledModule?
 
     private var bibles: [InstalledModule] { store.bibles }
 
@@ -48,6 +50,22 @@ struct TranslationPicker: View {
         .listStyle(.plain)
         .animation(.snappy(duration: 0.3), value: panes.favorites)
         .sensoryFeedback(.selection, trigger: panes.favorites)
+        .confirmationDialog(
+            deleting.map { "Удалить «\($0.name)»?" } ?? "",
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                if let m = deleting {
+                    if panes.isFavorite(m.id) { panes.toggleFavorite(m.id) }
+                    store.remove(m.id)
+                }
+                deleting = nil
+            }
+            Button("Отмена", role: .cancel) { deleting = nil }
+        } message: {
+            Text("Перевод можно будет снова скачать в библиотеке.")
+        }
     }
 
     private func row(_ m: InstalledModule) -> some View {
@@ -62,14 +80,6 @@ struct TranslationPicker: View {
                         Text(m.name)
                             .font(.body.weight(isCurrent ? .semibold : .regular))
                             .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
-                        if panes.primaryModule == m.id {
-                            Text("основной")
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.18), in: Capsule())
-                                .foregroundStyle(.secondary)
-                        }
                     }
                     Text(m.title)
                         .font(.subheadline)
@@ -99,10 +109,15 @@ struct TranslationPicker: View {
             Button { panes.toggleFavorite(m.id) } label: {
                 Label(fav ? "Убрать из избранного" : "В избранное", systemImage: fav ? "star.slash" : "star")
             }
-            Button {
-                panes.setExplicitPrimary(m.id)
-                if !fav { panes.toggleFavorite(m.id) }
-            } label: { Label("Сделать основным", systemImage: "bookmark") }
+            // последний перевод не удаляется — читать было бы нечего
+            if bibles.count > 1 {
+                Button(role: .destructive) { deleting = m } label: { Label("Удалить", systemImage: "trash") }
+            }
+        }
+        .swipeActions {
+            if bibles.count > 1 {
+                Button("Удалить", role: .destructive) { deleting = m }
+            }
         }
     }
 }

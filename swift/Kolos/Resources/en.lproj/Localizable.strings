@@ -1886,3 +1886,7 @@
 "основной" = "primary";
 "Убрать из избранного" = "Remove from favorites";
 "В избранное" = "Add to favorites";
+"Удалить «%@»?" = "Delete “%@”?";
+"Перевод можно будет снова скачать в библиотеке." = "You can download this translation again from the library.";
+"Предыдущая книга" = "Previous book";
+"Следующая книга" = "Next book";
