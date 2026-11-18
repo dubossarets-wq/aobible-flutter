@@ -103,6 +103,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
   final _scroll = ScrollController();
   String _scope = _load('searchScope', 'all');
   bool _whole = _load('searchWhole', false);
+  bool _ordered = _load('searchOrdered', false); // слова в заданном порядке (иначе — в любом порядке и с пропусками)
   bool _allMods = _load('searchAllModules', false);
   bool _withOrig = _load('searchOriginals', false);
   List<String> _history = _load<List>('searchHistory', const []).whereType<String>().toList();
@@ -204,7 +205,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     return [m, ...rest];
   }
 
-  String _keyOf(String q) => jsonEncode([q, _scope, _scope == 'book' ? _pane.ref.book : '', _whole, _targets.map((m) => m.id).join(',')]);
+  String _keyOf(String q) => jsonEncode([q, _scope, _scope == 'book' ? _pane.ref.book : '', _whole, _ordered, _targets.map((m) => m.id).join(',')]);
 
   /// Книги перевода в выбранной части Библии (null — все)
   Set<String>? _books(String moduleId) {
@@ -300,7 +301,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       if (list.length > 1) setState(() => _progress = (p: i / list.length, label: shortName(m)));
       List<SearchHit> found;
       try {
-        found = await searchText(m.id, q, books: _books(m.id), wholeWord: _whole);
+        found = await searchText(m.id, q, books: _books(m.id), wholeWord: _whole, ordered: _ordered);
       } catch (_) {
         continue; // перевод недоступен — ищем в остальных
       }
@@ -394,7 +395,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     final targets = _targets;
     final multi = targets.length > 1;
     final hits = _hits;
-    final re = _ran.isEmpty ? null : queryRegex(_ran, wholeWord: _whole);
+    final re = _ran.isEmpty ? null : QueryMatcher(_ran, wholeWord: _whole).highlight;
     final textStyle = readerTextStyle(settings, size: 16).copyWith(color: pal.text, height: 1.5);
     const gap = SizedBox(height: 12);
 
@@ -413,6 +414,11 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         hint: iosUiNow ? null : t('Иначе «свет» найдёт и «светильник»'),
         value: _whole,
         onChanged: (v) => _setOption('searchWhole', v, () => _whole = v),
+      ),
+      SwitchRow(
+        label: t('Слова в заданном порядке'),
+        value: _ordered,
+        onChanged: (v) => _setOption('searchOrdered', v, () => _ordered = v),
       ),
       if (_canAll)
         SwitchRow(

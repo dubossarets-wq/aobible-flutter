@@ -21,7 +21,7 @@ final class SearchModel: ObservableObject {
 
     /// Поиск без пауз: на каждое изменение запроса — новый проход по готовому индексу (миллисекунды);
     /// устаревший результат отбрасывается. targets — переводы, в которых ищем (id, файл)
-    func run(targets: [(String, String)], query: String, whole: Bool, books: Set<String>?) {
+    func run(targets: [(String, String)], query: String, whole: Bool, ordered: Bool = false, books: Set<String>?) {
         generation += 1
         let g = generation
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -36,7 +36,7 @@ final class SearchModel: ObservableObject {
             var all: [SearchHit] = []
             for (id, path) in targets {
                 if let idx = SearchIndex.index(path: path) {
-                    all.append(contentsOf: SearchEngine.run(index: idx, query: q, wholeWord: whole, books: books).map { $0.tagged(id) })
+                    all.append(contentsOf: SearchEngine.run(index: idx, query: q, wholeWord: whole, ordered: ordered, books: books).map { $0.tagged(id) })
                 }
             }
             // несколько переводов: места в порядке Библии, у одного места — переводы подряд
@@ -71,6 +71,8 @@ struct SearchPage: View {
     private var moduleId: String { panes.primaryModule }
     private var currentBook: String { panes.panes.first?.book ?? "Gen" }
     @AppStorage("searchWhole") private var whole = false
+    /// слова в заданном порядке (иначе — в любом порядке и с пропусками)
+    @AppStorage("searchOrdered") private var ordered = false
     @AppStorage("searchAllModules") private var allMods = false
     @AppStorage("searchOriginals") private var withOrig = false
     @State private var scope: SearchScope = .all
@@ -134,6 +136,7 @@ struct SearchPage: View {
                     }
                     .pickerStyle(.segmented)
                     Toggle("Только целые слова", isOn: $whole)
+                    Toggle("Слова в заданном порядке", isOn: $ordered)
                     if canAll {
                         Toggle("Во всех модулях", isOn: $allMods)
                         if allMods && hasOriginals {
@@ -227,6 +230,16 @@ struct SearchPage: View {
             .navigationTitle("Поиск")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, isPresented: $searching, prompt: "Слово, Ин 3:16 или G26")
+            .onSubmit(of: .search) {
+                if let r = RefParser.parse(query) {
+                    remember(query)
+                    onOpen(r.book, r.chapter, r.verse)
+                } else {
+                    remember(query)
+                    rerun()
+                }
+            }
+            .submitLabel(.search)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: onClose) {
@@ -251,6 +264,7 @@ struct SearchPage: View {
         .onChange(of: query) { _, _ in rerun() }
         .onChange(of: scope) { _, _ in rerun() }
         .onChange(of: whole) { _, _ in rerun() }
+        .onChange(of: ordered) { _, _ in rerun() }
         .onChange(of: allMods) { _, _ in rerun() }
         .onChange(of: withOrig) { _, _ in rerun() }
         .onAppear {
@@ -300,6 +314,6 @@ struct SearchPage: View {
 
     private func rerun() {
         shown = 50
-        model.run(targets: targets.map { ($0.id, $0.path) }, query: query, whole: whole, books: booksFilter)
+        model.run(targets: targets.map { ($0.id, $0.path) }, query: query, whole: whole, ordered: ordered, books: booksFilter)
     }
 }

@@ -142,6 +142,61 @@ RegExp? queryRegex(String query, {bool wholeWord = false}) {
   return RegExp(pat, unicode: true, caseSensitive: false);
 }
 
+/// Слова запроса: каждое отдельно; то, что в кавычках («свет миру»), — одной фразой подряд
+List<String> queryTokens(String query) {
+  final out = <String>[];
+  final cur = StringBuffer();
+  var inQuote = false;
+  void flush() {
+    final t = cur.toString().trim();
+    if (t.isNotEmpty) out.add(t);
+    cur.clear();
+  }
+
+  for (final ch in query.runes.map(String.fromCharCode)) {
+    if ('"«»“”'.contains(ch)) {
+      flush();
+      inQuote = !inQuote;
+    } else if (RegExp(r'\s').hasMatch(ch) && !inQuote) {
+      flush();
+    } else {
+      cur.write(ch);
+    }
+  }
+  flush();
+  return out;
+}
+
+/// Подходит ли стих запросу: все слова запроса в любом порядке и с пропусками, а при ordered — в заданном порядке
+/// (между словами могут быть другие). Слово в кавычках — фраза подряд. wholeWord — слова целиком
+class QueryMatcher {
+  QueryMatcher(String query, {bool wholeWord = false, this.ordered = false}) : res = [for (final t in queryTokens(query)) queryRegex(t, wholeWord: wholeWord)].whereType<RegExp>().toList();
+  final List<RegExp> res;
+  final bool ordered;
+
+  bool get isEmpty => res.isEmpty;
+
+  bool matches(String text) {
+    if (res.isEmpty) return false;
+    if (!ordered) {
+      for (final r in res) {
+        if (!r.hasMatch(text)) return false;
+      }
+      return true;
+    }
+    var pos = 0;
+    for (final r in res) {
+      final m = r.allMatches(text, pos).firstOrNull;
+      if (m == null) return false;
+      pos = m.end;
+    }
+    return true;
+  }
+
+  /// Для подсветки найденного: любое из слов запроса
+  RegExp? get highlight => res.isEmpty ? null : RegExp(res.length == 1 ? res.first.pattern : '(?:${res.map((r) => r.pattern).join('|')})', unicode: true, caseSensitive: false);
+}
+
 /// Поиск фразы по переводу, как в веб-версии: проход по тексту всех стихов (индекс FTS5 ищет только начала слов,
 /// а здесь нужна и середина слова) — в отдельном потоке, порядок — как в Библии. books — только эти книги.
 // Текст перевода без разметки — для поиска: готовится один раз в отдельном потоке (чтение базы и разбор разметки —
@@ -183,17 +238,17 @@ void warmSearch(String moduleId) {
   if (path != null) _plainOf(moduleId, path).ignore();
 }
 
-Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false}) async {
+Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false, bool ordered = false}) async {
   final path = ModuleStore.instance.get(moduleId)?.path;
-  final re = queryRegex(query, wholeWord: wholeWord);
-  if (path == null || re == null) return const [];
+  final qm = QueryMatcher(query, wholeWord: wholeWord, ordered: ordered);
+  if (path == null || qm.isEmpty) return const [];
   final rows = _ready['$moduleId|$path'];
   if (rows == null) {
     // текст ещё готовится — этот запрос ищет сам в отдельном потоке (возвращает только найденное), а текст для
     // следующих запросов готовится рядом
     _plainOf(moduleId, path).ignore();
     return Isolate.run(() {
-      final re = queryRegex(query, wholeWord: wholeWord)!;
+      final qm = QueryMatcher(query, wholeWord: wholeWord, ordered: ordered);
       final db = sqlite3.open(path, mode: OpenMode.readOnly);
       try {
         final out = <SearchHit>[];
@@ -201,7 +256,7 @@ Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? 
           final book = r['book'] as String;
           if (books != null && !books.contains(book)) continue;
           final text = plainText(r['text'] as String);
-          if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, r['chapter'] as int, r['verse'] as int), text));
+          if (qm.matches(text)) out.add(SearchHit(VerseRef(book, r['chapter'] as int, r['verse'] as int), text));
         }
         return out;
       } finally {
@@ -213,7 +268,7 @@ Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? 
   final out = <SearchHit>[];
   for (final (book, c, v, text) in rows) {
     if (books != null && !books.contains(book)) continue;
-    if (re.hasMatch(text)) out.add(SearchHit(VerseRef(book, c, v), text));
+    if (qm.matches(text)) out.add(SearchHit(VerseRef(book, c, v), text));
   }
   return out;
 }

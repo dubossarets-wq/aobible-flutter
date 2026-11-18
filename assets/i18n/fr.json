@@ -1489,5 +1489,6 @@
  "Время читать Библию": "C’est l’heure de lire la Bible",
  "Слово или номер Стронга": "Word or Strong's number",
  "Введите слово или номер Стронга, например G26 или H430.": "Enter a word or a Strong's number, for example G26 or H430.",
- "Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».": "No dictionaries yet. Install them: More → Module library → Dictionaries."
+ "Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».": "No dictionaries yet. Install them: More → Module library → Dictionaries.",
+ "Слова в заданном порядке": "Mots dans l’ordre donné"
 }

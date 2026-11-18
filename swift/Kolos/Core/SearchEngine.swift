@@ -101,10 +101,42 @@ final class SearchIndex: @unchecked Sendable {
 }
 
 enum SearchEngine {
-    /// Регулярное выражение запроса (для подсветки найденного): все слова фразы по порядку, часть слова тоже
+    /// Слова запроса: каждое слово отдельно, а то, что в кавычках («свет миру»), — одной фразой подряд
+    static func tokens(_ query: String) -> [String] {
+        var out: [String] = []
+        var cur = ""
+        var inQuote = false
+        func flush() {
+            let t = cur.trimmingCharacters(in: .whitespaces)
+            if !t.isEmpty { out.append(t) }
+            cur = ""
+        }
+        for ch in query {
+            if ch == "\"" || ch == "«" || ch == "»" || ch == "“" || ch == "”" {
+                flush()
+                inQuote.toggle()
+            } else if ch.isWhitespace && !inQuote {
+                flush()
+            } else {
+                cur.append(ch)
+            }
+        }
+        flush()
+        return out
+    }
+
+    /// Регулярное выражение запроса (для подсветки найденного): любое из слов запроса, часть слова тоже
     /// подходит; «ё» = «е»; знак ударения в тексте не мешает
     static func regex(for query: String, wholeWord: Bool) -> NSRegularExpression? {
-        let q = query
+        let parts = tokens(query).compactMap { tokenPattern($0) }
+        guard !parts.isEmpty else { return nil }
+        let body = parts.count == 1 ? parts[0] : "(?:" + parts.joined(separator: "|") + ")"
+        let pattern = wholeWord ? "(?<!\\p{L})" + body + "(?!\\p{L})" : body
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }
+
+    private static func tokenPattern(_ token: String) -> String? {
+        let q = token
             .trimmingCharacters(in: .whitespaces)
             .replacingOccurrences(of: "\u{0301}", with: "")
         guard !q.isEmpty else { return nil }
@@ -124,8 +156,7 @@ enum SearchEngine {
                 if ch.isLetter { body += "\u{0301}?" }
             }
         }
-        let pattern = wholeWord ? "(?<!\\p{L})" + body + "(?!\\p{L})" : body
-        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+        return body
     }
 
     /// «G26», «h1254» → номер Стронга
@@ -137,16 +168,23 @@ enum SearchEngine {
     }
 
     private static func contains(_ hay: [UInt8], _ needle: [UInt8]) -> Bool {
-        guard !needle.isEmpty, hay.count >= needle.count else { return false }
+        find(hay, needle, from: 0) != nil
+    }
+
+    /// Где слово встречается впервые, начиная с позиции from (конец найденного — index + needle.count)
+    private static func find(_ hay: [UInt8], _ needle: [UInt8], from: Int) -> Int? {
+        guard !needle.isEmpty, from >= 0, hay.count - from >= needle.count else { return nil }
         return hay.withUnsafeBufferPointer { h in
             needle.withUnsafeBufferPointer { n in
-                memmem(h.baseAddress, h.count, n.baseAddress, n.count) != nil
+                guard let p = memmem(h.baseAddress! + from, h.count - from, n.baseAddress, n.count) else { return nil }
+                return Int(bitPattern: p) - Int(bitPattern: h.baseAddress!)
             }
         }
     }
 
     /// Поиск по готовому индексу (в порядке Библии). books — только эти книги
-    static func run(index: SearchIndex, query: String, wholeWord: Bool, books: Set<String>?) -> [SearchHit] {
+    /// ordered: false — слова в любом порядке и с пропусками; true — слова в заданном порядке (между ними могут быть другие)
+    static func run(index: SearchIndex, query: String, wholeWord: Bool, ordered: Bool = false, books: Set<String>?) -> [SearchHit] {
         var out: [SearchHit] = []
         if let strong = strongNumber(query) {
             // слово с номером Стронга: {текст|G26} или {текст|G1 G26|морфология}
@@ -161,18 +199,32 @@ enum SearchEngine {
             }
             return out
         }
-        let folded = SearchIndex.fold(query)
-        // fold даёт «_слова_» с пробелами по краям: для обычного поиска края не нужны (часть слова подходит),
-        // для «только целые слова» — нужны (слово не обрезано ни с одной стороны)
-        var q = Array(folded.utf8)
-        guard q.count > 2 else { return [] }
-        if !wholeWord {
-            q.removeFirst()
-            q.removeLast()
+        // слова запроса: fold даёт «_слово_» с пробелами по краям — для обычного поиска края не нужны (часть слова
+        // подходит), для «только целые слова» — нужны (слово не обрезано ни с одной стороны)
+        let needles: [[UInt8]] = tokens(query).compactMap { t in
+            var q = Array(SearchIndex.fold(t).utf8)
+            guard q.count > 2 else { return nil }
+            if !wholeWord {
+                q.removeFirst()
+                q.removeLast()
+            }
+            return q
         }
+        guard !needles.isEmpty else { return [] }
         for r in index.rows {
             if let b = books, !b.contains(r.book) { continue }
-            if contains(r.folded, q) {
+            var ok = true
+            if ordered {
+                // каждое следующее слово — правее предыдущего (у целых слов пробел между словами общий — не отступаем)
+                var pos = 0
+                for n in needles {
+                    guard let at = find(r.folded, n, from: pos) else { ok = false; break }
+                    pos = at + n.count - (wholeWord ? 1 : 0)
+                }
+            } else {
+                for n in needles where !contains(r.folded, n) { ok = false; break }
+            }
+            if ok {
                 out.append(SearchHit(id: r.id, book: r.book, chapter: r.chapter, verse: r.verse, text: r.plain))
             }
         }
