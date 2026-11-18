@@ -636,10 +636,20 @@ final class CacheBox {
 }
 
 /// Следующая глава под текущей (лента книги): готовый текст и откуда он
+struct RibbonSide {
+    let ref: (book: String, chapter: Int)
+    let data: ChapterCache
+}
+
 final class PreviewBox {
     var key = ""
-    var ref: (book: String, chapter: Int)?
-    var data: ChapterCache?
+    var prev: RibbonSide?
+    var next: RibbonSide?
+}
+
+/// Какие строки сейчас на экране (по ним лента решает, что текущая глава сменилась) — без перерисовки при записи
+final class IdsBox {
+    var ids: [Int] = []
 }
 
 /// Комментарии главы по стихам (для текста под стихом): собираются один раз на главу
@@ -707,11 +717,12 @@ struct ChapterText: View {
     /// Лента книги: под текущей главой показана следующая (статичный текст). Доскроллили до неё — она становится текущей
     @AppStorage("ribbonBook") private var ribbonBook = true
     @State private var previewBox = PreviewBox()
-    @State private var previewTick = 0
+    @State private var idsBox = IdsBox()
+    /// для какой главы лента уже поставила текст на место (до этого прокрутка скрыта, чтобы не мелькало начало предыдущей)
+    @State private var positionedKey = ""
     /// человек уже листал пальцем в этой главе (без этого начальная раскладка не считается прокруткой)
     @State private var ribbonArmed = false
-    /// следующая прокрутка к стиху — сразу, без анимации (переход на следующую главу)
-    @State private var snapInstant = false
+
     @AppStorage("fontFamily") private var fontFamily = "system"
     @AppStorage("fontWeight") private var fontWeight = 400.0
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
@@ -788,6 +799,7 @@ struct ChapterText: View {
         let d = chapterData()
         let verses = d.verses
         let heads = d.heads
+        let rib = ribbonOn ? ribbonData(d) : (prev: nil as RibbonSide?, next: nil as RibbonSide?)
         let _ = bindGestures()
         Group {
         if readingStyle == "pages" {
@@ -796,17 +808,23 @@ struct ChapterText: View {
         ScrollViewReader { proxy in
             ScrollView {
                 Group {
-                    if panes.panes.count > 1 {
+                    if ribbonOn {
+                        // лента книги: предыдущая глава сверху, текущая, следующая снизу — одним текстом. Строится сразу
+                        // целиком (не лениво): положения точные, и вход в главу ставится ровно на её начало
+                        VStack(alignment: .leading, spacing: fontSize * verseSpacing) {
+                            ribbonRows(rib.prev, sign: -1)
+                            rows(d)
+                            ribbonRows(rib.next, sign: 1)
+                        }
+                        .scrollTargetLayout()
+                    } else if panes.panes.count > 1 {
                         // несколько панелей: все стихи главы строятся сразу — их положения точные и не «плывут»
                         // при прокрутке (на этом держится синхронная прокрутка, см. ScrollSync)
                         VStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
                             .scrollTargetLayout()
                     } else {
-                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
-                            rows(d)
-                            ribbonTail()
-                        }
-                        .scrollTargetLayout()
+                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) { rows(d) }
+                            .scrollTargetLayout()
                     }
                 }
                 .environment(\.layoutDirection, Bidi.isRTLLang(module.language) ? .rightToLeft : .leftToRight)
@@ -815,16 +833,15 @@ struct ChapterText: View {
                 .padding(.vertical, 12)
             }
             .contentMargins(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
+            // пока лента не поставила текст на место — прокрутка невидима (иначе на кадр мелькает начало предыдущей главы)
+            .opacity(ribbonOn && rib.prev != nil && positionedKey != "\(module.id)|\(book)|\(chapter)" ? 0 : 1)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
-                // стихи текущей главы — 1…, её заголовок — 0; превью следующей — от 100 000
-                let cur = ids.filter { $0 >= 0 && $0 < Self.ribbonBase }
+                // стихи текущей главы — 1…, её заголовок — 0; предыдущая — со знаком минус от 100 000, следующая — от 100 000
+                idsBox.ids = ids
+                let cur = ids.filter { abs($0) < Self.ribbonBase }
                 if let top = cur.filter({ $0 > 0 }).min() {
                     panes.setLive(pane.id, top)
                     updateProgress(top, verses.count)
-                } else if cur.isEmpty, ribbonOn, ribbonArmed, previewBox.data != nil, let nx = previewBox.ref,
-                          let nv = ids.filter({ $0 >= Self.ribbonBase }).min() {
-                    // текущая глава ушла за верхний край, на экране следующая — делаем её текущей
-                    promote(nx, nv == Self.ribbonBase ? 0 : nv - Self.ribbonBase)
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) { _, y in
@@ -834,10 +851,10 @@ struct ChapterText: View {
             // насколько потянули за конец главы — по самой прокрутке UIKit (сводка SwiftUI внизу неточно учитывала
             // нижние кнопки и меню, и до порога было не дотянуть)
             .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.containerSize.height - $0.contentSize.height - $0.contentInsets.bottom }) { _, over in
-                pull.setBottom(max(0, bottomOver(fallback: over)))
+                if !ribbonOn { pull.setBottom(max(0, bottomOver(fallback: over))) }
             }
             .onScrollGeometryChange(for: CGFloat.self, of: { -($0.contentOffset.y + $0.contentInsets.top) }) { _, over in
-                pull.setTop(max(0, over))
+                if !ribbonOn { pull.setTop(max(0, over)) }
             }
             .onScrollPhaseChange { old, new in
                 touchScroll.user = (new == .interacting || new == .decelerating)
@@ -845,8 +862,10 @@ struct ChapterText: View {
                 #if DEBUG
                 SyncTrace.write("P,phase,\(old),\(new),bottom=\(pull.bottom),top=\(pull.top)")
                 #endif
-                guard old == .interacting, new != .interacting else { return }
-                if max(pull.bottom, bottomOver(fallback: 0)) >= PullState.threshold, !(ribbonOn && previewBox.data != nil) {
+                // лента: остановились — если текущая глава ушла с экрана, следующая (или предыдущая) становится текущей
+                if new == .idle { evaluateRibbon() }
+                guard !ribbonOn, old == .interacting, new != .interacting else { return }
+                if max(pull.bottom, bottomOver(fallback: 0)) >= PullState.threshold {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     panes.step(pane.id, 1, module: module)
                 } else if pull.top >= PullState.threshold {
@@ -854,11 +873,13 @@ struct ChapterText: View {
                     panes.step(pane.id, -1, module: module, atEnd: true)
                 }
             }
-            .overlay(alignment: .bottom) { PullHint(state: pull, next: true, label: neighbour(1)).padding(.bottom, 10) }
+            .overlay(alignment: .bottom) { if !ribbonOn { PullHint(state: pull, next: true, label: neighbour(1)).padding(.bottom, 10) } }
             // сверху — под шапкой (и панелью подстрочника), а не за ними
             .overlay(alignment: .top) {
-                PullHint(state: pull, next: false, label: neighbour(-1))
-                    .padding(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0) + 10)
+                if !ribbonOn {
+                    PullHint(state: pull, next: false, label: neighbour(-1))
+                        .padding(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0) + 10)
+                }
             }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
@@ -936,10 +957,6 @@ struct ChapterText: View {
         }
         .animation(.default, value: toast)
         .task(id: "\(module.id)|\(book)|\(chapter)|\(onlineTick)") { await loadOnline() }
-        .task(id: "\(module.id)|\(book)|\(chapter)|\(ribbonOn)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(onlineTick)|\(showHeadings)") {
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            if !Task.isCancelled { buildPreview() }
-        }
         .background(StudySheets(req: req) { b, c, v in
             // место из словаря: из первой панели — во второй, из остальных — в самой панели
             if panes.index(pane.id) == 0 {
@@ -1072,7 +1089,7 @@ struct ChapterText: View {
         let verses = d.verses
         let heads = d.heads
         let views = panes.scrollSync.views(pane.id)
-        if !verses.isEmpty { chapterTitle.id(0) }
+        if !verses.isEmpty { chapterTitle.padding(.top, ribbonOn && previewBox.prev != nil ? fontSize * 1.2 : 0).id(0) }
         if continuous && !module.interlinear {
             // сплошной текст: стихи идут подряд, разрыв — только у заголовков разделов
             ForEach(blocks(verses, heads)) { blk in
@@ -1180,7 +1197,7 @@ struct ChapterText: View {
 
     /// Лента работает при чтении прокруткой в одной панели (не «Страницы», не сплошной текст и не подстрочник)
     private var ribbonOn: Bool {
-        ribbonBook && readingStyle != "pages" && panes.panes.count == 1 && !continuous && !module.interlinear
+        ribbonBook && readingStyle != "pages" && panes.panes.count == 1 && !continuous && !module.interlinear && !module.online
     }
 
     /// Следующая глава (через границу книги — первая глава следующей); nil — дальше некуда
@@ -1191,54 +1208,75 @@ struct ChapterText: View {
         return (module.books[bi + 1].id, 1)
     }
 
-    private func buildPreview() {
-        guard ribbonOn, let nx = nextRef() else {
-            previewBox.data = nil
-            previewBox.ref = nil
-            previewTick += 1
-            return
-        }
-        let verses = store.verses(module: module.id, book: nx.book, chapter: nx.chapter)
-        guard !verses.isEmpty else {
-            previewBox.data = nil
-            previewBox.ref = nil
-            previewTick += 1
-            return
-        }
-        let heads = store.headings(module: module.id, book: nx.book, chapter: nx.chapter)
-        let xc = showXrefs ? store.xrefCounts(module: module.id, book: nx.book, chapter: nx.chapter) : [:]
-        let ic = showIllus ? store.illustrationCounts(book: nx.book, chapter: nx.chapter) : [:]
-        var attr: [Int: NSAttributedString] = [:]
-        for v in verses {
-            attr[v.num] = attributedNS(v, xrefs: xc[v.num] ?? 0, illus: ic[v.num] ?? 0, number: true, numberLink: false, preview: nx)
-        }
-        previewBox.data = ChapterCache(key: "", verses: verses, heads: heads, xcounts: xc, icounts: ic, attr: attr)
-        previewBox.ref = nx
-        previewTick += 1
+    /// Предыдущая глава (через границу книги — последняя глава предыдущей); nil — выше некуда
+    private func prevRef() -> (book: String, chapter: Int)? {
+        guard let bi = module.books.firstIndex(where: { $0.id == book }) else { return nil }
+        if chapter > 1 { return (book, chapter - 1) }
+        guard bi > 0 else { return nil }
+        return (module.books[bi - 1].id, max(1, module.books[bi - 1].chapters))
     }
 
-    /// Следующая глава стала текущей (доскроллили до неё или нажали на неё)
+    /// Текст соседней главы для ленты: готовый, как у текущей (без выделения и отметок — они появятся, когда она станет текущей)
+    private func buildSide(_ r: (book: String, chapter: Int)?) -> RibbonSide? {
+        guard let r else { return nil }
+        let verses = store.verses(module: module.id, book: r.book, chapter: r.chapter)
+        guard !verses.isEmpty else { return nil }
+        let heads = store.headings(module: module.id, book: r.book, chapter: r.chapter)
+        let xc = showXrefs ? store.xrefCounts(module: module.id, book: r.book, chapter: r.chapter) : [:]
+        let ic = showIllus ? store.illustrationCounts(book: r.book, chapter: r.chapter) : [:]
+        var attr: [Int: NSAttributedString] = [:]
+        for v in verses {
+            attr[v.num] = attributedNS(v, xrefs: xc[v.num] ?? 0, illus: ic[v.num] ?? 0, number: true, numberLink: false, preview: r)
+        }
+        return RibbonSide(ref: r, data: ChapterCache(key: "", verses: verses, heads: heads, xcounts: xc, icounts: ic, attr: attr))
+    }
+
+    /// Соседние главы (кеш на время, пока открыта эта глава и не менялось оформление)
+    private func ribbonData(_ d: ChapterCache) -> (prev: RibbonSide?, next: RibbonSide?) {
+        let key = d.key + "|ribbon"
+        if previewBox.key != key {
+            previewBox.prev = buildSide(prevRef())
+            previewBox.next = buildSide(nextRef())
+            previewBox.key = key
+        }
+        return (previewBox.prev, previewBox.next)
+    }
+
+    /// Соседняя глава стала текущей (доскроллили до неё или нажали на неё)
     private func promote(_ r: (book: String, chapter: Int), _ verse: Int) {
         ribbonArmed = false
-        snapInstant = verse > 0
         panes.go(pane.id, r.book, r.chapter, verse, record: false)
     }
 
-    /// Под текущей главой — следующая: заголовок и стихи (без выделения и отметок — они появятся, когда она станет текущей)
-    @ViewBuilder private func ribbonTail() -> some View {
-        if ribbonOn, previewTick >= 0, let pd = previewBox.data, let nx = previewBox.ref {
-            chapterTitleFor(nx.book, nx.chapter)
-                .padding(.top, fontSize * 1.2)
-                .id(Self.ribbonBase)
-            ForEach(pd.verses) { v in
+    /// Остановились: если текущая глава целиком ушла с экрана, на экране соседняя — делаем её текущей
+    /// (не на ходу: иначе обрывалась бы инерция прокрутки)
+    private func evaluateRibbon() {
+        guard ribbonOn, ribbonArmed else { return }
+        let ids = idsBox.ids
+        if ids.contains(where: { abs($0) < Self.ribbonBase }) { return }
+        if let nx = previewBox.next, let nv = ids.filter({ $0 >= Self.ribbonBase }).min() {
+            promote(nx.ref, nv == Self.ribbonBase ? 0 : nv - Self.ribbonBase)
+        } else if let pv = previewBox.prev, let pid = ids.filter({ $0 <= -Self.ribbonBase }).max() {
+            // сверху вниз по главе: первый видимый стих — тот, что ближе к началу (наибольший id)
+            promote(pv.ref, pid == -Self.ribbonBase ? 0 : -pid - Self.ribbonBase)
+        }
+    }
+
+    /// Соседняя глава в ленте: заголовок и стихи. sign: −1 — предыдущая (номера строк со знаком минус), 1 — следующая
+    @ViewBuilder private func ribbonRows(_ side: RibbonSide?, sign: Int) -> some View {
+        if let side {
+            chapterTitleFor(side.ref.book, side.ref.chapter)
+                .padding(.top, sign > 0 ? fontSize * 1.2 : 0)
+                .id(sign * Self.ribbonBase)
+            ForEach(side.data.verses) { v in
                 VStack(alignment: .leading, spacing: 6) {
-                    if showHeadings, let h = pd.heads[v.num] { headingText(h) }
+                    if showHeadings, let h = side.data.heads[v.num] { headingText(h) }
                     VerseTextView(
-                        text: pd.attr[v.num] ?? NSAttributedString(),
+                        text: side.data.attr[v.num] ?? NSAttributedString(),
                         verse: v.num,
-                        onTap: { _, _ in promote(nx, v.num) },
-                        onDouble: { _ in promote(nx, v.num) },
-                        onLong: { _ in promote(nx, v.num) },
+                        onTap: { _, _ in promote(side.ref, v.num) },
+                        onDouble: { _ in promote(side.ref, v.num) },
+                        onLong: { _ in promote(side.ref, v.num) },
                         selecting: false,
                         views: nil
                     )
@@ -1247,7 +1285,11 @@ struct ChapterText: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .id(Self.ribbonBase + v.num)
+                .id(sign * (Self.ribbonBase + v.num))
+            }
+            if sign < 0 {
+                // между предыдущей и текущей главой — просвет, как перед следующей
+                Color.clear.frame(height: fontSize * 0.6)
             }
         }
     }
@@ -1312,18 +1354,27 @@ struct ChapterText: View {
     }
 
     private func scroll(_ proxy: ScrollViewProxy, _ verses: [Verse], _ heads: [Int: String]) {
+        let key = "\(module.id)|\(book)|\(chapter)"
+        let hasPrev = ribbonOn && previewBox.prev != nil
+        if hasPrev {
+            // над текущей главой лежит предыдущая — встаём на нужное место сразу, без «подъезда» и мелькания её начала
+            let target = (focus <= 1 || !verses.contains { $0.num == focus }) ? 0 : focus
+            if positionedKey != key {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
+                DispatchQueue.main.async { positionedKey = key }
+            } else if focus > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation { proxy.scrollTo(target, anchor: .top) }
+                }
+            }
+            return
+        }
         guard focus > 0 else { return }
         var target = focus == 1 ? 0 : focus
         if continuous, let blk = blocks(verses, heads).first(where: { $0.verses.contains { $0.num == focus } }) {
             target = blk.id
-        }
-        if snapInstant {
-            // переход на следующую главу при прокрутке: встаём на то же место сразу, без «подъезда»
-            snapInstant = false
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
-            return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
