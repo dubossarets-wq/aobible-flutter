@@ -106,6 +106,7 @@ struct PaneView: View {
                     // поэтому прокрутку она не двигает. Под ней — мягкий градиент, текст у верхнего края как бы растворяется
                     .overlay(alignment: .top) { chromeOverlay(p, m) }
                     .safeAreaInset(edge: .bottom) {
+                        if panes.panes.count == 1 {
                         HStack {
                             Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
                                 .accessibilityLabel("Предыдущая глава")
@@ -124,6 +125,7 @@ struct PaneView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
                         .offset(y: chrome.hidden[paneID] == true && !panes.isLowerPane(paneID) ? chrome.bottomShift : 0)
+                        }
                     }
             }
             .animation(.easeInOut(duration: 0.2), value: chrome.hidden[paneID])
@@ -183,6 +185,8 @@ struct PaneView: View {
 
     /// Высота шапки: столько оставлено в начале текста (постоянно, чтобы шапка не двигала текст)
     static let headerHeight: CGFloat = 52
+    /// Компактная шапка — когда панелей несколько: меньше кнопки, всё в одной строке, плавающих кнопок нет
+    static let compactHeaderHeight: CGFloat = 38
 
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
         // нижняя панель при параллельном чтении: шапка на месте (не прячется), без отступа под строку состояния
@@ -216,7 +220,8 @@ struct PaneView: View {
                 if m.interlinear {
                     GeometryReader { g in
                         let barTop = barShown ? headerH : max(0, headerH - InterlinearBar.height)
-                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : CGPoint(x: g.size.width - 88, y: 26))
+                        let compact = panes.panes.count > 1
+                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 171, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
                     }
                 }
             }
@@ -234,7 +239,7 @@ struct PaneView: View {
         Button { withAnimation(InterlinearBar.motion) { ilBar.toggle() } } label: {
             Image(systemName: ilBar ? "chevron.up" : "slider.horizontal.3")
                 .contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
-                .chromeCircle()
+                .chromeCircle(panes.panes.count > 1 && !ilBar ? 30 : 40)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(ilBar ? "Свернуть" : "Подстрочник")
@@ -246,6 +251,63 @@ struct PaneView: View {
     }
 
     private func header(_ p: PaneState, _ m: InstalledModule) -> some View {
+        Group {
+            if panes.panes.count > 1 { compactHeader(p, m) } else { fullHeader(p, m) }
+        }
+    }
+
+    /// Несколько панелей: одна тонкая строка — перевод, место, соседние главы, меню «⋯» (история, «Слушать», «Добавить панель») и закрытие
+    private func compactHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
+        HStack(spacing: 6) {
+            Button { showModules = true } label: {
+                Text(m.shortName).font(.subheadline.weight(.semibold)).fixedSize().chromePill(compact: true)
+            }
+            .buttonStyle(.plain)
+            Button { showGoto = true } label: {
+                HStack(spacing: 4) {
+                    LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold))
+                .chromePill(compact: true)
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 2)
+            if m.interlinear && !ilBar {
+                // место кнопки фильтра подстрочника (она в ilToggle)
+                Color.clear.frame(width: 30, height: 30)
+            }
+            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").chromeCircle(30) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Предыдущая глава")
+            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right").chromeCircle(30) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Следующая глава")
+            Menu {
+                if panes.canBack(paneID) {
+                    Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
+                }
+                if panes.canForward(paneID) {
+                    Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
+                }
+                Button {
+                    Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+                } label: { Label("Слушать", systemImage: "headphones") }
+                Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Label("Добавить панель", systemImage: "rectangle.split.2x1") }
+                    .disabled(panes.panes.count >= maxPanes)
+            } label: {
+                Image(systemName: "ellipsis").chromeCircle(30)
+            }
+            .accessibilityLabel("Ещё")
+            Button { panes.closePane(paneID) } label: { Image(systemName: "xmark").chromeCircle(30) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Закрыть панель")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    private func fullHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
             Button { showModules = true } label: {
                 Text(m.shortName).font(.headline).fixedSize().chromePill()
@@ -508,20 +570,20 @@ struct StudySheets: View {
 
 /// Кнопки шапки и панели подстрочника — одной высоты: плашка и круг по 40 пт, стекло iOS 26
 extension View {
-    func chromePill() -> some View {
+    func chromePill(compact: Bool = false) -> some View {
         self
             .foregroundStyle(.primary)
-            .padding(.horizontal, 16)
-            .frame(height: 40)
+            .padding(.horizontal, compact ? 12 : 16)
+            .frame(height: compact ? 30 : 40)
             .contentShape(Capsule())
             .glassEffect(.regular.interactive(), in: Capsule())
     }
 
-    func chromeCircle() -> some View {
+    func chromeCircle(_ size: CGFloat = 40) -> some View {
         self
-            .font(.system(size: 17, weight: .medium))
+            .font(.system(size: size * 0.43, weight: .medium))
             .foregroundStyle(.primary)
-            .frame(width: 40, height: 40)
+            .frame(width: size, height: size)
             .contentShape(Circle())
             .glassEffect(.regular.interactive(), in: Circle())
     }
@@ -738,7 +800,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .contentMargins(.top, PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
+            .contentMargins(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
                 if let top = ids.filter({ $0 > 0 }).min() {
                     panes.setLive(pane.id, top)
@@ -775,7 +837,7 @@ struct ChapterText: View {
             // сверху — под шапкой (и панелью подстрочника), а не за ними
             .overlay(alignment: .top) {
                 PullHint(state: pull, next: false, label: neighbour(-1))
-                    .padding(.top, PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0) + 10)
+                    .padding(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0) + 10)
             }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
@@ -896,7 +958,7 @@ struct ChapterText: View {
             text: pagedNS(d),
             key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
             focus: focus,
-            insets: UIEdgeInsets(top: 14 + PaneView.headerHeight + (module.interlinear ? InterlinearBar.height : 0), left: textMargin + 6, bottom: 34, right: textMargin + 6),
+            insets: UIEdgeInsets(top: 14 + headerTop + (module.interlinear ? InterlinearBar.height : 0), left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
             onTap: { url, vn in tapped(url, vn) },
             onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
@@ -1181,6 +1243,11 @@ struct ChapterText: View {
     }
 
     /// Прокрутка вниз прячет шапку, вверх — возвращает; у самого верха и при выделении — на месте
+    /// Место под шапкой панели: при нескольких панелях шапка компактная
+    private var headerTop: CGFloat {
+        panes.panes.count > 1 ? PaneView.compactHeaderHeight : PaneView.headerHeight
+    }
+
     private func trackChrome(_ y: CGFloat) {
         let d = y - chromeLastY
         chromeLastY = y
