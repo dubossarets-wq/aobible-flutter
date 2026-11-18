@@ -123,7 +123,7 @@ struct PaneView: View {
                         .controlSize(.large)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
-                        .offset(y: chrome.hidden[paneID] == true ? chrome.bottomShift : 0)
+                        .offset(y: chrome.hidden[paneID] == true && !panes.isLowerPane(paneID) ? chrome.bottomShift : 0)
                     }
             }
             .animation(.easeInOut(duration: 0.2), value: chrome.hidden[paneID])
@@ -185,12 +185,14 @@ struct PaneView: View {
     static let headerHeight: CGFloat = 52
 
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
-        let hidden = chrome.hidden[paneID] == true
+        // нижняя панель при параллельном чтении: шапка на месте (не прячется), без отступа под строку состояния
+        let lower = panes.isLowerPane(paneID)
+        let hidden = chrome.hidden[paneID] == true && !lower
         // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
         // От полосы до верхнего края всегда размытый фон
         let barShown = m.interlinear && ilBar
         // высота фона шапки меняется вместе с панелью подстрочника (плавно, SlidingChrome её анимирует)
-        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH + (barShown ? InterlinearBar.height : 0), safeTop: Self.safeTop) {
+        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH + (barShown ? InterlinearBar.height : 0), safeTop: lower ? 0 : Self.safeTop) {
             ZStack(alignment: .topLeading) {
                 // панель подстрочника лежит ПОД строкой шапки: при скрытии уезжает вверх за кнопки перевода и книги
                 // и растворяется под ними
@@ -1183,7 +1185,7 @@ struct ChapterText: View {
         let d = y - chromeLastY
         chromeLastY = y
         // переходы к стиху, возврат на сохранённое место, прокрутка второй панели — не повод прятать шапку
-        guard touchScroll.user else { return }
+        guard touchScroll.user, !panes.isLowerPane(pane.id) else { return }
         func set(_ h: Bool) {
             if (panes.chrome.hidden[pane.id] ?? false) != h { withAnimation(.easeInOut(duration: 0.2)) { panes.chrome.hidden[pane.id] = h } }
         }

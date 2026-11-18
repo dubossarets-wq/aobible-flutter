@@ -146,6 +146,13 @@ final class PanesStore: ObservableObject {
         panes.firstIndex { $0.id == id }
     }
 
+    /// Вторая и следующие панели, лежащие под первой: шапка у них не прячется при прокрутке и не заходит под строку
+    /// состояния — стоит на месте, высотой ровно по содержимому
+    func isLowerPane(_ id: UUID) -> Bool {
+        let stacked = UserDefaults.standard.object(forKey: "panesStacked") as? Bool ?? true
+        return stacked && panes.count > 1 && (index(id) ?? 0) > 0
+    }
+
     // MARK: - Переходы
 
     /// Перейти в панели. record — запомнить в истории (переход по ссылке, из навигатора, поиска);
