@@ -1904,6 +1904,45 @@ class RoundFab extends ConsumerWidget {
   }
 }
 
+/// Кнопка соседней главы с подписью «Глава N»: стрелка слева («назад») или справа («вперёд») от текста.
+/// Нужна в режиме «Страницы», где человек видит, куда уйдёт кнопка. Вид — как у круглой RoundFab
+class ChapterFab extends ConsumerWidget {
+  const ChapterFab({super.key, required this.label, required this.onTap, required this.back});
+  final String label;
+  final VoidCallback onTap;
+  final bool back; // true — стрелка влево перед подписью, false — стрелка вправо после неё
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = paletteOf(ref);
+    final arrow = AIcon(ico(iosStyleOf(ref) ? iosIcon(back ? LucideIcons.chevronLeft : LucideIcons.chevronRight) : (back ? LucideIcons.chevronLeft : LucideIcons.chevronRight)), size: 20, color: pal.text);
+    final text = Text(label, maxLines: 1, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: pal.text));
+    return Tooltip(
+      message: label,
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          color: mix(pal.panel, 0.92, Colors.transparent),
+          border: Border.all(color: pal.line),
+          boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 14, offset: Offset(0, 4))],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: EdgeInsets.only(left: back ? 8 : 16, right: back ? 16 : 8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: back ? [arrow, const SizedBox(width: 2), text] : [text, const SizedBox(width: 2), arrow]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // --- Подсказка, ход, загрузка ------------------------------------------------------------------------------
 
 /// Пояснение к настройке (Hint в ui.jsx): «!» в кружке рядом с названием, текст — во всплывающем облачке цвета панели

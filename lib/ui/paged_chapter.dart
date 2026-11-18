@@ -217,7 +217,8 @@ class _PagedChapterState extends State<PagedChapter> {
           },
           child: PageView.builder(
             controller: _ctl,
-            physics: widget.locked ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics(),
+            pageSnapping: false, // притяжение к странице — в EasyPagePhysics (стандартное требует сдвиг на полстраницы)
+            physics: widget.locked ? const NeverScrollableScrollPhysics() : EasyPagePhysics(start: () => _page, parent: const ClampingScrollPhysics()),
             itemCount: tops.length,
             onPageChanged: (k) {
               _page = k;
@@ -234,6 +235,40 @@ class _PagedChapterState extends State<PagedChapter> {
         ),
       ]);
     });
+  }
+}
+
+/// Листание страниц лёгким движением: достаточно сдвинуть палец на пятую часть страницы (стандартный PageView требует
+/// больше половины) или чуть взмахнуть. Страница, с которой начали, берётся у вызывающего (start)
+class EasyPagePhysics extends PageScrollPhysics {
+  const EasyPagePhysics({required this.start, super.parent});
+  final int Function() start;
+
+  @override
+  EasyPagePhysics applyTo(ScrollPhysics? ancestor) => EasyPagePhysics(start: start, parent: buildParent(ancestor));
+
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) {
+    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) || (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    final w = position.viewportDimension;
+    final from = start();
+    final d = position.pixels / w - from; // сколько страниц уже сдвинули (со знаком)
+    var to = from;
+    if (velocity > 120) {
+      to = from + 1;
+    } else if (velocity < -120) {
+      to = from - 1;
+    } else if (d > 0.18) {
+      to = from + 1;
+    } else if (d < -0.18) {
+      to = from - 1;
+    }
+    final target = (to * w).clamp(position.minScrollExtent, position.maxScrollExtent).toDouble();
+    if ((target - position.pixels).abs() < tolerance.distance && velocity.abs() < tolerance.velocity) return null;
+    return ScrollSpringSimulation(spring, position.pixels, target, velocity, tolerance: tolerance);
   }
 }
 
