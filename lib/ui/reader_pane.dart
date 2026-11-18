@@ -1076,19 +1076,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
             top: mod?.features['interlinear'] == true && ref.watch(settingsProvider.select((s) => s.get<bool>('ilBar'))) != false ? 40 : 0,
             child: _Progress(pal: pal, pane: widget.index, initial: p.ref, name: Books.instance.meta(book.book).name, pct: _bookPct),
           ),
-          // Соседняя глава — круглые стрелки внизу (по центру — «Слушать», если есть аудио).
-          // На iOS 26 — системное стекло, пока панелей не больше glassMaxPanes (fewPanes)
-          // пока раскрываются настройки проигрывателя — опускаются вместе с его фоном (BarShiftDown)
-          // в режиме «Страницы» — с подписью: «‹ Глава 4» и «Глава 6 ›»
-          if (paged) ...[
-            if (_target(-1) case final prev?)
-              _AboveBars(left: iosStyleOf(ref) ? iosEdge : 14, child: ChapterFab(back: true, label: t('Глава {n}', {'n': '${prev.chapter}'}), onTap: () => _chapter(-1))),
-            if (_target(1) case final next?)
-              _AboveBars(right: iosStyleOf(ref) ? iosEdge : 14, child: ChapterFab(back: false, label: t('Глава {n}', {'n': '${next.chapter}'}), onTap: () => _chapter(1))),
-          ] else ...[
-            _AboveBars(left: iosStyleOf(ref) ? iosEdge : 14, child: RoundFab(icon: LucideIcons.chevronLeft, tooltip: t('Предыдущая глава'), onTap: () => _chapter(-1), glass: fewPanes)),
-            _AboveBars(right: iosStyleOf(ref) ? iosEdge : 14, child: RoundFab(icon: LucideIcons.chevronRight, tooltip: t('Следующая глава'), onTap: () => _chapter(1), glass: fewPanes)),
-          ],
+          // Внизу по центру — «Слушать», если есть аудио (стрелок соседних глав нет: глава продолжается лентой книги,
+          // в режиме «Страницы» страницы листаются через границу главы)
           if (Hub.listenFab != null)
             _AboveBars(left: 0, right: 0, child: Center(child: Hub.listenFab!(context, ref, widget.index)))
           else if (Hub.listenFrom != null)

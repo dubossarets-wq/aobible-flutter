@@ -108,16 +108,12 @@ struct PaneView: View {
                     .safeAreaInset(edge: .bottom) {
                         if panes.panes.count == 1 {
                         HStack {
-                            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").font(.title3) }
-                                .accessibilityLabel("Предыдущая глава")
                             Spacer()
                             Button {
                                 Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
                             } label: { Image(systemName: "headphones").font(.title3) }
                                 .accessibilityLabel("Слушать")
                             Spacer()
-                            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right").font(.title3) }
-                                .accessibilityLabel("Следующая глава")
                         }
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
@@ -221,7 +217,7 @@ struct PaneView: View {
                     GeometryReader { g in
                         let barTop = barShown ? headerH : max(0, headerH - InterlinearBar.height)
                         let compact = panes.panes.count > 1
-                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 171, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
+                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 99, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
                     }
                 }
             }
@@ -256,7 +252,7 @@ struct PaneView: View {
         }
     }
 
-    /// Несколько панелей: одна тонкая строка — перевод, место, соседние главы, меню «⋯» (история, «Слушать», «Добавить панель») и закрытие
+    /// Несколько панелей: одна тонкая строка — перевод, место, меню «⋯» (история, «Слушать», «Добавить панель») и закрытие
     private func compactHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 6) {
             Button { showModules = true } label: {
@@ -277,12 +273,6 @@ struct PaneView: View {
                 // место кнопки фильтра подстрочника (она в ilToggle)
                 Color.clear.frame(width: 30, height: 30)
             }
-            Button { panes.step(paneID, -1, module: m) } label: { Image(systemName: "chevron.left").chromeCircle(30) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Предыдущая глава")
-            Button { panes.step(paneID, 1, module: m) } label: { Image(systemName: "chevron.right").chromeCircle(30) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Следующая глава")
             Menu {
                 if panes.canBack(paneID) {
                     Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
