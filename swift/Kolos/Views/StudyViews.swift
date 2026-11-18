@@ -246,6 +246,8 @@ struct XrefsSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(label(r)).font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
                             Text(store.refText(module: module.id, r)).foregroundStyle(.primary)
+                                .bidi(store.refText(module: module.id, r))
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .buttonStyle(.plain)

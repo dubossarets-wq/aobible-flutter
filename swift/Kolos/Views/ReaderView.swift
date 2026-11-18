@@ -809,6 +809,7 @@ struct ChapterText: View {
                         .scrollTargetLayout()
                     }
                 }
+                .environment(\.layoutDirection, Bidi.isRTLLang(module.language) ? .rightToLeft : .leftToRight)
                 .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id, gestures: gestures))
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
@@ -1472,6 +1473,11 @@ struct ChapterText: View {
     private func paragraph() -> NSParagraphStyle {
         let ps = NSMutableParagraphStyle()
         ps.lineSpacing = fontSize * (lineHeight - 1)
+        // иврит, арабский и др. — справа налево
+        if Bidi.isRTLLang(module.language) {
+            ps.baseWritingDirection = .rightToLeft
+            ps.alignment = .natural
+        }
         return ps
     }
 
@@ -1653,6 +1659,7 @@ struct ChapterText: View {
             ps.firstLineHeadIndent = 12
             ps.headIndent = 12
             ps.paragraphSpacingBefore = 3
+            if Bidi.isRTLLang(module.language) { ps.baseWritingDirection = .rightToLeft }
             let url = URL(string: "aobcommx:\(key)")!
             let part = NSMutableAttributedString()
             part.append(NSAttributedString(string: "\n" + it.module.name + "  ", attributes: [.font: UIFont.systemFont(ofSize: size * 0.8, weight: .bold), .foregroundColor: accent]))
@@ -2056,6 +2063,8 @@ struct CompareSheet: View {
                         Section {
                             ForEach(parts, id: \.0) { part in
                                 Text(verses.count > 1 ? "\(part.0) \(part.1)" : part.1).font(.system(size: 18, design: .serif))
+                                    .bidi(part.1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         } header: {
                             Text("\(m.name) — \(m.title)")

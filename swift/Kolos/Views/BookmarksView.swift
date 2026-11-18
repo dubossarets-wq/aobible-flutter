@@ -99,7 +99,7 @@ struct BookmarksView: View {
             .overlay(alignment: .bottom) {
                 if let u = undo {
                     HStack(spacing: 14) {
-                        Text(u.text).font(.subheadline)
+                        Text(u.text).font(.subheadline).bidi(u.text)
                         Button("Отменить") {
                             u.run()
                             undo = nil

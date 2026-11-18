@@ -123,7 +123,7 @@ struct VerseGuideSheet: View {
                 } else {
                     if !text.isEmpty {
                         Section {
-                            Text(text).font(.body)
+                            Text(text).font(.body).bidi(text).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     notesSection

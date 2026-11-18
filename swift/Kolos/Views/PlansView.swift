@@ -151,7 +151,7 @@ struct VerseOfDayCard: View {
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(.white.opacity(0.85))
                 if let v = verse {
-                    Text(v.text)
+                    Text(v.text).bidi(v.text)
                         .font(.system(size: 24, weight: .semibold, design: .serif))
                         .foregroundStyle(.white)
                         .shadow(radius: 4)
