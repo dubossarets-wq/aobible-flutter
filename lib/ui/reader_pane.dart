@@ -28,6 +28,7 @@ import 'glass.dart' show glassMaxPanes;
 import 'ios_style.dart';
 import 'paged_chapter.dart';
 import 'verse_view.dart';
+import '../core/rtl.dart';
 
 /// Подсветка найденного слова держится столько после перехода (HL_MS в ChapterView.jsx)
 const kHighlightMs = 8000;
@@ -931,7 +932,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     final prevBook = bi > 0 ? books[bi - 1]['id'] as String : null;
     final nextBook = bi >= 0 && bi < books.length - 1 ? books[bi + 1]['id'] as String : null;
     final mod = ModuleStore.instance.get(book.module);
-    final rtl = mod?.language == 'he';
+    final rtl = isRtlLang(mod?.language);
 
     final ios = iosStyleOf(ref);
     // поля текста по бокам: своя настройка (Оформление → «Поля по бокам») или как принято

@@ -28,6 +28,7 @@ import '../plans/verse_text.dart';
 import 'screen_on.dart';
 import 'sermon_pdf.dart';
 import 'sermon_store.dart';
+import '../../core/rtl.dart';
 
 /// Свой текст с **жирным** и *курсивом*
 List<InlineSpan> fmtSpans(String text) => [
@@ -1141,7 +1142,7 @@ class _BlockCardState extends ConsumerState<_BlockCard> {
                         return IlWords(pal: pal, texts: at, size: 15.7 * z, onWord: widget.onStrong == null ? null : (k, n) => widget.onStrong!((block['verse'] as int) + k, n));
                       }
                       final text = at.isEmpty ? '…' : at.every((x) => x.isEmpty) ? '—' : at.join(' ');
-                      return Text(text, style: verseStyle.copyWith(fontSize: 15.7 * z, color: pal.text.withValues(alpha: 0.85)));
+                      return Text(text, style: verseStyle.copyWith(fontSize: 15.7 * z, color: pal.text.withValues(alpha: 0.85)), textDirection: textDirOf(text));
                     }),
                   ]),
                 ),

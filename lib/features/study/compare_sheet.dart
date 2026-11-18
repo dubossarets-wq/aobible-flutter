@@ -18,6 +18,7 @@ import 'interlinear.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 import '../../ui/ios_style.dart';
+import '../../core/rtl.dart';
 
 /// pick — «Читать параллельно» (CompareSheet pick): то же окно с заголовком «Читать параллельно», ниже; pane — откуда открыли
 Future<void> openCompare(BuildContext context, WidgetRef ref, List<VerseRef> refs, String moduleId, {bool pick = false, int? pane}) {
@@ -260,7 +261,7 @@ class _CompareSheetState extends ConsumerState<CompareSheet> {
         } else if (!isCur && current != null && (texts[widget.moduleId] ?? '').isNotEmpty && b.language == current.language) {
           text = DiffText(parts: _diffs[b.id] ??= diffWords(texts[widget.moduleId]!, tx), style: font);
         } else {
-          text = Text(tx, style: font);
+          text = Text(tx, style: font, textDirection: textDirOf(tx));
         }
         // .cmp-item: отступ 12 сверху и снизу (у первого сверху 2), строка 4 px между шапкой и текстом;
         // линия — от края до края окна, отступ 20 — у содержимого (справа 11: значок 20 в кнопке 38 — на 20 от края)

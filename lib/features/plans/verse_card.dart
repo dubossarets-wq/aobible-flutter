@@ -19,6 +19,7 @@ import 'verse_image.dart';
 import 'verse_list.dart';
 import 'verse_text.dart';
 import '../../ui/ios_style.dart';
+import '../../core/rtl.dart';
 
 class DayVerse {
   const DayVerse(this.ref, this.text, this.module);
@@ -130,7 +131,7 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(t('Стих дня'), style: const TextStyle(color: Color(0xE0FFFFFF), fontSize: 13.8, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
-                  Text(v.text, style: readerTextStyle(ref.watch(settingsProvider), size: textSize, weight: 500).copyWith(color: Colors.white, height: 1.38, fontWeight: FontWeight.w500, shadows: const [Shadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 1))])),
+                  Text(v.text, style: readerTextStyle(ref.watch(settingsProvider), size: textSize, weight: 500).copyWith(color: Colors.white, height: 1.38, fontWeight: FontWeight.w500, shadows: const [Shadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 1))]), textDirection: textDirOf(v.text)),
                   const SizedBox(height: 14),
                   Opacity(
                     opacity: 0.95,

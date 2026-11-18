@@ -13,6 +13,7 @@ import 'dictionary_sheet.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 import '../../ui/ios_style.dart';
+import '../../core/rtl.dart';
 
 Future<void> openXrefs(BuildContext context, {required int pane, required String moduleId, required VerseRef at}) =>
     showSheet(context, XrefsSheet(pane: pane, moduleId: moduleId, at: at));
@@ -99,8 +100,7 @@ class _XrefsSheetState extends ConsumerState<XrefsSheet> {
                       ],
                       if (truncated) TextSpan(text: '…', style: TextStyle(color: pal.muted)),
                     ]),
-                    style: const TextStyle(fontSize: 16, height: 1.5),
-                  )
+                    style: const TextStyle(fontSize: 16, height: 1.5), textDirection: textDirOf(parts.map((p) => p.text).join(' ')))
                 else
                   Text(t('В переводе {module} нет этой книги.', {'module': module?.name ?? '', 'book': Books.instance.meta(it.ref.book).name}), style: TextStyle(color: pal.muted, fontSize: 16, height: 1.5)),
               ]),

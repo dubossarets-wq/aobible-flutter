@@ -14,6 +14,7 @@ import 'marks.dart';
 import 'sheets.dart';
 import 'ui.dart';
 import '../../ui/ios_style.dart';
+import '../../core/rtl.dart';
 
 void openBookmarksPage(BuildContext context, WidgetRef ref, int pane) {
   showAobSheet<void>(context, builder: (_) => BookmarksPage(pane: pane), tab: 'saved'); // BookmarksManager.jsx: BottomSheet initial={2}
@@ -544,7 +545,7 @@ class _ContinueCardState extends State<_ContinueCard> {
                     Text('${Books.instance.meta(at.book).name} ${at.chapter}:${at.verse}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16.5, height: 1.25, fontWeight: FontWeight.w700, color: pal.text)),
                     if (text != null && text.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.4, height: 1.3, color: pal.muted)),
+                      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.4, height: 1.3, color: pal.muted), textDirection: textDirOf(text)),
                     ],
                   ]),
                 ),

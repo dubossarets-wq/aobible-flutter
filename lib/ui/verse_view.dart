@@ -25,6 +25,7 @@ import '../features/shell/fonts.dart' show readerTextStyle, textAlignOf;
 import '../features/shell/tour_targets.dart' show tourResolvers, findElement, rectOfElement;
 import 'kit.dart';
 import 'ios_style.dart';
+import '../core/rtl.dart';
 
 /// Пауза двойного касания (DOUBLE_TAP_MS в tapState.js)
 const kDoubleTapMs = 350;
@@ -431,7 +432,8 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     final align = s.get<String>('textAlign') == 'justify' ? TextAlign.justify : (rtl ? TextAlign.start : textAlignOf(s));
     // иврит — своим шрифтом, как .text-col[dir="rtl"] { font-family: var(--font-hebrew) } в веб-версии
     final base = readerTextStyle(s).copyWith(color: pal.text, height: s.d('lineHeight'));
-    final style = rtl ? base.copyWith(fontFamily: 'Noto Serif Hebrew', fontFamilyFallback: const ['Noto Serif'], fontVariations: null) : base;
+    final heb = rtl && isHebrewLang(ModuleStore.instance.get(v.moduleId)?.language);
+    final style = heb ? base.copyWith(fontFamily: 'Noto Serif Hebrew', fontFamilyFallback: const ['Noto Serif'], fontVariations: null) : base;
     final hl = v.mark?.query != null;
     Widget paint(double hlOpacity) => Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PlatePainter(seg.key, seg.plates, _flash, hlOpacity))));
     final text = Text.rich(key: seg.key, seg.span, textAlign: align, style: style);

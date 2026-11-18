@@ -21,6 +21,7 @@ import '../features/shell/fonts.dart' show readerTextStyle;
 import 'glass.dart';
 import 'ios_style.dart';
 import 'kit.dart';
+import '../core/rtl.dart';
 
 const _page = 200;
 const _originals = ['oshb', 'byz-rp2018'];
@@ -691,7 +692,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
             ]),
             const SizedBox(height: 4),
             r.text != null
-                ? Text(r.text!, style: textStyle)
+                ? Text(r.text!, style: textStyle, textDirection: textDirOf(r.text!))
                 : Text(t('В переводе {module} нет такого стиха.', {'module': m?.name ?? ''}), style: TextStyle(color: pal.muted)),
           ]),
         ),
@@ -821,7 +822,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
               ],
             ]),
             const SizedBox(height: 3),
-            Text.rich(_highlight(h.snippet, re, pal), style: textStyle),
+            Text.rich(_highlight(h.snippet, re, pal), style: textStyle, textDirection: textDirOf(h.snippet)),
           ]),
         ),
       ),

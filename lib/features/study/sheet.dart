@@ -14,6 +14,7 @@ import '../shell/fonts.dart' show readerTextStyle;
 import '../../ui/kit.dart';
 import 'study_data.dart';
 import '../../ui/ios_style.dart';
+import '../../core/rtl.dart';
 
 const sheetRoute = 'study-sheet';
 
@@ -575,7 +576,7 @@ class QuoteBox extends ConsumerWidget {
           ? iosShape(iosCardAt(pal, IosElevated.of(context)), BorderRadius.circular(iosRadius * 0.6))
           : BoxDecoration(color: tint(pal.accent, pal.panel, 0.06), border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(kRadius * 0.6)),
       // .xref-source / .guide-card: шрифт читалки (--font-text)
-      child: Text(text, style: readerTextStyle(ref.watch(settingsProvider), size: 15, weight: 400).copyWith(height: 1.5)),
+      child: Text(text, style: readerTextStyle(ref.watch(settingsProvider), size: 15, weight: 400).copyWith(height: 1.5), textDirection: textDirOf(text)),
     );
   }
 }

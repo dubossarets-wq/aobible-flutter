@@ -1,6 +1,7 @@
 // Картинка со стихом (VerseImageSheet.jsx): фон (фото в общественном достоянии или спокойный градиент), текст и ссылка.
 // Текст двигается одним пальцем, размер — двумя. «Поделиться» отправляет картинку, «Сохранить» кладёт в «Картинки».
 import 'dart:io';
+import '../../core/rtl.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -50,7 +51,7 @@ class _Art {
   TextPainter _text(double fs, Color color, bool shadow) => TextPainter(
         text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'PT Serif', fontFamilyFallback: const ['Georgia', 'serif'], fontSize: fs, height: 1.38, color: color, shadows: shadow ? const [Shadow(color: Color(0x59000000), blurRadius: 12)] : null)),
         textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
+        textDirection: textDirOf(text),
       )..layout(maxWidth: size.width * 0.78);
 
   void paint(Canvas canvas) {
@@ -93,7 +94,7 @@ class _Art {
       final tp = TextPainter(
         text: TextSpan(text: '«$text»', style: TextStyle(fontFamily: 'PT Serif', fontFamilyFallback: const ['Georgia', 'serif'], fontSize: fs, height: 1.38)),
         textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
+        textDirection: textDirOf(text),
       )..layout(maxWidth: size.width * 0.78);
       if (tp.height <= boxH || fs <= 26) return fs;
       fs -= 2;
