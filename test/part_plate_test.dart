@@ -1,7 +1,7 @@
 // Геометрия плашки выбора части стиха: одна гладкая фигура без зазоров и зубцов на стыках строк.
 import 'dart:ui';
 
-import 'package:aobible/ui/part_plate.dart';
+import 'package:kolos/ui/part_plate.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

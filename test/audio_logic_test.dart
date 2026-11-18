@@ -1,9 +1,9 @@
 // Логика аудиокниг без плагинов: разбор записи, стих по времени, подходящий перевод, соседние стихи и главы.
 import 'dart:convert';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/features/audio/audio_logic.dart';
-import 'package:aobible/features/audio/audio_offline.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/features/audio/audio_logic.dart';
+import 'package:kolos/features/audio/audio_offline.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 BookShape _shape(Map<int, List<int>> m) => BookShape(m);

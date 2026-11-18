@@ -1,4 +1,4 @@
-name: AOBible
+name: Kolos
 options:
   bundleIdPrefix: app
   developmentLanguage: ru
@@ -14,18 +14,18 @@ settings:
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 targets:
-  AOBible:
+  Kolos:
     type: application
     platform: iOS
     sources:
-      - path: AOBible
+      - path: Kolos
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.aobible
-        INFOPLIST_FILE: AOBible/Info.plist
+        INFOPLIST_FILE: Kolos/Info.plist
         GENERATE_INFOPLIST_FILE: NO
     info:
-      path: AOBible/Info.plist
+      path: Kolos/Info.plist
       properties:
         CFBundleDisplayName: Колос
         CFBundleShortVersionString: "$(MARKETING_VERSION)"

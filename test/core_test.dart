@@ -1,9 +1,9 @@
 // Проверка ядра на настоящих данных: установка RST+ с aobible.app → SQLite, книга, поиск FTS5.
 import 'dart:io';
 
-import 'package:aobible/core/bible.dart';
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/modules.dart';
+import 'package:kolos/core/bible.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/modules.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

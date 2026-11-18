@@ -45,13 +45,13 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qry AOBible-unsigned.ipa Payload
-          ls -la AOBible-unsigned.ipa
+          zip -qry Kolos-unsigned.ipa Payload
+          ls -la Kolos-unsigned.ipa
 
       - name: Символы для разбора журналов сбоя
         uses: actions/upload-artifact@v4
         with:
-          name: AOBible-ios-symbols
+          name: Kolos-ios-symbols
           path: |
             build/symbols
             build/ios/iphoneos/Runner.app/Frameworks/App.framework/App
@@ -59,6 +59,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AOBible-ios-unsigned
-          path: AOBible-unsigned.ipa
+          name: Kolos-ios-unsigned
+          path: Kolos-unsigned.ipa
           retention-days: 14

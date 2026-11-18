@@ -1,5 +1,5 @@
 # Снимки экранов Swift-версии для App Store: iPhone Pro Max (6,9″ — 1320×2868), русский интерфейс, чистая строка состояния.
-# Запуск: вкладка Actions → «iOS native store shots» → Run workflow; снимки — в артефакте AOBible-store-shots.
+# Запуск: вкладка Actions → «iOS native store shots» → Run workflow; снимки — в артефакте Kolos-store-shots.
 name: iOS native store shots
 
 on:
@@ -27,7 +27,7 @@ jobs:
         working-directory: swift
         run: |
           set -o pipefail
-          xcodebuild -project AOBible.xcodeproj -scheme AOBible -configuration Debug -sdk iphonesimulator \
+          xcodebuild -project Kolos.xcodeproj -scheme Kolos -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -5
 
@@ -51,7 +51,7 @@ jobs:
           xcrun simctl boot "$DEV"
           xcrun simctl bootstatus "$DEV" -b
           xcrun simctl status_bar "$DEV" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularMode active --cellularBars 4 --wifiBars 3 || true
-          APP=build/Build/Products/Debug-iphonesimulator/AOBible.app
+          APP=build/Build/Products/Debug-iphonesimulator/Kolos.app
           # без подсказки «Speed up your typing…» при первом показе клавиатуры
           xcrun simctl spawn "$DEV" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
           xcrun simctl spawn "$DEV" defaults write com.apple.keyboard.preferences KeyboardDidShowSlideToTypeIntro -bool true || true
@@ -88,6 +88,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AOBible-store-shots
+          name: Kolos-store-shots
           path: swift/shots
           retention-days: 14

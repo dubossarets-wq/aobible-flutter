@@ -1,7 +1,7 @@
 // Неканонические книги в справочнике: свои ссылки распознаются, канонические сокращения не перехвачены,
 // в планах «Вся Библия» и «Ветхий Завет» их нет
-import 'package:aobible/core/books.dart';
-import 'package:aobible/features/plans/plan_store.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/features/plans/plan_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

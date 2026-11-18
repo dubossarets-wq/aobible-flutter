@@ -3,17 +3,17 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/i18n.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/core/panes.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/hub.dart';
-import 'package:aobible/main.dart';
-import 'package:aobible/features/shell/library_sheet.dart';
-import 'package:aobible/features/shell/prefs_sheet.dart';
-import 'package:aobible/ui/search_screen.dart';
-import 'package:aobible/ui/kit.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/i18n.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/core/panes.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/hub.dart';
+import 'package:kolos/main.dart';
+import 'package:kolos/features/shell/library_sheet.dart';
+import 'package:kolos/features/shell/prefs_sheet.dart';
+import 'package:kolos/ui/search_screen.dart';
+import 'package:kolos/ui/kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,7 +81,7 @@ void main() {
     prefs.setString('settings', jsonEncode({'theme': theme, ...?settings}));
     final c = ProviderContainer();
     addTearDown(c.dispose);
-    await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const AoBibleApp()));
+    await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const KolosApp()));
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
   }

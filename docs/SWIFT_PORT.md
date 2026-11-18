@@ -1,7 +1,7 @@
 # Перенос Колос для iPhone на Swift — список функций
 
 Источник перечня: инструкция в самом приложении (`lib/features/shell/help_data.dart`) и код `lib/features/*`.
-Отметки: [x] сделано в Swift, [~] сделано частично, [ ] не сделано. Код: `swift/AOBible/`, сборка: `.github/workflows/ios-native.yml`
+Отметки: [x] сделано в Swift, [~] сделано частично, [ ] не сделано. Код: `swift/Kolos/`, сборка: `.github/workflows/ios-native.yml`
 (.ipa для Sideloadly), проверка на симуляторе со снимками: `ios-native-sim.yml`.
 
 ## Основное (чтение)

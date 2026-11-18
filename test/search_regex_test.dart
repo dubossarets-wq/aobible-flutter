@@ -1,4 +1,4 @@
-import 'package:aobible/core/bible.dart';
+import 'package:kolos/core/bible.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

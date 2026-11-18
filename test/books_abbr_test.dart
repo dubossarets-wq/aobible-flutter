@@ -1,4 +1,4 @@
-import 'package:aobible/core/books.dart';
+import 'package:kolos/core/books.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

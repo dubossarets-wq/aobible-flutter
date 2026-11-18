@@ -1,8 +1,8 @@
-// Экран не гаснет на «Кафедре» — на всех платформах. Нативная часть: канал aobible/screen в MainActivity (Android)
+// Экран не гаснет на «Кафедре» — на всех платформах. Нативная часть: канал kolos/screen в MainActivity (Android)
 // и в AppDelegate (iOS, isIdleTimerDisabled).
 import 'package:flutter/services.dart';
 
-const _channel = MethodChannel('aobible/screen');
+const _channel = MethodChannel('kolos/screen');
 
 Future<void> keepScreenOn(bool on) async {
   try {

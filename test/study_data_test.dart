@@ -2,13 +2,13 @@
 // слова по основе, параллельные места, комментарии, иллюстрации, статистика слова, подстрочник.
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/features/study/interlinear.dart';
-import 'package:aobible/features/study/lexicon.dart';
-import 'package:aobible/features/study/morph.dart';
-import 'package:aobible/features/study/study_data.dart';
-import 'package:aobible/features/study/translit.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/features/study/interlinear.dart';
+import 'package:kolos/features/study/lexicon.dart';
+import 'package:kolos/features/study/morph.dart';
+import 'package:kolos/features/study/study_data.dart';
+import 'package:kolos/features/study/translit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

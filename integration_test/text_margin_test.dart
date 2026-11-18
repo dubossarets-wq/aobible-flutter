@@ -1,9 +1,9 @@
 // Поля текста по бокам (Оформление → «Поля по бокам»): текст сдвигается от края панели
 // Запуск: flutter test integration_test/text_margin_test.dart -d windows
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/main.dart' as app;
-import 'package:aobible/ui/reader_pane.dart';
-import 'package:aobible/ui/verse_view.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/main.dart' as app;
+import 'package:kolos/ui/reader_pane.dart';
+import 'package:kolos/ui/verse_view.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

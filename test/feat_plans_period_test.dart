@@ -3,14 +3,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/i18n.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/plans/plan_logic.dart';
-import 'package:aobible/features/plans/plan_store.dart';
-import 'package:aobible/features/plans/plans_sheet.dart';
-import 'package:aobible/features/plans/ui_kit.dart' show showPage;
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/i18n.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/plans/plan_logic.dart';
+import 'package:kolos/features/plans/plan_store.dart';
+import 'package:kolos/features/plans/plans_sheet.dart';
+import 'package:kolos/features/plans/ui_kit.dart' show showPage;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

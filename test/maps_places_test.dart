@@ -2,10 +2,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/features/maps/map_pane.dart';
-import 'package:aobible/features/maps/places_data.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/features/maps/map_pane.dart';
+import 'package:kolos/features/maps/places_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 

@@ -4,10 +4,10 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/hub.dart';
-import 'package:aobible/main.dart' as app;
-import 'package:aobible/ui/reader_pane.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/hub.dart';
+import 'package:kolos/main.dart' as app;
+import 'package:kolos/ui/reader_pane.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

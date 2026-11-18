@@ -1,9 +1,9 @@
 // Закладки и выделения: правки данных, подписи ссылок, сохранение в prefs в формате веб-версии.
 import 'dart:convert';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/bookmarks/marks.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/bookmarks/marks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

@@ -1,10 +1,10 @@
 // Планы чтения: стих дня, дни плана, отметки, учёт прочитанного, напоминания, множественное число.
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/plans/loc.dart';
-import 'package:aobible/features/plans/plan_logic.dart';
-import 'package:aobible/features/plans/reminders.dart';
-import 'package:aobible/features/plans/verse_list.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/plans/loc.dart';
+import 'package:kolos/features/plans/plan_logic.dart';
+import 'package:kolos/features/plans/reminders.dart';
+import 'package:kolos/features/plans/verse_list.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

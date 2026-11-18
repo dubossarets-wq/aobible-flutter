@@ -1,7 +1,7 @@
 // Режим «Страницы»: страница переворачивается лёгким сдвигом пальца (пятая часть страницы), а не половиной.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:aobible/ui/paged_chapter.dart';
+import 'package:kolos/ui/paged_chapter.dart';
 
 void main() {
   testWidgets('сдвиг на четверть страницы листает, на десятую — нет', (tester) async {

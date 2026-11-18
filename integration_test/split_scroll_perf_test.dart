@@ -3,10 +3,10 @@
 // Запуск: flutter test integration_test/split_scroll_perf_test.dart -d windows
 import 'dart:ui';
 
-import 'package:aobible/core/panes.dart';
-import 'package:aobible/ui/reader_pane.dart';
+import 'package:kolos/core/panes.dart';
+import 'package:kolos/ui/reader_pane.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:aobible/main.dart' as app;
+import 'package:kolos/main.dart' as app;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

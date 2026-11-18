@@ -27,7 +27,7 @@ jobs:
         working-directory: swift
         run: |
           set -o pipefail
-          xcodebuild -project AOBible.xcodeproj -scheme AOBible -configuration Debug -sdk iphonesimulator \
+          xcodebuild -project Kolos.xcodeproj -scheme Kolos -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -5
 
@@ -47,7 +47,7 @@ jobs:
           echo "device $DEV"
           xcrun simctl boot "$DEV"
           xcrun simctl bootstatus "$DEV" -b
-          APP=build/Build/Products/Debug-iphonesimulator/AOBible.app
+          APP=build/Build/Products/Debug-iphonesimulator/Kolos.app
           xcrun simctl install "$DEV" "$APP"
           # первый запуск: приветствие и стартовая установка модулей
           xcrun simctl launch "$DEV" app.aobible
@@ -94,6 +94,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AOBible-sim-shots
+          name: Kolos-sim-shots
           path: swift/shots
           retention-days: 7

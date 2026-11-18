@@ -4,17 +4,17 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/bible.dart';
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/i18n.dart';
-import 'package:aobible/core/markup.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/core/panes.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/hub.dart';
-import 'package:aobible/main.dart';
-import 'package:aobible/ui/reader_pane.dart';
-import 'package:aobible/ui/verse_view.dart';
+import 'package:kolos/core/bible.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/i18n.dart';
+import 'package:kolos/core/markup.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/core/panes.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/hub.dart';
+import 'package:kolos/main.dart';
+import 'package:kolos/ui/reader_pane.dart';
+import 'package:kolos/ui/verse_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,7 +94,7 @@ void main() {
     if (panes != null) prefs.setString('panes', panes);
     final c = ProviderContainer();
     addTearDown(c.dispose);
-    await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const AoBibleApp()));
+    await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const KolosApp()));
     await tester.pump(const Duration(milliseconds: 50));
     expect(tester.takeException(), isNull);
     return c;

@@ -1,9 +1,9 @@
 // «Мои данные» и перенос из старого приложения: файл, копии, разбор localStorage веб-версии.
 import 'dart:convert';
 
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/bookmarks/legacy.dart';
-import 'package:aobible/features/bookmarks/userdata.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/bookmarks/legacy.dart';
+import 'package:kolos/features/bookmarks/userdata.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

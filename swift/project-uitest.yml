@@ -3,24 +3,24 @@
 include:
   - project.yml
 targets:
-  AOBibleUITests:
+  KolosUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - path: AOBibleUITests
+      - path: KolosUITests
     dependencies:
-      - target: AOBible
+      - target: Kolos
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: app.aobible.uitests
 schemes:
-  AOBibleUITests:
+  KolosUITests:
     build:
       targets:
-        AOBible: all
-        AOBibleUITests: [test]
+        Kolos: all
+        KolosUITests: [test]
     test:
       config: Debug
       targets:
-        - AOBibleUITests
+        - KolosUITests

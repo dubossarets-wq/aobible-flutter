@@ -62,16 +62,16 @@ class _RootState extends State<_Root> {
   }
 
   @override
-  Widget build(BuildContext context) => ProviderScope(key: _key, child: const AoBibleApp());
+  Widget build(BuildContext context) => ProviderScope(key: _key, child: const KolosApp());
 }
 
-class AoBibleApp extends ConsumerStatefulWidget {
-  const AoBibleApp({super.key});
+class KolosApp extends ConsumerStatefulWidget {
+  const KolosApp({super.key});
   @override
-  ConsumerState<AoBibleApp> createState() => _AoBibleAppState();
+  ConsumerState<KolosApp> createState() => _KolosAppState();
 }
 
-class _AoBibleAppState extends ConsumerState<AoBibleApp> with WidgetsBindingObserver {
+class _KolosAppState extends ConsumerState<KolosApp> with WidgetsBindingObserver {
   bool _ready = ModuleStore.instance.bibles.isNotEmpty;
 
   // Тема системы сменилась — «Как в системе» перекрашивается сразу

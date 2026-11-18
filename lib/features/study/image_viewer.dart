@@ -262,7 +262,7 @@ class _ZoomableState extends State<_Zoomable> {
             child: Image.network(
               item['img'] as String,
               fit: BoxFit.contain,
-              headers: const {'User-Agent': 'AOBible/1.0 (https://aobible.app)'},
+              headers: const {'User-Agent': 'Kolos/1.0 (https://aobible.app)'},
               loadingBuilder: (c, child, p) => p == null ? child : const Center(child: Spinner(size: 28, color: Color(0xCCF2EFE9))),
               errorBuilder: (c, e, st) => Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(t('Картинка не загрузилась. Проверьте интернет.'), textAlign: TextAlign.center, style: const TextStyle(color: Color(0xCCF2EFE9))))),
             ),

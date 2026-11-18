@@ -16,7 +16,7 @@ SecurityContext? _context;
 
 /// Подпись запросов как у браузера на Android: «Dart/3.x (dart:io)» защита сайта (Cloudflare) с некоторых мобильных сетей
 /// принимает за робота и отвечает проверкой вместо файла
-const appUserAgent = 'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 AOBible/2';
+const appUserAgent = 'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 Kolos/2';
 
 Future<SecurityContext> _ctx() async {
   if (_context != null) return _context!;

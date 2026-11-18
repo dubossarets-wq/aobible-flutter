@@ -5,21 +5,21 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/i18n.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/core/panes.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/audio/audio_engine.dart';
-import 'package:aobible/features/features.dart';
-import 'package:aobible/features/maps/maps.dart' as maps;
-import 'package:aobible/features/study/study_tables.dart';
-import 'package:aobible/features/hub.dart';
-import 'package:aobible/features/shell/tour.dart';
-import 'package:aobible/features/shell/tour_targets.dart';
-import 'package:aobible/features/shell/news_sheet.dart' show markNewsSeen;
-import 'package:aobible/main.dart';
-import 'package:aobible/ui/kit.dart' show AobSheet;
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/i18n.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/core/panes.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/audio/audio_engine.dart';
+import 'package:kolos/features/features.dart';
+import 'package:kolos/features/maps/maps.dart' as maps;
+import 'package:kolos/features/study/study_tables.dart';
+import 'package:kolos/features/hub.dart';
+import 'package:kolos/features/shell/tour.dart';
+import 'package:kolos/features/shell/tour_targets.dart';
+import 'package:kolos/features/shell/news_sheet.dart' show markNewsSeen;
+import 'package:kolos/main.dart';
+import 'package:kolos/ui/kit.dart' show AobSheet;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,7 +114,7 @@ void main() {
         prefs.setString('settings', jsonEncode({'theme': 'light'}));
         final c = ProviderContainer();
         addTearDown(c.dispose);
-        await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const AoBibleApp()));
+        await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const KolosApp()));
         await pumpMs(tester, 2600); // стартовое окно (_showStartup) ждёт 2 с
 
         addTearDown(stopTour);

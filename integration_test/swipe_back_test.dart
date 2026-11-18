@@ -1,10 +1,10 @@
 // Стиль iPhone: страница окна закрывается свайпом вправо с середины экрана (не только от края)
 // Запуск: flutter test integration_test/swipe_back_test.dart -d windows
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/hub.dart';
-import 'package:aobible/main.dart' as app;
-import 'package:aobible/ui/kit.dart';
-import 'package:aobible/ui/reader_pane.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/hub.dart';
+import 'package:kolos/main.dart' as app;
+import 'package:kolos/ui/kit.dart';
+import 'package:kolos/ui/reader_pane.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

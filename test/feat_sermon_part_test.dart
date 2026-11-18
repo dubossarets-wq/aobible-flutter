@@ -3,14 +3,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:aobible/core/books.dart';
-import 'package:aobible/core/i18n.dart';
-import 'package:aobible/core/modules.dart';
-import 'package:aobible/core/settings.dart';
-import 'package:aobible/features/plans/ui_kit.dart' show showPage;
-import 'package:aobible/features/sermons/sermon_pdf.dart';
-import 'package:aobible/features/sermons/sermon_store.dart';
-import 'package:aobible/features/sermons/sermons_sheet.dart';
+import 'package:kolos/core/books.dart';
+import 'package:kolos/core/i18n.dart';
+import 'package:kolos/core/modules.dart';
+import 'package:kolos/core/settings.dart';
+import 'package:kolos/features/plans/ui_kit.dart' show showPage;
+import 'package:kolos/features/sermons/sermon_pdf.dart';
+import 'package:kolos/features/sermons/sermon_store.dart';
+import 'package:kolos/features/sermons/sermons_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
