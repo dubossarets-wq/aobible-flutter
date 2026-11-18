@@ -15,7 +15,6 @@ import '../../core/settings.dart';
 import '../shell/fonts.dart' show readerTextStyle;
 import 'net_cache.dart';
 import 'ui_kit.dart';
-import 'verse_image.dart';
 import 'verse_list.dart';
 import 'verse_text.dart';
 import '../../ui/ios_style.dart';
@@ -97,7 +96,10 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       // стиль iPhone — скругление карточек (системное, как у статистики и списка планов)
-      child: ClipPath(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onRead(v.ref),
+        child: ClipPath(
       clipper: ShapeBorderClipper(shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
       child: Stack(children: [
         Positioned.fill(
@@ -127,7 +129,7 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
             // .today-verse-body: по центру свободного места, промежуток 14
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(t('Стих дня'), style: const TextStyle(color: Color(0xE0FFFFFF), fontSize: 13.8, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
@@ -144,88 +146,29 @@ class _VerseOfDayCardState extends ConsumerState<VerseOfDayCard> {
                 ]),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Row(children: [
-                Expanded(child: _Act(pal: pal, icon: LucideIcons.bookOpen, label: t('Читать'), primary: true, onTap: () => widget.onRead(v.ref))),
-                const SizedBox(width: 8),
-                Expanded(child: _Act(pal: pal, icon: LucideIcons.image, label: t('Картинка'), onTap: () => showPage(context, (_) => VerseImageSheet(refs: [v.ref], moduleId: v.module.id)))),
-                const SizedBox(width: 8),
-                // «Поделиться» — только значком: круглая кнопка
-                _Act(pal: pal, icon: LucideIcons.share2, tooltip: t('Поделиться'), onTap: _share),
-              ]),
-            ),
             // Автор и лицензия фото — в «О приложении → Лицензии», не на карточке
           ]),
           ),
         ),
-      ]),
-      ),
-    );
-  }
-}
-
-/// .today-act: «таблетка» на всю долю ширины, фон — панель 86 % (или акцент у главной)
-class _Act extends StatelessWidget {
-  const _Act({required this.pal, required this.icon, this.label, this.tooltip, required this.onTap, this.primary = false});
-  final Palette pal;
-  final IconData icon;
-  final String? label; // null — только значок, круглая кнопка
-  final String? tooltip;
-  final VoidCallback onTap;
-  final bool primary;
-
-  @override
-  Widget build(BuildContext context) {
-    if (iosUiNow) {
-      final fg = primary ? pal.onAccent : const Color(0xffffffff);
-      final inner = Semantics(
-        button: true,
-        label: label ?? tooltip,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: SizedBox(
-            height: 50,
-            width: label == null ? 50 : null,
-            child: Row(mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.center, children: [
-              AIcon(ico(icon), size: 19, color: fg),
-              if (label != null) ...[
-                const SizedBox(width: 6),
-                Flexible(child: Text(label!, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: fg))),
-              ],
-            ]),
+        // «Отправить» — сверху справа, с ровными отступами от краёв карточки
+        Positioned(
+          top: 14,
+          right: 14,
+          child: Tooltip(
+            message: t('Поделиться'),
+            child: Material(
+              color: Colors.black.withValues(alpha: 0.35),
+              shape: CircleBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.45))),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _share,
+                child: SizedBox(width: 40, height: 40, child: Center(child: AIcon(ico(LucideIcons.share2), size: 18, color: Colors.white))),
+              ),
+            ),
           ),
         ),
-      );
-      if (primary) return DecoratedBox(decoration: ShapeDecoration(color: pal.accent, shape: const StadiumBorder()), child: inner);
-      return ClipPath(
-        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: DecoratedBox(decoration: const BoxDecoration(color: Color(0x33ffffff)), child: inner),
-        ),
-      );
-    }
-    final fg = primary ? pal.onAccent : pal.text;
-    final btn = Material(
-      color: primary ? pal.accent : mix(pal.panel, 0.86, Colors.transparent),
-      shape: const StadiumBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: label == null ? 13 : 8, vertical: 11),
-          child: Row(mainAxisSize: label == null ? MainAxisSize.min : MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.center, children: [
-            AIcon(ico(icon), size: 18, color: fg),
-            if (label != null) ...[
-              const SizedBox(width: 6),
-              Flexible(child: Text(label!, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: fg))),
-            ],
-          ]),
-        ),
-      ),
+      ]),
+      )),
     );
-    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
   }
 }
