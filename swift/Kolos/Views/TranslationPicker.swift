@@ -7,6 +7,8 @@ struct TranslationPicker: View {
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
     let current: String
+    /// Переводы, открытые сейчас во всех окнах (параллельное чтение) — тоже голубые
+    var active: Set<String> = []
     /// Выбрали перевод (окно закрывает вызывающий)
     let onPick: (String) -> Void
     /// Перевод, который спрашиваем удалить
@@ -44,6 +46,8 @@ struct TranslationPicker: View {
                 }
             } footer: {
                 Text("Звёздочкой отметьте любимые переводы — они всегда наверху. Можно выбрать несколько.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         // строки во всю ширину экрана, без карточек со скруглёнными краями
@@ -70,6 +74,7 @@ struct TranslationPicker: View {
 
     private func row(_ m: InstalledModule) -> some View {
         let isCurrent = m.id == current
+        let isActive = isCurrent || active.contains(m.id)
         let fav = panes.isFavorite(m.id)
         return HStack(spacing: 12) {
             Button {
@@ -78,12 +83,12 @@ struct TranslationPicker: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(m.name)
-                            .font(.body.weight(isCurrent ? .semibold : .regular))
-                            .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
+                            .font(.body.weight(isActive ? .semibold : .regular))
+                            .foregroundStyle(isActive ? Color.accentColor : Color.primary)
                     }
                     Text(m.title)
                         .font(.subheadline)
-                        .foregroundStyle(isCurrent ? Color.accentColor.opacity(0.8) : Color.secondary)
+                        .foregroundStyle(isActive ? Color.accentColor.opacity(0.8) : Color.secondary)
                         .lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -104,7 +109,8 @@ struct TranslationPicker: View {
             .accessibilityLabel(fav ? "Убрать из избранного" : "В избранное")
         }
         // выбранный перевод — подсветка во всю строку, как у остальных строк: без скруглений и отступов
-        .listRowBackground(isCurrent ? Color.accentColor.opacity(0.14) : Color.clear)
+        // перевод этого окна — заметнее, переводы других окон — светлее
+        .listRowBackground(isCurrent ? Color.accentColor.opacity(0.16) : (isActive ? Color.accentColor.opacity(0.07) : Color.clear))
         .contextMenu {
             Button { panes.toggleFavorite(m.id) } label: {
                 Label(fav ? "Убрать из избранного" : "В избранное", systemImage: fav ? "star.slash" : "star")

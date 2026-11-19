@@ -143,7 +143,7 @@ struct PaneView: View {
                 }
             }) {
                 NavigationStack {
-                    TranslationPicker(current: p.moduleId) { id in
+                    TranslationPicker(current: p.moduleId, active: Set(panes.panes.map(\.moduleId))) { id in
                         pendingModule = id
                         showModules = false
                     }
@@ -793,6 +793,10 @@ struct ChapterText: View {
     @AppStorage("ilGloss") private var ilGloss = true
     @AppStorage("ilOrig") private var ilOrig = true
     @AppStorage("ilStrong") private var ilStrong = true
+    /// Панель подстрочника (фильтр строк) развёрнута под шапкой. Свёрнута — места под неё в тексте нет: иначе при
+    /// синхронной прокрутке стихи подстрочника вставали ниже, чем в остальных окнах
+    @AppStorage("ilBar") private var ilBar = true
+    private var ilInset: CGFloat { module.interlinear && ilBar ? InterlinearBar.height : 0 }
     @Environment(\.readerPalette) private var pal
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
@@ -890,7 +894,7 @@ struct ChapterText: View {
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
             }
-            .contentMargins(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0), for: .scrollContent)
+            .contentMargins(.top, headerTop + ilInset, for: .scrollContent)
             // пока текст не поставлен на нужное место — прокрутка невидима (иначе на кадр мелькает начало книги)
             .opacity(book1 && !positioned ? 0 : 1)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
@@ -936,7 +940,7 @@ struct ChapterText: View {
             .overlay(alignment: .top) {
                 if !book1 {
                     PullHint(state: pull, next: false, label: neighbour(-1))
-                        .padding(.top, headerTop + (module.interlinear ? InterlinearBar.height : 0) + 10)
+                        .padding(.top, headerTop + ilInset + 10)
                 }
             }
             .background { ReaderBackdrop(pal: pal) }
@@ -1062,7 +1066,7 @@ struct ChapterText: View {
             text: pagedNS(d),
             key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
             focus: focus,
-            insets: UIEdgeInsets(top: 14 + headerTop + (module.interlinear ? InterlinearBar.height : 0), left: textMargin + 6, bottom: 34, right: textMargin + 6),
+            insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
             onTap: { url, vn in tapped(url, vn) },
             onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
