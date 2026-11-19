@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage
 import ImageIO
 import UIKit
 
@@ -45,7 +46,31 @@ enum ReaderBackground {
         if let c = cache, c.stamp == stamp { return c.image }
         guard let d = try? Data(contentsOf: url), let img = UIImage(data: d) else { return nil }
         cache = (stamp, img)
+        blurred = [:]
         return img
+    }
+
+    private static var blurred: [String: UIImage] = [:]
+    private static let ci = CIContext()
+
+    /// Картинка, размытая заранее, один раз: размытие на экране (.blur) пересчитывалось на каждом кадре прокрутки
+    /// в каждом окне. radius — в пикселях самой картинки. Размытой картинке хватает малого размера: уменьшаем до 600
+    static func blurredImage(_ stamp: Int, radius: CGFloat) -> UIImage? {
+        guard let img = image(stamp) else { return nil }
+        let r = (radius * 2).rounded() / 2
+        guard r >= 0.5, let cg = img.cgImage else { return img }
+        let key = "\(stamp)|\(r)"
+        if let b = blurred[key] { return b }
+        var src = CIImage(cgImage: cg)
+        let k = min(1, 600 / max(src.extent.width, src.extent.height))
+        if k < 1 { src = src.transformed(by: CGAffineTransform(scaleX: k, y: k)) }
+        let ext = src.extent
+        let out = src.clampedToExtent().applyingGaussianBlur(sigma: Double(r * k)).cropped(to: ext)
+        guard let res = ci.createCGImage(out, from: ext) else { return img }
+        let b = UIImage(cgImage: res)
+        if blurred.count > 6 { blurred = [:] }
+        blurred[key] = b
+        return b
     }
 }
 
@@ -61,12 +86,13 @@ struct ReaderBackdrop: View {
             pal.bg
             if let img = ReaderBackground.image(stamp) {
                 GeometryReader { g in
-                    Image(uiImage: img)
+                    // радиус размытия на экране (в точках) → в пикселях картинки: во сколько раз она растянута
+                    let s = max(g.size.width / max(1, img.size.width), g.size.height / max(1, img.size.height))
+                    Image(uiImage: ReaderBackground.blurredImage(stamp, radius: blur / max(0.01, s)) ?? img)
                         .resizable()
                         .scaledToFill()
                         .frame(width: g.size.width, height: g.size.height)
                         .scaleEffect(1.04)
-                        .blur(radius: blur)
                         .clipped()
                 }
                 pal.bg.opacity(veil / 100)

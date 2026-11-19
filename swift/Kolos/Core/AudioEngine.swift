@@ -168,6 +168,24 @@ enum OfflineAudio {
     }
 }
 
+/// Тикающее время проигрывателя (см. AudioEngine.clock)
+@MainActor
+final class AudioClock: ObservableObject {
+    @Published var position = 0.0
+    @Published var duration = 0.0
+    @Published var chapterPos = 0.0
+    @Published var chapterDur = 0.0
+    @Published var sleepLeft: Int?
+}
+
+/// Читает тикающее время проигрывателя: перестраивается только то, что внутри
+struct AudioClockReader<Content: View>: View {
+    @ObservedObject var clock: AudioClock
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
+}
+
 /// Проигрыватель Библии: запись главы, стих по времени, соседний стих и глава, скорость, таймер сна, экран блокировки
 @MainActor
 final class AudioEngine: ObservableObject {
@@ -178,13 +196,35 @@ final class AudioEngine: ObservableObject {
     @Published private(set) var moduleId = ""
     /// Перевод, текст которого показан в раскрытом проигрывателе (как слова песни в Apple Music)
     @Published var textModule = ""
+    /// Время, которое тикает при воспроизведении (позиция, таймер сна), — в отдельном объекте: его читают только
+    /// ползунок и подписи проигрывателя. Раньше каждый тик (4 раза в секунду) перестраивал все окна с текстом
+    let clock = AudioClock()
     /// Секунды в файле (для общих файлов на несколько глав — от начала файла)
-    @Published private(set) var position = 0.0
-    @Published private(set) var duration = 0.0
+    private(set) var position: Double {
+        get { clock.position }
+        set { clock.position = newValue }
+    }
+    private(set) var duration: Double {
+        get { clock.duration }
+        set { if clock.duration != newValue { clock.duration = newValue } }
+    }
     /// Секунды внутри главы: по ним ползунок и время в проигрывателе
-    @Published private(set) var chapterPos = 0.0
-    @Published private(set) var chapterDur = 0.0
-    @Published private(set) var sleepLeft: Int?
+    private(set) var chapterPos: Double {
+        get { clock.chapterPos }
+        set { clock.chapterPos = newValue }
+    }
+    private(set) var chapterDur: Double {
+        get { clock.chapterDur }
+        set { if clock.chapterDur != newValue { clock.chapterDur = newValue } }
+    }
+    /// Таймер сна: само число тикает в clock, а включение и выключение оповещает всех (меню «Сон»)
+    private(set) var sleepLeft: Int? {
+        get { clock.sleepLeft }
+        set {
+            if (newValue == nil) != (clock.sleepLeft == nil) { objectWillChange.send() }
+            clock.sleepLeft = newValue
+        }
+    }
     /// Таймер сна «До конца главы»
     @Published private(set) var sleepAtChapterEnd = false
     /// Скорость запоминается между запусками (ключ audioRate, как у Flutter-версии)

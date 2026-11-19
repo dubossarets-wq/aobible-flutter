@@ -129,8 +129,19 @@ struct MarksData: Codable {
 /// Flutter-версии (тот же контейнер), они подхватываются
 @MainActor
 final class MarksStore: ObservableObject {
-    @Published private(set) var data = MarksData()
+    @Published private(set) var data = MarksData() {
+        didSet { reindex() }
+    }
     private let url: URL
+    /// Быстрый поиск «есть ли закладка / любимый у стиха»: текст главы спрашивает это у каждого стиха при каждой
+    /// перестройке, а перебор всех закладок на каждый стих при нескольких окнах заметно тормозил
+    private var bookmarkKeys: Set<String> = []
+    private var favoriteKeys: Set<String> = []
+
+    private func reindex() {
+        bookmarkKeys = Set(data.bookmarks.map { Self.key($0.book, $0.chapter, $0.verse) })
+        favoriteKeys = Set(data.favorites.map(\.id))
+    }
 
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -154,6 +165,7 @@ final class MarksStore: ObservableObject {
             m.collections = dec("collections", [VerseCollection].self) ?? []
             data = m
         }
+        reindex()
     }
 
     static func key(_ book: String, _ chapter: Int, _ verse: Int) -> String {
@@ -176,7 +188,7 @@ final class MarksStore: ObservableObject {
     // MARK: - Закладки
 
     func isBookmarked(_ book: String, _ chapter: Int, _ verse: Int) -> Bool {
-        data.bookmarks.contains { $0.book == book && $0.chapter == chapter && $0.verse == verse }
+        bookmarkKeys.contains(Self.key(book, chapter, verse))
     }
 
     func toggleBookmark(_ book: String, _ chapter: Int, _ verse: Int, text: String) {
@@ -196,7 +208,7 @@ final class MarksStore: ObservableObject {
     // MARK: - Любимые
 
     func isFavorite(_ key: String) -> Bool {
-        data.favorites.contains { $0.id == key }
+        favoriteKeys.contains(key)
     }
 
     func toggleFavorite(_ book: String, _ chapter: Int, _ verse: Int, text: String, part: Part? = nil) {

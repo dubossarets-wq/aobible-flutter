@@ -288,6 +288,9 @@ struct PaneView: View {
     }
 
     private func compactRow(_ p: PaneState, _ m: InstalledModule) -> some View {
+        // все стеклянные кнопки строки рисуются одним проходом (по отдельности стекло каждой кнопки считалось
+        // заново на каждом кадре — при нескольких окнах это десятки стёкол)
+        GlassEffectContainer(spacing: 0) {
         HStack(spacing: 6) {
             placePill(p, m, compact: true)
             Spacer(minLength: 2)
@@ -318,6 +321,7 @@ struct PaneView: View {
             Button { panes.closePane(paneID) } label: { Image(systemName: "xmark").chromeCircle(30) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Закрыть панель")
+        }
         }
         .padding(.horizontal, 12)
     }
@@ -361,6 +365,7 @@ struct PaneView: View {
     }
 
     private func fullHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
+        GlassEffectContainer(spacing: 0) {
         HStack(spacing: 8) {
             placePill(p, m, compact: false)
             Spacer(minLength: 4)
@@ -388,6 +393,7 @@ struct PaneView: View {
                 .disabled(panes.panes.count >= maxPanes)
                 .opacity(panes.panes.count >= maxPanes ? 0.4 : 1)
                 .accessibilityLabel("Добавить панель")
+        }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 6)
@@ -734,6 +740,8 @@ final class NavBox {
     var chromeAcc: CGFloat = 0
     /// Для какой главы идёт отсчёт «глава прочитана»
     var readingChapter = 0
+    /// Отсчёт «глава прочитана» (в ящике: запись в @State перестраивала весь текст, когда конец главы появлялся на экране)
+    var readTask: Task<Void, Never>?
 }
 
 /// Какие строки сейчас на экране — без перерисовки при записи
@@ -848,7 +856,6 @@ struct ChapterText: View {
     /// «В проповедь»: окно выбора проповеди
     @State private var sermonPick: SermonPick?
     @State private var panel: StudyPanel?
-    @State private var readTask: Task<Void, Never>?
     @State private var toast: String?
     @State private var pinchBase: Double?
     @State private var gestures = ReaderGestures()
@@ -1206,7 +1213,7 @@ struct ChapterText: View {
         // и засчитывается в планы). Именно видимость при прокрутке: при нескольких панелях все строки строятся сразу
         Color.clear.frame(height: 1)
             .onScrollVisibilityChange { visible in
-                if visible { startReading(chapter, count: verses.count) } else { readTask?.cancel() }
+                if visible { startReading(chapter, count: verses.count) } else { nav.readTask?.cancel() }
             }
     }
 
@@ -1239,15 +1246,19 @@ struct ChapterText: View {
             Group {
                 if module.interlinear {
                     // подстрочный перевод: слова столбиками «перевод / оригинал / Стронг»
+                    let isFav = marks.isFavorite(MarksStore.key(book, c, v.num))
+                    // часть стиха в любимых — ищется один раз на стих, а не на каждое слово
+                    let favPart = isFav ? favPartRange(c, v.num) : nil
+                    let selPart = cur ? partRange(v.num) : nil
                     InterlinearVerse(
                         verse: v, fontSize: fontSize, fontFamily: fontFamily, fontWeight: fontWeight, lineHeight: lineHeight,
                         showNumber: showNumbers, numberColor: pal.verseNum, textColor: pal.text, accent: pal.accent,
                         showGloss: ilGloss, showOrig: ilOrig, showStrong: ilStrong,
-                        favorite: favNums(c).contains(v.num),
+                        favorite: isFav,
                         xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0,
                         mark: { wi in
-                            if cur, let r = partRange(v.num), r.contains(wi) { return pal.accent.opacity(0.24) }
-                            if let r = favPartRange(c, v.num), r.contains(wi) { return Color(hex: 0xd9475e).opacity(0.2) }
+                            if let r = selPart, r.contains(wi) { return pal.accent.opacity(0.24) }
+                            if let r = favPart, r.contains(wi) { return Color(hex: 0xd9475e).opacity(0.2) }
                             return nil
                         },
                         onTap: { url, vn in act(c, .tap(url, vn)) },
@@ -1342,7 +1353,7 @@ struct ChapterText: View {
                     if visible {
                         startReading(r.chapter, count: bookBox.counts[r.chapter] ?? 0)
                     } else if nav.readingChapter == r.chapter {
-                        readTask?.cancel()
+                        nav.readTask?.cancel()
                     }
                 }
                 .id(r.id)
@@ -1481,11 +1492,11 @@ struct ChapterText: View {
     }
 
     private func startReading(_ c: Int, count: Int) {
-        readTask?.cancel()
+        nav.readTask?.cancel()
         guard count > 0 else { return }
         let b = book
         nav.readingChapter = c
-        readTask = Task {
+        nav.readTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(PlanLogic.minSeconds(count) * 1_000_000_000))
             if Task.isCancelled { return }
             let r = plans.chapterRead(book: b, chapter: c)

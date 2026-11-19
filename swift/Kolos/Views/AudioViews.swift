@@ -18,10 +18,12 @@ struct AudioBar: View {
                     Text("\(Books.info(c.book)?.short.replacingOccurrences(of: ".", with: "") ?? c.book) \(c.chapter):\(c.verse)")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Text((audio.pack?.reader ?? audio.pack?.name ?? "") + (audio.sleepLeft.map { " · сон \(clock($0))" } ?? (audio.sleepAtChapterEnd ? " · сон до конца главы" : "")))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    AudioClockReader(clock: audio.clock) {
+                        Text((audio.pack?.reader ?? audio.pack?.name ?? "") + (audio.sleepLeft.map { " · сон \(clock($0))" } ?? (audio.sleepAtChapterEnd ? " · сон до конца главы" : "")))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 4)
                 Button { audio.previousVerse() } label: { Image(systemName: "backward.fill") }
@@ -313,6 +315,10 @@ struct AudioFullView: View {
     }
 
     private var progress: some View {
+        AudioClockReader(clock: audio.clock) { progressBody }
+    }
+
+    private var progressBody: some View {
         let total = max(1, audio.chapterDur)
         let pos = scrub ?? audio.chapterPos
         return VStack(spacing: 2) {

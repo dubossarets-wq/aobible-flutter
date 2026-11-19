@@ -52,7 +52,19 @@ struct InterlinearVerse: View {
         return key
     }
 
+    /// Разобранные стихи: разбор (Markup и поиск слов) — при каждой перестройке главы для каждого стиха, а при
+    /// нескольких окнах глава строится целиком. Ключ — сам текст стиха
+    private static var wordCache: [String: [Word]] = [:]
+
     private func words() -> [Word] {
+        if let w = Self.wordCache[verse.text] { return w }
+        let out = parseWords()
+        if Self.wordCache.count > 1500 { Self.wordCache = [:] }
+        Self.wordCache[verse.text] = out
+        return out
+    }
+
+    private func parseWords() -> [Word] {
         var out: [Word] = []
         for (ti, t) in Markup.parse(verse.text).enumerated() {
             if !t.strongs.isEmpty {
@@ -143,13 +155,31 @@ struct InterlinearFlow: Layout {
     var hSpacing: CGFloat
     var vSpacing: CGFloat
 
-    private struct Line {
+    struct Line {
         var items: [(index: Int, size: CGSize)] = []
         var width: CGFloat = 0
         var height: CGFloat = 0
     }
 
-    private func lines(_ subviews: Subviews, _ maxWidth: CGFloat) -> [Line] {
+    /// Раскладка по строкам для последней ширины: размер и размещение спрашивают её подряд — не мерить слова дважды
+    struct Cache {
+        var width: CGFloat = -1
+        var lines: [Line] = []
+    }
+
+    func makeCache(subviews: Subviews) -> Cache { Cache() }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) { cache = Cache() }
+
+    private func lines(_ subviews: Subviews, _ maxWidth: CGFloat, _ cache: inout Cache) -> [Line] {
+        if cache.width == maxWidth { return cache.lines }
+        let out = measure(subviews, maxWidth)
+        cache.width = maxWidth
+        cache.lines = out
+        return out
+    }
+
+    private func measure(_ subviews: Subviews, _ maxWidth: CGFloat) -> [Line] {
         var out: [Line] = [Line()]
         for (i, s) in subviews.enumerated() {
             let size = s.sizeThatFits(.unspecified)
@@ -166,17 +196,17 @@ struct InterlinearFlow: Layout {
         return out
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let maxW = proposal.width ?? .infinity
-        let ls = lines(subviews, maxW)
+        let ls = lines(subviews, maxW, &cache)
         let h = ls.reduce(0) { $0 + $1.height } + vSpacing * CGFloat(max(0, ls.count - 1))
         let w = maxW.isFinite ? maxW : (ls.map { $0.width }.max() ?? 0)
         return CGSize(width: w, height: h)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
         var y = bounds.minY
-        for line in lines(subviews, bounds.width) {
+        for line in lines(subviews, bounds.width, &cache) {
             var x = bounds.minX
             for it in line.items {
                 subviews[it.index].place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(it.size))
