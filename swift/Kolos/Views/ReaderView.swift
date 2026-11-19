@@ -196,7 +196,8 @@ struct PaneView: View {
     @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
         // нижняя панель при параллельном чтении: шапка на месте (не прячется), без отступа под строку состояния
         let lower = panes.isLowerPane(paneID)
-        let hidden = chrome.hidden[paneID] == true && !lower
+        // несколько окон: шапки всех окон стоят на месте, при прокрутке уходит только нижнее меню
+        let hidden = chrome.hidden[paneID] == true && !lower && panes.panes.count == 1
         // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
         // От полосы до верхнего края всегда размытый фон
         let barShown = m.interlinear && ilBar
@@ -282,22 +283,50 @@ struct PaneView: View {
                 // место кнопки фильтра подстрочника (она в ilToggle)
                 Color.clear.frame(width: 30, height: 30)
             }
-            Menu {
-                if panes.canBack(paneID) {
-                    Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
-                }
-                if panes.canForward(paneID) {
-                    Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
-                }
-                Button {
-                    Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
-                } label: { Label("Слушать", systemImage: "headphones") }
-                Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Label("Добавить панель", systemImage: "rectangle.split.2x1") }
-                    .disabled(panes.panes.count >= maxPanes)
-            } label: {
-                Image(systemName: "ellipsis").chromeCircle(30)
+            // «Слушать» и «Добавить панель» — значками прямо в шапке окна; в «⋯» — только «Назад» и «Вперёд».
+            // Окна столбцами узкие — там всё в «⋯»
+            if stacked {
+            Button {
+                Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+            } label: { Image(systemName: "headphones").chromeCircle(30) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Слушать")
+            if panes.panes.count < maxPanes {
+                Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle(30) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Добавить панель")
             }
-            .accessibilityLabel("Ещё")
+            if panes.canBack(paneID) || panes.canForward(paneID) {
+                Menu {
+                    if panes.canBack(paneID) {
+                        Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
+                    }
+                    if panes.canForward(paneID) {
+                        Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis").chromeCircle(30)
+                }
+                .accessibilityLabel("Ещё")
+            }
+            } else {
+                Menu {
+                    if panes.canBack(paneID) {
+                        Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
+                    }
+                    if panes.canForward(paneID) {
+                        Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
+                    }
+                    Button {
+                        Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
+                    } label: { Label("Слушать", systemImage: "headphones") }
+                    Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Label("Добавить панель", systemImage: "rectangle.split.2x1") }
+                        .disabled(panes.panes.count >= maxPanes)
+                } label: {
+                    Image(systemName: "ellipsis").chromeCircle(30)
+                }
+                .accessibilityLabel("Ещё")
+            }
             Button { panes.closePane(paneID) } label: { Image(systemName: "xmark").chromeCircle(30) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Закрыть панель")
@@ -1536,10 +1565,12 @@ struct ChapterText: View {
         // запоминается в ящике, а не в @State: запись на каждом кадре прокрутки иначе перестраивала бы весь текст
         let d = y - nav.chromeLastY
         nav.chromeLastY = y
-        // переходы к стиху, возврат на сохранённое место, прокрутка второй панели — не повод прятать шапку
-        guard touchScroll.user, !panes.isLowerPane(pane.id) else { return }
+        // переходы к стиху, возврат на сохранённое место, прокрутка, поставленная синхронизацией, — не повод прятать меню
+        guard touchScroll.user else { return }
+        // несколько окон: какое бы окно ни листали, уходит нижнее меню (оно следует за первым окном), шапки стоят
+        let target = panes.panes.count > 1 ? (panes.panes.first?.id ?? pane.id) : pane.id
         func set(_ h: Bool) {
-            if (panes.chrome.hidden[pane.id] ?? false) != h { withAnimation(.easeInOut(duration: 0.2)) { panes.chrome.hidden[pane.id] = h } }
+            if (panes.chrome.hidden[target] ?? false) != h { withAnimation(.easeInOut(duration: 0.2)) { panes.chrome.hidden[target] = h } }
         }
         guard hideOnScroll, selected.isEmpty, partVerse == nil, y > 80 else {
             nav.chromeAcc = 0
