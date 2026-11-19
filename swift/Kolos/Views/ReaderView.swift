@@ -234,7 +234,10 @@ struct PaneView: View {
             .animation(InterlinearBar.motion, value: ilBar)
             .allowsHitTesting(!hidden)
         } line: {
-            ReadProgress(live: panes.live, id: paneID)
+            // несколько окон: полоска прочтения только у верхнего окна — у остальных место под текст
+            if panes.panes.first?.id == paneID {
+                ReadProgress(live: panes.live, id: paneID)
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: hidden)
     }
