@@ -194,6 +194,8 @@ struct SearchPage: View {
                         ForEach(model.hits.prefix(shown), id: \.uid) { h in
                             Button {
                                 remember(query)
+                                // в открытом стихе найденные слова на пару секунд подсветятся
+                                panes.pendingWords = (query, whole)
                                 onOpen(h.book, h.chapter, h.verse)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {

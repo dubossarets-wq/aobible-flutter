@@ -185,8 +185,25 @@ final class PanesStore: ObservableObject {
 
     /// Перейти в панели. record — запомнить в истории (переход по ссылке, из навигатора, поиска);
     /// соседняя глава стрелками и свайпом в историю не пишется
+    /// Куда только что перешли (закладка, поиск, ссылка, навигатор): там стих на пару секунд подсвечивается,
+    /// а после поиска — и найденные слова
+    struct Jump {
+        let id: UUID
+        let at: Date
+        let words: String?
+        let whole: Bool
+    }
+
+    var lastJump: Jump?
+    /// Поиск перед переходом кладёт сюда запрос — переход забирает его в lastJump
+    var pendingWords: (query: String, whole: Bool)?
+
     func go(_ id: UUID, _ book: String, _ chapter: Int, _ verse: Int, record: Bool = true) {
         guard let i = index(id) else { return }
+        if record && verse > 0 && verse < 9999 {
+            lastJump = Jump(id: id, at: Date(), words: pendingWords?.query, whole: pendingWords?.whole ?? false)
+        }
+        pendingWords = nil
         panes[i].book = book
         panes[i].chapter = chapter
         panes[i].verse = verse

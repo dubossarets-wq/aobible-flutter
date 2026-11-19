@@ -802,6 +802,9 @@ struct ChapterText: View {
     @State private var pull = PullState()
     @State private var touchScroll = PhaseBox()
     @State private var flashVerse = 0
+    /// Переход из поиска: в подсвеченном стихе ещё и найденные слова
+    @State private var flashWords = ""
+    @State private var flashWhole = false
     @State private var collectItems: [MarkItem] = []
     @State private var pulseVerse = 0
     @State private var pulseAmt = 0.0
@@ -939,6 +942,8 @@ struct ChapterText: View {
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
                 scroll(proxy, initial: true)
+                // открыли книгу переходом (закладка, поиск, ссылка) — стих подсвечивается
+                if let j = panes.lastJump, j.id == pane.id, Date().timeIntervalSince(j.at) < 3 { flash() }
                 // проверка на симуляторе: -debugWord YES открывает окно слова «Бог»
                 if UserDefaults.standard.bool(forKey: "debugWord"), req.sheet == nil {
                     req.sheet = .word(WordRequest(text: "Бог", strongs: ["H430"], morph: [], book: book, chapter: chapter, verse: 1))
@@ -962,15 +967,8 @@ struct ChapterText: View {
                 }
                 let sameChapter = old.split(separator: "|").first.flatMap { Int($0) } == chapter
                 scroll(proxy, initial: false, animated: sameChapter || !book1)
-                // перешли к стиху (закладка, ссылка, поиск) — он мигает 2,4 секунды
-                let v = focus
-                if v > 0 && v < 9999 {
-                    flashVerse = v
-                    Task {
-                        try? await Task.sleep(nanoseconds: 2_400_000_000)
-                        if flashVerse == v { flashVerse = 0 }
-                    }
-                }
+                // перешли к стиху (закладка, ссылка, поиск) — он подсвечивается на пару секунд
+                flash()
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
@@ -1246,6 +1244,7 @@ struct ChapterText: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(background(c, v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .animation(.easeInOut(duration: 0.45), value: cur && flashVerse == v.num)
             .background(Color(hex: 0xd9475e).opacity(cur && pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if marks.isBookmarked(book, c, v.num) {
@@ -1415,7 +1414,7 @@ struct ChapterText: View {
     private func chapterCache(_ c: Int) -> ChapterCache {
         let favs = favNums(c)
         let comm = expandedComm.filter { $0.hasPrefix("\(c)|") }.sorted()
-        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)"
+        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)|\(c == chapter && !flashWords.isEmpty ? "\(flashVerse):\(flashWords):\(flashWhole)" : "")"
         if let x = cacheBox.chapters[c], x.key == key { return x }
         let verses = store.verses(module: module.id, book: book, chapter: c)
         let heads = store.headings(module: module.id, book: book, chapter: c)
@@ -1465,6 +1464,29 @@ struct ChapterText: View {
                 show("План «\(f)»: на сегодня всё ✓")
             } else if let p = r.credited.first {
                 show("Засчитано в план «\(p)»")
+            }
+        }
+    }
+
+    /// Подсветить стих, к которому перешли (и найденные слова, если пришли из поиска), на две секунды
+    private func flash() {
+        let v = focus
+        guard v > 0 && v < 9999 else { return }
+        var words = ""
+        var whole = false
+        if let j = panes.lastJump, j.id == pane.id, Date().timeIntervalSince(j.at) < 3 {
+            words = j.words ?? ""
+            whole = j.whole
+            panes.lastJump = nil
+        }
+        flashWhole = whole
+        flashWords = words
+        flashVerse = v
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if flashVerse == v {
+                flashVerse = 0
+                flashWords = ""
             }
         }
     }
@@ -1795,6 +1817,13 @@ struct ChapterText: View {
             add("\u{2009}\(illus)", [.font: small, .foregroundColor: UIColor(pal.accent), .aobURL: url])
         }
         let mainLength = out.length
+        // пришли из поиска: найденные слова в этом стихе — плашками цвета акцента (на две секунды)
+        if ch == chapter, v.num == flashVerse, !flashWords.isEmpty, let re = SearchEngine.regex(for: flashWords, wholeWord: flashWhole) {
+            let plate = PlateStyle(UIColor(pal.accent.opacity(0.32)), radius: 5, inflate: 2)
+            for m in re.matches(in: out.string, range: NSRange(location: 0, length: mainLength)) where m.range.length > 0 {
+                out.addAttribute(.aobPlate, value: plate, range: m.range)
+            }
+        }
         out.addAttribute(.paragraphStyle, value: paragraph(), range: NSRange(location: 0, length: mainLength))
         if !continuous { appendComments(out, v, ch) }
         return out
