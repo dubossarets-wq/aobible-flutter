@@ -90,7 +90,8 @@ struct PaneView: View {
     /// Кнопка «свернуть» панели подстрочника и кнопка фильтра в шапке — одна и та же кнопка, перетекает при скрытии
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
-    @ObservedObject var chrome: ChromeState
+    /// Состояние шапок читают только ChromeWatch-обёртки: смена его не перестраивает текст окна
+    let chrome: ChromeState
     @State private var showGoto = UserDefaults.standard.bool(forKey: "debugGoto")
     @State private var showModules = false
     /// Перевод, выбранный в окне: применяется, когда окно закрылось
@@ -109,6 +110,7 @@ struct PaneView: View {
                     .overlay(alignment: .top) { chromeOverlay(p, m) }
                     .safeAreaInset(edge: .bottom) {
                         if panes.panes.count == 1 {
+                        ChromeWatch(chrome: chrome, id: paneID) { hiddenNow, shift in
                         HStack {
                             Spacer()
                             Button {
@@ -122,11 +124,12 @@ struct PaneView: View {
                         .controlSize(.large)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 4)
-                        .offset(y: chrome.hidden[paneID] == true && !panes.isLowerPane(paneID) ? chrome.bottomShift : 0)
+                        .offset(y: hiddenNow && !panes.isLowerPane(paneID) ? shift : 0)
+                        .animation(.easeInOut(duration: 0.2), value: hiddenNow)
+                        }
                         }
                     }
             }
-            .animation(.easeInOut(duration: 0.2), value: chrome.hidden[paneID])
             .sheet(item: Binding(get: { planDay }, set: { planDay = $0 })) { r in
                 PlanDayView(uid: r.uid, day: r.day)
             }
@@ -193,11 +196,15 @@ struct PaneView: View {
     /// Компактная шапка — когда панелей несколько: меньше кнопки, всё в одной строке, плавающих кнопок нет
     static let compactHeaderHeight: CGFloat = 38
 
-    @ViewBuilder private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
+    private func chromeOverlay(_ p: PaneState, _ m: InstalledModule) -> some View {
+        ChromeWatch(chrome: chrome, id: paneID) { hiddenNow, _ in chromeBody(p, m, hiddenNow) }
+    }
+
+    @ViewBuilder private func chromeBody(_ p: PaneState, _ m: InstalledModule, _ hiddenNow: Bool) -> some View {
         // нижняя панель при параллельном чтении: шапка на месте (не прячется), без отступа под строку состояния
         let lower = panes.isLowerPane(paneID)
         // несколько окон: шапки всех окон стоят на месте, при прокрутке уходит только нижнее меню
-        let hidden = chrome.hidden[paneID] == true && !lower && panes.panes.count == 1
+        let hidden = hiddenNow && !lower && panes.panes.count == 1
         // полоса прочтения лежит под шапкой; когда шапка ушла — поднимается к самому верху экрана.
         // От полосы до верхнего края всегда размытый фон
         let barShown = m.interlinear && ilBar
@@ -473,6 +480,18 @@ struct PullHint: View {
     }
 }
 
+/// Следит за тем, спрятаны ли шапка и нижнее меню, и перерисовывает только своё содержимое (шапку, кнопку «Слушать»),
+/// а не всё окно с текстом
+struct ChromeWatch<Content: View>: View {
+    @ObservedObject var chrome: ChromeState
+    let id: UUID
+    @ViewBuilder let content: (Bool, CGFloat) -> Content
+
+    var body: some View {
+        content(chrome.hidden[id] == true, chrome.bottomShift)
+    }
+}
+
 /// Шапка, полоска прочтения и размытый фон двигаются одним анимируемым значением p (0 — шапка на месте, 1 — ушла):
 /// шапка уезжает за верхний край, полоска всё время висит под ней и останавливается у верха экрана, размытие — до полоски
 struct SlidingChrome<Header: View, Line: View>: View, Animatable {
@@ -505,9 +524,10 @@ struct SlidingChrome<Header: View, Line: View>: View, Animatable {
         let shift = p * travel
         let lineY = max(0, headerH - shift)
         ZStack(alignment: .top) {
+            // сплошной цвет на 5% серее фона страницы (в тёмной теме — на 5% светлее), без размытия
             ZStack {
-                Rectangle().fill(.ultraThinMaterial)
-                Rectangle().fill(pal.bg.opacity(0.55))
+                Rectangle().fill(pal.bg)
+                Rectangle().fill(pal.text.opacity(0.05))
             }
                 .frame(height: safeTop + lineY)
                 .offset(y: -safeTop)
