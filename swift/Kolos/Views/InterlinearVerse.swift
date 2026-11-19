@@ -205,8 +205,9 @@ struct VerseAnchor: UIViewRepresentable {
 
 /// Панель подстрочника под шапкой: что показывать в столбике (перевод, оригинал, номер Стронга) и «Свернуть»
 struct InterlinearBar: View {
-    /// Высота панели вместе с отступом снизу
-    static let height: CGFloat = 46
+    /// Высота панели вместе с отступом снизу; compact — при нескольких окнах (плашки по 30, как кнопки компактной шапки)
+    static func height(_ compact: Bool) -> CGFloat { compact ? 36 : 46 }
+    var compact = false
     /// Плавное скрытие и показ панели: лёгкая пружина без отскока
     static let motion = Animation.spring(response: 0.38, dampingFraction: 0.88)
     @AppStorage("ilGloss") private var gloss = true
@@ -224,10 +225,10 @@ struct InterlinearBar: View {
     private func part(_ title: LocalizedStringKey, _ b: Binding<Bool>) -> some View {
         Button { toggle(b) } label: {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font((compact ? Font.footnote : Font.subheadline).weight(.semibold))
                 .foregroundStyle(b.wrappedValue ? pal.accent : pal.muted)
-                .padding(.horizontal, 14)
-                .frame(height: 40)
+                .padding(.horizontal, compact ? 11 : 14)
+                .frame(height: compact ? 30 : 40)
                 .contentShape(Capsule())
                 .glassEffect(.regular.tint(b.wrappedValue ? pal.accent.opacity(0.18) : nil).interactive(), in: Capsule())
         }
@@ -235,16 +236,16 @@ struct InterlinearBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: compact ? 6 : 8) {
             part("Перевод", $gloss)
             part("Оригинал", $orig)
             part("Стронг", $strong)
             Spacer(minLength: 4)
             // место кнопки «свернуть»; сама кнопка общая с шапкой (PaneView.ilToggle) — она переезжает и меняет иконку
-            Color.clear.frame(width: 40, height: 40)
+            Color.clear.frame(width: compact ? 30 : 40, height: compact ? 30 : 40)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, compact ? 12 : 20)
         .padding(.bottom, 6)
-        .frame(height: Self.height)
+        .frame(height: Self.height(compact))
     }
 }

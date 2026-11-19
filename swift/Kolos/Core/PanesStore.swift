@@ -142,6 +142,22 @@ final class PanesStore: ObservableObject {
         UserDefaults.standard.set(id, forKey: "primaryModule")
     }
 
+    // MARK: - Панель подстрочника — у каждого окна своя
+
+    /// Развёрнута ли панель подстрочника в окне. Одно окно — как запомнено; несколько окон — по умолчанию свёрнута
+    @Published private(set) var ilBarOpen: [UUID: Bool] = [:]
+
+    func ilBar(_ id: UUID) -> Bool {
+        if let v = ilBarOpen[id] { return v }
+        if panes.count > 1 { return false }
+        return UserDefaults.standard.object(forKey: "ilBar") as? Bool ?? true
+    }
+
+    func setIlBar(_ id: UUID, _ v: Bool) {
+        ilBarOpen[id] = v
+        if panes.count == 1 { UserDefaults.standard.set(v, forKey: "ilBar") }
+    }
+
     // MARK: - Избранные переводы
 
     /// Избранные переводы (можно несколько): в окне выбора перевода они стоят наверху, в порядке добавления.

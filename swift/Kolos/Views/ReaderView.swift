@@ -86,7 +86,9 @@ struct PaneView: View {
     @Environment(\.readerPalette) private var pal
     @State private var planDay: PlanReturn?
     @State private var headerH: CGFloat = 52
-    @AppStorage("ilBar") private var ilBar = true
+    /// Панель подстрочника этого окна развёрнута (у каждого окна своя)
+    private var ilBar: Bool { panes.ilBar(paneID) }
+    private var ilCompact: Bool { panes.panes.count > 1 }
     /// Кнопка «свернуть» панели подстрочника и кнопка фильтра в шапке — одна и та же кнопка, перетекает при скрытии
     @AppStorage("panesStacked") private var stacked = true
     let paneID: UUID
@@ -209,13 +211,14 @@ struct PaneView: View {
         // От полосы до верхнего края всегда размытый фон
         let barShown = m.interlinear && ilBar
         // высота фона шапки меняется вместе с панелью подстрочника (плавно, SlidingChrome её анимирует)
-        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH + (barShown ? InterlinearBar.height : 0), safeTop: lower ? 0 : Self.safeTop) {
+        let barH = InterlinearBar.height(ilCompact)
+        SlidingChrome(p: hidden ? 1 : 0, headerH: headerH + (barShown ? barH : 0), safeTop: lower ? 0 : Self.safeTop) {
             ZStack(alignment: .topLeading) {
                 // панель подстрочника лежит ПОД строкой шапки: при скрытии уезжает вверх за кнопки перевода и книги
                 // и растворяется под ними
                 if m.interlinear {
-                    InterlinearBar()
-                        .padding(.top, barShown ? headerH : max(0, headerH - InterlinearBar.height))
+                    InterlinearBar(compact: ilCompact)
+                        .padding(.top, barShown ? headerH : max(0, headerH - barH))
                         .opacity(barShown ? 1 : 0)
                         .allowsHitTesting(barShown)
                 }
@@ -225,16 +228,18 @@ struct PaneView: View {
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerH = $0 }
             }
-            .frame(height: headerH + (barShown ? InterlinearBar.height : 0), alignment: .top)
+            .frame(height: headerH + (barShown ? barH : 0), alignment: .top)
             // одна кнопка на оба положения: в панели — «свернуть», в шапке — «фильтр»; иконка превращается
             // место считается явно (а не matchedGeometryEffect: тот при запуске не успевал пересчитаться, и кнопка
             // вставала поверх кнопки «две панели»). В шапке — сразу слева от неё, в панели — у правого края
             .overlay(alignment: .topLeading) {
                 if m.interlinear {
                     GeometryReader { g in
-                        let barTop = barShown ? headerH : max(0, headerH - InterlinearBar.height)
-                        let compact = panes.panes.count > 1
-                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 63, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
+                        let barTop = barShown ? headerH : max(0, headerH - barH)
+                        let compact = ilCompact
+                        ilToggle.position(ilBar
+                            ? (compact ? CGPoint(x: g.size.width - 27, y: barTop + 15) : CGPoint(x: g.size.width - 40, y: barTop + 20))
+                            : (compact ? CGPoint(x: g.size.width - 63, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
                     }
                 }
             }
@@ -252,10 +257,10 @@ struct PaneView: View {
     /// Кнопка панели подстрочника: стоит на месте ilSlot (в панели или в шапке), при переключении переезжает,
     /// а иконка векторно превращается: стрелка «свернуть» ⇄ «фильтр»
     private var ilToggle: some View {
-        Button { withAnimation(InterlinearBar.motion) { ilBar.toggle() } } label: {
+        Button { withAnimation(InterlinearBar.motion) { panes.setIlBar(paneID, !ilBar) } } label: {
             Image(systemName: ilBar ? "chevron.up" : "slider.horizontal.3")
                 .contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
-                .chromeCircle(panes.panes.count > 1 && !ilBar ? 30 : 40)
+                .chromeCircle(ilCompact ? 30 : 40)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(ilBar ? "Свернуть" : "Подстрочник")
@@ -815,8 +820,8 @@ struct ChapterText: View {
     @AppStorage("ilStrong") private var ilStrong = true
     /// Панель подстрочника (фильтр строк) развёрнута под шапкой. Свёрнута — места под неё в тексте нет: иначе при
     /// синхронной прокрутке стихи подстрочника вставали ниже, чем в остальных окнах
-    @AppStorage("ilBar") private var ilBar = true
-    private var ilInset: CGFloat { module.interlinear && ilBar ? InterlinearBar.height : 0 }
+    private var ilBar: Bool { panes.ilBar(pane.id) }
+    private var ilInset: CGFloat { module.interlinear && ilBar ? InterlinearBar.height(panes.panes.count > 1) : 0 }
     @Environment(\.readerPalette) private var pal
     @AppStorage("theme") private var theme = "system"
     @State private var cacheBox = CacheBox()
