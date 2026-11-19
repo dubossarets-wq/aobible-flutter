@@ -227,7 +227,7 @@ struct PaneView: View {
                     GeometryReader { g in
                         let barTop = barShown ? headerH : max(0, headerH - InterlinearBar.height)
                         let compact = panes.panes.count > 1
-                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 99, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
+                        ilToggle.position(ilBar ? CGPoint(x: g.size.width - 40, y: barTop + 20) : (compact ? CGPoint(x: g.size.width - 63, y: 19) : CGPoint(x: g.size.width - 88, y: 26)))
                     }
                 }
             }
@@ -262,8 +262,17 @@ struct PaneView: View {
         }
     }
 
-    /// Несколько панелей: одна тонкая строка — перевод, место, меню «⋯» (история, «Слушать», «Добавить панель») и закрытие
+    /// Несколько панелей: одна тонкая строка — перевод, место и все кнопки окна значками (без меню «⋯»).
+    /// Не помещается (узкие окна столбцами) — строка листается вбок, кнопки не прячутся
     private func compactHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
+        ViewThatFits(in: .horizontal) {
+            compactRow(p, m)
+            ScrollView(.horizontal, showsIndicators: false) { compactRow(p, m) }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func compactRow(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 6) {
             Button { showModules = true } label: {
                 Text(m.shortName).font(.subheadline.weight(.semibold)).fixedSize().chromePill(compact: true)
@@ -279,13 +288,16 @@ struct PaneView: View {
             }
             .buttonStyle(.plain)
             Spacer(minLength: 2)
-            if m.interlinear && !ilBar {
-                // место кнопки фильтра подстрочника (она в ilToggle)
-                Color.clear.frame(width: 30, height: 30)
+            if panes.canBack(paneID) {
+                Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward").chromeCircle(30) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Назад")
             }
-            // «Слушать» и «Добавить панель» — значками прямо в шапке окна; в «⋯» — только «Назад» и «Вперёд».
-            // Окна столбцами узкие — там всё в «⋯»
-            if stacked {
+            if panes.canForward(paneID) {
+                Button { panes.forward(paneID) } label: { Image(systemName: "arrow.uturn.forward").chromeCircle(30) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Вперёд")
+            }
             Button {
                 Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
             } label: { Image(systemName: "headphones").chromeCircle(30) }
@@ -296,43 +308,15 @@ struct PaneView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Добавить панель")
             }
-            if panes.canBack(paneID) || panes.canForward(paneID) {
-                Menu {
-                    if panes.canBack(paneID) {
-                        Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
-                    }
-                    if panes.canForward(paneID) {
-                        Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis").chromeCircle(30)
-                }
-                .accessibilityLabel("Ещё")
-            }
-            } else {
-                Menu {
-                    if panes.canBack(paneID) {
-                        Button { panes.back(paneID) } label: { Label("Назад", systemImage: "arrow.uturn.backward") }
-                    }
-                    if panes.canForward(paneID) {
-                        Button { panes.forward(paneID) } label: { Label("Вперёд", systemImage: "arrow.uturn.forward") }
-                    }
-                    Button {
-                        Task { await audio.listen(store: store, moduleId: p.moduleId, from: Place(book: p.book, chapter: p.chapter, verse: max(1, p.verse))) }
-                    } label: { Label("Слушать", systemImage: "headphones") }
-                    Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Label("Добавить панель", systemImage: "rectangle.split.2x1") }
-                        .disabled(panes.panes.count >= maxPanes)
-                } label: {
-                    Image(systemName: "ellipsis").chromeCircle(30)
-                }
-                .accessibilityLabel("Ещё")
+            if m.interlinear && !ilBar {
+                // место кнопки фильтра подстрочника (она в ilToggle) — сразу перед «Закрыть»
+                Color.clear.frame(width: 30, height: 30)
             }
             Button { panes.closePane(paneID) } label: { Image(systemName: "xmark").chromeCircle(30) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Закрыть панель")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 4)
     }
 
     private func fullHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
