@@ -274,19 +274,7 @@ struct PaneView: View {
 
     private func compactRow(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 6) {
-            Button { showModules = true } label: {
-                Text(m.shortName).font(.subheadline.weight(.semibold)).fixedSize().chromePill(compact: true)
-            }
-            .buttonStyle(.plain)
-            Button { showGoto = true } label: {
-                HStack(spacing: 4) {
-                    LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
-                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
-                }
-                .font(.subheadline.weight(.semibold))
-                .chromePill(compact: true)
-            }
-            .buttonStyle(.plain)
+            placePill(p, m, compact: true)
             Spacer(minLength: 2)
             if panes.canBack(paneID) {
                 Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward").chromeCircle(30) }
@@ -319,21 +307,47 @@ struct PaneView: View {
         .padding(.horizontal, 12)
     }
 
+    /// Перевод и место — одна плашка из двух половин с тонкой чертой между ними: нажатие на перевод открывает
+    /// переводы, на место — книги и главы
+    private func placePill(_ p: PaneState, _ m: InstalledModule, compact: Bool) -> some View {
+        let pad: CGFloat = compact ? 12 : 16
+        return HStack(spacing: 0) {
+            Button { showModules = true } label: {
+                Text(m.shortName)
+                    .font(compact ? .subheadline.weight(.semibold) : .headline)
+                    .fixedSize()
+                    .padding(.leading, pad)
+                    .padding(.trailing, pad - 4)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Перевод: \(m.shortName)")
+            Rectangle()
+                .fill(Color.primary.opacity(0.18))
+                .frame(width: 1, height: compact ? 14 : 18)
+                .allowsHitTesting(false)
+            Button { showGoto = true } label: {
+                HStack(spacing: compact ? 4 : 5) {
+                    LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
+                    Image(systemName: "chevron.down").font((compact ? Font.caption2 : Font.caption).weight(.bold))
+                }
+                .font(compact ? .subheadline.weight(.semibold) : .headline)
+                .padding(.leading, pad - 4)
+                .padding(.trailing, pad)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.primary)
+        .frame(height: compact ? 30 : 40)
+        .glassEffect(.regular.interactive(), in: Capsule())
+    }
+
     private func fullHeader(_ p: PaneState, _ m: InstalledModule) -> some View {
         HStack(spacing: 8) {
-            Button { showModules = true } label: {
-                Text(m.shortName).font(.headline).fixedSize().chromePill()
-            }
-            .buttonStyle(.plain)
-            Button { showGoto = true } label: {
-                HStack(spacing: 5) {
-                    LiveTitle(live: panes.live, id: paneID, name: bookName(p, m), chapter: p.chapter, fallback: max(p.verse, 1))
-                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
-                }
-                .font(.headline)
-                .chromePill()
-            }
-            .buttonStyle(.plain)
+            placePill(p, m, compact: false)
             Spacer(minLength: 4)
             if panes.canBack(paneID) {
                 Button { panes.back(paneID) } label: { Image(systemName: "arrow.uturn.backward").chromeCircle() }
