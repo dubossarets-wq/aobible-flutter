@@ -416,8 +416,10 @@ struct TabBarSettings: View {
                     }
                 }
             }
-            .frame(width: 250)
-            .frame(maxHeight: 380)
+            // запас от краёв: системное окошко сильно скруглено, и строки вплотную к краю упирались в углы
+            .padding(.vertical, 8)
+            .frame(width: 262)
+            .frame(maxHeight: 400)
         }
     }
 
@@ -441,7 +443,8 @@ struct TabBarSettings: View {
                 if !inBar { Divider().padding(.leading, 16) }
             }
         }
-        .frame(width: 250)
+        .padding(.vertical, 8)
+        .frame(width: 262)
     }
 
     /// Выбрали раздел для «L» или «R»: тот же, что на другом месте, — меняются местами
