@@ -1936,3 +1936,4 @@
 "Построчно" = "By line";
 "«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились." = "“By verse”: a verse that doesn’t fit on the page moves to the next page whole. “By line”: only the lines that don’t fit move on.";
 "Озвучка" = "Audio";
+"Модули" = "Modules";

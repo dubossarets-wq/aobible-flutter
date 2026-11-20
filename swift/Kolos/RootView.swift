@@ -184,9 +184,9 @@ struct RootView: View {
         var raw: [String: String] = ["B": TabTitles.localized("Библия", lang: lang), "M": TabTitles.localized("Ещё", lang: lang)]
         if searchInBar { raw["S"] = TabTitles.localized("Поиск", lang: lang) }
         let l = TabFunction.of(tabLeft), r = TabFunction.of(tabRight)
-        if l != .none { raw["L"] = TabTitles.localized(l.ruTitle, lang: lang) }
-        if r != .none { raw["R"] = TabTitles.localized(r.ruTitle, lang: lang) }
-        return TabTitles.equalWidth(raw)
+        if l != .none { raw["L"] = TabTitles.localized(l.barTitle, lang: lang) }
+        if r != .none { raw["R"] = TabTitles.localized(r.barTitle, lang: lang) }
+        return TabTitles.equalWidth(raw, separateSearch: !searchInBar)
     }
 
     /// Один пункт нижнего меню: «L» и «R» — выбранные разделы (пусто — нет пункта), «B» — Библия, «M» — Ещё, «S» — поиск

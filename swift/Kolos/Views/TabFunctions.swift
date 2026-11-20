@@ -60,6 +60,16 @@ enum TabFunction: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Короткое название для нижнего меню (там на пункт — около 70 пт): длинные заменены короче, чтобы подписи не
+    /// наезжали на соседние пункты. Оно же ключ перевода
+    var barTitle: String {
+        switch self {
+        case .appearance: "Вид"
+        case .library: "Модули"
+        default: ruTitle
+        }
+    }
+
     var symbol: String {
         switch self {
         case .plans: "calendar"
@@ -125,11 +135,17 @@ enum TabTitles {
         return b.localizedString(forKey: ru, value: ru, table: nil)
     }
 
-    static func equalWidth(_ titles: [String: String]) -> [String: String] {
+    /// separate — поиск отдельной круглой кнопкой (меню уже на её ширину)
+    static func equalWidth(_ titles: [String: String], separateSearch: Bool) -> [String: String] {
         let font = UIFont.systemFont(ofSize: 10, weight: .medium)
         func width(_ s: String) -> CGFloat { (s as NSString).size(withAttributes: [.font: font]).width }
         let gap = max(1, width("\u{00A0}"))
         let widest = titles.values.map(width).max() ?? 0
+        // место на один пункт: ширина меню (поля по 20 пт; круглая кнопка поиска — 56 + 8) на число пунктов
+        let bar = UIScreen.main.bounds.width - 40 - (separateSearch ? 64 : 0)
+        let item = bar / CGFloat(max(1, titles.count))
+        // самая длинная подпись не помещается с зазором — вместо подписей остаются одни значки: так они ни на что не заезжают
+        if widest > item - 10 { return titles.mapValues { _ in "" } }
         var out: [String: String] = [:]
         for (k, t) in titles {
             let pad = Int(((widest - width(t)) / gap / 2).rounded())
@@ -281,7 +297,7 @@ struct TabBarSettings: View {
         case "S": item("Поиск", "magnifyingglass")
         default:
             let f = TabFunction.of(t == "L" ? dLeft : dRight)
-            if f == .none { item("Пусто", "plus.circle.dashed", empty: true) } else { item(f.title, f.symbol) }
+            if f == .none { item("Пусто", "plus.circle.dashed", empty: true) } else { item(LocalizedStringKey(f.barTitle), f.symbol) }
         }
     }
 
