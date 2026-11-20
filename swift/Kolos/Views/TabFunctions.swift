@@ -367,7 +367,9 @@ struct TabBarSettings: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
                 // центр пункта — прямо по положению пальца в ряду; на каком он месте — по нему
-                let center = drag.location.x - grab
+                // не дальше краёв копии: с запасом на увеличение пункта при перетаскивании (×1,1)
+                let total = itemW * CGFloat(now.count)
+                let center = min(max(drag.location.x - grab, itemW * 0.55), total - itemW * 0.55)
                 dragCenter = center
                 let target = min(max(0, Int(floor(center / itemW))), max(0, now.count - 1))
                 if let cur = now.firstIndex(of: t), cur != target { move(t, to: target) }
