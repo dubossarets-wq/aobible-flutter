@@ -16,6 +16,10 @@ struct MapsView: View {
                     Text("Карты").tag(1)
                 }
                 .pickerStyle(.segmented)
+                // переключатель лежит прямо на сером фоне, без белого блока вокруг
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             if kind == 0 {
                 if store.placeModules.isEmpty {
