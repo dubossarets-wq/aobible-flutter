@@ -8,13 +8,19 @@ struct ModuleBook: Hashable, Identifiable {
     let rawName: String
     let rawShort: String
     let chapters: Int
+    /// Родное название книги (на языке перевода) — из самого модуля; пусто — у модуля его нет
+    let native: String
 
-    init(id: String, name: String, short: String, chapters: Int) {
+    init(id: String, name: String, short: String, chapters: Int, native: String = "") {
         self.id = id
         rawName = name
         rawShort = short
         self.chapters = chapters
+        self.native = native
     }
+
+    /// Название над текстом: родное из модуля, иначе то, что записано в модуле как name (русское)
+    var textName: String { native.isEmpty ? rawName : native }
 
     /// Названия на языке интерфейса (см. BookLocale)
     var name: String { BookLocale.name(id, rawName) }
@@ -42,6 +48,9 @@ struct InstalledModule: Identifiable, Hashable {
     var interlinear: Bool = false
     /// Версия из каталога, с которой модуль поставили (нет у импортированных из файла)
     var catalogVersion: String? = nil
+    /// «Глава %d» и «Псалом %d» на языке перевода — из модуля; пусто — русские
+    var chapterWord: String = ""
+    var psalmWord: String = ""
 }
 
 struct CatalogEntry: Identifiable {
@@ -169,7 +178,8 @@ final class ModuleStore: ObservableObject {
                     id: b["id"] as? String ?? "",
                     name: b["name"] as? String ?? "",
                     short: b["short"] as? String ?? "",
-                    chapters: b["chapters"] as? Int ?? 0
+                    chapters: b["chapters"] as? Int ?? 0,
+                    native: b["nname"] as? String ?? ""
                 )
             }
             let name = j["name"] as? String ?? id
@@ -188,7 +198,9 @@ final class ModuleStore: ObservableObject {
                 license: j["license"] as? String ?? "",
                 source: j["source"] as? String ?? "",
                 interlinear: ((j["features"] as? [String: Any])?["interlinear"] as? Bool) == true,
-                catalogVersion: j["catalogVersion"].map { "\($0)" }
+                catalogVersion: j["catalogVersion"].map { "\($0)" },
+                chapterWord: j["chapterWord"] as? String ?? "",
+                psalmWord: j["psalmWord"] as? String ?? ""
             ))
         }
         allInstalled = list.sorted {
@@ -513,6 +525,7 @@ enum ModuleConverter {
                         "name": b["name"] ?? "",
                         "short": b["short"] ?? "",
                         "chapters": (b["chapters"] as? [Any])?.count ?? 0,
+                        "nname": b["nname"] ?? "",
                     ]
                 }
                 try buildBible(db, books)

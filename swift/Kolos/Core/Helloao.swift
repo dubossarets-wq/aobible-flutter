@@ -141,8 +141,12 @@ enum Helloao {
             while let l = chapters.last, l.isEmpty { chapters.removeLast() }
             if chapters.isEmpty { continue }
             let info = Books.info(id)
-            books.append(["id": id, "name": info?.name ?? id, "short": info?.short ?? id, "chapters": chapters, "headings": headings])
+            // родное название — из самой книги источника (commonName, иначе name)
+            let native = ((b["commonName"] as? String) ?? (b["name"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            books.append(["id": id, "name": info?.rawName ?? id, "short": info?.rawShort ?? id, "nname": native, "chapters": chapters, "headings": headings])
         }
+        let lang = entry["language"] as? String ?? "en"
+        let words = BookLocale.chapterFormats(lang)
         return [
             "format": "aob-module",
             "type": "bible",
@@ -154,6 +158,8 @@ enum Helloao {
             "license": entry["license"] as? String ?? "",
             "source": entry["source"] as? String ?? "",
             "versification": "synodal",
+            "chapterWord": words?.0 ?? "",
+            "psalmWord": words?.1 ?? "",
             "books": books,
         ]
     }

@@ -237,17 +237,28 @@ enum BookLocale {
         "sv": ("Kapitel %d", "Psalm %d"), "tl": ("Kabanata %d", "Awit %d"), "tr": ("Bölüm %d", "Mezmur %d"),
     ]
 
-    static func chapterTitle(book: String, chapter: Int, lang other: String? = nil) -> String {
-        let psalm = book == "Ps"
-        let l = other.map { String($0.lowercased().prefix { $0 != "-" && $0 != "_" }) } ?? lang
-        if l == "ru" || l == "cu" || l.isEmpty { return psalm ? "Псалом \(chapter)" : "Глава \(chapter)" }
+    /// «Глава %d» и «Псалом %d» для языка — при установке перевода, у которого в источнике этих слов нет (helloao):
+    /// из перевода самого приложения, иначе из таблицы; нет — английские; русский — nil (по умолчанию русские)
+    static func chapterFormats(_ language: String) -> (String, String)? {
+        let l = String(language.lowercased().prefix { $0 != "-" && $0 != "_" })
+        if l == "ru" || l == "cu" || l.isEmpty { return nil }
         let folder = l == "zh" ? "zh-Hans" : l
         if let p = Bundle.main.path(forResource: folder, ofType: "lproj"), let b = Bundle(path: p) {
-            let key = psalm ? "Псалом %lld" : "Глава %lld"
-            let f = b.localizedString(forKey: key, value: nil, table: nil)
-            if f != key { return String(format: f, chapter) }
+            let c = b.localizedString(forKey: "Глава %lld", value: nil, table: nil)
+            let ps = b.localizedString(forKey: "Псалом %lld", value: nil, table: nil)
+            if c != "Глава %lld", ps != "Псалом %lld" {
+                return (c.replacingOccurrences(of: "%1$lld", with: "%d").replacingOccurrences(of: "%lld", with: "%d"),
+                        ps.replacingOccurrences(of: "%1$lld", with: "%d").replacingOccurrences(of: "%lld", with: "%d"))
+            }
         }
-        if let w = chapterWords[l] { return String(format: psalm ? w.1 : w.0, chapter) }
-        return psalm ? "Psalm \(chapter)" : "Chapter \(chapter)"
+        return chapterWords[l] ?? ("Chapter %d", "Psalm %d")
+    }
+
+    /// «Глава N» («Псалом N») над текстом: слово — из самого модуля, нет его — русское
+    static func chapterTitle(book: String, chapter: Int, module m: InstalledModule) -> String {
+        let psalm = book == "Ps"
+        let fmt = psalm ? m.psalmWord : m.chapterWord
+        if !fmt.isEmpty { return String(format: fmt, chapter) }
+        return psalm ? "Псалом \(chapter)" : "Глава \(chapter)"
     }
 }

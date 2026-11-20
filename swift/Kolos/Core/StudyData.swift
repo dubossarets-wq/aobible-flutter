@@ -69,6 +69,15 @@ struct CommentaryItem: Identifiable {
 }
 
 extension ModuleStore {
+    /// Родное название книги по языку: из установленного перевода этого языка (из его модуля); нет такого — nil
+    func nativeBookName(_ book: String, language: String) -> String? {
+        let l = String(language.lowercased().prefix { $0 != "-" && $0 != "_" })
+        for m in bibles where m.language.lowercased().hasPrefix(l) {
+            if let n = m.books.first(where: { $0.id == book })?.native, !n.isEmpty { return n }
+        }
+        return nil
+    }
+
     /// Словари: словарь Стронга на русском — первым, затем другие русские, затем остальные
     var dictionaries: [InstalledModule] {
         func rank(_ m: InstalledModule) -> Int {

@@ -218,7 +218,7 @@ struct CommentarySheet: View {
     /// у каждого его имя
     private func shareText(_ items: [CommentaryItem]) -> String {
         let lang = items.first?.module.language ?? "ru"
-        let name = BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
+        let name = store.nativeBookName(book, language: lang) ?? BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
         var parts = ["\(name) \(chapter):\(verse)"]
         for it in items {
             var body = it.title.isEmpty ? it.text : it.title + "\n" + it.text

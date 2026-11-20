@@ -893,10 +893,9 @@ struct ChapterText: View {
     private var chapter: Int { pane.chapter }
     private var focus: Int { pane.verse }
 
-    /// Название книги в тексте — на языке перевода (у греческого — греческое, у английского — английское)
+    /// Название книги в тексте — то, что записано в самом модуле (у греческого — греческое, у английского — английское)
     private func textBookName(_ id: String) -> String {
-        let raw = module.books.first { $0.id == id }?.rawName ?? Books.info(id)?.rawName ?? id
-        return BookLocale.name(id, raw, lang: module.language)
+        module.books.first { $0.id == id }?.textName ?? Books.info(id)?.rawName ?? id
     }
 
     private var bookName: String { textBookName(book) }
@@ -1171,7 +1170,7 @@ struct ChapterText: View {
     /// Строки главы: стихи (или сплошные блоки) и метка конца главы
     /// «Глава N» («Псалом N»); у первой главы над ним — название книги
     private var chapterTitleText: String {
-        BookLocale.chapterTitle(book: book, chapter: chapter, lang: module.language)
+        BookLocale.chapterTitle(book: book, chapter: chapter, module: module)
     }
 
     private var chapterTitle: some View { chapterTitleFor(book, chapter) }
@@ -1184,7 +1183,7 @@ struct ChapterText: View {
                     .font(ReadingFonts.font(fontFamily, size: fontSize * 0.9, weight: 600))
                     .foregroundStyle(pal.muted)
             }
-            Text(verbatim: BookLocale.chapterTitle(book: b, chapter: c, lang: module.language))
+            Text(verbatim: BookLocale.chapterTitle(book: b, chapter: c, module: module))
                 .font(ReadingFonts.font(fontFamily, size: fontSize * 2.1, weight: 800))
                 .foregroundStyle(pal.text)
         }
