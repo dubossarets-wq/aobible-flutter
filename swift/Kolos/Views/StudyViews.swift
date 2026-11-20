@@ -356,77 +356,263 @@ struct ZoomableImage: View {
     }
 }
 
-/// Поиск по словарям: номер Стронга (G26) или слово (по началу)
+/// Поиск по всем словарям: слово (по началу) или номер Стронга. Русское слово ищется и в словарях Стронга —
+/// через обратный индекс «словоформа → номера» (симфония RST+). Ниже скачанных — статьи из словарей библиотеки,
+/// которые ещё не скачаны (приходят с сайта по частям). Строка поиска — внизу, над клавиатурой, стеклом
 struct DictionaryView: View {
     @EnvironmentObject private var store: ModuleStore
     @State private var query = ""
-    @State private var hits: [DictHit] = []
+    @State private var mine: [DictArticle] = []
+    @State private var others: [DictArticle] = []
+    @State private var searched = ""
+    @State private var loadingOthers = false
+    @FocusState private var focused: Bool
+
+    private var q: String {
+        query.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "ё", with: "е")
+    }
 
     var body: some View {
         List {
-            Section {
-                HStack {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Слово или номер Стронга", text: $query)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.search)
-                    if !query.isEmpty {
-                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                            .buttonStyle(.plain)
+            if q.isEmpty {
+                Section {
+                    Text("Введите слово или номер Стронга, например «благодать», G5485 или H430. Поиск идёт по всем словарям — и по скачанным, и по остальным из библиотеки.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                if !mine.isEmpty {
+                    Section("Мои словари") {
+                        ForEach(mine) { row($0) }
+                    }
+                } else if searched == q && !loadingOthers && others.isEmpty {
+                    Section {
+                        Text("Ничего не найдено.").foregroundStyle(.secondary)
                     }
                 }
-            }
-            if store.dictionaries.isEmpty {
-                Section {
-                    Text("Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».")
-                        .foregroundStyle(.secondary)
-                }
-            } else if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                Section {
-                    Text("Введите слово или номер Стронга, например G26 или H430.")
-                        .foregroundStyle(.secondary)
-                }
-            } else if hits.isEmpty {
-                Section {
-                    Text("Ничего не найдено.").foregroundStyle(.secondary)
-                }
-            }
-            ForEach(hits) { h in
-                NavigationLink {
-                    EntryPage(hit: h)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(h.word)
-                        Text("\(h.key) · \(h.module.name)").font(.caption).foregroundStyle(.secondary)
+                if loadingOthers && others.isEmpty {
+                    Section("Другие словари") {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Ищу в словарях библиотеки…").foregroundStyle(.secondary)
+                        }
+                    }
+                } else if !others.isEmpty {
+                    Section {
+                        ForEach(others) { row($0) }
+                    } header: {
+                        Text("Другие словари")
+                    } footer: {
+                        Text("Эти словари ещё не скачаны — статьи приходят по сети. Скачать словарь можно на странице статьи.")
                     }
                 }
             }
         }
         .navigationTitle("Словарь")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: query) { _, _ in search() }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) { searchBar }
+        .task(id: q) { await run(q) }
+        .onAppear { if query.isEmpty { focused = true } }
     }
 
-    private func search() {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "ё", with: "е")
-        guard !q.isEmpty else {
-            hits = []
-            return
+    /// Строка поиска над клавиатурой (без клавиатуры — над нижним меню)
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Слово или номер Стронга", text: $query)
+                .focused($focused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Очистить")
+            }
         }
-        var out: [DictHit] = []
-        if let strong = SearchEngine.strongNumber(q) {
-            for m in store.dictionaries {
-                if let e = store.dictEntry(module: m, key: strong) {
-                    out.append(DictHit(module: m, key: strong, word: (e["lemma"] as? String) ?? (e["word"] as? String) ?? strong))
+        .padding(.horizontal, 18)
+        .frame(height: 50)
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    private func row(_ a: DictArticle) -> some View {
+        NavigationLink {
+            DictEntryPage(start: a)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(a.word).font(.body.weight(.medium))
+                Text(a.dictName).font(.caption).foregroundStyle(.secondary)
+                let sn = a.snippet(store)
+                if !sn.isEmpty {
+                    Text(sn).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
-        } else {
-            for m in store.dictionaries where m.dictionaryKind != "strongs" {
-                out.append(contentsOf: store.dictPrefix(module: m, prefix: q, limit: 30))
+        }
+    }
+
+    private func run(_ q: String) async {
+        guard !q.isEmpty else {
+            mine = []
+            others = []
+            searched = ""
+            loadingOthers = false
+            return
+        }
+        try? await Task.sleep(nanoseconds: 220_000_000)
+        if Task.isCancelled { return }
+        // сначала скачанные (сразу), потом — словари сайта
+        let local = DictSearch.localStrongKeys(store, q)
+        mine = DictSearch.installed(store, q, strongs: local)
+        searched = q
+        others = []
+        loadingOthers = true
+        let keys = local.isEmpty ? await DictSearch.strongKeys(store, q) : local
+        if Task.isCancelled { return }
+        if keys != local { mine = DictSearch.installed(store, q, strongs: keys) }
+        let more = await DictSearch.remote(store, q, strongs: keys)
+        if Task.isCancelled { return }
+        others = more
+        loadingOthers = false
+    }
+}
+
+/// Страница статьи: название словаря и переключение между словарями, где есть то же слово (или тот же номер
+/// Стронга), — и скачанными, и с сайта
+struct DictEntryPage: View {
+    @EnvironmentObject private var store: ModuleStore
+    let start: DictArticle
+    @State private var tabs: [DictArticle] = []
+    @State private var sel = ""
+    @State private var extra: [String] = []
+    @State private var refArticle: DictArticle?
+    @State private var installing = false
+
+    private var current: DictArticle { tabs.first { $0.id == sel } ?? start }
+
+    var body: some View {
+        let a = current
+        List {
+            if tabs.count > 1 {
+                Section {
+                    PillTabs(labels: tabs.map(\.dictName), index: tabs.firstIndex { $0.id == sel } ?? 0) { i in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            sel = tabs[i].id
+                            extra = []
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowBackground(Color.clear)
+                }
+            }
+            Section {
+                if let e = a.entry(store) {
+                    if let rich = e["rich"] as? [[String: Any]] {
+                        DvoretskyArticle(blocks: rich)
+                    } else {
+                        EntryView(entry: e, onLink: { extra.append($0) }, refs: a.kind != "strongs", onRef: { openRef($0) })
+                    }
+                } else {
+                    Text("Статья не найдена.").foregroundStyle(.secondary)
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(a.dictName).font(.headline).foregroundStyle(.primary)
+                    if !a.dictTitle.isEmpty && a.dictTitle != a.dictName {
+                        Text(a.dictTitle).font(.footnote)
+                    }
+                }
+                .textCase(nil)
+            } footer: {
+                if !a.installed { Text("Словарь не скачан — статья пришла по сети.") }
+            }
+            if !a.installed {
+                Section {
+                    Button { install(a) } label: {
+                        if installing {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text("Скачивается…")
+                            }
+                        } else {
+                            Label("Скачать словарь «\(a.dictName)»", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    .disabled(installing)
+                }
+            }
+            if a.kind == "strongs" {
+                Section {
+                    NavigationLink {
+                        ConcordancePage(key: a.key)
+                    } label: {
+                        Label("Все места", systemImage: "text.magnifyingglass")
+                    }
+                }
+            }
+            ForEach(extra, id: \.self) { k in
+                ForEach(store.articleDictionaries) { m in
+                    if let e = store.strongOrWordEntry(module: m, key: k) {
+                        Section {
+                            EntryView(entry: e) { extra.append($0) }
+                        } header: {
+                            Text("\(k) · \(m.name)")
+                        }
+                    }
+                }
             }
         }
-        hits = out
+        .navigationTitle(a.word)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $refArticle) { DictEntryPage(start: $0) }
+        .task { await load() }
+        .onChange(of: store.installed.count) { _, _ in Task { await load() } }
+    }
+
+    private func load() async {
+        // скачанные словари — сразу, словари сайта — следом
+        var list = DictSearch.siblingsInstalled(store, start)
+        if !list.contains(where: { $0.dictId == start.dictId }) { list.append(start) }
+        let keep = current.dictId
+        tabs = list
+        if sel.isEmpty { sel = list.first { $0.dictId == start.dictId }?.id ?? start.id }
+        let more = await DictSearch.siblingsRemote(store, start)
+        var seen = Set(list.map(\.dictId))
+        tabs = list + more.filter { seen.insert($0.dictId).inserted }
+        // словарь только что скачали — выбранной остаётся статья того же словаря
+        if !tabs.contains(where: { $0.id == sel }), let t = tabs.first(where: { $0.dictId == keep }) { sel = t.id }
+    }
+
+    /// «См. Законник»: статья этого слова в том же словаре
+    private func openRef(_ word: String) {
+        let a = current
+        let keys = [Lexicon.dictKey(word), word.lowercased()]
+        if let m = a.module {
+            if let f = store.dictGetMany(module: m, keys: keys).first {
+                refArticle = store.article(m, key: f.0, word: (f.1["word"] as? String) ?? f.0)
+            }
+            return
+        }
+        Task {
+            let r = RemoteDicts.shared
+            guard let d = await r.list().first(where: { $0.id == a.dictId }) else { return }
+            for k in keys {
+                if let e = await r.get(d, key: k) {
+                    refArticle = r.article(d, key: k, entry: e)
+                    return
+                }
+            }
+        }
+    }
+
+    private func install(_ a: DictArticle) {
+        installing = true
+        Task {
+            if store.catalog.isEmpty { await store.loadCatalog() }
+            if let e = store.catalog.first(where: { $0.id == a.dictId }) { await store.install(e) }
+            installing = false
+        }
     }
 }
 
