@@ -2495,6 +2495,18 @@ struct GotoSheet: View {
                 }
                 .padding(16)
             }
+            // «Книга или ссылка» — внизу в стекле, над клавиатурой (как поиск в «Словаре»)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                BottomSearchField(text: $link, prompt: "Книга или ссылка: Ин 3:16", submitLabel: .go, onSubmit: submitLink) {
+                    Button(action: submitLink) {
+                        Image(systemName: "arrow.right.circle.fill").font(.title2)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .onChange(of: link) { _, _ in linkError = false }
+            }
             .navigationTitle("Перейти")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
