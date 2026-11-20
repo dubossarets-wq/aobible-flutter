@@ -55,7 +55,7 @@ struct MapsView: View {
         }
         .navigationTitle("Карты")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, prompt: "Название места")
+        .bottomSearch($query, prompt: "Название места")
         .onChange(of: query) { _, q in found = store.searchPlaces(q) }
     }
 }

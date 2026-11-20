@@ -146,7 +146,7 @@ struct ModulesList: View {
                 Text(store.catalogSource.isEmpty ? "Встроенный каталог" : store.catalogSource)
             }
         }
-        .searchable(text: $query, prompt: "Поиск: Лопухин, Стронг, KJV…")
+        .bottomSearch($query, prompt: "Поиск: Лопухин, Стронг, KJV…")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down.on.square") }

@@ -100,6 +100,7 @@ struct BookmarksView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .bottomSearch($noteQuery, prompt: "Поиск по заметкам", isOn: tab == .notes && sortedNotes.count > 3)
             }
             .navigationTitle("Закладки и заметки")
             .navigationBarTitleDisplayMode(.inline)
@@ -268,15 +269,6 @@ struct BookmarksView: View {
         if all.isEmpty {
             empty("note.text", "Заметок пока нет", "Зажмите стих и нажмите «Заметка».")
         } else {
-            if all.count > 3 {
-                Section {
-                    HStack {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Поиск по заметкам", text: $noteQuery)
-                            .autocorrectionDisabled()
-                    }
-                }
-            }
             let q = fold(noteQuery.trimmingCharacters(in: .whitespaces))
             let list = q.isEmpty ? all : all.filter { n in
                 guard let (b, c, v) = parts(n.key) else { return false }

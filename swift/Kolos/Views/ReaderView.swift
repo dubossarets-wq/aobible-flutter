@@ -2446,21 +2446,6 @@ struct GotoSheet: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        TextField("Книга или ссылка: Ин 3:16", text: $link)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .submitLabel(.go)
-                            .onSubmit(submitLink)
-                            .onChange(of: link) { _, _ in linkError = false }
-                        Button(action: submitLink) {
-                            Image(systemName: "arrow.right.circle.fill").font(.title2)
-                        }
-                        .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(.fill.tertiary, in: Capsule())
                     if linkError {
                         Text("Не нашёл такое место в этом переводе.").font(.footnote).foregroundStyle(.red)
                     }

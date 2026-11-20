@@ -251,7 +251,7 @@ struct HelpView: View {
         }
         .navigationTitle("Инструкция")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, prompt: "Найти урок")
+        .bottomSearch($query, prompt: "Найти урок")
     }
 }
 

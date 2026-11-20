@@ -44,7 +44,7 @@ struct SermonsView: View {
         }
         .navigationTitle("Проповеди")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, prompt: "Название или серия")
+        .bottomSearch($query, prompt: "Название или серия")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
