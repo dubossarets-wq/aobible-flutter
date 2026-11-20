@@ -313,7 +313,9 @@ struct BookmarksView: View {
                         }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                // лента до краёв карточки, отступ — у содержимого (иначе плашки обрезались в 12 пт от края)
+                .contentMargins(.horizontal, 16, for: .scrollContent)
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
             }
             let keys = marks.data.highlights.filter { colorFilter == "all" || $0.value == colorFilter }.map { $0.key }.sorted(by: bibleOrder)
             Section {

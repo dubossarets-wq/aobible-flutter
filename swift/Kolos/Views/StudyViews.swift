@@ -502,7 +502,9 @@ struct DictEntryPage: View {
                             extra = []
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    // лента до краёв экрана, отступ — у содержимого (иначе плашки обрезаются в 16 пт от края)
+                    .contentMargins(.horizontal, 20, for: .scrollContent)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                     .listRowBackground(Color.clear)
                 }
             }

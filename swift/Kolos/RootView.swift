@@ -287,6 +287,8 @@ struct RootView: View {
         .fullScreenCover(isPresented: $showSearch) {
             SearchPage(query: $query, onClose: { showSearch = false }, onOpen: open)
                 .preferredColorScheme(scheme)
+                // фон окна прозрачный: когда страницу смахивают вправо, под ней видна прежняя страница
+                .presentationBackground(.clear)
         }
         .environment(\.openVerse, OpenVerse(run: open))
         .environment(\.readerPalette, AppThemes.palette(theme))

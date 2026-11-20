@@ -81,6 +81,10 @@ struct SearchPage: View {
     @State private var shown = 50
     @State private var history: [String] = UserDefaults.standard.stringArray(forKey: "searchHistory") ?? []
     @StateObject private var model = SearchModel()
+    /// Смахивание вправо от левого края: страница едет за пальцем и закрывается (страница открыта поверх
+    /// всего экрана, системного «назад» свайпом у неё нет)
+    @State private var dragX: CGFloat = 0
+    @State private var pageW: CGFloat = 400
 
     private let originalIds: Set<String> = ["oshb", "byz-rp2018"]
 
@@ -229,6 +233,8 @@ struct SearchPage: View {
                 }
             }
             .scrollDismissesKeyboard(.immediately)
+            // только на первой странице: на открытых из поиска страницах работает системный свайп «назад»
+            .overlay(alignment: .leading) { edgeSwipe }
             .navigationTitle("Поиск")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $query, isPresented: $searching, prompt: "Слово, Ин 3:16 или G26")
@@ -259,6 +265,10 @@ struct SearchPage: View {
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
             }
         }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .offset(x: dragX)
+        .shadow(color: .black.opacity(dragX > 0 ? 0.2 : 0), radius: 14)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageW = $0 }
         .task {
             try? await Task.sleep(nanoseconds: 120_000_000)
             searching = true
@@ -276,6 +286,29 @@ struct SearchPage: View {
         .onDisappear { remember(query) }
     }
 
+    /// Полоска у левого края: потянули вправо больше трети экрана (или быстро) — страница уезжает и закрывается
+    private var edgeSwipe: some View {
+        Color.clear
+            .frame(width: 20)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 6, coordinateSpace: .global)
+                    .onChanged { g in dragX = max(0, g.translation.width) }
+                    .onEnded { g in
+                        if g.translation.width > pageW * 0.3 || g.predictedEndTranslation.width > pageW * 0.6 {
+                            withAnimation(.easeOut(duration: 0.2)) { dragX = pageW }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                var t = Transaction()
+                                t.disablesAnimations = true
+                                withTransaction(t) { onClose() }
+                            }
+                        } else {
+                            withAnimation(.spring(duration: 0.3)) { dragX = 0 }
+                        }
+                    }
+            )
+    }
+
     // MARK: - Недавние запросы
 
     private var historySection: some View {
@@ -288,7 +321,9 @@ struct SearchPage: View {
                     }
                 }
             }
-            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            // лента до самых краёв карточки (отступ — у содержимого): иначе плашки обрезались на полпути, в 12 пт от края
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
             Button("Очистить историю", role: .destructive) {
                 history = []
                 UserDefaults.standard.removeObject(forKey: "searchHistory")
