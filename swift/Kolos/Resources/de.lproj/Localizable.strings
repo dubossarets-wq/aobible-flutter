@@ -1920,3 +1920,7 @@
 "В режиме «Страницы» открывается не больше двух окон." = "Im Modus „Seiten“ lassen sich höchstens zwei Fenster öffnen.";
 "Показывать" = "Anzeigen";
 "Не установленные" = "Nicht installiert";
+"Зажмите пункт и перетащите, чтобы поменять порядок." = "Eintrag gedrückt halten und ziehen, um die Reihenfolge zu ändern.";
+"Переносить стихи" = "Verse umbrechen";
+"Построчно" = "Zeilenweise";
+"«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились." = "„Versweise“: Ein Vers, der nicht auf die Seite passt, wandert ganz auf die nächste. „Zeilenweise“: Nur die Zeilen, die nicht passen, wandern weiter.";

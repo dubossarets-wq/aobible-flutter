@@ -46,9 +46,9 @@ struct SettingsView: View {
                     if new == "pages" { panes.trimToLimit() }
                 }
                 if readingStyle == "pages" {
-                    Picker("Стих не помещается на странице", selection: $pageVerseBreak) {
-                        Text("По строкам").tag("line")
-                        Text("Целиком на следующую").tag("verse")
+                    Picker("Переносить стихи", selection: $pageVerseBreak) {
+                        Text("Построчно").tag("line")
+                        Text("По стихам").tag("verse")
                     }
                 }
                 Toggle("Панели друг над другом", isOn: $panesStacked)
@@ -60,7 +60,7 @@ struct SettingsView: View {
             } footer: {
                 if readingStyle == "pages" {
                     Text("В режиме «Страницы» открывается не больше двух окон.")
-                    Text("«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились.")
+                    Text("«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились.")
                 }
             }
             Section {

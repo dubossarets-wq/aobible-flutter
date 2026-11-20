@@ -11,6 +11,19 @@ enum TabFunction: String, CaseIterable, Identifiable {
     static let rightKey = "tabRight"
     /// Поиск — пунктом меню (true) или отдельной круглой кнопкой справа (false)
     static let searchKey = "searchInTabBar"
+    /// Порядок пунктов меню: «L» (слева), «B» (Библия), «R» (справа), «M» (Ещё), «S» (поиск), через запятую
+    static let orderKey = "tabOrder"
+    static let defaultOrder = "L,B,R,M,S"
+
+    /// Порядок из строки: лишнее и повторы отбрасываются, недостающие пункты — в конец
+    static func parseOrder(_ raw: String) -> [String] {
+        let all = defaultOrder.split(separator: ",").map(String.init)
+        var seen = Set<String>()
+        var out: [String] = []
+        for t in raw.split(separator: ",").map(String.init) where all.contains(t) && seen.insert(t).inserted { out.append(t) }
+        for t in all where !seen.contains(t) { out.append(t) }
+        return out
+    }
 
     static func of(_ raw: String) -> TabFunction { TabFunction(rawValue: raw) ?? .none }
 
@@ -83,22 +96,37 @@ private struct TabLibrary: View {
     }
 }
 
-/// Настройка нижнего меню: вверху — его копия. Нажатие на пункт — варианты замены; на поиск — отдельной кнопкой или
-/// в меню. Меняется только копия; настоящее меню — по «Применить»
+/// Настройка нижнего меню: вверху — его копия. Нажатие на пункт — варианты замены (на поиск — отдельной кнопкой или в
+/// меню); зажать пункт и перетащить — поменять порядок. Меняется только копия; настоящее меню — по «Применить»
 struct TabBarSettings: View {
     @AppStorage(TabFunction.leftKey) private var left = TabFunction.plans.rawValue
     @AppStorage(TabFunction.rightKey) private var right = TabFunction.saved.rawValue
     @AppStorage(TabFunction.searchKey) private var searchInBar = false
+    @AppStorage(TabFunction.orderKey) private var order = TabFunction.defaultOrder
 
-    /// Черновик: что видно в копии меню
+    /// Черновик: что видно в копии меню. Порядок — пункты «L» (слева), «B» (Библия), «R» (справа), «M» (Ещё), «S» (поиск)
     @State private var dLeft = TabFunction.plans.rawValue
     @State private var dRight = TabFunction.saved.rawValue
     @State private var dSearch = false
+    @State private var dOrder = TabFunction.parseOrder(TabFunction.defaultOrder)
     @State private var loaded = false
+    /// У какого пункта открыт список вариантов («L», «R», «S»)
+    @State private var openPop: String?
+    /// Перетаскивание: пункт, смещение пальца, где пункт стоял в начале, когда закончили (тап после него не считается)
+    @State private var dragID: String?
+    @State private var dragDX: CGFloat = 0
+    @State private var dragStart = 0
+    @State private var lastDrag = Date.distantPast
 
-    private var changed: Bool { dLeft != left || dRight != right || dSearch != searchInBar }
+    private var visible: [String] { dOrder.filter { dSearch || $0 != "S" } }
+
+    private var changed: Bool {
+        dLeft != left || dRight != right || dSearch != searchInBar || dOrder != TabFunction.parseOrder(order)
+    }
+
     private var isDefault: Bool {
         dLeft == TabFunction.plans.rawValue && dRight == TabFunction.saved.rawValue && !dSearch
+            && dOrder == TabFunction.parseOrder(TabFunction.defaultOrder)
     }
 
     var body: some View {
@@ -111,6 +139,7 @@ struct TabBarSettings: View {
                             dLeft = TabFunction.plans.rawValue
                             dRight = TabFunction.saved.rawValue
                             dSearch = false
+                            dOrder = TabFunction.parseOrder(TabFunction.defaultOrder)
                         }
                     } label: {
                         Text("По умолчанию").frame(maxWidth: .infinity)
@@ -121,6 +150,7 @@ struct TabBarSettings: View {
                         left = dLeft
                         right = dRight
                         searchInBar = dSearch
+                        order = dOrder.joined(separator: ",")
                     } label: {
                         Text("Применить").fontWeight(.semibold).frame(maxWidth: .infinity)
                     }
@@ -136,7 +166,10 @@ struct TabBarSettings: View {
         } header: {
             Text("Нижнее меню")
         } footer: {
-            Text("Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить».")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить».")
+                Text("Зажмите пункт и перетащите, чтобы поменять порядок.")
+            }
         }
         .onAppear {
             guard !loaded else { return }
@@ -144,6 +177,7 @@ struct TabBarSettings: View {
             dLeft = left
             dRight = right
             dSearch = searchInBar
+            dOrder = TabFunction.parseOrder(order)
         }
     }
 
@@ -151,29 +185,56 @@ struct TabBarSettings: View {
 
     private var preview: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 0) {
-                slot($dLeft, other: $dRight)
-                item("Библия", "book", active: true)
-                slot($dRight, other: $dLeft)
-                item("Ещё", "line.3.horizontal")
-                if dSearch { searchMenu { item("Поиск", "magnifyingglass") } }
+            GeometryReader { geo in
+                let vis = visible
+                let w = max(1, (geo.size.width - 8) / CGFloat(max(1, vis.count)))
+                HStack(spacing: 0) {
+                    ForEach(vis, id: \.self) { t in cell(t, itemW: w, vis: vis) }
+                }
+                .padding(4)
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 4)
+            .frame(height: 56)
             .glassEffect(.regular, in: Capsule())
             if !dSearch {
-                searchMenu {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .frame(width: 56, height: 56)
-                        .glassEffect(.regular.interactive(), in: Circle())
-                }
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(width: 56, height: 56)
+                    .glassEffect(.regular.interactive(), in: Circle())
+                    .contentShape(Circle())
+                    .onTapGesture { openPop = "S" }
+                    .popover(isPresented: popBinding("S")) { searchOptions.presentationCompactAdaptation(.popover) }
             }
         }
         .animation(.snappy(duration: 0.3), value: dSearch)
-        .animation(.snappy(duration: 0.3), value: dLeft)
-        .animation(.snappy(duration: 0.3), value: dRight)
+        .animation(.snappy(duration: 0.25), value: dOrder)
+    }
+
+    /// Пункт копии: нажатие — варианты, зажать и вести — переставить
+    @ViewBuilder private func cell(_ t: String, itemW: CGFloat, vis: [String]) -> some View {
+        let isDrag = dragID == t
+        let cur = vis.firstIndex(of: t) ?? 0
+        content(t)
+            .frame(width: itemW)
+            .offset(x: isDrag ? dragDX - CGFloat(cur - dragStart) * itemW : 0)
+            .scaleEffect(isDrag ? 1.1 : 1)
+            .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 8, y: 3)
+            .zIndex(isDrag ? 1 : 0)
+            .animation(.snappy(duration: 0.2), value: isDrag)
+            .onTapGesture { tapped(t) }
+            .popover(isPresented: popBinding(t)) { options(t).presentationCompactAdaptation(.popover) }
+            .simultaneousGesture(dragGesture(t, itemW: itemW, vis: vis))
+    }
+
+    @ViewBuilder private func content(_ t: String) -> some View {
+        switch t {
+        case "B": item("Библия", "book", active: true)
+        case "M": item("Ещё", "line.3.horizontal")
+        case "S": item("Поиск", "magnifyingglass")
+        default:
+            let f = TabFunction.of(t == "L" ? dLeft : dRight)
+            if f == .none { item("Пусто", "plus.circle.dashed", empty: true) } else { item(f.title, f.symbol) }
+        }
     }
 
     /// Пункт меню (как в настоящем: значок и подпись)
@@ -196,47 +257,118 @@ struct TabBarSettings: View {
         .contentShape(Rectangle())
     }
 
-    /// Место, которое можно заменить: нажали — список разделов (выбранный отмечен)
-    private func slot(_ value: Binding<String>, other: Binding<String>) -> some View {
-        let f = TabFunction.of(value.wrappedValue)
-        return Menu {
-            Picker(selection: Binding(get: { value.wrappedValue }, set: { new in
-                // то же, что на другом месте, — меняются местами
-                if new != TabFunction.none.rawValue && new == other.wrappedValue { other.wrappedValue = value.wrappedValue }
-                value.wrappedValue = new
-            })) {
-                ForEach(TabFunction.allCases) { x in
-                    Label(x.title, systemImage: x.symbol).tag(x.rawValue)
-                }
-            } label: {
-                EmptyView()
-            }
-            .pickerStyle(.inline)
-        } label: {
-            if f == .none {
-                item("Пусто", "plus.circle.dashed", empty: true)
-            } else {
-                item(f.title, f.symbol)
-            }
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
+    // MARK: - Нажатие и перетаскивание
+
+    private func tapped(_ t: String) {
+        // после перетаскивания палец отпускается — это не нажатие
+        guard dragID == nil, Date().timeIntervalSince(lastDrag) > 0.35 else { return }
+        if t == "L" || t == "R" || t == "S" { openPop = t }
     }
 
-    /// Поиск: отдельной круглой кнопкой справа или пунктом меню
-    private func searchMenu<L: View>(@ViewBuilder _ label: () -> L) -> some View {
-        Menu {
-            Picker(selection: $dSearch) {
-                Label("Отдельной кнопкой", systemImage: "circle").tag(false)
-                Label("В меню", systemImage: "capsule").tag(true)
-            } label: {
-                EmptyView()
+    private func popBinding(_ t: String) -> Binding<Bool> {
+        Binding(get: { openPop == t }, set: { if !$0, openPop == t { openPop = nil } })
+    }
+
+    private func dragGesture(_ t: String, itemW: CGFloat, vis: [String]) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.3)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if dragID != t {
+                    dragID = t
+                    dragStart = vis.firstIndex(of: t) ?? 0
+                    openPop = nil
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+                let dx = drag?.translation.width ?? 0
+                dragDX = dx
+                // где сейчас центр пункта — на какое место он попал
+                let pos = (CGFloat(dragStart) + 0.5) * itemW + dx
+                let n = visible.count
+                let target = min(max(0, Int(pos / itemW)), max(0, n - 1))
+                if target != (visible.firstIndex(of: t) ?? target) { move(t, to: target) }
             }
-            .pickerStyle(.inline)
-        } label: {
-            label()
+            .onEnded { _ in
+                withAnimation(.snappy(duration: 0.2)) {
+                    dragID = nil
+                    dragDX = 0
+                }
+                lastDrag = Date()
+            }
+    }
+
+    /// Пункт t — на место target среди видимых (поиск вне меню в порядке всегда остаётся последним)
+    private func move(_ t: String, to target: Int) {
+        var v = visible
+        v.removeAll { $0 == t }
+        v.insert(t, at: min(max(0, target), v.count))
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.snappy(duration: 0.25)) { dOrder = dSearch ? v : v + ["S"] }
+    }
+
+    // MARK: - Варианты
+
+    @ViewBuilder private func options(_ t: String) -> some View {
+        if t == "S" {
+            searchOptions
+        } else {
+            let mine = t == "L" ? dLeft : dRight
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(TabFunction.allCases) { x in
+                        Button {
+                            choose(x, in: t)
+                            openPop = nil
+                        } label: {
+                            HStack {
+                                Label(x.title, systemImage: x.symbol)
+                                Spacer(minLength: 12)
+                                if x.rawValue == mine { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if x != TabFunction.allCases.last { Divider().padding(.leading, 16) }
+                    }
+                }
+            }
+            .frame(width: 250)
+            .frame(maxHeight: 380)
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
+    }
+
+    private var searchOptions: some View {
+        VStack(spacing: 0) {
+            ForEach([false, true], id: \.self) { inBar in
+                Button {
+                    withAnimation(.snappy) { dSearch = inBar }
+                    openPop = nil
+                } label: {
+                    HStack {
+                        Label(inBar ? "В меню" : "Отдельной кнопкой", systemImage: inBar ? "capsule" : "circle")
+                        Spacer(minLength: 12)
+                        if dSearch == inBar { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if !inBar { Divider().padding(.leading, 16) }
+            }
+        }
+        .frame(width: 250)
+    }
+
+    /// Выбрали раздел для «L» или «R»: тот же, что на другом месте, — меняются местами
+    private func choose(_ x: TabFunction, in t: String) {
+        let other = t == "L" ? dRight : dLeft
+        let mine = t == "L" ? dLeft : dRight
+        if x != .none && x.rawValue == other {
+            if t == "L" { dRight = mine } else { dLeft = mine }
+        }
+        if t == "L" { dLeft = x.rawValue } else { dRight = x.rawValue }
     }
 }

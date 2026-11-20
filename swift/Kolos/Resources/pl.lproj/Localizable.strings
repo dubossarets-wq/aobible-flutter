@@ -1920,3 +1920,7 @@
 "В режиме «Страницы» открывается не больше двух окон." = "W trybie „Strony” można otworzyć najwyżej dwa okna.";
 "Показывать" = "Pokaż";
 "Не установленные" = "Niezainstalowane";
+"Зажмите пункт и перетащите, чтобы поменять порядок." = "Przytrzymaj pozycję i przeciągnij, aby zmienić kolejność.";
+"Переносить стихи" = "Dzielenie wersetów";
+"Построчно" = "Wierszami";
+"«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились." = "„Wersetami”: werset, który nie mieści się na stronie, przechodzi w całości na następną. „Wierszami”: przechodzą tylko wiersze, które się nie mieszczą.";

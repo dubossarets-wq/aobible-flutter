@@ -145,6 +145,7 @@ struct RootView: View {
     @AppStorage(TabFunction.leftKey) private var tabLeft = TabFunction.plans.rawValue
     @AppStorage(TabFunction.rightKey) private var tabRight = TabFunction.saved.rawValue
     @AppStorage(TabFunction.searchKey) private var searchInBar = false
+    @AppStorage(TabFunction.orderKey) private var tabOrder = TabFunction.defaultOrder
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -178,6 +179,33 @@ struct RootView: View {
         }
     }
 
+    /// Один пункт нижнего меню: «L» и «R» — выбранные разделы (пусто — нет пункта), «B» — Библия, «M» — Ещё, «S» — поиск
+    @TabContentBuilder<AppTab> private func tabItem(_ token: String) -> some TabContent<AppTab> {
+        if token == "L" {
+            if TabFunction.of(tabLeft) != .none {
+                Tab(TabFunction.of(tabLeft).title, systemImage: TabFunction.of(tabLeft).symbol, value: AppTab.plans) { TabFunction.of(tabLeft).screen }
+            }
+        } else if token == "R" {
+            if TabFunction.of(tabRight) != .none {
+                Tab(TabFunction.of(tabRight).title, systemImage: TabFunction.of(tabRight).symbol, value: AppTab.saved) { TabFunction.of(tabRight).screen }
+            }
+        } else if token == "B" {
+            Tab("Библия", systemImage: "book", value: AppTab.bible) {
+                // уход нижнего меню задаётся изнутри вкладки — так его понимает система
+                ReaderView()
+                    .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
+            }
+        } else if token == "M" {
+            Tab("Ещё", systemImage: "line.3.horizontal", value: AppTab.more) {
+                MoreView()
+            }
+        } else {
+            Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search) {
+                Color.clear
+            }
+        }
+    }
+
     /// Открыть место в чтении
     private func open(_ book: String, _ chapter: Int, _ verse: Int) {
         panes.open(book, chapter, verse)
@@ -190,26 +218,12 @@ struct RootView: View {
         // названия книг и «Глава N» — на языке интерфейса: ставится до того, как строятся вкладки
         let _ = BookLocale.set(lang)
         TabView(selection: $tab) {
-            if TabFunction.of(tabLeft) != .none {
-                Tab(TabFunction.of(tabLeft).title, systemImage: TabFunction.of(tabLeft).symbol, value: AppTab.plans) { TabFunction.of(tabLeft).screen }
+            // пункты — в порядке, который выбран в «Настройках» (поиск пунктом — только если он в меню)
+            ForEach(TabFunction.parseOrder(tabOrder).filter { searchInBar || $0 != "S" }, id: \.self) { token in
+                tabItem(token)
             }
-            Tab("Библия", systemImage: "book", value: AppTab.bible) {
-                // уход нижнего меню задаётся изнутри вкладки — так его понимает система
-                ReaderView()
-                    .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
-            }
-            if TabFunction.of(tabRight) != .none {
-                Tab(TabFunction.of(tabRight).title, systemImage: TabFunction.of(tabRight).symbol, value: AppTab.saved) { TabFunction.of(tabRight).screen }
-            }
-            Tab("Ещё", systemImage: "line.3.horizontal", value: AppTab.more) {
-                MoreView()
-            }
-            // поиск — отдельной круглой кнопкой или пунктом меню (настраивается); нажатие в обоих случаях открывает поиск
-            if searchInBar {
-                Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search) {
-                    Color.clear
-                }
-            } else {
+            // поиск отдельной круглой кнопкой справа; нажатие в обоих случаях открывает поиск
+            if !searchInBar {
                 Tab(value: AppTab.search, role: .search) {
                     Color.clear
                 }

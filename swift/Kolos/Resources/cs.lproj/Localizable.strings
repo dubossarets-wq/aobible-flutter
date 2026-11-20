@@ -1920,3 +1920,7 @@
 "В режиме «Страницы» открывается не больше двух окон." = "V režimu „Stránky“ lze otevřít nejvýše dvě okna.";
 "Показывать" = "Zobrazit";
 "Не установленные" = "Nenainstalované";
+"Зажмите пункт и перетащите, чтобы поменять порядок." = "Podržte položku a přetáhněte ji, abyste změnili pořadí.";
+"Переносить стихи" = "Zalamovat verše";
+"Построчно" = "Po řádcích";
+"«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились." = "„Po verších“: verš, který se nevejde na stránku, přejde celý na další. „Po řádcích“: přejdou jen řádky, které se nevejdou.";
