@@ -2,10 +2,21 @@ import Foundation
 
 struct BookInfo: Decodable, Identifiable, Hashable {
     let id: String
-    let name: String
-    let short: String
+    /// Русские названия из справочника (по ним разбираются ссылки)
+    let rawName: String
+    let rawShort: String
     let t: String
     var dc: Bool? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, t, dc
+        case rawName = "name"
+        case rawShort = "short"
+    }
+
+    /// Названия на языке интерфейса (см. BookLocale)
+    var name: String { BookLocale.name(id, rawName) }
+    var short: String { BookLocale.short(id, rawShort) }
 }
 
 /// Список книг (порядок Библии) — тот же файл, что у Flutter-версии

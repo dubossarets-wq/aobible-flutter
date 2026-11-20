@@ -358,6 +358,8 @@ struct WelcomeSheet: View {
         }
         .padding(24)
         .presentationDetents([.large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     private func row(_ symbol: String, _ text: String) -> some View {

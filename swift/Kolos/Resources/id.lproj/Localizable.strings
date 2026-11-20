@@ -1879,3 +1879,16 @@
 "Время читать Библию" = "Saatnya membaca Alkitab";
 "Лента книги: главы идут подряд" = "Pita buku: pasal bersambung berurutan";
 "Слова в заданном порядке" = "Kata dalam urutan yang diberikan";
+
+/* Заголовки разделов, нижнее меню, толкования */
+"Цвет заголовков" = "Warna judul";
+"Акцент" = "Aksen";
+"Как текст" = "Seperti teks";
+"Приглушённый" = "Redup";
+"Нижнее меню" = "Menu bawah";
+"Нет" = "Tidak ada";
+"Библиотека" = "Pustaka";
+"Отправить" = "Bagikan";
+"Слева от «Библии»" = "Kiri dari «Alkitab»";
+"Справа от «Библии»" = "Kanan dari «Alkitab»";
+"«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "«Alkitab», «Lainnya», dan pencarian selalu ada di menu. «Rencana» dan «Penanda» yang dihapus tetap ada di «Lainnya».";

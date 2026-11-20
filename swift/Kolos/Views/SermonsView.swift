@@ -318,6 +318,8 @@ private struct AddVerseSheet: View {
             }
         }
         .presentationDetents([.medium])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     private func add() {

@@ -216,6 +216,8 @@ struct InterlinearSheet: View {
             .sheet(item: $word) { WordSheet(req: $0) }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     @ViewBuilder

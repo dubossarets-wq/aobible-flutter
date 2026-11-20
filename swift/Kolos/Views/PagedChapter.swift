@@ -18,19 +18,52 @@ struct PagedChapter: UIViewControllerRepresentable {
     var onLong: (Int) -> Void
     /// Идёт выделение: одиночное касание срабатывает сразу (двойного не ждём)
     var selecting = false
-    /// Страница показана: верхний стих, номер страницы (с 1), число страниц
-    var onPage: (Int, Int, Int) -> Void
+    /// Страница показана: верхний стих, номер страницы (с 1), число страниц, листнул ли её сам человек
+    /// (тогда за ней листают и другие окна — см. PageSync)
+    var onPage: (Int, Int, Int, Bool) -> Void
     /// Дошли до края главы: +1 — следующая, −1 — предыдущая
     var onEdge: (Int) -> Void
+    /// Окно и общая синхронизация страниц окон
+    var paneID: UUID? = nil
+    var sync: PageSync? = nil
 
     func makeUIViewController(context: Context) -> PagerHost {
         let h = PagerHost()
         h.apply(self)
+        if let id = paneID { sync?.register(id, h) }
         return h
     }
 
     func updateUIViewController(_ h: PagerHost, context: Context) {
         h.apply(self)
+        if let id = paneID { sync?.register(id, h) }
+    }
+}
+
+/// Страничный режим при нескольких окнах: листнули страницу в одном — остальные открывают страницу с тем же стихом
+/// (как синхронная прокрутка, см. ScrollSync). Страницы ставятся прямо в UIKit, без перерисовки SwiftUI; окно в другой
+/// главе переходит в главу ведущего
+@MainActor
+final class PageSync {
+    private struct Ref { weak var host: PagerHost? }
+    weak var store: PanesStore?
+    private var hosts: [UUID: Ref] = [:]
+
+    func register(_ id: UUID, _ h: PagerHost) {
+        if hosts[id]?.host !== h { hosts[id] = Ref(host: h) }
+    }
+
+    /// Человек листнул страницу в окне id: у её верха стих verse главы book/chapter
+    func turned(_ id: UUID, book: String, chapter: Int, verse: Int) {
+        guard let store, store.panes.count > 1,
+              UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true else { return }
+        for f in store.panes where f.id != id {
+            if f.book == book && f.chapter == chapter, let h = hosts[f.id]?.host, h.viewIfLoaded?.window != nil {
+                h.follow(verse)
+            } else {
+                store.go(f.id, book, chapter, max(1, verse), record: false)
+            }
+        }
     }
 }
 
@@ -123,7 +156,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             if c.focus != lastFocus {
                 lastFocus = c.focus
                 let i = pageIndex(forVerse: c.focus)
-                if i != current { show(i, animated: false) }
+                if i != current { show(i, animated: false, user: false) }
             }
             return
         }
@@ -164,7 +197,16 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         } else {
             pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
         }
-        report(i)
+        // в соседнюю главу перелистнул сам человек — за ним и другие окна
+        report(i, user: dir != 0)
+    }
+
+    /// Ведущее окно листнуло страницу: встаём на страницу с тем же стихом (без перелистывания — сразу)
+    func follow(_ verse: Int) {
+        guard !pages.isEmpty else { return }
+        lastFocus = verse
+        let i = pageIndex(forVerse: verse)
+        if i != current { show(i, animated: false, user: false) }
     }
 
     /// Страница (номер в pages), на которой стих
@@ -172,9 +214,10 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         guard !pages.isEmpty else { return 0 }
         if v >= 9999 { return pages.count - 1 }
         guard v > 0, storage.length > 0 else { return 0 }
+        // стиха нет в этом переводе (другая нумерация) — ближайший следующий
         var loc: Int?
         storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { val, r, stop in
-            if (val as? Int) == v {
+            if let n = val as? Int, n >= v {
                 loc = r.location
                 stop.pointee = true
             }
@@ -186,13 +229,13 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         return idx
     }
 
-    private func show(_ i: Int, animated: Bool) {
+    private func show(_ i: Int, animated: Bool, user: Bool) {
         guard i >= 0, i < pages.count else { return }
         let dir: UIPageViewController.NavigationDirection = i >= current ? .forward : .reverse
         pvc.setViewControllers([pages[i]], direction: dir, animated: animated) { [weak self] done in
-            if done { self?.landed(i) }
+            if done && animated { self?.landed(i, user: user) }
         }
-        if !animated { landed(i) }
+        if !animated { landed(i, user: user) }
     }
 
     /// Листание нажатием у края: +1 вперёд, −1 назад
@@ -203,7 +246,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         let t = current + d
         if t < 0 { edge(-1); return }
         if t >= pages.count { edge(1); return }
-        show(t, animated: true)
+        show(t, animated: true, user: true)
     }
 
     /// За краем главы — сразу соседняя глава (без пустой страницы-перехода)
@@ -227,15 +270,15 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         true
     }
 
-    private func landed(_ i: Int) {
+    private func landed(_ i: Int, user: Bool) {
         #if DEBUG
         SyncTrace.write("T,landed,\(i)")
         #endif
         current = i
-        report(i)
+        report(i, user: user)
     }
 
-    private func report(_ i: Int) {
+    private func report(_ i: Int, user: Bool) {
         guard i >= 0, i < containers.count else { return }
         let gr = layout.glyphRange(for: containers[i])
         let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
@@ -246,7 +289,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         topVerse = verse
         let total = max(1, pages.count)
         counter.text = "\(i + 1) / \(total)"
-        cfg?.onPage(verse, i + 1, total)
+        cfg?.onPage(verse, i + 1, total, user)
     }
 
     // MARK: - Листание жестом
@@ -263,7 +306,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     func pageViewController(_ p: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
         guard completed, let vc = p.viewControllers?.first, let i = pages.firstIndex(of: vc) else { return }
-        landed(i)
+        landed(i, user: true)
     }
 }
 

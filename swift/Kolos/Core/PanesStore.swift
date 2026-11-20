@@ -55,6 +55,8 @@ final class PanesStore: ObservableObject {
     let log = ReadingHistory()
     /// Синхронная прокрутка панелей
     let scrollSync = ScrollSync()
+    /// Страничный режим: окна листают вместе
+    let pageSync = PageSync()
     private var liveTask: Task<Void, Never>?
     private let url: URL
 
@@ -75,6 +77,7 @@ final class PanesStore: ObservableObject {
             }
         }
         scrollSync.store = self
+        pageSync.store = self
     }
 
     private func save() {

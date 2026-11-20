@@ -354,6 +354,8 @@ struct ReminderEditor: View {
             }
         }
         .presentationDetents([.large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     /// Дни недели кружками: все включены — «каждый день»; последний выключить нельзя

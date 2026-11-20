@@ -78,8 +78,15 @@ struct BookmarksView: View {
 
     // MARK: - Вид
 
+    /// Открыт внутри чужой навигации («Ещё»): без своей NavigationStack
+    var embedded = false
+
     var body: some View {
-        NavigationStack {
+        if embedded { content } else { NavigationStack { content } }
+    }
+
+    private var content: some View {
+        Group {
             VStack(spacing: 0) {
                 tabs
                 List {

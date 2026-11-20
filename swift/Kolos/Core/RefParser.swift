@@ -39,8 +39,8 @@ enum RefParser {
         }
         for b in Books.all {
             add(b.id, b.id)
-            add(b.name, b.id)
-            add(b.short, b.id)
+            add(b.rawName, b.id)
+            add(b.rawShort, b.id)
             for n in BookNames.en[b.id] ?? [] { add(n, b.id) }
         }
         for (id, keys) in BookNames.extra {
@@ -57,7 +57,7 @@ enum RefParser {
         let ordered = Books.all.filter { $0.dc != true } + Books.all.filter { $0.dc == true }
         var forms: [(id: String, n: String?, starts: [String], skel: [String])] = []
         for b in ordered {
-            let lower = b.name.lowercased()
+            let lower = b.rawName.lowercased()
             let ns = lower as NSString
             var n: String? = nil
             var base = lower

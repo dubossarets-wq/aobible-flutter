@@ -156,6 +156,8 @@ struct StrongSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 
@@ -194,12 +196,40 @@ struct CommentarySheet: View {
             .navigationTitle(moduleId != nil ? (items.first?.module.name ?? "") : String(localized: "Толкования"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if !items.isEmpty {
+                    ToolbarItem(placement: .cancellationAction) {
+                        ShareLink(item: shareText(items)) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Отправить")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") { dismiss() }
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
+    }
+
+    /// Для отправки: сначала место (на языке толкования), через пустую строку — толкование. Несколько толкователей —
+    /// у каждого его имя
+    private func shareText(_ items: [CommentaryItem]) -> String {
+        let lang = items.first?.module.language ?? "ru"
+        let name = BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
+        var parts = ["\(name) \(chapter):\(verse)"]
+        for it in items {
+            var body = it.title.isEmpty ? it.text : it.title + "
+" + it.text
+            if items.count > 1 { body = it.module.name + "
+" + body }
+            parts.append(body.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return parts.joined(separator: "
+
+")
     }
 }
 
@@ -262,6 +292,8 @@ struct XrefsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 
@@ -302,6 +334,8 @@ struct IllustrationsSheet: View {
             }
         }
         .presentationDetents([.large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 

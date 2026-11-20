@@ -1890,3 +1890,16 @@
 "Перевод можно будет снова скачать в библиотеке." = "You can download this translation again from the library.";
 "Предыдущая книга" = "Previous book";
 "Следующая книга" = "Next book";
+
+/* Заголовки разделов, нижнее меню, толкования */
+"Цвет заголовков" = "Heading color";
+"Акцент" = "Accent";
+"Как текст" = "Like text";
+"Приглушённый" = "Muted";
+"Нижнее меню" = "Bottom menu";
+"Нет" = "None";
+"Библиотека" = "Library";
+"Отправить" = "Share";
+"Слева от «Библии»" = "Left of “Bible”";
+"Справа от «Библии»" = "Right of “Bible”";
+"«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "“Bible”, “More” and search are always in the menu. Removed “Plans” and “Bookmarks” stay in “More”.";

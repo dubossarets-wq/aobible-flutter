@@ -4,9 +4,21 @@ import SwiftUI
 
 struct ModuleBook: Hashable, Identifiable {
     let id: String
-    let name: String
-    let short: String
+    /// Названия из модуля (у переводов каталога — русские)
+    let rawName: String
+    let rawShort: String
     let chapters: Int
+
+    init(id: String, name: String, short: String, chapters: Int) {
+        self.id = id
+        rawName = name
+        rawShort = short
+        self.chapters = chapters
+    }
+
+    /// Названия на языке интерфейса (см. BookLocale)
+    var name: String { BookLocale.name(id, rawName) }
+    var short: String { BookLocale.short(id, rawShort) }
 }
 
 struct InstalledModule: Identifiable, Hashable {

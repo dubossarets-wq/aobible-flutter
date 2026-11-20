@@ -23,6 +23,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            TabBarSettings()
             Section {
                 Picker("Язык", selection: $interfaceLanguage) {
                     ForEach(interfaceLanguages, id: \.0) { l in

@@ -161,6 +161,8 @@ struct PaneView: View {
                     }
                 }
                 .presentationDetents([.medium, .large])
+                // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+                .presentationBackground(Color(.systemGroupedBackground))
                 .presentationDragIndicator(.visible)
             }
         } else {
@@ -821,6 +823,10 @@ struct ChapterText: View {
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
     @AppStorage("verseNumPos") private var verseNumPos = "sup"
     @AppStorage("showHeadings") private var showHeadings = true
+    /// Язык интерфейса: названия книг и «Глава N» в тексте (сменили язык — текст перестраивается)
+    @AppStorage("interfaceLanguage") private var uiLang = "ru"
+    @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
+    @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
     @AppStorage("ilGloss") private var ilGloss = true
@@ -922,6 +928,8 @@ struct ChapterText: View {
                     }
                 }
                 .environment(\.layoutDirection, Bidi.isRTLLang(module.language) ? .rightToLeft : .leftToRight)
+                // меню стиха появляется плавно, и стихи под ним плавно опускаются (и поднимаются, когда оно уходит)
+                .animation(.snappy(duration: 0.3), value: menuAnchor)
                 .background(ScrollFinder(sync: panes.scrollSync, paneID: pane.id, gestures: gestures))
                 .padding(.horizontal, textMargin)
                 .padding(.vertical, 12)
@@ -1096,7 +1104,7 @@ struct ChapterText: View {
     private func pagedView(_ d: ChapterCache) -> some View {
         PagedChapter(
             text: pagedNS(d),
-            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(textMargin)|\(verseSpacing)",
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(uiLang)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
             focus: focus,
             insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
@@ -1104,13 +1112,16 @@ struct ChapterText: View {
             onDouble: { vn in doubleTapped(d.verses.first { $0.num == vn }) },
             onLong: { vn in longPressed(vn) },
             selecting: !selected.isEmpty || partVerse != nil,
-            onPage: { verse, page, total in
+            onPage: { verse, page, total, user in
                 panes.setLive(pane.id, verse)
+                if user { panes.pageSync.turned(pane.id, book: book, chapter: chapter, verse: verse) }
                 panes.live.progress[pane.id] = (Double(chapter - 1) + Double(page - 1) / Double(max(1, total))) / Double(max(1, module.books.first { $0.id == book }?.chapters ?? 1))
             },
             onEdge: { dir in
                 DispatchQueue.main.async { panes.step(pane.id, dir, module: module, atEnd: dir < 0) }
-            }
+            },
+            paneID: pane.id,
+            sync: panes.pageSync
         )
         .background { ReaderBackdrop(pal: pal) }
     }
@@ -1140,7 +1151,8 @@ struct ChapterText: View {
         for v in d.verses {
             if showHeadings, let h = d.heads[v.num] {
                 out.append(NSAttributedString(string: h + "\n", attributes: [
-                    .font: uiFont(fontSize * 0.92, max(fontWeight, 600)), .foregroundColor: ink, .aobVerse: v.num,
+                    .font: uiFont(fontSize * headingSize, max(fontWeight, 600)),
+                    .foregroundColor: UIColor(HeadingStyle.color(headingColor, pal)), .aobVerse: v.num,
                     .paragraphStyle: para(6, before: out.length > 0 ? 10 : 0),
                 ]))
             }
@@ -1157,7 +1169,7 @@ struct ChapterText: View {
     /// Строки главы: стихи (или сплошные блоки) и метка конца главы
     /// «Глава N» («Псалом N»); у первой главы над ним — название книги
     private var chapterTitleText: String {
-        book == "Ps" ? String(localized: "Псалом \(chapter)") : String(localized: "Глава \(chapter)")
+        BookLocale.chapterTitle(book: book, chapter: chapter)
     }
 
     private var chapterTitle: some View { chapterTitleFor(book, chapter) }
@@ -1170,7 +1182,7 @@ struct ChapterText: View {
                     .font(ReadingFonts.font(fontFamily, size: fontSize * 0.9, weight: 600))
                     .foregroundStyle(pal.muted)
             }
-            Text(b == "Ps" ? String(localized: "Псалом \(c)") : String(localized: "Глава \(c)"))
+            Text(verbatim: BookLocale.chapterTitle(book: b, chapter: c))
                 .font(ReadingFonts.font(fontFamily, size: fontSize * 2.1, weight: 800))
                 .foregroundStyle(pal.text)
         }
@@ -1178,6 +1190,13 @@ struct ChapterText: View {
         .padding(.top, fontSize * 0.3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityAddTraits(.isHeader)
+    }
+
+    /// Где стоит меню стиха (под каким стихом и какое): меняется — меню и стихи под ним сдвигаются с анимацией
+    private var menuAnchor: String { "\(partVerse ?? 0)|\(selected.max() ?? 0)" }
+
+    private var menuTransition: AnyTransition {
+        .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)), removal: .opacity)
     }
 
     /// Номер строки: в книге — глава × 1000 + стих (0 — заголовок главы), в одной главе — номер стиха
@@ -1242,7 +1261,7 @@ struct ChapterText: View {
         let cur = c == chapter
         let selecting = cur && (!selected.isEmpty || partVerse != nil)
         return VStack(alignment: .leading, spacing: 6) {
-            if showHeadings, let h = d.heads[v.num] { headingText(h) }
+            if showHeadings, let h = d.heads[v.num] { headingText(h).padding(.horizontal, 6) }
             Group {
                 if module.interlinear {
                     // подстрочный перевод: слова столбиками «перевод / оригинал / Стронг»
@@ -1294,8 +1313,10 @@ struct ChapterText: View {
             }
             if cur && partVerse == v.num {
                 partBar(v).frame(maxWidth: .infinity)
+                    .transition(menuTransition)
             } else if cur && v.num == selected.max() {
                 selectionBar(d.verses).frame(maxWidth: .infinity)
+                    .transition(menuTransition)
             }
         }
         .id(rowID(c, v.num))
@@ -1396,11 +1417,13 @@ struct ChapterText: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                // плашка полностью скруглённая: кружок со стрелкой стоит у края на равном отступе со всех сторон
+                .padding(.leading, 10)
+                .padding(.trailing, 22)
+                .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .contentShape(Capsule())
+                .glassEffect(.regular.interactive(), in: Capsule())
             }
             .buttonStyle(.plain)
             .padding(.top, dir > 0 ? fontSize : 0)
@@ -1700,8 +1723,8 @@ struct ChapterText: View {
 
     private func headingText(_ h: String) -> some View {
         Text(h)
-            .font(ReadingFonts.font(fontFamily, size: fontSize * 0.92, weight: max(fontWeight, 600)))
-            .foregroundStyle(pal.text)
+            .font(ReadingFonts.font(fontFamily, size: fontSize * headingSize, weight: max(fontWeight, 600)))
+            .foregroundStyle(HeadingStyle.color(headingColor, pal))
             .padding(.top, 8)
     }
 
@@ -2308,6 +2331,8 @@ struct ChapterText: View {
                 }
         }
         .presentationDetents([.medium])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 
@@ -2361,6 +2386,8 @@ struct CompareSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 
@@ -2581,5 +2608,20 @@ private struct VerseGrid: View {
         }
         .navigationTitle("\(pick.book.name) \(pick.chapter)")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Заголовки разделов («Христос Иисус пришёл в мир…»): по умолчанию — цветом акцента и мельче текста
+enum HeadingStyle {
+    static let defaultColor = "accent"
+    static let defaultSize = 0.85
+    static let colors: [(String, String)] = [("accent", "Акцент"), ("text", "Как текст"), ("muted", "Приглушённый")]
+
+    static func color(_ id: String, _ pal: ThemePalette) -> Color {
+        switch id {
+        case "text": return pal.text
+        case "muted": return pal.muted
+        default: return pal.accent
+        }
     }
 }

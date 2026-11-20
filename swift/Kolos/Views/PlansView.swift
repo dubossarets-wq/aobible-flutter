@@ -8,8 +8,15 @@ struct PlansView: View {
     @State private var busy: String?
     @State private var message: String?
 
+    /// Открыт внутри чужой навигации («Ещё»): без своей NavigationStack
+    var embedded = false
+
     var body: some View {
-        NavigationStack {
+        if embedded { content } else { NavigationStack { content } }
+    }
+
+    private var content: some View {
+        Group {
             List {
                 Section {
                     VerseOfDayCard()

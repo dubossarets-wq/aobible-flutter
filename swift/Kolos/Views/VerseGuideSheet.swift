@@ -192,6 +192,8 @@ struct VerseGuideSheet: View {
         .sheet(item: $word) { WordSheet(req: $0) }
         .sheet(isPresented: $showComm) { CommentarySheet(book: book, chapter: chapter, verse: verse) }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     @ViewBuilder

@@ -141,6 +141,9 @@ struct RootView: View {
     @AppStorage("lastBuild") private var lastBuild = ""
     @AppStorage("interfaceLanguage") private var lang = "ru"
     @AppStorage("hideOnScroll") private var hideOnScroll = true
+    /// Нижнее меню: что стоит слева и справа от «Библии» (настраивается в «Настройках»)
+    @AppStorage(TabFunction.leftKey) private var tabLeft = TabFunction.plans.rawValue
+    @AppStorage(TabFunction.rightKey) private var tabRight = TabFunction.saved.rawValue
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -183,17 +186,19 @@ struct RootView: View {
     }
 
     var body: some View {
+        // названия книг и «Глава N» — на языке интерфейса: ставится до того, как строятся вкладки
+        let _ = BookLocale.set(lang)
         TabView(selection: $tab) {
-            Tab("Планы", systemImage: "calendar", value: AppTab.plans) {
-                PlansView()
+            if TabFunction.of(tabLeft) != .none {
+                Tab(TabFunction.of(tabLeft).title, systemImage: TabFunction.of(tabLeft).symbol, value: AppTab.plans) { TabFunction.of(tabLeft).screen }
             }
             Tab("Библия", systemImage: "book", value: AppTab.bible) {
                 // уход нижнего меню задаётся изнутри вкладки — так его понимает система
                 ReaderView()
                     .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
             }
-            Tab("Закладки", systemImage: "heart", value: AppTab.saved) {
-                BookmarksView()
+            if TabFunction.of(tabRight) != .none {
+                Tab(TabFunction.of(tabRight).title, systemImage: TabFunction.of(tabRight).symbol, value: AppTab.saved) { TabFunction.of(tabRight).screen }
             }
             Tab("Ещё", systemImage: "line.3.horizontal", value: AppTab.more) {
                 MoreView()

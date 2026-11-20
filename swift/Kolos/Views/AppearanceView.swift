@@ -13,6 +13,8 @@ struct AppearanceView: View {
     @AppStorage("showVerseNumbers") private var showNumbers = true
     @AppStorage("verseNumPos") private var verseNumPos = "sup"
     @AppStorage("showHeadings") private var showHeadings = true
+    @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
+    @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
     @AppStorage("textMargin") private var textMargin = 14.0
     @AppStorage("hideOnScroll") private var hideOnScroll = true
@@ -79,6 +81,12 @@ struct AppearanceView: View {
                     }
                 }
                 Toggle("Заголовки разделов", isOn: $showHeadings)
+                if showHeadings {
+                    Picker("Цвет заголовков", selection: $headingColor) {
+                        ForEach(HeadingStyle.colors, id: \.0) { c in Text(LocalizedStringKey(c.1)).tag(c.0) }
+                    }
+                    row("Размер заголовков: \(Int((headingSize * 100).rounded()))%", value: $headingSize, range: 0.7...1.3, step: 0.05, def: HeadingStyle.defaultSize)
+                }
                 Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous)
                 Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
             }
@@ -133,7 +141,14 @@ struct AppearanceView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             sampleCard(pal)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+                // сплошная подложка: настройки уходят под образец, а не просвечивают между ним и заголовком экрана
+                .background {
+                    Color(.systemGroupedBackground)
+                        .ignoresSafeArea(edges: .top)
+                        .shadow(color: .black.opacity(0.06), radius: 6, y: 4)
+                }
         }
         .navigationTitle("Оформление")
         .navigationBarTitleDisplayMode(.inline)
@@ -180,7 +195,7 @@ struct AppearanceView: View {
     private func reset() {
         inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
-        verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
+        verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; headingColor = HeadingStyle.defaultColor; headingSize = HeadingStyle.defaultSize; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()
         bgImage = 0; bgVeil = ReaderBackground.defaultVeil; bgBlur = 0
     }
@@ -208,39 +223,59 @@ struct AppearanceView: View {
         }
     }
 
-    /// Образец: заголовок и два стиха так, как они выглядят в чтении (тема, шрифт, интервалы, поля, номера, сплошной текст, фон)
+    private static let sampleVerses: [(Int, String)] = [
+        (1, "Господь — Пастырь мой; я ни в чём не буду нуждаться:"),
+        (2, "Он покоит меня на злачных пажитях и водит меня к водам тихим,"),
+        (3, "подкрепляет душу мою, направляет меня на стези правды ради имени Своего."),
+    ]
+
+    /// Образец — как страница чтения: название книги, глава, заголовок раздела и стихи (тема, шрифт, интервалы, поля,
+    /// номера, сплошной текст, фон). Высота — по тексту, не больше 210; что не вошло — плавно уходит вниз
     private func sampleCard(_ pal: ThemePalette) -> some View {
         VStack(alignment: .leading, spacing: fontSize * verseSpacing) {
-            if showHeadings {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Псалтирь")
+                    .font(ReadingFonts.font(fontFamily, size: fontSize * 0.75, weight: 600))
+                    .foregroundStyle(pal.muted)
                 Text("Псалом 22")
-                    .font(ReadingFonts.font(fontFamily, size: fontSize * 0.92, weight: max(fontWeight, 600)))
+                    .font(ReadingFonts.font(fontFamily, size: fontSize * 1.35, weight: 800))
                     .foregroundStyle(pal.text)
             }
+            if showHeadings {
+                Text("Господь — Пастырь мой")
+                    .font(ReadingFonts.font(fontFamily, size: fontSize * headingSize, weight: max(fontWeight, 600)))
+                    .foregroundStyle(HeadingStyle.color(headingColor, pal))
+            }
             if continuous {
-                Text(sampleText([(1, "Господь — Пастырь мой; я ни в чём не буду нуждаться:"), (2, "Он покоит меня на злачных пажитях и водит меня к водам тихим,")], pal))
-                    .font(ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight))
-                    .lineSpacing(fontSize * (lineHeight - 1))
-                    .foregroundStyle(pal.text)
+                verseText(Self.sampleVerses, pal)
             } else {
-                Text(sampleText([(1, "Господь — Пастырь мой; я ни в чём не буду нуждаться:")], pal))
-                    .font(ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight))
-                    .lineSpacing(fontSize * (lineHeight - 1))
-                    .foregroundStyle(pal.text)
-                Text(sampleText([(2, "Он покоит меня на злачных пажитях и водит меня к водам тихим,")], pal))
-                    .font(ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight))
-                    .lineSpacing(fontSize * (lineHeight - 1))
-                    .foregroundStyle(pal.text)
+                ForEach(Self.sampleVerses, id: \.0) { v in verseText([v], pal) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, textMargin)
-        .padding(.vertical, 12)
-        .frame(maxHeight: 230, alignment: .top)
+        .padding(.top, 14)
+        .padding(.bottom, 16)
+        .frame(maxHeight: 210, alignment: .top)
         .clipped()
+        .mask {
+            VStack(spacing: 0) {
+                Color.black
+                LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 24)
+            }
+        }
         .background { ReaderBackdrop(pal: pal).clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous)) }
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.secondary.opacity(0.25), lineWidth: 1))
         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+    }
+
+    private func verseText(_ verses: [(Int, String)], _ pal: ThemePalette) -> some View {
+        Text(sampleText(verses, pal))
+            .font(ReadingFonts.font(fontFamily, size: fontSize, weight: fontWeight))
+            .lineSpacing(fontSize * (lineHeight - 1))
+            .foregroundStyle(pal.text)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func sampleText(_ verses: [(Int, String)], _ pal: ThemePalette) -> AttributedString {

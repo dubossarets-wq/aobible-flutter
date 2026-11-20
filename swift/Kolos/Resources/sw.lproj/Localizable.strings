@@ -1879,3 +1879,16 @@
 "Время читать Библию" = "Ni wakati wa kusoma Biblia";
 "Лента книги: главы идут подряд" = "Utepe wa kitabu: sura zinafuatana";
 "Слова в заданном порядке" = "Maneno kwa mpangilio uliotolewa";
+
+/* Заголовки разделов, нижнее меню, толкования */
+"Цвет заголовков" = "Rangi ya vichwa";
+"Акцент" = "Rangi kuu";
+"Как текст" = "Kama maandishi";
+"Приглушённый" = "Fifi";
+"Нижнее меню" = "Menyu ya chini";
+"Нет" = "Hakuna";
+"Библиотека" = "Maktaba";
+"Отправить" = "Tuma";
+"Слева от «Библии»" = "Kushoto mwa «Biblia»";
+"Справа от «Библии»" = "Kulia mwa «Biblia»";
+"«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "«Biblia», «Zaidi» na utafutaji viko kwenye menyu kila wakati. «Mipango» na «Alamisho» zilizoondolewa zinabaki kwenye «Zaidi».";

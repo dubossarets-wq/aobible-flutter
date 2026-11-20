@@ -59,5 +59,7 @@ struct CollectSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }

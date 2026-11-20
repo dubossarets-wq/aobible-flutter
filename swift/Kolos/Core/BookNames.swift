@@ -166,3 +166,77 @@ enum BookNames {
         ("Rev", ["откр", "апок", "откровение", "апокалипсис"]),
     ]
 }
+
+/// Названия книг и «Глава N» на языке интерфейса (как в веб-версии: books.js → localBook). Русский — названия из модуля
+/// и справочника; украинский, белорусский, сербский и другие — Resources/book-names.json (собран
+/// tool/book_names_helloao.py из открытого API helloao); языка нет в таблице — английские. Краткие названия: у кириллицы
+/// — русские, у латиницы — английские сокращения, у остальных письменностей — полное название
+enum BookLocale {
+    /// Язык интерфейса; меняется в настройках (RootView следит)
+    private(set) static var lang: String = UserDefaults.standard.string(forKey: "interfaceLanguage") ?? "ru"
+
+    static func set(_ l: String) {
+        if lang != l { lang = l }
+    }
+
+    private static let table: [String: [String: String]] = {
+        guard let url = Bundle.main.url(forResource: "book-names", withExtension: "json"),
+              let d = try? Data(contentsOf: url),
+              var j = try? JSONDecoder().decode([String: [String: String]].self, from: d) else { return [:] }
+        // украинский Ветхий Завет — современные названия (в источнике — правопис Куліша)
+        j["uk", default: [:]].merge(ukOT) { _, new in new }
+        return j
+    }()
+
+    private static let ukOT: [String: String] = [
+        "Gen": "Буття", "Exod": "Вихід", "Lev": "Левит", "Num": "Числа", "Deut": "Повторення Закону", "Josh": "Ісус Навин",
+        "Judg": "Суддів", "Ruth": "Рут", "1Sam": "1 Самуїлова", "2Sam": "2 Самуїлова", "1Kgs": "1 Царів", "2Kgs": "2 Царів",
+        "1Chr": "1 Хронік", "2Chr": "2 Хронік", "Ezra": "Ездра", "Neh": "Неемія", "Esth": "Естер", "Job": "Йов",
+        "Ps": "Псалми", "Prov": "Приповісті", "Eccl": "Екклезіяст", "Song": "Пісня над піснями", "Isa": "Ісая",
+        "Jer": "Єремія", "Lam": "Плач Єремії", "Ezek": "Єзекіїль", "Dan": "Даниїл", "Hos": "Осія", "Joel": "Йоіл",
+        "Amos": "Амос", "Obad": "Овдій", "Jonah": "Йона", "Mic": "Михей", "Nah": "Наум", "Hab": "Авакум",
+        "Zeph": "Софонія", "Hag": "Огій", "Zech": "Захарія", "Mal": "Малахія",
+    ]
+
+    /// Кириллица: сокращения — русские
+    private static let cyrillic: Set<String> = ["ru", "uk", "be", "bg", "sr"]
+    /// Латиница: сокращения — английские
+    private static let latin: Set<String> = ["en", "de", "fr", "es", "it", "pt", "pl", "cs", "ro", "id", "sw"]
+
+    private static var cache: [String: String] = [:]
+    private static var cacheLang = ""
+
+    /// Полное название; lang — другой язык (место для отправки толкования — на языке толкования)
+    static func name(_ id: String, _ raw: String, lang other: String? = nil) -> String {
+        let l = other.map { String($0.lowercased().prefix { $0 != "-" && $0 != "_" }) } ?? lang
+        if l == "ru" || l == "bg" || l == "cu" || l.isEmpty { return raw }
+        if other != nil { return table[l == "el" ? "grc" : l]?[id] ?? table["en"]?[id] ?? BookNames.en[id]?.first ?? raw }
+        if cacheLang != l { cache = [:]; cacheLang = l }
+        if let c = cache[id] { return c }
+        let n = table[l]?[id] ?? table["en"]?[id] ?? BookNames.en[id]?.first ?? raw
+        cache[id] = n
+        return n
+    }
+
+    static func short(_ id: String, _ raw: String) -> String {
+        let l = lang
+        if cyrillic.contains(l) { return raw }
+        if latin.contains(l) { return BookNames.en[id]?.last ?? raw }
+        return name(id, raw)
+    }
+
+    /// «Глава N» («Псалом N») на языке интерфейса — из перевода приложения
+    static func chapterTitle(book: String, chapter: Int) -> String {
+        let psalm = book == "Ps"
+        let l = lang
+        if l != "ru" {
+            let folder = l == "zh" ? "zh-Hans" : l
+            if let p = Bundle.main.path(forResource: folder, ofType: "lproj"), let b = Bundle(path: p) {
+                let key = psalm ? "Псалом %lld" : "Глава %lld"
+                let f = b.localizedString(forKey: key, value: nil, table: nil)
+                if f != key { return String(format: f, chapter) }
+            }
+        }
+        return psalm ? "Псалом \(chapter)" : "Глава \(chapter)"
+    }
+}

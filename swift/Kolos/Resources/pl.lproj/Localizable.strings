@@ -1879,3 +1879,16 @@
 "Время читать Библию" = "Czas czytać Biblię";
 "Лента книги: главы идут подряд" = "Taśma księgi: rozdziały następują po sobie";
 "Слова в заданном порядке" = "Słowa w podanej kolejności";
+
+/* Заголовки разделов, нижнее меню, толкования */
+"Цвет заголовков" = "Kolor nagłówków";
+"Акцент" = "Akcent";
+"Как текст" = "Jak tekst";
+"Приглушённый" = "Przygaszony";
+"Нижнее меню" = "Dolne menu";
+"Нет" = "Brak";
+"Библиотека" = "Biblioteka";
+"Отправить" = "Wyślij";
+"Слева от «Библии»" = "Na lewo od „Biblii”";
+"Справа от «Библии»" = "Na prawo od „Biblii”";
+"«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "„Biblia”, „Więcej” i wyszukiwanie są zawsze w menu. Usunięte „Plany” i „Zakładki” pozostają w „Więcej”.";

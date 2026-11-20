@@ -7,6 +7,8 @@ struct MoreView: View {
     @AppStorage("panesStacked") private var panesStacked = true
     @AppStorage("syncScroll") private var syncScroll = true
     @AppStorage("readingStyle") private var readingStyle = "scroll"
+    @AppStorage(TabFunction.leftKey) private var tabLeft = TabFunction.plans.rawValue
+    @AppStorage(TabFunction.rightKey) private var tabRight = TabFunction.saved.rawValue
     @State private var bookmarkedMessage: String?
     @EnvironmentObject private var store: ModuleStore
     @EnvironmentObject private var panes: PanesStore
@@ -16,6 +18,22 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
+                // «Планы» и «Закладки», убранные из нижнего меню, — здесь
+                let inBar = Set([tabLeft, tabRight])
+                if !inBar.contains(TabFunction.plans.rawValue) || !inBar.contains(TabFunction.saved.rawValue) {
+                    Section {
+                        if !inBar.contains(TabFunction.plans.rawValue) {
+                            NavigationLink { TabFunction.plans.page } label: {
+                                IconLabel(title: "Планы", symbol: "calendar", color: .orange)
+                            }
+                        }
+                        if !inBar.contains(TabFunction.saved.rawValue) {
+                            NavigationLink { TabFunction.saved.page } label: {
+                                IconLabel(title: "Закладки", symbol: "heart.fill", color: .red)
+                            }
+                        }
+                    }
+                }
                 Section {
                     NavigationLink {
                         HistoryView()
