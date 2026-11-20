@@ -131,6 +131,7 @@ struct SearchPage: View {
     var body: some View {
         NavigationStack {
             List {
+                // где искать — переключатель прямо на сером фоне, вне белого блока с настройками
                 Section {
                     Picker("Где искать", selection: $scope) {
                         Text("Вся Библия").tag(SearchScope.all)
@@ -139,6 +140,11 @@ struct SearchPage: View {
                         Text(Books.info(currentBook)?.short ?? "Книга").tag(SearchScope.book)
                     }
                     .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+                Section {
                     Toggle("Только целые слова", isOn: $whole)
                     Toggle("Слова в заданном порядке", isOn: $ordered)
                     if canAll {
@@ -213,8 +219,8 @@ struct SearchPage: View {
                                                 .background(.fill.tertiary, in: Capsule())
                                         }
                                     }
-                                    Text(SearchEngine.highlighted(h.text, query: model.searched, wholeWord: whole))
-                                        .foregroundStyle(.primary)
+                                    // найденное — на скруглённых плашках
+                                    PlateLabel(text: SearchEngine.highlightedNS(h.text, query: model.searched, wholeWord: whole))
                                 }
                             }
                             // обычная строка списка: текст стиха — основным цветом (белым в тёмной теме), не цветом кнопки

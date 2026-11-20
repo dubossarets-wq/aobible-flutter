@@ -231,6 +231,20 @@ enum SearchEngine {
         return out
     }
 
+    /// Текст результата с найденным на скруглённых плашках (для PlateLabel): слова подсвечены цельным фоном со скруглением
+    static func highlightedNS(_ plain: String, query: String, wholeWord: Bool) -> NSAttributedString {
+        let out = NSMutableAttributedString(string: plain, attributes: [
+            .font: UIFont.preferredFont(forTextStyle: .body),
+            .foregroundColor: UIColor.label,
+        ])
+        guard let re = regex(for: query, wholeWord: wholeWord) else { return out }
+        let plate = PlateStyle(UIColor.systemYellow.withAlphaComponent(0.4), radius: 5, inflate: 2)
+        for m in re.matches(in: plain, range: NSRange(location: 0, length: (plain as NSString).length)) {
+            out.addAttribute(.aobPlate, value: plate, range: m.range)
+        }
+        return out
+    }
+
     /// Текст результата с выделением найденного
     static func highlighted(_ plain: String, query: String, wholeWord: Bool) -> AttributedString {
         var attr = AttributedString(plain)

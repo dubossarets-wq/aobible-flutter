@@ -949,7 +949,7 @@ struct ConcordanceView: View {
                         Button { onOpenRef(r.book, r.chapter, r.verse) } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(shortRef(r.book, r.chapter, r.verse)).font(.system(size: 14, weight: .bold)).foregroundStyle(pal.accent)
-                                Text(highlighted(r)).font(.system(size: 16)).lineSpacing(4).foregroundStyle(.primary)
+                                PlateLabel(text: highlightedNS(r))
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
@@ -974,6 +974,26 @@ struct ConcordanceView: View {
             }
             .padding(.bottom, 30)
         }
+    }
+
+    /// Текст стиха, слова с этим номером — на скруглённых плашках
+    private func highlightedNS(_ r: WordStats.Ref) -> NSAttributedString {
+        let raw = store.verseRaw(module: st?.moduleId ?? "", book: r.book, chapter: r.chapter, verse: r.verse) ?? ""
+        let target = Align.strongNum(num)
+        let para = NSMutableParagraphStyle()
+        para.lineSpacing = 4
+        let out = NSMutableAttributedString()
+        let plate = PlateStyle(UIColor(pal.accent.opacity(0.22)), radius: 5, inflate: 2)
+        for t in Align.tokenize(raw) {
+            let piece = NSMutableAttributedString(string: t.text, attributes: [
+                .font: UIFont.systemFont(ofSize: 16), .foregroundColor: UIColor.label, .paragraphStyle: para,
+            ])
+            if t.isWord && t.strongs.contains(where: { Align.strongNum($0) == target }) {
+                piece.addAttribute(.aobPlate, value: plate, range: NSRange(location: 0, length: piece.length))
+            }
+            out.append(piece)
+        }
+        return out
     }
 
     /// Текст стиха, слова с этим номером — на подложке
