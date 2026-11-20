@@ -23,6 +23,8 @@ struct ModulesList: View {
     private let kinds: [(String, String)] = [("bible", "Переводы"), ("dictionary", "Словари"), ("commentary", "Толкования"), ("crossrefs", "Параллельные места"), ("audio", "Аудио")]
 
     @State private var lang = "all"
+    /// Что показывать: все, только установленные или только не установленные («all» / «installed» / «missing»)
+    @AppStorage("modulesShow") private var show = "all"
 
     /// Списки считаются один раз при смене типа, языка, поиска и каталога — а не при каждой перерисовке окна
     /// (в каталоге больше тысячи переводов; пересчёт на каждое изменение панелей за окном заметно тормозил выбор перевода)
@@ -51,7 +53,7 @@ struct ModulesList: View {
     }
 
     private func rebuild() {
-        let installedHere = store.allInstalled.filter { $0.type == kind && (lang == "all" || $0.language == lang) }
+        let installedHere = show == "missing" ? [] : store.allInstalled.filter { $0.type == kind && (lang == "all" || $0.language == lang) }
         var set = Set(store.allInstalled.filter { $0.type == kind }.map { $0.language })
         for e in store.catalog where e.type == kind && e.downloadable { set.insert(e.language) }
         let langs = set.map { ($0, langName($0)) }.sorted { a, b in
@@ -60,7 +62,7 @@ struct ModulesList: View {
         }.map { $0.0 }
         let installedIds = Set(store.allInstalled.map { $0.id })
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let list = store.catalog.filter {
+        let list = show == "installed" ? [] : store.catalog.filter {
             $0.type == kind && $0.downloadable && !installedIds.contains($0.id) && (lang == "all" || $0.language == lang)
                 && (q.isEmpty || $0.name.lowercased().contains(q) || $0.title.lowercased().contains(q) || langName($0.language).lowercased().contains(q))
         }
@@ -90,6 +92,13 @@ struct ModulesList: View {
                     }
                 }
                 .pickerStyle(.menu)
+                Picker("Показывать", selection: $show) {
+                    Text("Все").tag("all")
+                    Text("Установленные").tag("installed")
+                    Text("Не установленные").tag("missing")
+                }
+                .pickerStyle(.menu)
+                .onChange(of: show) { _, _ in rebuild() }
                 .onChange(of: kind) { _, _ in
                     lang = "all"
                     rebuild()

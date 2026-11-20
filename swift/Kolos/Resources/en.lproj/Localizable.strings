@@ -1929,3 +1929,5 @@
 "Страницы" = "Pages";
 "«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "“Whole verse to next page”: a verse that doesn’t fit on the page moves to the next page whole. “By lines”: only the lines that don’t fit move on.";
 "В режиме «Страницы» открывается не больше двух окон." = "In “Pages” mode no more than two windows can be open.";
+"Показывать" = "Show";
+"Не установленные" = "Not installed";

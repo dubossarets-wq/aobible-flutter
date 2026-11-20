@@ -1918,3 +1918,5 @@
 "Страницы" = "Halaman";
 "«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "«Seluruh ayat ke halaman berikutnya»: ayat yang tidak muat pindah utuh ke halaman berikutnya. «Per baris»: hanya baris yang tidak muat yang pindah.";
 "В режиме «Страницы» открывается не больше двух окон." = "Dalam mode «Halaman», paling banyak dua jendela dapat dibuka.";
+"Показывать" = "Tampilkan";
+"Не установленные" = "Belum terpasang";

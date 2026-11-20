@@ -1918,3 +1918,5 @@
 "Страницы" = "Pagine";
 "«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "«Intero alla successiva»: un versetto che non entra nella pagina passa intero alla successiva. «Per righe»: passano solo le righe che non entrano.";
 "В режиме «Страницы» открывается не больше двух окон." = "In modalità «Pagine» si possono aprire al massimo due finestre.";
+"Показывать" = "Mostra";
+"Не установленные" = "Non installati";
