@@ -82,7 +82,8 @@ struct DictionarySheet: View {
             }
         }
         .tint(pal.accent)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         // два положения: во всю высоту и маленькое (без среднего), затем — закрыть
         .presentationDetents([.height(200), .large], selection: $detent)
         .task {

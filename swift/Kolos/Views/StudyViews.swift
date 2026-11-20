@@ -156,8 +156,8 @@ struct StrongSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 }
 
@@ -210,8 +210,8 @@ struct CommentarySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 
     /// Для отправки: сначала место (на языке толкования), через пустую строку — толкование. Несколько толкователей —
@@ -288,8 +288,8 @@ struct XrefsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 }
 
@@ -330,8 +330,8 @@ struct IllustrationsSheet: View {
             }
         }
         .presentationDetents([.large])
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 }
 

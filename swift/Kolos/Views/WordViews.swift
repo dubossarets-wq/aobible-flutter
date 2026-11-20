@@ -113,8 +113,8 @@ struct WordSheet: View {
             }
         }
         .presentationDetents([.height(height), .large], selection: $detent)
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         // текст под окном остаётся живым: после закрытия (и даже до него) можно сразу нажать куда нужно.
         // Включено на любой высоте: с ограничением «до малой высоты» система при вытягивании окна наверх рывком
         // включала затемнение фона — казалось, что анимация обрывается

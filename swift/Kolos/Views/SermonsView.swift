@@ -327,8 +327,8 @@ private struct AddVerseSheet: View {
             }
         }
         .presentationDetents([.medium])
-        // окно на пол-экрана — непрозрачное (в iOS 26 по умолчанию стекло, сквозь него виден текст)
-        .presentationBackground(Color(.systemGroupedBackground))
+        // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 
     private func add() {
