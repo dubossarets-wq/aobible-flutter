@@ -146,10 +146,24 @@ enum TabTitles {
         let item = bar / CGFloat(max(1, titles.count))
         // самая длинная подпись не помещается с зазором — вместо подписей остаются одни значки: так они ни на что не заезжают
         if widest > item - 10 { return titles.mapValues { _ in "" } }
+        // неразрывный пробел (~2,6 пт), тонкий и волосяной: крупными шагами ширины подписей не выровнять — округление сдвигало
+        // пункты, и «Библия» уезжала от середины. Мелкими шагами ширина сходится с точностью до долей пункта
+        let units: [(String, CGFloat)] = ["\u{00A0}", "\u{2009}", "\u{200A}"].map { ($0, width($0)) }.filter { $0.1 >= 0.3 }.sorted { $0.1 > $1.1 }
+        func padding(_ delta: CGFloat) -> String {
+            var rest = delta / 2
+            var out = ""
+            for (ch, w) in units {
+                let n = Int(floor(rest / w))
+                if n > 0 {
+                    out += String(repeating: ch, count: n)
+                    rest -= CGFloat(n) * w
+                }
+            }
+            return out
+        }
         var out: [String: String] = [:]
         for (k, t) in titles {
-            let pad = Int(((widest - width(t)) / gap / 2).rounded())
-            let sp = String(repeating: "\u{00A0}", count: max(0, pad))
+            let sp = padding(widest - width(t))
             out[k] = sp + t + sp
         }
         return out

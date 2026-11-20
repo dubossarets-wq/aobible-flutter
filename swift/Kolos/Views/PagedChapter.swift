@@ -96,20 +96,35 @@ final class PageSync {
     /// во всех окнах с него начинается страница. Все страницы после этого — части прежних, поэтому места хватает
     func layoutReady(_ id: UUID, starts s: Set<Int>) {
         starts[id] = s
+        // окна отчитываются почти одновременно (появилось второе окно, поменялся размер) — границы считаем один раз
+        // по свежим данным всех, а не после каждого отчёта: иначе главу приходилось бы разбивать заново на каждый
+        applyTask?.cancel()
+        applyTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            self?.applyBreaks()
+        }
+    }
+
+    private var applyTask: Task<Void, Never>?
+
+    private func applyBreaks() {
         guard let store else { return }
-        guard store.panes.count > 1, let me = store.panes.first(where: { $0.id == id }) else {
-            hosts[id]?.host?.setForcedBreaks([])
+        guard store.panes.count > 1 else {
+            for h in hosts.values { h.host?.setForcedBreaks([]) }
             return
         }
-        var union = Set<Int>()
-        var group: [UUID] = []
-        for p in store.panes where p.book == me.book && p.chapter == me.chapter {
-            if let st = starts[p.id] {
-                union.formUnion(st)
-                group.append(p.id)
-            }
+        // окна одной главы; пока не отчитались все — ждём
+        var seen = Set<String>()
+        for me in store.panes {
+            let key = "\(me.book)|\(me.chapter)"
+            guard seen.insert(key).inserted else { continue }
+            let group = store.panes.filter { $0.book == me.book && $0.chapter == me.chapter }
+            guard group.count > 1, group.allSatisfy({ starts[$0.id] != nil }) else { continue }
+            var union = Set<Int>()
+            for g in group { union.formUnion(starts[g.id] ?? []) }
+            for g in group { hosts[g.id]?.host?.setForcedBreaks(union) }
         }
-        for g in group { hosts[g]?.host?.setForcedBreaks(union) }
     }
 
     private var on: Bool {
@@ -177,6 +192,10 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     /// Стихи, с которых страница начинается принудительно (границы, о которых договорились окна, см. PageSync)
     private var forced: Set<Int> = []
     private var builtForced: Set<Int> = []
+    /// Сколько раз для этой вёрстки меняли общие границы страниц
+    private var forcedRounds = 0
+    /// Стихи, с которых начинаются страницы (без продолжений длинного стиха): о них договариваются окна
+    private var startVerses: Set<Int> = []
     private var builtKey = ""
     private var builtSize = CGSize.zero
     private var lastFocus = -1
@@ -223,6 +242,9 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     /// Окна договорились о границах страниц: пересобираем страницы с ними
     func setForcedBreaks(_ u: Set<Int>) {
         guard u != forced else { return }
+        // страховка: границы окон сходятся за один-два раунда; если нет (стих чуть не влезает) — не пересобираем бесконечно
+        guard forcedRounds < 3 else { return }
+        forcedRounds += 1
         forced = u
         if isViewLoaded { rebuildIfNeeded() }
     }
@@ -321,6 +343,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         // другая глава, шрифт или размер окна — прежние общие границы не годятся, окна договариваются заново
         if c.key != builtKey || size != builtSize {
             forced = []
+            forcedRounds = 0
             if let id = c.paneID { c.sync?.forget(id) }
         }
         // снимок нынешней страницы — он уедет, новая глава въедет следом
@@ -388,7 +411,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         report(i, user: own && dir != 0)
         // границы страниц — окнам одной главы: чтобы на странице у всех были одни и те же стихи
         if let id = c.paneID, let sync = c.sync {
-            let starts = Set(anchors)
+            let starts = startVerses
             DispatchQueue.main.async { sync.layoutReady(id, starts: starts) }
         }
     }
@@ -442,6 +465,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             }
         }
         anchors = blockTops
+        startVerses = Set(blockTops)
     }
 
     /// Блоки обновились (выделение, любимые) — страницы на экране получают новые вью, вёрстка прежняя
@@ -510,6 +534,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             if firstOnPage[p] == 0 { firstOnPage[p] = n }
         }
         anchors = containers.indices.map { p in firstOnPage[p] != 0 ? firstOnPage[p] : verseAtTop(p) }
+        startVerses = Set(firstOnPage.filter { $0 != 0 })
     }
 
     private func verseAtTop(_ p: Int) -> Int {
