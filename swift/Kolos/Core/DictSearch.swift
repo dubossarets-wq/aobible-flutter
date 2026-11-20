@@ -61,9 +61,10 @@ extension ModuleStore {
         return nil
     }
 
-    /// Словари для статей (симфония RST+ — не статьи, а «как переведено»: её номера идут в поиск по слову)
+    /// Словари для статей. Симфония RST+ — не статьи, а «как переведено»: её номера идут в поиск по слову.
+    /// Дворецкий — часть статьи Стронга (показывается внутри неё, как в окне слова из Библии)
     var articleDictionaries: [InstalledModule] {
-        dictionaries.filter { $0.id != Lexicon.symphonyId }
+        dictionaries.filter { $0.id != Lexicon.symphonyId && !Lexicon.lexiconIds.contains($0.id) }
     }
 
     /// Номера Стронга для русского слова — из обратного индекса скачанных словарей (симфония RST+ и др.)

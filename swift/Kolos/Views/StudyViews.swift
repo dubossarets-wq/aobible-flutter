@@ -478,112 +478,153 @@ struct DictionaryView: View {
     }
 }
 
-/// Страница статьи: название словаря и переключение между словарями, где есть то же слово (или тот же номер
-/// Стронга), — и скачанными, и с сайта
+/// Страница статьи — в том же виде, что окно слова из текста Библии: вкладки словарей, где есть то же слово
+/// (или тот же номер Стронга), статья Стронга целиком (значение, происхождение, Дворецкий внутри, «В Синодальном
+/// переводе», «Где встречается»), статья словаря «по словам» — заголовок, текст и ссылки на стихи. Вкладки —
+/// и скачанные словари, и словари сайта (те — с кнопкой «Скачать словарь»)
 struct DictEntryPage: View {
     @EnvironmentObject private var store: ModuleStore
+    @Environment(\.readerPalette) private var pal
+    @Environment(\.openVerse) private var openVerse
     let start: DictArticle
     @State private var tabs: [DictArticle] = []
     @State private var sel = ""
-    @State private var extra: [String] = []
-    @State private var refArticle: DictArticle?
+    @State private var next: DictArticle?
+    @State private var allKey: String?
     @State private var installing = false
 
     private var current: DictArticle { tabs.first { $0.id == sel } ?? start }
 
     var body: some View {
         let a = current
-        List {
-            if tabs.count > 1 {
-                Section {
-                    PillTabs(labels: tabs.map(\.dictName), index: tabs.firstIndex { $0.id == sel } ?? 0) { i in
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            sel = tabs[i].id
-                            extra = []
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if tabs.count > 1 {
+                    UnderlineTabs(labels: tabs.map(\.dictName), index: tabs.firstIndex { $0.id == sel } ?? 0) { i in
+                        sel = tabs[i].id
                     }
-                    // лента до краёв экрана, отступ — у содержимого (иначе плашки обрезаются в 16 пт от края)
-                    .contentMargins(.horizontal, 20, for: .scrollContent)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                    .listRowBackground(Color.clear)
                 }
-            }
-            Section {
                 if let e = a.entry(store) {
-                    if let rich = e["rich"] as? [[String: Any]] {
-                        DvoretskyArticle(blocks: rich)
+                    if a.kind == "strongs" {
+                        StrongEntryView(num: a.key, entry: e, module: a.module ?? placeholder(a), mapping: nil, orig: nil,
+                                        onOpenStrong: openStrong, onOpenRef: { b, c, v in openVerse(b, c, v) },
+                                        onOpenAll: { allKey = a.key })
+                            .id(a.id)
                     } else {
-                        EntryView(entry: e, onLink: { extra.append($0) }, refs: a.kind != "strongs", onRef: { openRef($0) })
+                        wordEntry(a, e)
                     }
                 } else {
-                    Text("Статья не найдена.").foregroundStyle(.secondary)
+                    Text("Статья не найдена.").foregroundStyle(pal.muted)
                 }
-            } header: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(a.dictName).font(.headline).foregroundStyle(.primary)
-                    if !a.dictTitle.isEmpty && a.dictTitle != a.dictName {
-                        Text(a.dictTitle).font(.footnote)
-                    }
-                }
-                .textCase(nil)
-            } footer: {
-                if !a.installed { Text("Словарь не скачан — статья пришла по сети.") }
+                if !a.installed { remoteNote(a) }
             }
-            if !a.installed {
-                Section {
-                    Button { install(a) } label: {
-                        if installing {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                Text("Скачивается…")
-                            }
-                        } else {
-                            Label("Скачать словарь «\(a.dictName)»", systemImage: "arrow.down.circle")
-                        }
-                    }
-                    .disabled(installing)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(a.kind == "strongs" ? "Статья \(a.key)" : a.word)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $next) { DictEntryPage(start: $0) }
+        .navigationDestination(item: $allKey) { ConcordancePage(key: $0) }
+        .task { await load() }
+        .onChange(of: store.installed.count) { _, _ in Task { await load() } }
+    }
+
+    /// Словарь с сайта (не скачан): откуда статья и кнопка «Скачать»
+    private func remoteNote(_ a: DictArticle) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("«\(a.dictTitle.isEmpty ? a.dictName : a.dictTitle)» ещё не скачан — статья пришла по сети.")
+                .font(.footnote)
+                .foregroundStyle(pal.muted)
+            Button { install(a) } label: {
+                HStack(spacing: 8) {
+                    if installing { ProgressView() } else { Image(systemName: "arrow.down.circle") }
+                    Text(installing ? "Скачивается…" : "Скачать словарь «\(a.dictName)»")
                 }
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
-            if a.kind == "strongs" {
-                Section {
-                    NavigationLink {
-                        ConcordancePage(key: a.key)
-                    } label: {
-                        Label("Все места", systemImage: "text.magnifyingglass")
-                    }
+            .buttonStyle(.glass)
+            .disabled(installing)
+        }
+        .padding(.top, 6)
+    }
+
+    /// Статья словаря «по словам» — как в окне слова
+    @ViewBuilder private func wordEntry(_ a: DictArticle, _ e: [String: Any]) -> some View {
+        let refs = (e["refs"] as? [String]) ?? []
+        Text((e["word"] as? String) ?? a.word)
+            .font(.system(size: 22.4, weight: .bold))
+            .foregroundStyle(pal.text)
+        if let o = e["original"] as? String, !o.isEmpty {
+            Text(o).font(.system(size: 36.8)).foregroundStyle(pal.text)
+        }
+        let txt = (e["text"] as? String) ?? (e["definition"] as? String) ?? ""
+        Text(EntryLinks.attributed(txt, accent: pal.accent))
+            .lineSpacing(5)
+            .foregroundStyle(pal.text)
+            .environment(\.openURL, OpenURLAction { url in
+                if let r = EntryLinks.verse(from: url) {
+                    openVerse(r.0, r.1, r.2)
+                } else if let w = StrongLinks.refWord(from: url) {
+                    openRef(w)
                 }
-            }
-            ForEach(extra, id: \.self) { k in
-                ForEach(store.articleDictionaries) { m in
-                    if let e = store.strongOrWordEntry(module: m, key: k) {
-                        Section {
-                            EntryView(entry: e) { extra.append($0) }
-                        } header: {
-                            Text("\(k) · \(m.name)")
-                        }
+                return .handled
+            })
+        if !refs.isEmpty {
+            FlowRow {
+                ForEach(refs, id: \.self) { r in
+                    if let p = OsisRef(r) {
+                        RefChip(label: osisLabel(p), icon: "link") { openVerse(p.book, p.chapter, p.verse) }
                     }
                 }
             }
         }
-        .navigationTitle(a.word)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $refArticle) { DictEntryPage(start: $0) }
-        .task { await load() }
-        .onChange(of: store.installed.count) { _, _ in Task { await load() } }
+    }
+
+    /// Словарь сайта ещё не скачан — для статьи Стронга нужно только его имя и вид
+    private func placeholder(_ a: DictArticle) -> InstalledModule {
+        InstalledModule(id: a.dictId, name: a.dictName, title: a.dictTitle, language: a.language, type: "dictionary",
+                        path: "", books: [], online: false, dictionaryKind: a.kind)
     }
 
     private func load() async {
         // скачанные словари — сразу, словари сайта — следом
         var list = DictSearch.siblingsInstalled(store, start)
-        if !list.contains(where: { $0.dictId == start.dictId }) { list.append(start) }
+        if !list.contains(where: { $0.dictId == start.dictId }) && !Lexicon.lexiconIds.contains(start.dictId) { list.append(start) }
+        if list.isEmpty { list = [start] }
         let keep = current.dictId
         tabs = list
-        if sel.isEmpty { sel = list.first { $0.dictId == start.dictId }?.id ?? start.id }
+        if sel.isEmpty || !list.contains(where: { $0.id == sel }) {
+            sel = list.first { $0.dictId == start.dictId }?.id ?? list[0].id
+        }
         let more = await DictSearch.siblingsRemote(store, start)
         var seen = Set(list.map(\.dictId))
         tabs = list + more.filter { seen.insert($0.dictId).inserted }
         // словарь только что скачали — выбранной остаётся статья того же словаря
         if !tabs.contains(where: { $0.id == sel }), let t = tabs.first(where: { $0.dictId == keep }) { sel = t.id }
+    }
+
+    /// Номер Стронга в тексте статьи («от H24») — его статья
+    private func openStrong(_ num: String) {
+        let k = Lexicon.strongKey(num)
+        if let m = store.articleDictionaries.first(where: { $0.dictionaryKind == "strongs" && store.strongOrWordEntry(module: $0, key: k) != nil }),
+           let e = store.strongOrWordEntry(module: m, key: k) {
+            next = store.article(m, key: k, word: ModuleStore.strongWord(e, k))
+            return
+        }
+        Task {
+            let r = RemoteDicts.shared
+            for d in await r.list() where d.kind == "strongs" && d.id != Lexicon.symphonyId {
+                if let e = await r.get(d, key: k) {
+                    next = r.article(d, key: k, entry: e)
+                    return
+                }
+            }
+        }
     }
 
     /// «См. Законник»: статья этого слова в том же словаре
@@ -592,7 +633,7 @@ struct DictEntryPage: View {
         let keys = [Lexicon.dictKey(word), word.lowercased()]
         if let m = a.module {
             if let f = store.dictGetMany(module: m, keys: keys).first {
-                refArticle = store.article(m, key: f.0, word: (f.1["word"] as? String) ?? f.0)
+                next = store.article(m, key: f.0, word: (f.1["word"] as? String) ?? f.0)
             }
             return
         }
@@ -601,7 +642,7 @@ struct DictEntryPage: View {
             guard let d = await r.list().first(where: { $0.id == a.dictId }) else { return }
             for k in keys {
                 if let e = await r.get(d, key: k) {
-                    refArticle = r.article(d, key: k, entry: e)
+                    next = r.article(d, key: k, entry: e)
                     return
                 }
             }
