@@ -170,8 +170,16 @@ struct AudioFullView: View {
         return String(format: "%d:%02d", v / 60, v % 60)
     }
 
+    /// Перевод текста: выбранный; если в нём нет звучащей книги (OSHB — только Ветхий Завет, а звучит Новый), —
+    /// перевод самой записи, затем любой на языке записи, затем первый, где эта книга есть: текст не пустой
     private var textId: String {
-        audio.textModule.isEmpty ? audio.moduleId : audio.textModule
+        let wanted = audio.textModule.isEmpty ? audio.moduleId : audio.textModule
+        guard let c = audio.current else { return wanted }
+        func has(_ id: String) -> Bool { store.module(id)?.books.contains { $0.id == c.book } ?? false }
+        if has(wanted) { return wanted }
+        if let t = audio.pack?.translation, has(t) { return t }
+        let list = store.bibles.filter { !$0.interlinear && $0.books.contains { $0.id == c.book } }
+        return (list.first { $0.language == audio.pack?.language } ?? list.first)?.id ?? wanted
     }
 
     private var routeName: String? {
@@ -275,8 +283,12 @@ struct AudioFullView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(verses) { v in
                         let on = v.num == c.verse
-                        Text(Markup.plain(v.text))
-                            .font(.system(size: 31, weight: .bold))
+                        // номер стиха — маленьким приподнятым числом перед текстом, как в чтении
+                        (Text("\\(v.num)")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .baselineOffset(12)
+                         + Text("\u{2009}" + Markup.plain(v.text)).font(.system(size: 31, weight: .bold)))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             // запас вокруг текста внутри самого блока: края размытия не обрезаются границей блока
                             .padding(.horizontal, 14)
@@ -342,7 +354,7 @@ struct AudioFullView: View {
         NavigationStack {
             List {
                 if kind == .text {
-                    ForEach(store.bibles.filter { !$0.interlinear }) { m in
+                    ForEach(store.bibles.filter { m in !m.interlinear && (audio.current.map { c in m.books.contains { $0.id == c.book } } ?? true) }) { m in
                         optionRow(m.name, m.title, selected: m.id == textId) {
                             audio.textModule = m.id
                             picker = nil
