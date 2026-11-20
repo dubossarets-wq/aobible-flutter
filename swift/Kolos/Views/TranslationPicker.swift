@@ -50,8 +50,8 @@ struct TranslationPicker: View {
                     .foregroundStyle(.secondary)
             }
         }
-        // строки во всю ширину экрана, без карточек со скруглёнными краями
-        .listStyle(.plain)
+        // как библиотека модулей: карточки со скруглёнными краями на сером фоне
+        .listStyle(.insetGrouped)
         .animation(.snappy(duration: 0.3), value: panes.favorites)
         .sensoryFeedback(.selection, trigger: panes.favorites)
         .confirmationDialog(
@@ -108,9 +108,7 @@ struct TranslationPicker: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(fav ? "Убрать из избранного" : "В избранное")
         }
-        // выбранный перевод — подсветка во всю строку, как у остальных строк: без скруглений и отступов
-        // перевод этого окна — заметнее, переводы других окон — светлее
-        .listRowBackground(isCurrent ? Color.accentColor.opacity(0.16) : (isActive ? Color.accentColor.opacity(0.07) : Color.clear))
+        // выбранный перевод — как в библиотеке модулей: название цветом акцента, без плашки
         .contextMenu {
             Button { panes.toggleFavorite(m.id) } label: {
                 Label(fav ? "Убрать из избранного" : "В избранное", systemImage: fav ? "star.slash" : "star")
