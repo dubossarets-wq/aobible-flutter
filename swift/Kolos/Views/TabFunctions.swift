@@ -173,6 +173,9 @@ enum TabTitles {
 /// Настройка нижнего меню: вверху — его копия. Нажатие на пункт — варианты замены (на поиск — отдельной кнопкой или в
 /// меню); зажать пункт и перетащить — поменять порядок. Меняется только копия; настоящее меню — по «Применить»
 struct TabBarSettings: View {
+    /// Идёт перетаскивание пункта — экран настроек в это время не прокручивается
+    @Binding var dragging: Bool
+
     @AppStorage(TabFunction.leftKey) private var left = TabFunction.plans.rawValue
     @AppStorage(TabFunction.rightKey) private var right = TabFunction.saved.rawValue
     @AppStorage(TabFunction.searchKey) private var searchInBar = false
@@ -246,6 +249,7 @@ struct TabBarSettings: View {
                 Text("Зажмите пункт и перетащите, чтобы поменять порядок.")
             }
         }
+        .onChange(of: dragID) { _, v in dragging = v != nil }
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -263,11 +267,13 @@ struct TabBarSettings: View {
             GeometryReader { geo in
                 let vis = visible
                 let w = max(1, (geo.size.width - 8) / CGFloat(max(1, vis.count)))
-                HStack(spacing: 0) {
+                // каждый пункт стоит в своей ячейке (offset = номер × ширина); перетаскиваемый — там, где палец, а не в
+                // ячейке: перестановка соседей его не двигает
+                ZStack(alignment: .topLeading) {
                     ForEach(vis, id: \.self) { t in cell(t, itemW: w, vis: vis) }
                 }
-                // жест считается в координатах ряда, а не самого пункта: пункты переезжают при перестановке, и
-                // смещение от них самих «прыгало»
+                .frame(width: w * CGFloat(vis.count), height: 48, alignment: .topLeading)
+                // жест считается в координатах ряда, а не самого пункта
                 .coordinateSpace(name: "tabbar")
                 .padding(4)
             }
@@ -294,7 +300,7 @@ struct TabBarSettings: View {
         let cur = vis.firstIndex(of: t) ?? 0
         content(t)
             .frame(width: itemW)
-            .offset(x: isDrag ? dragCenter - (CGFloat(cur) + 0.5) * itemW : 0)
+            .offset(x: isDrag ? dragCenter - itemW / 2 : CGFloat(cur) * itemW)
             .scaleEffect(isDrag ? 1.1 : 1)
             .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 8, y: 3)
             .zIndex(isDrag ? 1 : 0)
@@ -372,11 +378,12 @@ struct TabBarSettings: View {
             }
     }
 
-    /// Пункт t — на место target среди видимых (поиск вне меню в порядке всегда остаётся последним)
+    /// Пункт t становится на место target, а тот, что стоял там, — на прежнее место t (остальные не двигаются).
+    /// Поиск вне меню в порядке всегда остаётся последним
     private func move(_ t: String, to target: Int) {
         var v = visible
-        v.removeAll { $0 == t }
-        v.insert(t, at: min(max(0, target), v.count))
+        guard let cur = v.firstIndex(of: t), target >= 0, target < v.count, target != cur else { return }
+        v.swapAt(cur, target)
         UISelectionFeedbackGenerator().selectionChanged()
         withAnimation(.snappy(duration: 0.25)) { dOrder = dSearch ? v : v + ["S"] }
     }

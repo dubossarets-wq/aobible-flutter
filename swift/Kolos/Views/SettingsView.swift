@@ -24,10 +24,12 @@ struct SettingsView: View {
     @AppStorage("keepScreenOn") private var keepScreenOn = false
     @AppStorage("interfaceLanguage") private var interfaceLanguage = "ru"
     @EnvironmentObject private var panes: PanesStore
+    /// Тянут пункт нижнего меню — прокрутку страницы отключаем, чтобы пункт не «уплывал» вместе с ней
+    @State private var tabDragging = false
 
     var body: some View {
         Form {
-            TabBarSettings()
+            TabBarSettings(dragging: $tabDragging)
             Section {
                 Picker("Язык", selection: $interfaceLanguage) {
                     ForEach(interfaceLanguages, id: \.0) { l in
@@ -74,6 +76,7 @@ struct SettingsView: View {
                 Text("Номера Стронга показываются у слов, для которых в модуле есть подстрочник.")
             }
         }
+        .scrollDisabled(tabDragging)
         .navigationTitle("Настройки")
         .navigationBarTitleDisplayMode(.inline)
     }
