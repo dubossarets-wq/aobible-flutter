@@ -7,6 +7,8 @@ struct MapsView: View {
     @State private var kind = 0
     @State private var query = ""
     @State private var found: [BiblePlace] = []
+    /// Ничего не нашлось — близкие по написанию названия («Возможно, вы искали»)
+    @State private var suggestions: [BiblePlace] = []
 
     var body: some View {
         List {
@@ -41,6 +43,27 @@ struct MapsView: View {
                         }
                     }
                 }
+                // не нашлось — предлагаем похожие названия; нажатие открывает место
+                if found.isEmpty, query.trimmingCharacters(in: .whitespaces).count >= 2, !store.placeModules.isEmpty {
+                    if suggestions.isEmpty {
+                        Section {
+                            Text("Мест с таким названием нет.").foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Section("Возможно, вы искали") {
+                            ForEach(suggestions) { p in
+                                NavigationLink {
+                                    PlaceDetail(place: p)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(p.name)
+                                        if !p.modern.isEmpty { Text(p.modern).font(.caption).foregroundStyle(.secondary) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
                 let maps = store.mapImages()
                 if maps.isEmpty {
@@ -60,7 +83,10 @@ struct MapsView: View {
         .navigationTitle("Карты")
         .navigationBarTitleDisplayMode(.inline)
         .bottomSearch($query, prompt: "Название места")
-        .onChange(of: query) { _, q in found = store.searchPlaces(q) }
+        .onChange(of: query) { _, q in
+            found = store.searchPlaces(q)
+            suggestions = found.isEmpty ? store.suggestPlaces(q) : []
+        }
     }
 }
 
@@ -171,33 +197,112 @@ struct PlaceDetail: View {
 /// Карта-картинка с увеличением двумя пальцами
 struct MapImageView: View {
     let map: MapImage
-    @State private var scale = 1.0
-    @State private var base = 1.0
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
-            AsyncImage(url: map.url) { img in
-                img.resizable().scaledToFit()
-            } placeholder: {
-                ProgressView().padding(60)
+        // настоящая прокрутка с масштабом UIKit: щипок, двойное касание, сдвиг пальцем в увеличенном виде
+        ZoomScrollImage(url: map.url)
+            .ignoresSafeArea(edges: .horizontal)
+            .safeAreaInset(edge: .bottom) {
+                Text(map.descr)
+                    .font(.footnote)
+                    .lineLimit(5)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial)
             }
-            .frame(width: UIScreen.main.bounds.width * scale)
+            .navigationTitle(map.title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Картинка с настоящим масштабом (UIScrollView): щипок до 8×, двойное касание — 3× в этой точке и обратно
+struct ZoomScrollImage: UIViewRepresentable {
+    let url: URL?
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> FitScroll {
+        let sv = FitScroll()
+        let c = context.coordinator
+        sv.delegate = c
+        sv.minimumZoomScale = 1
+        sv.maximumZoomScale = 8
+        sv.bouncesZoom = true
+        sv.showsHorizontalScrollIndicator = false
+        sv.showsVerticalScrollIndicator = false
+        sv.contentInsetAdjustmentBehavior = .never
+        sv.backgroundColor = .clear
+        let iv = UIImageView()
+        iv.contentMode = .scaleAspectFit
+        sv.addSubview(iv)
+        sv.imageView = iv
+        c.imageView = iv
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.hidesWhenStopped = true
+        sv.addSubview(spinner)
+        sv.spinner = spinner
+        let double = UITapGestureRecognizer(target: c, action: #selector(Coordinator.doubleTap(_:)))
+        double.numberOfTapsRequired = 2
+        sv.addGestureRecognizer(double)
+        c.scroll = sv
+        c.load(url, into: sv)
+        return sv
+    }
+
+    func updateUIView(_ sv: FitScroll, context: Context) {
+        context.coordinator.load(url, into: sv)
+    }
+
+    /// Прокрутка, которая держит картинку по размеру окна, пока не увеличена
+    final class FitScroll: UIScrollView {
+        var imageView: UIImageView?
+        var spinner: UIActivityIndicatorView?
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            spinner?.center = CGPoint(x: bounds.midX, y: bounds.midY)
+            guard let iv = imageView, zoomScale == 1 else { return }
+            if iv.frame.size != bounds.size {
+                iv.frame = CGRect(origin: .zero, size: bounds.size)
+                contentSize = bounds.size
+            }
         }
-        .gesture(
-            MagnifyGesture()
-                .onChanged { scale = min(6, max(1, base * $0.magnification)) }
-                .onEnded { _ in base = scale }
-        )
-        .safeAreaInset(edge: .bottom) {
-            Text(map.descr)
-                .font(.footnote)
-                .lineLimit(5)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial)
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var imageView: UIImageView?
+        weak var scroll: FitScroll?
+        private var loaded: URL?
+
+        func load(_ url: URL?, into sv: FitScroll) {
+            guard let url, url != loaded else { return }
+            loaded = url
+            sv.spinner?.startAnimating()
+            Task { @MainActor [weak self, weak sv] in
+                let data = try? await URLSession.shared.data(from: url).0
+                guard let self, let sv, self.loaded == url else { return }
+                sv.spinner?.stopAnimating()
+                if let data, let img = UIImage(data: data) {
+                    self.imageView?.image = img
+                    sv.setZoomScale(1, animated: false)
+                    sv.setNeedsLayout()
+                }
+            }
         }
-        .navigationTitle(map.title)
-        .navigationBarTitleDisplayMode(.inline)
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+
+        @objc func doubleTap(_ g: UITapGestureRecognizer) {
+            guard let sv = scroll, let iv = imageView else { return }
+            if sv.zoomScale > 1.01 {
+                sv.setZoomScale(1, animated: true)
+            } else {
+                let p = g.location(in: iv)
+                let z: CGFloat = 3
+                let size = CGSize(width: sv.bounds.width / z, height: sv.bounds.height / z)
+                sv.zoom(to: CGRect(x: p.x - size.width / 2, y: p.y - size.height / 2, width: size.width, height: size.height), animated: true)
+            }
+        }
     }
 }
 

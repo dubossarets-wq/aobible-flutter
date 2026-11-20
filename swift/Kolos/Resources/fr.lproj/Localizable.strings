@@ -1927,3 +1927,5 @@
 "Озвучка" = "Audio";
 "Модули" = "Modules";
 "Выберите книгу — ниже её места. Нажатие открывает стих." = "Choisissez un livre — ses passages sont en dessous. Touchez pour ouvrir le verset.";
+"Мест с таким названием нет." = "Aucun lieu de ce nom.";
+"Возможно, вы искали" = "Vous cherchiez peut-être";

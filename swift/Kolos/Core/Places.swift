@@ -30,6 +30,8 @@ struct MapImage: Identifiable, Hashable {
     }
 }
 
+private var placeNameCache: [String: [(String, String)]] = [:]
+
 extension ModuleStore {
     /// Модули с таблицей мест
     var placeModules: [InstalledModule] {
@@ -84,6 +86,67 @@ extension ModuleStore {
             if out.count >= limit { break }
         }
         return out
+    }
+
+    /// «Возможно, вы искали»: названия, близкие к запросу (опечатка, лишняя или пропущенная буква, перестановка).
+    /// Расстояние считается и до всего названия, и до его начала такой же длины — недописанное слово тоже подходит
+    func suggestPlaces(_ q: String, limit: Int = 6) -> [BiblePlace] {
+        let query = Array(Lexicon.normalizeWord(q.trimmingCharacters(in: .whitespaces)))
+        guard query.count >= 3 else { return [] }
+        let allowed = max(1, query.count / 3)
+        var out: [BiblePlace] = []
+        for m in placeModules {
+            guard let d = db(m.id) else { continue }
+            let names = Self.placeNames(m.id, d)
+            var scored: [(score: Int, len: Int, id: String)] = []
+            for (id, norm) in names {
+                let n = Array(norm)
+                let whole = Self.distance(query, n)
+                let head = n.count > query.count ? Self.distance(query, Array(n.prefix(query.count))) + 1 : whole
+                let s = min(whole, head)
+                if s <= allowed { scored.append((s, n.count, id)) }
+            }
+            scored.sort { $0.score != $1.score ? $0.score < $1.score : $0.len < $1.len }
+            let ids = scored.prefix(limit - out.count).map(\.id)
+            guard !ids.isEmpty else { continue }
+            let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
+            let found = d.query("SELECT \(Self.placeCols) FROM places WHERE id IN (\(marks))", ids) { place($0, m) }
+            // в порядке близости
+            let order = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+            out.append(contentsOf: found.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) })
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
+    /// Названия мест модуля (нормализованные) — читаются один раз
+    private static func placeNames(_ moduleId: String, _ d: SQLiteDB) -> [(String, String)] {
+        if let c = placeNameCache[moduleId] { return c }
+        let rows = d.query("SELECT id, name_norm FROM places") { ($0.text(0), $0.text(1)) }
+        placeNameCache[moduleId] = rows
+        return rows
+    }
+
+    /// Расстояние Дамерау — Левенштейна (вставка, удаление, замена, перестановка соседних букв)
+    private static func distance(_ a: [Character], _ b: [Character]) -> Int {
+        if a.isEmpty { return b.count }
+        if b.isEmpty { return a.count }
+        var prev2 = [Int](repeating: 0, count: b.count + 1)
+        var prev = Array(0...b.count)
+        var cur = [Int](repeating: 0, count: b.count + 1)
+        for i in 1...a.count {
+            cur[0] = i
+            for j in 1...b.count {
+                let cost = a[i - 1] == b[j - 1] ? 0 : 1
+                cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                if i > 1, j > 1, a[i - 1] == b[j - 2], a[i - 2] == b[j - 1] {
+                    cur[j] = min(cur[j], prev2[j - 2] + 1)
+                }
+            }
+            prev2 = prev
+            prev = cur
+        }
+        return prev[b.count]
     }
 
     /// Карты-картинки из установленных модулей карт
