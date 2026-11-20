@@ -20,9 +20,12 @@ extension SermonStore {
     }
 
     /// Вставка блоков на нужное место (после блока с номером afterId; nil — в конец)
-    func insert(_ blocks: [SermonBlock], into id: String, after afterId: String?) {
+    /// Вставить блоки: под блоком afterId, над блоком beforeId, иначе — в конец
+    func insert(_ blocks: [SermonBlock], into id: String, after afterId: String?, before beforeId: String? = nil) {
         guard var s = get(id) else { return }
-        if let a = afterId, let i = s.blocks.firstIndex(where: { $0.id == a }) {
+        if let b = beforeId, let i = s.blocks.firstIndex(where: { $0.id == b }) {
+            s.blocks.insert(contentsOf: blocks, at: i)
+        } else if let a = afterId, let i = s.blocks.firstIndex(where: { $0.id == a }) {
             s.blocks.insert(contentsOf: blocks, at: i + 1)
         } else {
             s.blocks.append(contentsOf: blocks)

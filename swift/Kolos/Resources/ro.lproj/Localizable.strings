@@ -1900,3 +1900,7 @@
 "По умолчанию" = "Implicit";
 "Применить" = "Aplică";
 "Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Atingeți un element pentru a-l înlocui. „Biblia” și „Mai mult” sunt mereu în meniu; „Planurile” și „Marcajele” scoase rămân în „Mai mult”. Meniul se schimbă după „Aplică”.";
+
+/* Проповеди: блок выше и ниже */
+"Добавить блок выше" = "Adaugă bloc deasupra";
+"Добавить блок ниже" = "Adaugă bloc dedesubt";

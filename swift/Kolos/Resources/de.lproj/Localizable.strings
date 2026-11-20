@@ -1900,3 +1900,7 @@
 "По умолчанию" = "Standard";
 "Применить" = "Anwenden";
 "Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Tippen Sie auf einen Eintrag, um ihn zu ersetzen. „Bibel“ und „Mehr“ sind immer in der Leiste; entfernte „Pläne“ und „Lesezeichen“ bleiben unter „Mehr“. Die Leiste ändert sich nach „Anwenden“.";
+
+/* Проповеди: блок выше и ниже */
+"Добавить блок выше" = "Block darüber einfügen";
+"Добавить блок ниже" = "Block darunter einfügen";

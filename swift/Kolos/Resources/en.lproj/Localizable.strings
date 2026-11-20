@@ -1911,3 +1911,7 @@
 "По умолчанию" = "Default";
 "Применить" = "Apply";
 "Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Tap an item to replace it. “Bible” and “More” are always in the menu; removed “Plans” and “Bookmarks” stay in “More”. The menu changes after “Apply”.";
+
+/* Проповеди: блок выше и ниже */
+"Добавить блок выше" = "Add block above";
+"Добавить блок ниже" = "Add block below";

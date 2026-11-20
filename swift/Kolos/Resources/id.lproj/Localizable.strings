@@ -1900,3 +1900,7 @@
 "По умолчанию" = "Bawaan";
 "Применить" = "Terapkan";
 "Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Ketuk item untuk menggantinya. «Alkitab» dan «Lainnya» selalu ada di menu; «Rencana» dan «Penanda» yang dihapus tetap di «Lainnya». Menu berubah setelah «Terapkan».";
+
+/* Проповеди: блок выше и ниже */
+"Добавить блок выше" = "Tambah blok di atas";
+"Добавить блок ниже" = "Tambah blok di bawah";

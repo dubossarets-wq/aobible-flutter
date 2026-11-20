@@ -80,6 +80,8 @@ struct SermonEditor: View {
     @State private var copyId: String?
     /// после какого блока вставлять стих (nil — в конец)
     @State private var insertAfter: String?
+    /// Стих добавляется над этим блоком (а не под ним)
+    @State private var insertBefore: String?
 
     private var binding: Binding<Sermon>? {
         guard let s = sermons.get(id) else { return nil }
@@ -124,17 +126,17 @@ struct SermonEditor: View {
         version += 1
     }
 
-    private func add(_ b: SermonBlock, after: String?) {
+    private func add(_ b: SermonBlock, after: String?, before: String? = nil) {
         record()
-        sermons.insert([b], into: id, after: after)
+        sermons.insert([b], into: id, after: after, before: before)
     }
 
-    /// «Добавить блок» — в конце списка или под нажатым блоком (контекстное меню)
+    /// «Добавить блок» — в конце списка, под нажатым блоком или над ним (контекстное меню)
     @ViewBuilder
-    private func addMenu(after: String?) -> some View {
-        Button { insertAfter = after; showAddVerse = true } label: { Label("Стих", systemImage: "book") }
-        Button { add(SermonBlock(type: "text", text: ""), after: after) } label: { Label("Свой текст", systemImage: "text.alignleft") }
-        Button { add(SermonBlock(type: "note", text: ""), after: after) } label: { Label("Заметка для себя", systemImage: "note.text") }
+    private func addMenu(after: String?, before: String? = nil) -> some View {
+        Button { insertAfter = after; insertBefore = before; showAddVerse = true } label: { Label("Стих", systemImage: "book") }
+        Button { add(SermonBlock(type: "text", text: ""), after: after, before: before) } label: { Label("Свой текст", systemImage: "text.alignleft") }
+        Button { add(SermonBlock(type: "note", text: ""), after: after, before: before) } label: { Label("Заметка для себя", systemImage: "note.text") }
     }
 
     var body: some View {
@@ -161,21 +163,28 @@ struct SermonEditor: View {
                         .id("\(b.id)-\(version)")
                         .contextMenu {
                             Menu {
+                                addMenu(after: nil, before: b.id)
+                            } label: { Label("Добавить блок выше", systemImage: "arrow.up.circle") }
+                            Menu {
                                 addMenu(after: b.id)
-                            } label: { Label("Добавить блок", systemImage: "plus.circle") }
+                            } label: { Label("Добавить блок ниже", systemImage: "arrow.down.circle") }
                         }
                     }
                     .onMove { from, to in sb.wrappedValue.blocks.move(fromOffsets: from, toOffset: to) }
                     .onDelete { sb.wrappedValue.blocks.remove(atOffsets: $0) }
                     Menu {
-                        addMenu(after: nil)
+                        addMenu(after: nil, before: nil)
                     } label: {
                         Label("Добавить блок", systemImage: "plus.circle.fill")
                     }
                 }
                 Section {
                     Button { if let n = sermons.duplicate(id) { copyId = n } } label: { Label("Сделать копию", systemImage: "doc.on.doc") }
-                    Button(role: .destructive) { askDelete = true } label: { Label("Удалить проповедь", systemImage: "trash") }
+                    Button(role: .destructive) { askDelete = true } label: {
+                        Label { Text("Удалить проповедь") } icon: { Image(systemName: "trash") }
+                    }
+                    // и значок красный, не только надпись
+                    .foregroundStyle(.red)
                 }
             }
             .dynamicTypeSize(typeSize)
@@ -220,7 +229,7 @@ struct SermonEditor: View {
                 AddVerseSheet { items, moduleId in
                     record()
                     let blocks = SermonStore.versesToBlocks(items, moduleId: moduleId)
-                    sermons.insert(blocks, into: id, after: insertAfter)
+                    sermons.insert(blocks, into: id, after: insertAfter, before: insertBefore)
                 }
             }
             .navigationDestination(item: $copyId) { SermonEditor(id: $0) }

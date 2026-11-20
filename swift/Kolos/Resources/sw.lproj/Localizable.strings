@@ -1900,3 +1900,7 @@
 "По умолчанию" = "Chaguo-msingi";
 "Применить" = "Tekeleza";
 "Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Gusa kipengee ili kukibadilisha. «Biblia» na «Zaidi» viko kwenye menyu kila wakati; «Mipango» na «Alamisho» zilizoondolewa zinabaki kwenye «Zaidi». Menyu hubadilika baada ya «Tekeleza».";
+
+/* Проповеди: блок выше и ниже */
+"Добавить блок выше" = "Ongeza kipande juu";
+"Добавить блок ниже" = "Ongeza kipande chini";
