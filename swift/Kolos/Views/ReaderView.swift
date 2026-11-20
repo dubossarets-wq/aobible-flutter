@@ -2620,7 +2620,8 @@ enum HeadingStyle {
     static func color(_ id: String, _ pal: ThemePalette) -> Color {
         switch id {
         case "text": return pal.text
-        case "muted": return pal.muted
+        // приглушённый — цвет текста с прозрачностью 50 % (цвет «muted» темы в некоторых темах почти как текст)
+        case "muted": return pal.text.opacity(0.5)
         default: return pal.accent
         }
     }
