@@ -1255,7 +1255,8 @@ struct ChapterText: View {
             }
             let part = NSMutableAttributedString(attributedString: attributedNS(v, chapter, xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0, number: true, numberLink: true))
             let full = NSRange(location: 0, length: part.length)
-            if let bgc = continuousBackground(chapter, v.num) { part.addAttribute(.backgroundColor, value: UIColor(bgc), range: full) }
+            // звучащий и выделенный стих — одна цельная скруглённая плашка, а не ступенчатая заливка по строкам
+            if let bgc = continuousBackground(chapter, v.num) { part.addAttribute(.aobPlate, value: PlateStyle(UIColor(bgc), radius: 8, inflate: 3), range: full) }
             part.addAttribute(.paragraphStyle, value: para(continuous ? 0 : fontSize * verseSpacing), range: full)
             out.append(part)
             out.append(NSAttributedString(string: continuous ? " " : "\n", attributes: [.font: base, .aobVerse: v.num, .paragraphStyle: para(continuous ? 0 : fontSize * verseSpacing)]))
@@ -1872,7 +1873,7 @@ struct ChapterText: View {
         for v in blk.verses {
             let part = NSMutableAttributedString(attributedString: attributedNS(v, c, xrefs: xcounts[v.num] ?? 0, illus: icounts[v.num] ?? 0, number: true, numberLink: true))
             if let bgc = continuousBackground(c, v.num) {
-                part.addAttribute(.backgroundColor, value: UIColor(bgc), range: NSRange(location: 0, length: part.length))
+                part.addAttribute(.aobPlate, value: PlateStyle(UIColor(bgc), radius: 8, inflate: 3), range: NSRange(location: 0, length: part.length))
             }
             out.append(part)
             out.append(NSAttributedString(string: " ", attributes: [.font: uiFont(fontSize), .aobVerse: v.num, .paragraphStyle: paragraph()]))
