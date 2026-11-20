@@ -240,6 +240,8 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         scroll.showsVerticalScrollIndicator = false
         scroll.alwaysBounceHorizontal = true
         scroll.alwaysBounceVertical = false
+        // только вправо и влево: диагональный жест не уводит страницу вверх или вниз
+        scroll.isDirectionalLockEnabled = true
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.backgroundColor = .clear
         scroll.decelerationRate = .fast
@@ -359,7 +361,8 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             indexVerses()
         }
         let w = pageWidth
-        scroll.contentSize = CGSize(width: w * CGFloat(max(1, pageCount)), height: scroll.bounds.height)
+        // высота содержимого не больше окна — по вертикали прокручивать нечего
+        scroll.contentSize = CGSize(width: w * CGFloat(max(1, pageCount)), height: 1)
         let i = pageIndex(forVerse: startVerse)
         current = i
         applying = true
@@ -638,6 +641,12 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     private var leading: Bool { scroll.isTracking || scroll.isDragging || scroll.isDecelerating || userAnimating }
 
     func scrollViewDidScroll(_ s: UIScrollView) {
+        // страницы едут только по горизонтали
+        if s.contentOffset.y != 0 {
+            applying = true
+            s.contentOffset.y = 0
+            applying = false
+        }
         tile()
         guard !applying, leading, let id = cfg?.paneID else { return }
         cfg?.sync?.scrolled(id, page: s.contentOffset.x / pageWidth, anchors: anchors)
