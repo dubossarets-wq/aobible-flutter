@@ -318,6 +318,13 @@ extension ModuleStore {
 }
 
 extension InstalledModule {
+    /// Название для метки в тексте: без пояснения после двоеточия («Десницкий: примечания» → «Десницкий»)
+    var tagName: String {
+        guard let i = name.firstIndex(of: ":") else { return name }
+        let head = name[..<i].trimmingCharacters(in: .whitespaces)
+        return head.isEmpty ? name : head
+    }
+
     /// Короткое название для шапки панели — не длиннее 4 знаков
     var shortName: String {
         let known = ["rst-interlinear": "Подс", "vin-interlinear": "Вин", "rst-plus": "RST+", "byz-rp2018": "Byz", "oshb": "OSHB"]

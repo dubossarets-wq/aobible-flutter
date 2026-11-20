@@ -119,13 +119,13 @@ final class PanesStore: ObservableObject {
         return p
     }
 
-    /// Сколько окон можно открыть: в режиме «Страницы» — два (листать вместе больше двух страниц не получается),
+    /// Сколько окон можно открыть: в режиме «Страницы» — одно (параллельные окна на страницах пока отключены),
     /// при прокрутке — шесть
     var paneLimit: Int {
-        (UserDefaults.standard.string(forKey: "readingStyle") ?? "scroll") == "pages" ? 2 : maxPanes
+        (UserDefaults.standard.string(forKey: "readingStyle") ?? "scroll") == "pages" ? 1 : maxPanes
     }
 
-    /// Включили «Страницы», а окон больше двух — остаются первые два
+    /// Включили «Страницы», а окон больше одного — остаётся первое
     func trimToLimit() {
         guard panes.count > paneLimit else { return }
         panes = Array(panes.prefix(paneLimit))

@@ -49,9 +49,12 @@ struct AudioBar: View {
                         }
                         if audio.sleepLeft != nil || audio.sleepAtChapterEnd {
                             Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
+                                .tint(.red)
                         }
                     } label: { Label("Таймер сна", systemImage: "moon.zzz") }
+                    // красным и значок: акцент приложения иначе красил крестик в синий
                     Button(role: .destructive) { audio.stop() } label: { Label("Закрыть", systemImage: "xmark") }
+                        .tint(.red)
                 } label: { Image(systemName: "ellipsis.circle") }
             }
             .padding(.horizontal, 18)
@@ -262,6 +265,7 @@ struct AudioFullView: View {
             Menu {
                 Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
                 Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть", systemImage: "xmark") }
+                    .tint(.red)
             } label: {
                 Image(systemName: "ellipsis").font(.title3).frame(width: 36, height: 44)
                     .foregroundStyle(.white.opacity(0.75))

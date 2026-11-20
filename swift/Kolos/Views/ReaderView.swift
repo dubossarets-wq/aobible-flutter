@@ -2048,7 +2048,7 @@ struct ChapterText: View {
             // метки после стиха: серое название каждого комментария; нажатие открывает всплывающее окно с его текстом
             for it in items {
                 out.append(NSAttributedString(string: "  ", attributes: [.font: uiFont(fontSize * 0.7), .aobVerse: v.num]))
-                out.append(NSAttributedString(string: it.module.name, attributes: [
+                out.append(NSAttributedString(string: it.module.tagName, attributes: [
                     .font: UIFont.systemFont(ofSize: fontSize * 0.7, weight: .semibold),
                     .foregroundColor: UIColor(pal.muted),
                     .aobURL: URL(string: "aobcomm:\(v.num),\(it.module.id)")!, .aobVerse: v.num,
@@ -2070,7 +2070,7 @@ struct ChapterText: View {
             if Bidi.isRTLLang(module.language) { ps.baseWritingDirection = .rightToLeft }
             let url = URL(string: "aobcommx:\(key)")!
             let part = NSMutableAttributedString()
-            part.append(NSAttributedString(string: "\n" + it.module.name + "  ", attributes: [.font: UIFont.systemFont(ofSize: size * 0.8, weight: .bold), .foregroundColor: accent]))
+            part.append(NSAttributedString(string: "\n" + it.module.tagName + "  ", attributes: [.font: UIFont.systemFont(ofSize: size * 0.8, weight: .bold), .foregroundColor: accent]))
             part.append(NSAttributedString(string: shown, attributes: [.font: UIFont.systemFont(ofSize: size), .foregroundColor: UIColor(pal.text).withAlphaComponent(0.78)]))
             part.addAttributes([.aobURL: url, .aobVerse: v.num, .paragraphStyle: ps], range: NSRange(location: 0, length: part.length))
             out.append(part)
