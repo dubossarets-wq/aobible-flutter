@@ -104,7 +104,7 @@ extension ModuleStore {
 
     private static func patchNames(path: String, names: [String: String], language: String) -> Bool {
         guard let db = try? SQLiteDB(path: path, readOnly: false),
-              let s = db.query("SELECT value FROM meta WHERE key = 'json'", { $0.text(0) }).first,
+              let s = db.query("SELECT value FROM meta WHERE key = 'json'") { $0.text(0) }.first,
               var j = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any] else { return false }
         var list = (j["bookList"] as? [[String: Any]]) ?? []
         for i in list.indices {
