@@ -367,6 +367,11 @@ struct DictionaryView: View {
     @State private var searched = ""
     @State private var loadingOthers = false
     @FocusState private var focused: Bool
+    /// Язык словарей: «all» — все (общий с выбором на странице статьи)
+    @AppStorage("dictLang") private var lang = "all"
+
+    private var mineShown: [DictArticle] { lang == "all" ? mine : mine.filter { $0.language == lang } }
+    private var othersShown: [DictArticle] { lang == "all" ? others : others.filter { $0.language == lang } }
 
     private var q: String {
         query.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "ё", with: "е")
@@ -380,25 +385,35 @@ struct DictionaryView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                if !mine.isEmpty {
-                    Section("Мои словари") {
-                        ForEach(mine) { row($0) }
+                let langs = DictLang.list((mine + others).map(\.language) + [lang])
+                if langs.count > 1 {
+                    Section {
+                        Picker("Язык словаря", selection: $lang) {
+                            Text("Все языки").tag("all")
+                            ForEach(langs, id: \.self) { l in Text(DictLang.name(l)).tag(l) }
+                        }
+                        .pickerStyle(.menu)
                     }
-                } else if searched == q && !loadingOthers && others.isEmpty {
+                }
+                if !mineShown.isEmpty {
+                    Section("Мои словари") {
+                        ForEach(mineShown) { row($0) }
+                    }
+                } else if searched == q && !loadingOthers && othersShown.isEmpty {
                     Section {
                         Text("Ничего не найдено.").foregroundStyle(.secondary)
                     }
                 }
-                if loadingOthers && others.isEmpty {
+                if loadingOthers && othersShown.isEmpty {
                     Section("Другие словари") {
                         HStack(spacing: 10) {
                             ProgressView()
                             Text("Ищу в словарях библиотеки…").foregroundStyle(.secondary)
                         }
                     }
-                } else if !others.isEmpty {
+                } else if !othersShown.isEmpty {
                     Section {
-                        ForEach(others) { row($0) }
+                        ForEach(othersShown) { row($0) }
                     } header: {
                         Text("Другие словари")
                     } footer: {
@@ -492,18 +507,21 @@ struct DictEntryPage: View {
     @State private var next: DictArticle?
     @State private var allKey: String?
     @State private var installing = false
+    @AppStorage("dictLang") private var lang = "all"
 
     private var current: DictArticle { tabs.first { $0.id == sel } ?? start }
+
+    /// Словари выбранного языка (нет таких — все)
+    private var shownTabs: [DictArticle] {
+        let f = lang == "all" ? tabs : tabs.filter { $0.language == lang }
+        return f.isEmpty ? tabs : f
+    }
 
     var body: some View {
         let a = current
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if tabs.count > 1 {
-                    UnderlineTabs(labels: tabs.map(\.dictName), index: tabs.firstIndex { $0.id == sel } ?? 0) { i in
-                        sel = tabs[i].id
-                    }
-                }
+                pickerCard(a)
                 if let e = a.entry(store) {
                     if a.kind == "strongs" {
                         StrongEntryView(num: a.key, entry: e, module: a.module ?? placeholder(a), mapping: nil, orig: nil,
@@ -530,6 +548,53 @@ struct DictEntryPage: View {
         .navigationDestination(item: $allKey) { ConcordancePage(key: $0) }
         .task { await load() }
         .onChange(of: store.installed.count) { _, _ in Task { await load() } }
+        .onChange(of: lang) { _, _ in
+            if !shownTabs.contains(where: { $0.id == sel }), let f = shownTabs.first { sel = f.id }
+        }
+    }
+
+    /// Вверху — как в библиотеке модулей: «Словарь» (какой именно) и «Язык» (язык словаря); под ними — полное название
+    @ViewBuilder private func pickerCard(_ a: DictArticle) -> some View {
+        let langs = DictLang.list(tabs.map(\.language) + [lang])
+        VStack(spacing: 0) {
+            HStack {
+                Text("Словарь").foregroundStyle(pal.text)
+                Spacer(minLength: 12)
+                Picker("Словарь", selection: $sel) {
+                    ForEach(shownTabs) { t in
+                        Text(t.installed ? t.dictName : "\(t.dictName) · по сети").tag(t.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 6)
+            .frame(minHeight: 52)
+            if langs.count > 1 {
+                Divider().padding(.leading, 16)
+                HStack {
+                    Text("Язык").foregroundStyle(pal.text)
+                    Spacer(minLength: 12)
+                    Picker("Язык", selection: $lang) {
+                        Text("Все языки").tag("all")
+                        ForEach(langs, id: \.self) { l in Text(DictLang.name(l)).tag(l) }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 6)
+                .frame(minHeight: 52)
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        if !a.dictTitle.isEmpty && a.dictTitle != a.dictName {
+            Text(a.dictTitle)
+                .font(.footnote)
+                .foregroundStyle(pal.muted)
+                .padding(.horizontal, 16)
+        }
     }
 
     /// Словарь с сайта (не скачан): откуда статья и кнопка «Скачать»
@@ -606,6 +671,8 @@ struct DictEntryPage: View {
         tabs = list + more.filter { seen.insert($0.dictId).inserted }
         // словарь только что скачали — выбранной остаётся статья того же словаря
         if !tabs.contains(where: { $0.id == sel }), let t = tabs.first(where: { $0.dictId == keep }) { sel = t.id }
+        // открытая статья — на другом языке, чем выбран: показываем все языки, иначе её не было бы в списке
+        if !shownTabs.contains(where: { $0.id == sel }) { lang = "all" }
     }
 
     /// Номер Стронга в тексте статьи («от H24») — его статья
@@ -703,6 +770,23 @@ struct EntryPage: View {
         let keys = [Lexicon.dictKey(word), word.lowercased()]
         if let f = store.dictGetMany(module: hit.module, keys: keys).first {
             refHit = DictHit(module: hit.module, key: f.0, word: (f.1["word"] as? String) ?? (f.1["lemma"] as? String) ?? f.0)
+        }
+    }
+}
+
+/// Языки словарей: названия по-русски, русский — первым
+enum DictLang {
+    private static let ru = Locale(identifier: "ru")
+
+    static func name(_ code: String) -> String {
+        let n = ru.localizedString(forLanguageCode: code) ?? code
+        return n.prefix(1).uppercased() + n.dropFirst()
+    }
+
+    static func list(_ codes: [String]) -> [String] {
+        Set(codes.filter { $0 != "all" && !$0.isEmpty }).sorted { a, b in
+            if (a == "ru") != (b == "ru") { return a == "ru" }
+            return name(a) < name(b)
         }
     }
 }
