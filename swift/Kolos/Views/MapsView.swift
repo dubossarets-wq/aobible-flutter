@@ -67,6 +67,8 @@ struct PlaceDetail: View {
     let place: BiblePlace
     /// «Обычная карта / Спутник»
     @State private var satellite = false
+    /// Книга, места которой показаны в «Где упомянуто» (нет выбора — первая)
+    @State private var bookFilter: String?
 
     /// Масштаб по виду места: область — крупно, хребет, долина, река, водоём, пустыня — средне, остальное — город с окрестностями
     private var span: Double {
@@ -79,6 +81,17 @@ struct PlaceDetail: View {
     private func ref(_ osis: String) -> (String, Int, Int)? {
         guard let r = OsisRef(osis) else { return nil }
         return (r.book, r.chapter, r.verse)
+    }
+
+    /// Упоминания по книгам (в порядке книг Библии): глава и стих
+    private var groups: [(book: String, items: [(chapter: Int, verse: Int)])] {
+        var by: [String: [(chapter: Int, verse: Int)]] = [:]
+        for r in place.refs {
+            guard let x = ref(r) else { continue }
+            by[x.0, default: []].append((x.1, x.2))
+        }
+        let order = Dictionary(uniqueKeysWithValues: Books.all.enumerated().map { ($1.id, $0) })
+        return by.keys.sorted { (order[$0] ?? 999) < (order[$1] ?? 999) }.map { ($0, by[$0] ?? []) }
     }
 
     var body: some View {
@@ -105,17 +118,41 @@ struct PlaceDetail: View {
                 if !place.descr.isEmpty { Text(place.descr) }
             }
             if !place.refs.isEmpty {
-                Section("Где упомянуто") {
-                    ForEach(place.refs, id: \.self) { r in
-                        if let x = ref(r) {
-                            Button {
-                                dismiss()
-                                openVerse(x.0, x.1, x.2)
-                            } label: {
-                                Text("\(Books.info(x.0)?.short ?? x.0) \(x.1):\(x.2)").foregroundStyle(.tint)
+                // не весь список подряд: сначала книги, где упомянуто, под ними — места выбранной книги плашками
+                let gs = groups
+                let sel = gs.first { $0.book == bookFilter } ?? gs.first
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(gs, id: \.book) { g in
+                                RefChip(label: (Books.info(g.book)?.short ?? g.book).replacingOccurrences(of: ".", with: ""),
+                                        count: g.items.count, on: g.book == sel?.book) {
+                                    bookFilter = g.book
+                                }
                             }
                         }
+                        .padding(.horizontal, 16)
                     }
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    if let sel {
+                        FlowRow {
+                            ForEach(Array(sel.items.enumerated()), id: \.offset) { _, it in
+                                RefChip(label: "\(it.chapter):\(it.verse)") {
+                                    dismiss()
+                                    openVerse(sel.book, it.chapter, it.verse)
+                                }
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                } header: {
+                    Text("Где упомянуто")
+                } footer: {
+                    Text("Выберите книгу — ниже её места. Нажатие открывает стих.")
                 }
             }
             Section {
