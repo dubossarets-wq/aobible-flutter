@@ -290,34 +290,100 @@ enum DictSearch {
         return exact + strong + rest
     }
 
-    /// Та же статья в других словарях (для переключения на странице слова): слово — в словарях «по словам»,
-    /// номер Стронга — в словарях Стронга
-    static func siblingsInstalled(_ store: ModuleStore, _ a: DictArticle) -> [DictArticle] {
+    /// Чем связаны статьи разных словарей: словами и номерами Стронга. Связь та же, что в поиске, — симфония RST+:
+    /// у слова — номера, которыми оно чаще всего переводит оригинал; у номера — слова, которыми он чаще всего
+    /// переведён в Синодальном
+    struct Related {
+        var words: [String]
+        var strongs: [String]
+    }
+
+    /// Связи по скачанным словарям (без сети) — чтобы страница открылась сразу
+    static func relatedLocal(_ store: ModuleStore, _ a: DictArticle) -> Related {
         if a.kind == "strongs" {
-            return store.articleDictionaries.filter { $0.dictionaryKind == "strongs" }.compactMap { m in
-                store.strongOrWordEntry(module: m, key: a.key).map { store.article(m, key: a.key, word: ModuleStore.strongWord($0, a.key)) }
-            }
+            return Related(words: top(localRenderings(store, a)), strongs: [a.key])
         }
-        let keys = Array(NSOrderedSet(array: [a.key, Lexicon.dictKey(a.key), a.key.lowercased()])) as? [String] ?? [a.key]
-        return store.articleDictionaries.filter { $0.dictionaryKind != "strongs" }.compactMap { m in
-            store.dictGetMany(module: m, keys: keys).first.map { f in
-                store.article(m, key: f.0, word: (f.1["word"] as? String) ?? a.word)
-            }
+        return Related(words: [a.key], strongs: localStrongKeys(store, a.word.isEmpty ? a.key : a.word))
+    }
+
+    /// Полные связи: нет симфонии на телефоне — берём её с сайта
+    static func related(_ store: ModuleStore, _ a: DictArticle) async -> Related {
+        if a.kind == "strongs" {
+            var r = localRenderings(store, a)
+            if r.isEmpty { r = await remoteRenderings(a.key) }
+            return Related(words: top(r), strongs: [a.key])
+        }
+        return Related(words: [a.key], strongs: await strongKeys(store, a.word.isEmpty ? a.key : a.word))
+    }
+
+    private static func pairs(_ e: [String: Any]?) -> [(String, Int)] {
+        ((e?["renderings"] as? [[Any]]) ?? []).compactMap { p in
+            guard p.count >= 2, let w = p[0] as? String, let n = p[1] as? NSNumber else { return nil }
+            return (w, n.intValue)
         }
     }
 
-    static func siblingsRemote(_ store: ModuleStore, _ a: DictArticle) async -> [DictArticle] {
+    /// Как номер переведён в Синодальном: из самой статьи, иначе из симфонии RST+
+    private static func localRenderings(_ store: ModuleStore, _ a: DictArticle) -> [(String, Int)] {
+        let own = pairs(a.entry(store))
+        if !own.isEmpty { return own }
+        guard let sym = store.module(Lexicon.symphonyId) else { return [] }
+        return pairs(store.strongOrWordEntry(module: sym, key: a.key))
+    }
+
+    private static func remoteRenderings(_ key: String) async -> [(String, Int)] {
+        let r = RemoteDicts.shared
+        guard let sym = await r.list().first(where: { $0.id == Lexicon.symphonyId }) else { return [] }
+        return pairs(await r.get(sym, key: key))
+    }
+
+    private static func wordKeys(_ w: String) -> [String] {
+        Array(NSOrderedSet(array: [w, Lexicon.dictKey(w), w.lowercased()])) as? [String] ?? [w]
+    }
+
+    /// Статьи скачанных словарей по связям: в словарях Стронга — по номерам, в словарях «по словам» — по словам
+    static func siblingsInstalled(_ store: ModuleStore, _ rel: Related) -> [DictArticle] {
+        var out: [DictArticle] = []
+        for m in store.articleDictionaries {
+            if m.dictionaryKind == "strongs" {
+                for k in rel.strongs {
+                    if let e = store.strongOrWordEntry(module: m, key: k) {
+                        out.append(store.article(m, key: k, word: ModuleStore.strongWord(e, k)))
+                    }
+                }
+            } else {
+                for w in rel.words {
+                    if let f = store.dictGetMany(module: m, keys: wordKeys(w)).first {
+                        out.append(store.article(m, key: f.0, word: (f.1["word"] as? String) ?? w))
+                        break
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    /// То же в словарях сайта, которых нет среди скачанных
+    static func siblingsRemote(_ store: ModuleStore, _ rel: Related) async -> [DictArticle] {
         let have = Set(store.allInstalled.map(\.id))
         let r = RemoteDicts.shared
         var out: [DictArticle] = []
-        let list = await r.list().filter { !have.contains($0.id) && $0.id != Lexicon.symphonyId && $0.kind == a.kind }
+        let list = await r.list().filter { !have.contains($0.id) && $0.id != Lexicon.symphonyId && !Lexicon.lexiconIds.contains($0.id) }
             .sorted { ($0.language == "ru" ? 0 : 1) < ($1.language == "ru" ? 0 : 1) }
         for d in list {
             if Task.isCancelled { break }
-            for k in Array(NSOrderedSet(array: [a.key, Lexicon.dictKey(a.key)])) as? [String] ?? [a.key] {
-                if let e = await r.get(d, key: k) {
-                    out.append(r.article(d, key: k, entry: e))
-                    break
+            if d.kind == "strongs" {
+                for k in rel.strongs {
+                    if let e = await r.get(d, key: k) { out.append(r.article(d, key: k, entry: e)) }
+                }
+            } else {
+                search: for w in rel.words {
+                    for k in wordKeys(w) {
+                        if let e = await r.get(d, key: k) {
+                            out.append(r.article(d, key: k, entry: e))
+                            break search
+                        }
+                    }
                 }
             }
         }

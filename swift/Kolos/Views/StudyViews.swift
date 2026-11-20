@@ -557,35 +557,19 @@ struct DictEntryPage: View {
     @ViewBuilder private func pickerCard(_ a: DictArticle) -> some View {
         let langs = DictLang.list(tabs.map(\.language) + [lang])
         VStack(spacing: 0) {
-            HStack {
-                Text("Словарь").foregroundStyle(pal.text)
-                Spacer(minLength: 12)
+            pickerRow("Словарь", value: tabLabel(a)) {
                 Picker("Словарь", selection: $sel) {
-                    ForEach(shownTabs) { t in
-                        Text(t.installed ? t.dictName : "\(t.dictName) · по сети").tag(t.id)
-                    }
+                    ForEach(shownTabs) { t in Text(tabLabel(t)).tag(t.id) }
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
             }
-            .padding(.leading, 16)
-            .padding(.trailing, 6)
-            .frame(minHeight: 52)
             if langs.count > 1 {
                 Divider().padding(.leading, 16)
-                HStack {
-                    Text("Язык").foregroundStyle(pal.text)
-                    Spacer(minLength: 12)
+                pickerRow("Язык", value: lang == "all" ? "Все языки" : DictLang.name(lang)) {
                     Picker("Язык", selection: $lang) {
                         Text("Все языки").tag("all")
                         ForEach(langs, id: \.self) { l in Text(DictLang.name(l)).tag(l) }
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
                 }
-                .padding(.leading, 16)
-                .padding(.trailing, 6)
-                .frame(minHeight: 52)
             }
         }
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -595,6 +579,36 @@ struct DictEntryPage: View {
                 .foregroundStyle(pal.muted)
                 .padding(.horizontal, 16)
         }
+    }
+
+    /// Строка карточки: подпись слева занимает свою ширину, выбор — всю остальную и всегда в одну строку
+    /// (у Picker в меню своя подпись делит строку поровну с соседями и переносится)
+    private func pickerRow<P: View>(_ title: String, value: String, @ViewBuilder picker: () -> P) -> some View {
+        HStack(spacing: 12) {
+            Text(LocalizedStringKey(title)).foregroundStyle(pal.text).fixedSize()
+            Spacer(minLength: 0)
+            Menu {
+                picker()
+            } label: {
+                HStack(spacing: 5) {
+                    Text(value).lineLimit(1).truncationMode(.middle)
+                    Image(systemName: "chevron.up.chevron.down").font(.footnote.weight(.semibold))
+                }
+                .foregroundStyle(Color.accentColor)
+            }
+            .layoutPriority(1)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 52)
+    }
+
+    /// Название в списке: несколько статей одного словаря (слово переводит разные номера) — с номером;
+    /// словарь не скачан — «по сети»
+    private func tabLabel(_ t: DictArticle) -> String {
+        var s = t.dictName
+        if tabs.filter({ $0.dictId == t.dictId }).count > 1 { s += " · \(t.key)" }
+        if !t.installed { s += " · по сети" }
+        return s
     }
 
     /// Словарь с сайта (не скачан): откуда статья и кнопка «Скачать»
@@ -658,17 +672,20 @@ struct DictEntryPage: View {
 
     private func load() async {
         // скачанные словари — сразу, словари сайта — следом
-        var list = DictSearch.siblingsInstalled(store, start)
-        if !list.contains(where: { $0.dictId == start.dictId }) && !Lexicon.lexiconIds.contains(start.dictId) { list.append(start) }
+        // связи статьи (слова ↔ номера Стронга): сначала по словарям на телефоне, затем полностью
+        var list = DictSearch.siblingsInstalled(store, DictSearch.relatedLocal(store, start))
+        if !list.contains(where: { $0.id == start.id }) && !Lexicon.lexiconIds.contains(start.dictId) { list.insert(start, at: 0) }
         if list.isEmpty { list = [start] }
         let keep = current.dictId
         tabs = list
         if sel.isEmpty || !list.contains(where: { $0.id == sel }) {
-            sel = list.first { $0.dictId == start.dictId }?.id ?? list[0].id
+            sel = list.first { $0.id == start.id }?.id ?? list[0].id
         }
-        let more = await DictSearch.siblingsRemote(store, start)
-        var seen = Set(list.map(\.dictId))
-        tabs = list + more.filter { seen.insert($0.dictId).inserted }
+        let rel = await DictSearch.related(store, start)
+        let local = DictSearch.siblingsInstalled(store, rel)
+        let more = await DictSearch.siblingsRemote(store, rel)
+        var seen = Set<String>()
+        tabs = (list + local + more).filter { seen.insert($0.id).inserted }
         // словарь только что скачали — выбранной остаётся статья того же словаря
         if !tabs.contains(where: { $0.id == sel }), let t = tabs.first(where: { $0.dictId == keep }) { sel = t.id }
         // открытая статья — на другом языке, чем выбран: показываем все языки, иначе её не было бы в списке
