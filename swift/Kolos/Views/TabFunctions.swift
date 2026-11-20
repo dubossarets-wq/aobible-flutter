@@ -43,6 +43,23 @@ enum TabFunction: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Название по-русски — оно же ключ перевода (см. TabTitles)
+    var ruTitle: String {
+        switch self {
+        case .plans: "Планы"
+        case .saved: "Закладки"
+        case .history: "История"
+        case .sermons: "Проповеди"
+        case .dictionary: "Словарь"
+        case .maps: "Карты"
+        case .library: "Библиотека"
+        case .audio: "Аудио"
+        case .appearance: "Оформление"
+        case .settings: "Настройки"
+        case .none: "Нет"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .plans: "calendar"
@@ -96,6 +113,33 @@ private struct TabLibrary: View {
     }
 }
 
+/// Названия пунктов нижнего меню одной ширины. Системное меню делит место по длине подписей («Проповеди» занимает больше,
+/// чем «Ещё»), и средний пункт съезжает с середины. Короткие подписи дополняются с обеих сторон неразрывными пробелами до
+/// ширины самой длинной — пункты получаются одинаковыми, средний стоит по центру
+enum TabTitles {
+    /// Подпись на языке интерфейса: по-русски — как есть, иначе — перевод из файла языка (русский текст — ключ)
+    static func localized(_ ru: String, lang: String) -> String {
+        guard lang != "ru" else { return ru }
+        let folder = lang == "zh" ? "zh-Hans" : lang
+        guard let p = Bundle.main.path(forResource: folder, ofType: "lproj"), let b = Bundle(path: p) else { return ru }
+        return b.localizedString(forKey: ru, value: ru, table: nil)
+    }
+
+    static func equalWidth(_ titles: [String: String]) -> [String: String] {
+        let font = UIFont.systemFont(ofSize: 10, weight: .medium)
+        func width(_ s: String) -> CGFloat { (s as NSString).size(withAttributes: [.font: font]).width }
+        let gap = max(1, width("\u{00A0}"))
+        let widest = titles.values.map(width).max() ?? 0
+        var out: [String: String] = [:]
+        for (k, t) in titles {
+            let pad = Int(((widest - width(t)) / gap / 2).rounded())
+            let sp = String(repeating: "\u{00A0}", count: max(0, pad))
+            out[k] = sp + t + sp
+        }
+        return out
+    }
+}
+
 /// Настройка нижнего меню: вверху — его копия. Нажатие на пункт — варианты замены (на поиск — отдельной кнопкой или в
 /// меню); зажать пункт и перетащить — поменять порядок. Меняется только копия; настоящее меню — по «Применить»
 struct TabBarSettings: View {
@@ -114,8 +158,9 @@ struct TabBarSettings: View {
     @State private var openPop: String?
     /// Перетаскивание: пункт, смещение пальца, где пункт стоял в начале, когда закончили (тап после него не считается)
     @State private var dragID: String?
-    @State private var dragDX: CGFloat = 0
-    @State private var dragStart = 0
+    /// Где центр перетаскиваемого пункта (в координатах ряда) и за какое место его взяли
+    @State private var dragCenter: CGFloat = 0
+    @State private var grab: CGFloat = 0
     @State private var lastDrag = Date.distantPast
 
     private var visible: [String] { dOrder.filter { dSearch || $0 != "S" } }
@@ -191,6 +236,9 @@ struct TabBarSettings: View {
                 HStack(spacing: 0) {
                     ForEach(vis, id: \.self) { t in cell(t, itemW: w, vis: vis) }
                 }
+                // жест считается в координатах ряда, а не самого пункта: пункты переезжают при перестановке, и
+                // смещение от них самих «прыгало»
+                .coordinateSpace(name: "tabbar")
                 .padding(4)
             }
             .frame(height: 56)
@@ -216,7 +264,7 @@ struct TabBarSettings: View {
         let cur = vis.firstIndex(of: t) ?? 0
         content(t)
             .frame(width: itemW)
-            .offset(x: isDrag ? dragDX - CGFloat(cur - dragStart) * itemW : 0)
+            .offset(x: isDrag ? dragCenter - (CGFloat(cur) + 0.5) * itemW : 0)
             .scaleEffect(isDrag ? 1.1 : 1)
             .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 8, y: 3)
             .zIndex(isDrag ? 1 : 0)
@@ -271,28 +319,25 @@ struct TabBarSettings: View {
 
     private func dragGesture(_ t: String, itemW: CGFloat, vis: [String]) -> some Gesture {
         LongPressGesture(minimumDuration: 0.3)
-            .sequenced(before: DragGesture(minimumDistance: 0))
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("tabbar")))
             .onChanged { value in
-                guard case .second(true, let drag) = value else { return }
+                guard case .second(true, let drag?) = value else { return }
+                let now = visible
                 if dragID != t {
                     dragID = t
-                    dragStart = vis.firstIndex(of: t) ?? 0
+                    // за какое место пункта взяли: он едет за пальцем, не прыгая центром под палец
+                    grab = drag.startLocation.x - (CGFloat(now.firstIndex(of: t) ?? 0) + 0.5) * itemW
                     openPop = nil
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
-                let dx = drag?.translation.width ?? 0
-                dragDX = dx
-                // где сейчас центр пункта — на какое место он попал
-                let pos = (CGFloat(dragStart) + 0.5) * itemW + dx
-                let n = visible.count
-                let target = min(max(0, Int(pos / itemW)), max(0, n - 1))
-                if target != (visible.firstIndex(of: t) ?? target) { move(t, to: target) }
+                // центр пункта — прямо по положению пальца в ряду; на каком он месте — по нему
+                let center = drag.location.x - grab
+                dragCenter = center
+                let target = min(max(0, Int(floor(center / itemW))), max(0, now.count - 1))
+                if let cur = now.firstIndex(of: t), cur != target { move(t, to: target) }
             }
             .onEnded { _ in
-                withAnimation(.snappy(duration: 0.2)) {
-                    dragID = nil
-                    dragDX = 0
-                }
+                withAnimation(.snappy(duration: 0.2)) { dragID = nil }
                 lastDrag = Date()
             }
     }

@@ -156,6 +156,8 @@ struct AudioFullView: View {
     @State private var scrub: Double?
     @State private var lyrics = true
     @State private var packs: [AudioPack] = []
+    @State private var showMore = false
+    @State private var showChapters = false
 
     private func clock(_ s: Double) -> String {
         let v = Int(max(0, s))
@@ -215,11 +217,11 @@ struct AudioFullView: View {
         Books.info(c.book)?.name ?? c.book
     }
 
+    /// Обложка — логотип «Колос» на светлой плитке (в тон остальному приложению)
     private func cover(_ size: CGFloat, _ c: Place) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.12, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x6B4FDB), Color(hex: 0x3373F2)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Image(systemName: "book.fill").font(.system(size: size * 0.46, weight: .semibold)).foregroundStyle(.white)
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous).fill(Color.white.opacity(0.94))
+            Image("Logo").resizable().scaledToFit().padding(size * 0.14)
         }
         .frame(width: size, height: size)
     }
@@ -239,14 +241,44 @@ struct AudioFullView: View {
                 Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title3).frame(width: 36, height: 44)
                     .foregroundStyle(.white.opacity(0.75))
             }
-            Menu {
-                Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
-                Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть", systemImage: "xmark") }
-            } label: {
+            // меню — своё окошко: значки того же цвета, что и подписи (в системном меню значки красились в цвет акцента)
+            Button { showMore = true } label: {
                 Image(systemName: "ellipsis").font(.title3).frame(width: 36, height: 44)
                     .foregroundStyle(.white.opacity(0.75))
             }
+            .popover(isPresented: $showMore) {
+                VStack(spacing: 0) {
+                    moreRow("К тексту", "book", .white) {
+                        showMore = false
+                        dismiss()
+                        openVerse(c.book, c.chapter, c.verse)
+                    }
+                    Divider()
+                    moreRow("Закрыть", "xmark", Color(red: 1, green: 0.42, blue: 0.42)) {
+                        showMore = false
+                        audio.stop()
+                        dismiss()
+                    }
+                }
+                .frame(width: 230)
+                .presentationCompactAdaptation(.popover)
+            }
         }
+    }
+
+    private func moreRow(_ title: LocalizedStringKey, _ icon: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).frame(width: 22)
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(color)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func artwork(_ c: Place) -> some View {
@@ -254,7 +286,8 @@ struct AudioFullView: View {
             .shadow(color: .black.opacity(0.4), radius: 20, y: 10)
     }
 
-    /// Слова песни: стихи главы; звучащий — крупно и ярко, остальные — тусклее и размыты
+    /// Слова песни: стихи главы; звучащий — крупно и ярко, остальные тусклее и размыты. У середины окна стихи чёткие:
+    /// листаете — то, что оказалось в центре, перестаёт быть размытым
     private func lyricsView(_ c: Place) -> some View {
         let verses = store.verses(module: textId, book: c.book, chapter: c.chapter)
         return ZStack(alignment: .bottomTrailing) {
@@ -265,53 +298,79 @@ struct AudioFullView: View {
                             let on = v.num == c.verse
                             Text(Markup.plain(v.text))
                                 .font(.system(size: 31, weight: .bold))
-                                .opacity(on ? 1 : 0.4)
-                                .blur(radius: on ? 0 : 3)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .visualEffect { content, geo in
+                                    let h = geo.bounds(of: .scrollView)?.height ?? 600
+                                    let d = min(1, abs(geo.frame(in: .scrollView).midY - h / 2) / max(1, h / 2))
+                                    // у середины — чётко; дальше от неё — тусклее и размытее (звучащий — всегда чётко)
+                                    let focus = on ? 1 : max(0, min(1, 1 - (d - 0.25) / 0.45))
+                                    return content.opacity(0.4 + 0.6 * focus).blur(radius: 3 * (1 - focus))
+                                }
+                                .animation(.easeInOut(duration: 0.3), value: on)
                                 .contentShape(Rectangle())
                                 .onTapGesture { audio.seekVerse(v.num) }
                                 .id(v.num)
                         }
                     }
+                    // поля внутри прокрутки: размытый край стиха не обрезается по бокам
+                    .padding(.horizontal, 18)
                     .padding(.vertical, 120)
-                    .animation(.easeInOut(duration: 0.3), value: c.verse)
                 }
+                .scrollClipDisabled()
+                .padding(.horizontal, -18)
                 .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.14), .init(color: .black, location: 0.82), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
                 .onChange(of: c.verse) { _, v in
                     withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(v, anchor: .center) }
                 }
                 .onAppear { proxy.scrollTo(c.verse, anchor: .center) }
             }
-            // язык текста и чтеца — вертикальная «таблетка» справа, как переключатель слов в Apple Music
+            sideButtons
+        }
+    }
+
+    /// Два понятных выбора справа: перевод текста и озвучка (запись); озвучка переключается с того же места
+    private var sideButtons: some View {
+        VStack(alignment: .trailing, spacing: 8) {
             Menu {
-                Section("Текст") {
-                    ForEach(store.bibles.filter { !$0.interlinear }) { m in
-                        Button {
-                            audio.textModule = m.id
-                        } label: {
-                            if m.id == textId { Label(m.name + " — " + m.title, systemImage: "checkmark") } else { Text(m.name + " — " + m.title) }
-                        }
-                    }
-                }
-                if packs.count > 1 {
-                    Section("Чтец") {
-                        ForEach(packs, id: \.id) { p in
-                            Button {
-                                audio.switchPack(p)
-                            } label: {
-                                if p.id == audio.pack?.id { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
-                            }
-                        }
+                ForEach(store.bibles.filter { !$0.interlinear }) { m in
+                    Button {
+                        audio.textModule = m.id
+                    } label: {
+                        if m.id == textId { Label(m.name + " — " + m.title, systemImage: "checkmark") } else { Text(m.name + " — " + m.title) }
                     }
                 }
             } label: {
-                ZStack(alignment: .bottom) {
-                    Capsule().fill(.white.opacity(0.22)).frame(width: 44, height: 92)
-                    Circle().fill(.white.opacity(0.7)).frame(width: 44, height: 44)
-                        .overlay(Image(systemName: "translate").font(.body.weight(.semibold)).foregroundStyle(Color(hex: 0x14395C)))
+                chip("text.alignleft", "Текст", store.module(textId)?.name ?? "")
+            }
+            Menu {
+                ForEach(packs, id: \.id) { p in
+                    Button {
+                        audio.switchPack(p)
+                    } label: {
+                        if p.id == audio.pack?.id { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
+                    }
                 }
+            } label: {
+                chip("headphones", "Озвучка", audio.pack?.reader ?? audio.pack?.name ?? "")
+            }
+            .disabled(packs.count < 2)
+        }
+        .padding(.bottom, 6)
+    }
+
+    private func chip(_ icon: String, _ caption: LocalizedStringKey, _ name: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(caption).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.6))
+                Text(name).font(.caption.weight(.semibold)).lineLimit(1)
             }
         }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.white.opacity(0.2), in: Capsule())
+        .frame(maxWidth: 190, alignment: .trailing)
     }
 
     private var progress: some View {
@@ -363,14 +422,43 @@ struct AudioFullView: View {
         .frame(height: 26)
     }
 
+    private func roundIcon(_ icon: String, active: Bool = false) -> some View {
+        Image(systemName: icon)
+            .font(.title3)
+            .foregroundStyle(.white.opacity(active ? 0.95 : 0.55))
+            .frame(width: 52, height: 52)
+            .background(active ? Color.white.opacity(0.25) : Color.clear, in: Circle())
+            .contentShape(Circle())
+    }
+
+    /// Нижний ряд: слова, скорость, таймер сна, AirPlay, главы — кнопки одного вида
     private func bottomRow(_ c: Place) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            Button { lyrics.toggle() } label: {
-                Image(systemName: lyrics ? "quote.bubble.fill" : "quote.bubble")
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(lyrics ? 0.9 : 0.55))
-                    .frame(width: 52, height: 52)
-                    .background(lyrics ? Color.white.opacity(0.25) : Color.clear, in: Circle())
+            Button { lyrics.toggle() } label: { roundIcon(lyrics ? "quote.bubble.fill" : "quote.bubble", active: lyrics) }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+            Menu {
+                ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
+                    Button {
+                        audio.rate = Float(r)
+                    } label: {
+                        if Double(audio.rate) == r { Label("\(r, specifier: "%g")×", systemImage: "checkmark") } else { Text("\(r, specifier: "%g")×") }
+                    }
+                }
+            } label: {
+                roundIcon("speedometer", active: audio.rate != 1)
+            }
+            .frame(maxWidth: .infinity)
+            Menu {
+                Button("До конца главы") { audio.setSleepAtChapterEnd() }
+                ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { m in
+                    Button("\(m) мин") { audio.setSleep(minutes: m) }
+                }
+                if audio.sleepLeft != nil || audio.sleepAtChapterEnd {
+                    Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
+                }
+            } label: {
+                roundIcon("moon.zzz", active: audio.sleepLeft != nil || audio.sleepAtChapterEnd)
             }
             .frame(maxWidth: .infinity)
             VStack(spacing: 4) {
@@ -380,31 +468,39 @@ struct AudioFullView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            // список: скорость и таймер сна
-            Menu {
-                Section("Скорость") {
-                    ForEach([0.75, 1.0, 1.25, 1.5, 2.0], id: \.self) { r in
-                        Button {
-                            audio.rate = Float(r)
-                        } label: {
-                            if Double(audio.rate) == r { Label("\(r, specifier: "%g")×", systemImage: "checkmark") } else { Text("\(r, specifier: "%g")×") }
-                        }
-                    }
-                }
-                Section("Таймер сна") {
-                    Button("До конца главы") { audio.setSleepAtChapterEnd() }
-                    ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { m in
-                        Button("\(m) мин") { audio.setSleep(minutes: m) }
-                    }
-                    if audio.sleepLeft != nil || audio.sleepAtChapterEnd {
-                        Button("Выключить таймер", role: .destructive) { audio.setSleep(minutes: nil) }
-                    }
-                }
-            } label: {
-                Image(systemName: "list.bullet").font(.title3).foregroundStyle(.white.opacity(0.55)).frame(width: 52, height: 52)
-            }
-            .frame(maxWidth: .infinity)
+            // главы книги: нажали — выбрать, и озвучка переходит на неё
+            Button { showChapters = true } label: { roundIcon("list.bullet", active: showChapters) }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .popover(isPresented: $showChapters) { chaptersGrid(c) }
         }
+    }
+
+    @ViewBuilder private func chaptersGrid(_ c: Place) -> some View {
+        let nums = (audio.pack?.chapters.keys.compactMap { k -> Int? in
+            k.hasPrefix(c.book + ".") ? Int(k.dropFirst(c.book.count + 1)) : nil
+        } ?? []).sorted()
+        ScrollView {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
+                ForEach(nums, id: \.self) { n in
+                    Button {
+                        showChapters = false
+                        audio.playChapter(n)
+                    } label: {
+                        Text("\(n)")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(Color.white.opacity(n == c.chapter ? 0.3 : 0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(12)
+        }
+        .frame(width: 280)
+        .frame(maxHeight: 360)
+        .presentationCompactAdaptation(.popover)
     }
 }
 

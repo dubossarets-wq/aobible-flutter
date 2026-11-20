@@ -179,28 +179,38 @@ struct RootView: View {
         }
     }
 
+    /// Подписи пунктов меню одной ширины (см. TabTitles)
+    private var barTitles: [String: String] {
+        var raw: [String: String] = ["B": TabTitles.localized("Библия", lang: lang), "M": TabTitles.localized("Ещё", lang: lang)]
+        if searchInBar { raw["S"] = TabTitles.localized("Поиск", lang: lang) }
+        let l = TabFunction.of(tabLeft), r = TabFunction.of(tabRight)
+        if l != .none { raw["L"] = TabTitles.localized(l.ruTitle, lang: lang) }
+        if r != .none { raw["R"] = TabTitles.localized(r.ruTitle, lang: lang) }
+        return TabTitles.equalWidth(raw)
+    }
+
     /// Один пункт нижнего меню: «L» и «R» — выбранные разделы (пусто — нет пункта), «B» — Библия, «M» — Ещё, «S» — поиск
     @TabContentBuilder<AppTab> private func tabItem(_ token: String) -> some TabContent<AppTab> {
         if token == "L" {
             if TabFunction.of(tabLeft) != .none {
-                Tab(TabFunction.of(tabLeft).title, systemImage: TabFunction.of(tabLeft).symbol, value: AppTab.plans) { TabFunction.of(tabLeft).screen }
+                Tab(barTitles["L"] ?? "", systemImage: TabFunction.of(tabLeft).symbol, value: AppTab.plans) { TabFunction.of(tabLeft).screen }
             }
         } else if token == "R" {
             if TabFunction.of(tabRight) != .none {
-                Tab(TabFunction.of(tabRight).title, systemImage: TabFunction.of(tabRight).symbol, value: AppTab.saved) { TabFunction.of(tabRight).screen }
+                Tab(barTitles["R"] ?? "", systemImage: TabFunction.of(tabRight).symbol, value: AppTab.saved) { TabFunction.of(tabRight).screen }
             }
         } else if token == "B" {
-            Tab("Библия", systemImage: "book", value: AppTab.bible) {
+            Tab(barTitles["B"] ?? "", systemImage: "book", value: AppTab.bible) {
                 // уход нижнего меню задаётся изнутри вкладки — так его понимает система
                 ReaderView()
                     .modifier(TabBarHider(chrome: panes.chrome, primary: panes.panes.first?.id, active: hideOnScroll && tab == .bible))
             }
         } else if token == "M" {
-            Tab("Ещё", systemImage: "line.3.horizontal", value: AppTab.more) {
+            Tab(barTitles["M"] ?? "", systemImage: "line.3.horizontal", value: AppTab.more) {
                 MoreView()
             }
         } else {
-            Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search) {
+            Tab(barTitles["S"] ?? "", systemImage: "magnifyingglass", value: AppTab.search) {
                 Color.clear
             }
         }

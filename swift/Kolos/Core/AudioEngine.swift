@@ -429,6 +429,12 @@ final class AudioEngine: ObservableObject {
     }
 
     /// Другая запись (язык чтеца) — с того же стиха
+    /// Другая глава той же книги (с первого стиха); нет записи этой главы — ничего
+    func playChapter(_ n: Int) {
+        guard let c = current, pack?.chapters["\(c.book).\(n)"] != nil else { return }
+        play(book: c.book, chapter: n, verse: 1)
+    }
+
     func switchPack(_ p: AudioPack) {
         guard let c = current, p.has(c.book, c.chapter) else { return }
         pack = p

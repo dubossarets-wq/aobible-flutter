@@ -1924,3 +1924,4 @@
 "Переносить стихи" = "Couper les versets";
 "Построчно" = "Par ligne";
 "«По стихам»: стих, который не помещается на странице, уходит на следующую целиком. «Построчно»: на следующую уходят только строки, что не поместились." = "« Par verset » : un verset qui ne tient pas sur la page passe en entier à la suivante. « Par ligne » : seules les lignes qui ne tiennent pas passent à la suivante.";
+"Озвучка" = "Audio";

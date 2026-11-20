@@ -53,6 +53,39 @@ enum StrongLinks {
     }
 }
 
+/// Как разбирать текст статьи: «мысли», разделённые «||» (Даль и подобные), — каждая на своей строке
+enum DictFormat {
+    private static let sep = try! NSRegularExpression(pattern: "\\s*(?:\\|\\||\u{2016})\\s*")
+
+    /// Абзацы по переводам строк, внутри — по «||»; пустое отбрасывается
+    static func thoughts(_ text: String) -> [String] {
+        var out: [String] = []
+        for para in text.components(separatedBy: "\n") {
+            let ns = para as NSString
+            var last = 0
+            for m in sep.matches(in: para, range: NSRange(location: 0, length: ns.length)) {
+                out.append(ns.substring(with: NSRange(location: last, length: m.range.location - last)))
+                last = m.range.location + m.range.length
+            }
+            out.append(ns.substring(from: last))
+        }
+        return out.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+}
+
+/// Белая карточка на сером фоне — как блоки значений в статье Стронга
+private struct DictCard: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+private extension View {
+    func dictCard() -> some View { modifier(DictCard()) }
+}
+
 /// Статья словаря: поля модуля (оригинал, транслитерация, значение, происхождение…)
 struct EntryView: View {
     let entry: [String: Any]
@@ -79,10 +112,11 @@ struct EntryView: View {
                 Text(StrongLinks.attributed(d))
             }
             if let d = str("definition") {
-                Text(StrongLinks.attributed(d))
+                ForEach(Array(DictFormat.thoughts(d).enumerated()), id: \.offset) { _, t in Text(StrongLinks.attributed(t)) }
             }
             if let t = str("text") {
-                Text(StrongLinks.attributed(t, refs: refs))
+                // каждая мысль («||») — на своей строке
+                ForEach(Array(DictFormat.thoughts(t).enumerated()), id: \.offset) { _, x in Text(StrongLinks.attributed(x, refs: refs)) }
             }
             if let k = str("kjv") {
                 Text("KJV: \(k)").foregroundStyle(.secondary)
@@ -676,16 +710,33 @@ struct DictEntryPage: View {
     /// Статья словаря «по словам» — как в окне слова
     @ViewBuilder private func wordEntry(_ a: DictArticle, _ e: [String: Any]) -> some View {
         let refs = (e["refs"] as? [String]) ?? []
-        Text((e["word"] as? String) ?? a.word)
-            .font(.system(size: 22.4, weight: .bold))
-            .foregroundStyle(pal.text)
-        if let o = e["original"] as? String, !o.isEmpty {
-            Text(o).font(.system(size: 36.8)).foregroundStyle(pal.text)
+        // слово (и оригинал) — отдельный белый блок
+        VStack(alignment: .leading, spacing: 6) {
+            Text((e["word"] as? String) ?? a.word)
+                .font(.system(size: 22.4, weight: .bold))
+                .foregroundStyle(pal.text)
+            if let o = e["original"] as? String, !o.isEmpty {
+                Text(o).font(.system(size: 30)).foregroundStyle(pal.text)
+            }
         }
+        .padding(16)
+        .dictCard()
+        // значения — белый блок; каждая мысль («||» в тексте) — на своей строке
         let txt = (e["text"] as? String) ?? (e["definition"] as? String) ?? ""
-        Text(EntryLinks.attributed(txt, accent: pal.accent))
-            .lineSpacing(5)
-            .foregroundStyle(pal.text)
+        let parts = DictFormat.thoughts(txt)
+        if !parts.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
+                    Text(EntryLinks.attributed(t, accent: pal.accent))
+                        .lineSpacing(5)
+                        .foregroundStyle(pal.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 11)
+                    if i < parts.count - 1 { Divider() }
+                }
+            }
+            .padding(.horizontal, 16)
+            .dictCard()
             .environment(\.openURL, OpenURLAction { url in
                 if let r = EntryLinks.verse(from: url) {
                     openVerse(r.0, r.1, r.2)
@@ -694,6 +745,7 @@ struct DictEntryPage: View {
                 }
                 return .handled
             })
+        }
         if !refs.isEmpty {
             FlowRow {
                 ForEach(refs, id: \.self) { r in
@@ -702,6 +754,8 @@ struct DictEntryPage: View {
                     }
                 }
             }
+            .padding(14)
+            .dictCard()
         }
     }
 
