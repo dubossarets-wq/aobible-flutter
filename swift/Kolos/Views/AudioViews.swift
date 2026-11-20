@@ -156,8 +156,14 @@ struct AudioFullView: View {
     @State private var scrub: Double?
     @State private var lyrics = true
     @State private var packs: [AudioPack] = []
-    @State private var showMore = false
     @State private var showChapters = false
+    /// Открытый выбор перевода текста или озвучки
+    @State private var picker: PickerKind?
+
+    private enum PickerKind: Identifiable {
+        case text, audio
+        var id: Int { self == .text ? 0 : 1 }
+    }
 
     private func clock(_ s: Double) -> String {
         let v = Int(max(0, s))
@@ -191,6 +197,7 @@ struct AudioFullView: View {
                         artwork(c)
                         Spacer(minLength: 0)
                     }
+                    pickersRow.padding(.top, 10)
                     progress.padding(.top, 14)
                     controls.padding(.top, 26)
                     volumeRow.padding(.top, 30)
@@ -204,7 +211,10 @@ struct AudioFullView: View {
         }
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
+        // свой цвет акцента — белый: значки в меню совпадают с подписями, а не синие
+        .tint(.white)
         .background(VolumeHost(volume: volume).frame(width: 1, height: 1))
+        .sheet(item: $picker) { kind in pickerSheet(kind) }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
@@ -217,13 +227,13 @@ struct AudioFullView: View {
         Books.info(c.book)?.name ?? c.book
     }
 
-    /// Обложка — логотип «Колос» на светлой плитке (в тон остальному приложению)
+    /// Обложка — сам логотип «Колос», обрезанный скруглённым квадратом (без своей плитки вокруг: внутри был виден квадрат)
     private func cover(_ size: CGFloat, _ c: Place) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous).fill(Color.white.opacity(0.94))
-            Image("Logo").resizable().scaledToFit().padding(size * 0.14)
-        }
-        .frame(width: size, height: size)
+        Image("Logo")
+            .resizable()
+            .scaledToFill()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
     }
 
     private func header(_ c: Place) -> some View {
@@ -241,44 +251,14 @@ struct AudioFullView: View {
                 Image(systemName: marks.isFavorite(key) ? "star.fill" : "star").font(.title3).frame(width: 36, height: 44)
                     .foregroundStyle(.white.opacity(0.75))
             }
-            // меню — своё окошко: значки того же цвета, что и подписи (в системном меню значки красились в цвет акцента)
-            Button { showMore = true } label: {
+            Menu {
+                Button { dismiss(); openVerse(c.book, c.chapter, c.verse) } label: { Label("К тексту", systemImage: "book") }
+                Button(role: .destructive) { audio.stop(); dismiss() } label: { Label("Закрыть", systemImage: "xmark") }
+            } label: {
                 Image(systemName: "ellipsis").font(.title3).frame(width: 36, height: 44)
                     .foregroundStyle(.white.opacity(0.75))
             }
-            .popover(isPresented: $showMore) {
-                VStack(spacing: 0) {
-                    moreRow("К тексту", "book", .white) {
-                        showMore = false
-                        dismiss()
-                        openVerse(c.book, c.chapter, c.verse)
-                    }
-                    Divider()
-                    moreRow("Закрыть", "xmark", Color(red: 1, green: 0.42, blue: 0.42)) {
-                        showMore = false
-                        audio.stop()
-                        dismiss()
-                    }
-                }
-                .frame(width: 230)
-                .presentationCompactAdaptation(.popover)
-            }
         }
-    }
-
-    private func moreRow(_ title: LocalizedStringKey, _ icon: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).frame(width: 22)
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(color)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private func artwork(_ c: Place) -> some View {
@@ -286,91 +266,124 @@ struct AudioFullView: View {
             .shadow(color: .black.opacity(0.4), radius: 20, y: 10)
     }
 
-    /// Слова песни: стихи главы; звучащий — крупно и ярко, остальные тусклее и размыты. У середины окна стихи чёткие:
-    /// листаете — то, что оказалось в центре, перестаёт быть размытым
+    /// Слова песни: стихи главы; звучащий — крупно и ярко, остальные тусклее. Размыты те, что далеко от середины окна:
+    /// листаете — стихи у середины становятся чёткими (яркость при этом не меняется)
     private func lyricsView(_ c: Place) -> some View {
         let verses = store.verses(module: textId, book: c.book, chapter: c.chapter)
-        return ZStack(alignment: .bottomTrailing) {
-            ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 30) {
-                        ForEach(verses) { v in
-                            let on = v.num == c.verse
-                            Text(Markup.plain(v.text))
-                                .font(.system(size: 31, weight: .bold))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .visualEffect { content, geo in
-                                    let h = geo.bounds(of: .scrollView)?.height ?? 600
-                                    let d = min(1, abs(geo.frame(in: .scrollView).midY - h / 2) / max(1, h / 2))
-                                    // у середины — чётко; дальше от неё — тусклее и размытее (звучащий — всегда чётко)
-                                    let focus = on ? 1 : max(0, min(1, 1 - (d - 0.25) / 0.45))
-                                    return content.opacity(0.4 + 0.6 * focus).blur(radius: 3 * (1 - focus))
-                                }
-                                .animation(.easeInOut(duration: 0.3), value: on)
-                                .contentShape(Rectangle())
-                                .onTapGesture { audio.seekVerse(v.num) }
-                                .id(v.num)
+        return ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(verses) { v in
+                        let on = v.num == c.verse
+                        Text(Markup.plain(v.text))
+                            .font(.system(size: 31, weight: .bold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            // запас вокруг текста внутри самого блока: края размытия не обрезаются границей блока
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .visualEffect { content, geo in
+                                let h = geo.bounds(of: .scrollView)?.height ?? 600
+                                let d = min(1, abs(geo.frame(in: .scrollView).midY - h / 2) / max(1, h / 2))
+                                // у середины окна — чётко, дальше — быстро (в пределах пятой части высоты) размывается
+                                let sharp = on ? 1 : max(0, min(1, 1 - (d - 0.12) / 0.2))
+                                return content.opacity(on ? 1 : 0.4).blur(radius: 3 * (1 - sharp))
+                            }
+                            .animation(.easeInOut(duration: 0.3), value: on)
+                            .contentShape(Rectangle())
+                            .onTapGesture { audio.seekVerse(v.num) }
+                            .id(v.num)
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 112)
+            }
+            // прокрутка шире поля на 18 пт с каждой стороны и не обрезает содержимое — размытый край виден целиком
+            .scrollClipDisabled()
+            .padding(.horizontal, -18)
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.14), .init(color: .black, location: 0.82), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+            .onChange(of: c.verse) { _, v in
+                withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(v, anchor: .center) }
+            }
+            .onAppear { proxy.scrollTo(c.verse, anchor: .center) }
+        }
+    }
+
+    /// Перевод текста и озвучка — одной строкой на всю ширину, две кнопки; выбор — в листе, где названия видны целиком
+    private var pickersRow: some View {
+        HStack(spacing: 10) {
+            pickerButton("text.alignleft", "Текст", store.module(textId)?.name ?? "") { picker = .text }
+            pickerButton("headphones", "Озвучка", audio.pack?.reader ?? audio.pack?.name ?? "") { picker = .audio }
+        }
+    }
+
+    private func pickerButton(_ icon: String, _ caption: LocalizedStringKey, _ name: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.body.weight(.semibold)).frame(width: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(caption).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.6))
+                    Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.5))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .background(.white.opacity(0.14), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Лист выбора: название крупно, полное описание под ним (переносится, не обрезается), выбранный — с галочкой
+    @ViewBuilder private func pickerSheet(_ kind: PickerKind) -> some View {
+        NavigationStack {
+            List {
+                if kind == .text {
+                    ForEach(store.bibles.filter { !$0.interlinear }) { m in
+                        optionRow(m.name, m.title, selected: m.id == textId) {
+                            audio.textModule = m.id
+                            picker = nil
                         }
                     }
-                    // поля внутри прокрутки: размытый край стиха не обрезается по бокам
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 120)
-                }
-                .scrollClipDisabled()
-                .padding(.horizontal, -18)
-                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.14), .init(color: .black, location: 0.82), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-                .onChange(of: c.verse) { _, v in
-                    withAnimation(.easeInOut(duration: 0.4)) { proxy.scrollTo(v, anchor: .center) }
-                }
-                .onAppear { proxy.scrollTo(c.verse, anchor: .center) }
-            }
-            sideButtons
-        }
-    }
-
-    /// Два понятных выбора справа: перевод текста и озвучка (запись); озвучка переключается с того же места
-    private var sideButtons: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            Menu {
-                ForEach(store.bibles.filter { !$0.interlinear }) { m in
-                    Button {
-                        audio.textModule = m.id
-                    } label: {
-                        if m.id == textId { Label(m.name + " — " + m.title, systemImage: "checkmark") } else { Text(m.name + " — " + m.title) }
+                } else {
+                    ForEach(packs, id: \.id) { p in
+                        optionRow(p.title, p.reader ?? "", selected: p.id == audio.pack?.id) {
+                            audio.switchPack(p)
+                            picker = nil
+                        }
                     }
                 }
-            } label: {
-                chip("text.alignleft", "Текст", store.module(textId)?.name ?? "")
             }
-            Menu {
-                ForEach(packs, id: \.id) { p in
-                    Button {
-                        audio.switchPack(p)
-                    } label: {
-                        if p.id == audio.pack?.id { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
-                    }
-                }
-            } label: {
-                chip("headphones", "Озвучка", audio.pack?.reader ?? audio.pack?.name ?? "")
+            .navigationTitle(kind == .text ? "Перевод текста" : "Озвучка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Готово") { picker = nil } }
             }
-            .disabled(packs.count < 2)
         }
-        .padding(.bottom, 6)
+        .preferredColorScheme(.dark)
+        .tint(.white)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
-    private func chip(_ icon: String, _ caption: LocalizedStringKey, _ name: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.subheadline.weight(.semibold))
-            VStack(alignment: .leading, spacing: 0) {
-                Text(caption).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.6))
-                Text(name).font(.caption.weight(.semibold)).lineLimit(1)
+    private func optionRow(_ title: String, _ subtitle: String, selected: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
+                    if !subtitle.isEmpty {
+                        Text(subtitle).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                    }
+                }
+                Spacer(minLength: 8)
+                if selected { Image(systemName: "checkmark").font(.body.weight(.semibold)) }
             }
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.white.opacity(0.2), in: Capsule())
-        .frame(maxWidth: 190, alignment: .trailing)
+        .buttonStyle(.plain)
     }
 
     private var progress: some View {
