@@ -864,6 +864,8 @@ struct ChapterText: View {
     @State private var panel: StudyPanel?
     @State private var toast: String?
     @State private var pinchBase: Double?
+    /// Щипок в режиме «Страницы»: страницы масштабируются напрямую (см. PinchBox)
+    @State private var zoomBox = PinchBox()
     @State private var gestures = ReaderGestures()
 
     private var book: String { pane.book }
@@ -1029,9 +1031,22 @@ struct ChapterText: View {
             MagnifyGesture()
                 .onChanged { g in
                     if pinchBase == nil { pinchBase = fontSize }
-                    fontSize = min(40, max(13, (pinchBase ?? fontSize) * g.magnification))
+                    let base = pinchBase ?? fontSize
+                    if readingStyle == "pages" {
+                        // страницы растягиваются картинкой — мгновенно; размер букв запишем, когда отпустят пальцы
+                        zoomBox.host?.setZoom(min(40 / base, max(13 / base, g.magnification)))
+                    } else {
+                        fontSize = min(40, max(13, base * g.magnification))
+                    }
                 }
-                .onEnded { _ in pinchBase = nil },
+                .onEnded { g in
+                    if readingStyle == "pages", let base = pinchBase {
+                        let z = min(40 / base, max(13 / base, g.magnification))
+                        zoomBox.host?.holdZoomUntilRebuild()
+                        fontSize = (base * z * 2).rounded() / 2
+                    }
+                    pinchBase = nil
+                },
             including: readingStyle == "pages" ? .all : .subviews
         )
         .safeAreaInset(edge: .bottom) {
@@ -1130,7 +1145,8 @@ struct ChapterText: View {
             paneID: pane.id,
             sync: panes.pageSync,
             blocks: il ? pagedBlocks(d, common) : nil,
-            blockSpacing: fontSize * verseSpacing
+            blockSpacing: fontSize * verseSpacing,
+            zoomBox: zoomBox
         )
         .background { ReaderBackdrop(pal: pal) }
     }

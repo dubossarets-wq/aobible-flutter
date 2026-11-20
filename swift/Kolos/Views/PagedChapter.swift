@@ -34,18 +34,28 @@ struct PagedChapter: UIViewControllerRepresentable {
     var blocks: [PageBlock]? = nil
     /// Расстояние между блоками на странице
     var blockSpacing: CGFloat = 8
+    /// Щипок (размер букв): страницу масштабируем картинкой напрямую, без перерисовки экрана (см. PinchBox)
+    var zoomBox: PinchBox? = nil
 
     func makeUIViewController(context: Context) -> PagerHost {
         let h = PagerHost()
         h.apply(self)
         if let id = paneID { sync?.register(id, h) }
+        zoomBox?.host = h
         return h
     }
 
     func updateUIViewController(_ h: PagerHost, context: Context) {
         h.apply(self)
         if let id = paneID { sync?.register(id, h) }
+        zoomBox?.host = h
     }
+}
+
+/// Связь жеста щипка с листалкой: пока пальцы двигаются, меняется только масштаб картинки страниц (мгновенно), а
+/// настоящий размер букв — один раз в конце. Ссылочный тип: изменения не перерисовывают экран чтения
+final class PinchBox {
+    weak var host: PagerHost?
 }
 
 /// Блок страницы подстрочного перевода. verse — стих, к которому он относится (заголовок раздела — стих после него);
@@ -147,6 +157,25 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     private var applying = false
 
     var anchorVerse: Int { current < anchors.count ? anchors[current] : topVerse }
+
+    /// Щипок идёт: страницы растянуты картинкой (1 — без растяжения)
+    private var zoomPending = false
+
+    func setZoom(_ s: CGFloat) {
+        zoomPending = false
+        view.transform = s == 1 ? .identity : CGAffineTransform(scaleX: s, y: s)
+    }
+
+    /// Щипок закончился, новый размер уже записан: растянутая страница остаётся, пока не готова новая вёрстка
+    /// (иначе на миг мелькнул бы прежний размер); страховка — не дольше секунды
+    func holdZoomUntilRebuild() {
+        zoomPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, self.zoomPending else { return }
+            self.zoomPending = false
+            self.view.transform = .identity
+        }
+    }
 
     func takeEdgeDir() -> Int {
         let d = edgeDir
@@ -278,6 +307,10 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         scroll.setContentOffset(CGPoint(x: CGFloat(i) * w, y: 0), animated: false)
         applying = false
         tile()
+        if zoomPending {
+            zoomPending = false
+            view.transform = .identity
+        }
         if let s = snap {
             // старая глава уезжает, новая въезжает с той же стороны — одним движением
             if own { edgeDir = dir }
