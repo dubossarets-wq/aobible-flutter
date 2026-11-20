@@ -823,8 +823,6 @@ struct ChapterText: View {
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
     @AppStorage("verseNumPos") private var verseNumPos = "sup"
     @AppStorage("showHeadings") private var showHeadings = true
-    /// Язык интерфейса: названия книг и «Глава N» в тексте (сменили язык — текст перестраивается)
-    @AppStorage("interfaceLanguage") private var uiLang = "ru"
     @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
     @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
@@ -895,9 +893,13 @@ struct ChapterText: View {
     private var chapter: Int { pane.chapter }
     private var focus: Int { pane.verse }
 
-    private var bookName: String {
-        module.books.first { $0.id == book }?.name ?? Books.info(book)?.name ?? book
+    /// Название книги в тексте — на языке перевода (у греческого — греческое, у английского — английское)
+    private func textBookName(_ id: String) -> String {
+        let raw = module.books.first { $0.id == id }?.rawName ?? Books.info(id)?.rawName ?? id
+        return BookLocale.name(id, raw, lang: module.language)
     }
+
+    private var bookName: String { textBookName(book) }
 
     var body: some View {
         let d = chapterData()
@@ -1104,7 +1106,7 @@ struct ChapterText: View {
     private func pagedView(_ d: ChapterCache) -> some View {
         PagedChapter(
             text: pagedNS(d),
-            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(uiLang)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
             focus: focus,
             insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
@@ -1169,20 +1171,20 @@ struct ChapterText: View {
     /// Строки главы: стихи (или сплошные блоки) и метка конца главы
     /// «Глава N» («Псалом N»); у первой главы над ним — название книги
     private var chapterTitleText: String {
-        BookLocale.chapterTitle(book: book, chapter: chapter)
+        BookLocale.chapterTitle(book: book, chapter: chapter, lang: module.language)
     }
 
     private var chapterTitle: some View { chapterTitleFor(book, chapter) }
 
     private func chapterTitleFor(_ b: String, _ c: Int) -> some View {
-        let name = module.books.first { $0.id == b }?.name ?? Books.info(b)?.name ?? b
+        let name = textBookName(b)
         return VStack(alignment: .leading, spacing: 2) {
             if c == 1 {
                 Text(name)
                     .font(ReadingFonts.font(fontFamily, size: fontSize * 0.9, weight: 600))
                     .foregroundStyle(pal.muted)
             }
-            Text(verbatim: BookLocale.chapterTitle(book: b, chapter: c))
+            Text(verbatim: BookLocale.chapterTitle(book: b, chapter: c, lang: module.language))
                 .font(ReadingFonts.font(fontFamily, size: fontSize * 2.1, weight: 800))
                 .foregroundStyle(pal.text)
         }

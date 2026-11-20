@@ -225,18 +225,29 @@ enum BookLocale {
         return name(id, raw)
     }
 
-    /// «Глава N» («Псалом N») на языке интерфейса — из перевода приложения
-    static func chapterTitle(book: String, chapter: Int) -> String {
+    /// «Глава N» («Псалом N») на языке перевода (other) или интерфейса: языки приложения — из его перевода,
+    /// остальные — из этой таблицы, нет и там — английские
+    private static let chapterWords: [String: (String, String)] = [
+        "grc": ("Κεφάλαιον %d", "Ψαλμός %d"), "el": ("Κεφάλαιο %d", "Ψαλμός %d"), "he": ("פרק %d", "מזמור %d"),
+        "la": ("Caput %d", "Psalmus %d"), "hu": ("%d. fejezet", "%d. zsoltár"), "fi": ("Luku %d", "Psalmi %d"),
+        "hr": ("Poglavlje %d", "Psalam %d"), "ar": ("الأصحاح %d", "المزمور %d"), "vi": ("Chương %d", "Thi Thiên %d"),
+        "sq": ("Kapitulli %d", "Psalmi %d"), "da": ("Kapitel %d", "Salme %d"), "et": ("Peatükk %d", "Psalm %d"),
+        "eo": ("Ĉapitro %d", "Psalmo %d"), "lv": ("%d. nodaļa", "%d. psalms"), "nb": ("Kapittel %d", "Salme %d"),
+        "fa": ("فصل %d", "مزمور %d"), "sk": ("Kapitola %d", "Žalm %d"), "nl": ("Hoofdstuk %d", "Psalm %d"),
+        "sv": ("Kapitel %d", "Psalm %d"), "tl": ("Kabanata %d", "Awit %d"), "tr": ("Bölüm %d", "Mezmur %d"),
+    ]
+
+    static func chapterTitle(book: String, chapter: Int, lang other: String? = nil) -> String {
         let psalm = book == "Ps"
-        let l = lang
-        if l != "ru" {
-            let folder = l == "zh" ? "zh-Hans" : l
-            if let p = Bundle.main.path(forResource: folder, ofType: "lproj"), let b = Bundle(path: p) {
-                let key = psalm ? "Псалом %lld" : "Глава %lld"
-                let f = b.localizedString(forKey: key, value: nil, table: nil)
-                if f != key { return String(format: f, chapter) }
-            }
+        let l = other.map { String($0.lowercased().prefix { $0 != "-" && $0 != "_" }) } ?? lang
+        if l == "ru" || l == "cu" || l.isEmpty { return psalm ? "Псалом \(chapter)" : "Глава \(chapter)" }
+        let folder = l == "zh" ? "zh-Hans" : l
+        if let p = Bundle.main.path(forResource: folder, ofType: "lproj"), let b = Bundle(path: p) {
+            let key = psalm ? "Псалом %lld" : "Глава %lld"
+            let f = b.localizedString(forKey: key, value: nil, table: nil)
+            if f != key { return String(format: f, chapter) }
         }
-        return psalm ? "Псалом \(chapter)" : "Глава \(chapter)"
+        if let w = chapterWords[l] { return String(format: psalm ? w.1 : w.0, chapter) }
+        return psalm ? "Psalm \(chapter)" : "Chapter \(chapter)"
     }
 }
