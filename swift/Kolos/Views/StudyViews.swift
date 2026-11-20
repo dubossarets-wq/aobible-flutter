@@ -198,7 +198,7 @@ struct CommentarySheet: View {
             .toolbar {
                 if !items.isEmpty {
                     ToolbarItem(placement: .cancellationAction) {
-                        ShareLink(item: shareText(items), preview: SharePreview(shareTitle)) {
+                        ShareLink(item: shareText(items), preview: SharePreview(shareTitle(items))) {
                             Image(systemName: "square.and.arrow.up")
                         }
                         .accessibilityLabel("Отправить")
@@ -215,7 +215,7 @@ struct CommentarySheet: View {
     }
 
     /// Название в окне «Поделиться»: место стиха
-    private var shareTitle: String {
+    private func shareTitle(_ items: [CommentaryItem]) -> String {
         let lang = items.first?.module.language ?? "ru"
         let name = store.nativeBookName(book, language: lang) ?? BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
         return "\(name) \(chapter):\(verse)"
