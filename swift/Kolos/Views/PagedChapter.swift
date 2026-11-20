@@ -86,6 +86,11 @@ final class PageSync {
 
     func forget(_ id: UUID) { starts[id] = nil }
 
+    /// Озвучка дошла до стиха: окно переворачивает страницу к нему
+    func followAudio(_ id: UUID, verse: Int) {
+        hosts[id]?.host?.followAudio(verse)
+    }
+
     /// Окно разбило главу на страницы. Чтобы на одной странице у окон были одни и те же стихи, границы страниц у всех
     /// окон одной главы — объединение границ каждого: если хоть в одном окне стих не поместился и начал новую страницу,
     /// во всех окнах с него начинается страница. Все страницы после этого — части прежних, поэтому места хватает
@@ -156,6 +161,9 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     private var blockPages: [[Int]] = []
     private var blockTops: [Int] = []
     private let measurer = UIHostingController(rootView: AnyView(EmptyView()))
+    /// Измеренные высоты блоков и для чего они измерены (вид главы, ширина)
+    private var measuredKey = ""
+    private var measuredHeights: [CGFloat] = []
     private var isBlocks: Bool { cfg?.blocks != nil }
     private var pageCount: Int { isBlocks ? blockPages.count : containers.count }
     private var current = 0
@@ -318,6 +326,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         builtKey = c.key
         builtSize = size
         builtForced = forced
+        audioPage = nil
         lastFocus = c.focus
         for (_, cell) in cells { cell.removeFromSuperview() }
         cells = [:]
@@ -384,11 +393,22 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     /// Подстрочник: измеряем высоту каждого блока и кладём блоки на страницы подряд (стих целиком; заголовок — вместе
     /// со стихом). Опорный стих страницы — первый на ней
     private func buildBlocks(_ blocks: [PageBlock], _ c: PagedChapter, _ size: CGSize) {
-        measurer.sizingOptions = []
-        var heights: [CGFloat] = []
-        for b in blocks {
-            measurer.rootView = AnyView(b.view.frame(width: size.width, alignment: .topLeading).fixedSize(horizontal: false, vertical: true))
-            heights.append(ceil(measurer.sizeThatFits(in: CGSize(width: size.width, height: .greatestFiniteMagnitude)).height))
+        // высота блока зависит от его вида и ширины, но не от высоты окна: когда меняется только высота (панель
+        // подстрочника спрятали или показали), прежние высоты годятся — заново считаются только страницы
+        let measureKey = "\(c.key)|\(Int(size.width))|\(blocks.count)"
+        var heights: [CGFloat]
+        if measureKey == measuredKey, measuredHeights.count == blocks.count {
+            heights = measuredHeights
+        } else {
+            measurer.sizingOptions = []
+            heights = []
+            heights.reserveCapacity(blocks.count)
+            for b in blocks {
+                measurer.rootView = AnyView(b.view.frame(width: size.width, alignment: .topLeading).fixedSize(horizontal: false, vertical: true))
+                heights.append(ceil(measurer.sizeThatFits(in: CGSize(width: size.width, height: .greatestFiniteMagnitude)).height))
+            }
+            measuredKey = measureKey
+            measuredHeights = heights
         }
         let gap = c.blockSpacing
         var pages: [[Int]] = [[]]
@@ -553,6 +573,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         if t < 0 { edge(-1); return }
         if t >= pageCount { edge(1); return }
         userAnimating = true
+        TapGate.scrolling()
         scroll.setContentOffset(CGPoint(x: CGFloat(t) * pageWidth, y: 0), animated: true)
     }
 
@@ -588,6 +609,22 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         tile()
     }
 
+    /// Страница, на которой был звучащий стих в прошлый раз: пока человек на ней, страницы следуют за озвучкой; ушёл листать
+    /// сам — не тянем его обратно
+    private var audioPage: Int?
+
+    /// Озвучка дошла до стиха: если человек читает то место, что звучит, — страница переворачивается (сдвигом)
+    func followAudio(_ verse: Int) {
+        guard pageCount > 0, !scroll.isTracking, !scroll.isDragging, !scroll.isDecelerating else { return }
+        let target = pageIndex(forVerse: verse)
+        defer { audioPage = target }
+        guard target != current else { return }
+        if let a = audioPage, a != current { return }
+        userAnimating = true   // другие окна едут вместе с этим
+        TapGate.scrolling()
+        scroll.setContentOffset(CGPoint(x: CGFloat(target) * pageWidth, y: 0), animated: true)
+    }
+
     /// Ведущее окно встало на страницу: ровно на страницу с её опорным стихом
     func follow(_ verse: Int) {
         guard pageCount > 0 else { return }
@@ -617,14 +654,23 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         }
     }
 
-    func scrollViewDidEndDecelerating(_ s: UIScrollView) { settle() }
+    func scrollViewWillBeginDragging(_ s: UIScrollView) { TapGate.scrolling() }
+
+    func scrollViewDidEndDecelerating(_ s: UIScrollView) {
+        TapGate.scrollEnded()
+        settle()
+    }
 
     func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate: Bool) {
-        if !willDecelerate { settle() }
+        if !willDecelerate {
+            TapGate.scrollEnded()
+            settle()
+        }
     }
 
     func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) {
         userAnimating = false
+        TapGate.scrollEnded()
         settle()
     }
 
@@ -740,6 +786,8 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
     private var downAt: CGPoint?
 
     func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // пока страницы листаются (и полсекунды после) нажатия не принимаются
+        guard TapGate.open else { return false }
         if let t = g as? UITapGestureRecognizer, t.numberOfTapsRequired == 1 { downAt = touch.location(in: g.view) }
         return true
     }
@@ -782,6 +830,7 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc func tap(_ g: UITapGestureRecognizer) {
+        guard TapGate.open else { return }
         #if DEBUG
         SyncTrace.write("T,tap,\(g.state.rawValue),\(g.location(in: g.view).x),\(g.view?.bounds.width ?? 0),lp=\(lpActive)")
         #endif

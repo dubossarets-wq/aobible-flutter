@@ -177,6 +177,11 @@ struct VerseTextView: UIViewRepresentable {
             }
         }
 
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            // детектор сдвига — всегда; нажатия — только когда текст не прокручивается (см. TapGate)
+            g === mover || TapGate.open
+        }
+
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
             // детектор сдвига никому не мешает (прокрутке, свайпу глав); свои три жеста работают вместе;
             // с прокруткой — по обычным правилам

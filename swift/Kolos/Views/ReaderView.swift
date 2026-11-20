@@ -941,6 +941,8 @@ struct ChapterText: View {
                 .padding(.vertical, 12)
             }
             .contentMargins(.top, headerTop + ilInset, for: .scrollContent)
+            // отступ под панелью подстрочника меняется сразу, без пружины: анимация пересчитывала бы раскладку всей главы
+            .animation(nil, value: ilInset)
             // пока текст не поставлен на нужное место — прокрутка невидима (иначе на кадр мелькает начало книги)
             .opacity(book1 && !positioned ? 0 : 1)
             .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.3) { ids in
@@ -970,6 +972,9 @@ struct ChapterText: View {
             }
             .onScrollPhaseChange { old, new in
                 touchScroll.user = (new == .interacting || new == .decelerating)
+                // нажатия на слова — не во время прокрутки и ещё полсекунды после неё
+                let moving: (ScrollPhase) -> Bool = { $0 == .interacting || $0 == .decelerating || $0 == .animating }
+                if moving(new) { TapGate.scrolling() } else if moving(old) { TapGate.scrollEnded() }
                 // книга: остановились — глава верхнего стиха становится текущей (заголовок, закладки, выделение)
                 if book1 && new == .idle { settleChapter() }
                 guard !book1, old == .interacting, new != .interacting else { return }
@@ -1149,6 +1154,15 @@ struct ChapterText: View {
             zoomBox: zoomBox
         )
         .background { ReaderBackdrop(pal: pal) }
+        // озвучка идёт — страница переворачивается к звучащему стиху (во всех окнах); ушла в другую главу — окно за ней
+        .onChange(of: audio.current) { old, new in
+            guard audio.active, let n = new else { return }
+            if n.book == book && n.chapter == chapter {
+                panes.pageSync.followAudio(pane.id, verse: n.verse)
+            } else if let o = old, o.book == book, o.chapter == chapter {
+                panes.go(pane.id, n.book, n.chapter, n.verse, record: false)
+            }
+        }
     }
 
     /// Вся глава одним текстом для разбивки на страницы: заголовки разделов и стихи (отдельными абзацами или сплошным текстом)
@@ -1538,6 +1552,7 @@ struct ChapterText: View {
 
     /// Нажатие в главе c: в текущей — сразу; в другой — она становится текущей, и нажатие выполняется уже в ней
     private func act(_ c: Int, _ p: PendingTap) {
+        guard TapGate.open else { return }
         if c == paneChapter {
             run(p)
             return
@@ -1787,8 +1802,8 @@ struct ChapterText: View {
     private func background(_ ch: Int, _ n: Int) -> Color {
         let cur = ch == chapter
         if cur && selected.contains(n) { return pal.accent.opacity(continuous ? 0.16 : 0.09) }
-        // звучащий стих подсвечен
-        if audio.active, audio.moduleId == module.id, let c = audio.current, c.book == book, c.chapter == ch, c.verse == n {
+        // звучащий стих подсвечен — во всех окнах, не только в переводе, который озвучен (нумерация у них одна)
+        if audio.active, let c = audio.current, c.book == book, c.chapter == ch, c.verse == n {
             return pal.accent.opacity(0.16)
         }
         if let c = hlColor(marks.highlight(MarksStore.key(book, ch, n))) {

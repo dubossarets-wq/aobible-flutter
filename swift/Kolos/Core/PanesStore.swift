@@ -98,11 +98,15 @@ final class PanesStore: ObservableObject {
         guard live.verse[id] != verse || (live.chapter[id] ?? panes[i].chapter) != c else { return }
         live.verse[id] = verse
         if chapter != nil, live.chapter[id] != c { live.chapter[id] = c }
-        if verse > 0 { log.record(panes[i].book, c, verse) }
+        // место для истории и сохранения — когда прокрутка остановилась (раз в секунду), а не на каждом стихе: при быстрой
+        // прокрутке это были десятки записей и перестроек в секунду
+        let book = panes[i].book
         liveTask?.cancel()
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
-            if !Task.isCancelled { save() }
+            guard !Task.isCancelled else { return }
+            if verse > 0 { log.record(book, c, verse) }
+            save()
         }
     }
 
