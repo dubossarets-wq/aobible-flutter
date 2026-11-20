@@ -1125,9 +1125,9 @@ struct ChapterText: View {
         let il = module.interlinear
         return PagedChapter(
             text: il ? NSAttributedString() : pagedNS(d, common),
-            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(pageVerseBreak)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)|\(il ? "\(ilGloss)\(ilOrig)\(ilStrong)" : "")|\(common?.hashValue ?? 0)",
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(pageVerseBreak == "verse" || panes.panes.count > 1)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)|\(il ? "\(ilGloss)\(ilOrig)\(ilStrong)" : "")|\(common?.hashValue ?? 0)",
             focus: focus,
-            wholeVerses: pageVerseBreak == "verse",
+            wholeVerses: pageVerseBreak == "verse" || panes.panes.count > 1,
             insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
             onTap: { url, vn in tapped(url, vn) },

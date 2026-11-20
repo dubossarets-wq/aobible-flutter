@@ -81,6 +81,32 @@ final class PageSync {
         if hosts[id]?.host !== h { hosts[id] = Ref(host: h) }
     }
 
+    /// Какие стихи начинают страницы у каждого окна (после разбивки главы)
+    private var starts: [UUID: Set<Int>] = [:]
+
+    func forget(_ id: UUID) { starts[id] = nil }
+
+    /// Окно разбило главу на страницы. Чтобы на одной странице у окон были одни и те же стихи, границы страниц у всех
+    /// окон одной главы — объединение границ каждого: если хоть в одном окне стих не поместился и начал новую страницу,
+    /// во всех окнах с него начинается страница. Все страницы после этого — части прежних, поэтому места хватает
+    func layoutReady(_ id: UUID, starts s: Set<Int>) {
+        starts[id] = s
+        guard let store else { return }
+        guard store.panes.count > 1, let me = store.panes.first(where: { $0.id == id }) else {
+            hosts[id]?.host?.setForcedBreaks([])
+            return
+        }
+        var union = Set<Int>()
+        var group: [UUID] = []
+        for p in store.panes where p.book == me.book && p.chapter == me.chapter {
+            if let st = starts[p.id] {
+                union.formUnion(st)
+                group.append(p.id)
+            }
+        }
+        for g in group { hosts[g]?.host?.setForcedBreaks(union) }
+    }
+
     private var on: Bool {
         guard let store else { return false }
         return store.panes.count > 1 && (UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true)
@@ -140,6 +166,9 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     /// В соседнюю главу перелистнул человек в этом окне (а не пришли следом за другим)
     private var ownEdge = false
     private(set) var cfg: PagedChapter?
+    /// Стихи, с которых страница начинается принудительно (границы, о которых договорились окна, см. PageSync)
+    private var forced: Set<Int> = []
+    private var builtForced: Set<Int> = []
     private var builtKey = ""
     private var builtSize = CGSize.zero
     private var lastFocus = -1
@@ -181,6 +210,13 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         let d = edgeDir
         edgeDir = 0
         return d
+    }
+
+    /// Окна договорились о границах страниц: пересобираем страницы с ними
+    func setForcedBreaks(_ u: Set<Int>) {
+        guard u != forced else { return }
+        forced = u
+        if isViewLoaded { rebuildIfNeeded() }
     }
 
     /// Другое окно ушло в соседнюю главу — эта глава въедет с той же стороны
@@ -250,7 +286,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
 
     private func rebuildIfNeeded() {
         guard let c = cfg, let size = pageSize else { return }
-        if c.key == builtKey && size == builtSize && (c.blocks != nil || c.text.length == storage.length) {
+        if c.key == builtKey && size == builtSize && forced == builtForced && (c.blocks != nil || c.text.length == storage.length) {
             // тот же вид: изменился только вид текста (выделение, закладки) — вёрстка прежняя
             if c.blocks != nil {
                 refreshBlocks(c)
@@ -272,10 +308,16 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         let startVerse = dir != 0 || !sameChapter ? c.focus : topVerse
         let own = ownEdge
         ownEdge = false
+        // другая глава, шрифт или размер окна — прежние общие границы не годятся, окна договариваются заново
+        if c.key != builtKey || size != builtSize {
+            forced = []
+            if let id = c.paneID { c.sync?.forget(id) }
+        }
         // снимок нынешней страницы — он уедет, новая глава въедет следом
         let snap: UIView? = dir != 0 && !builtKey.isEmpty ? scroll.snapshotView(afterScreenUpdates: false) : nil
         builtKey = c.key
         builtSize = size
+        builtForced = forced
         lastFocus = c.focus
         for (_, cell) in cells { cell.removeFromSuperview() }
         cells = [:]
@@ -288,12 +330,20 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             storage.setAttributedString(c.text)
             while layout.textContainers.count > 0 { layout.removeTextContainer(at: 0) }
             containers = []
+            // где начинается каждый стих (для принудительных границ)
+            var firstLoc: [Int: Int] = [:]
+            if !forced.isEmpty, storage.length > 0 {
+                storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { val, r, _ in
+                    if let n = val as? Int, firstLoc[n] == nil { firstLoc[n] = r.location }
+                }
+            }
             for _ in 0..<500 {
                 let tc = NSTextContainer(size: size)
                 tc.lineFragmentPadding = 0
                 layout.addTextContainer(tc)
                 containers.append(tc)
                 layout.ensureLayout(for: tc)
+                if !forced.isEmpty { applyForcedBreak(tc, size, firstLoc) }
                 if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
                 if c.wholeVerses { pushStraddlingVerse(tc, size) }
             }
@@ -324,6 +374,11 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         }
         // в соседнюю главу перелистнул сам человек — за ним и другие окна
         report(i, user: own && dir != 0)
+        // границы страниц — окнам одной главы: чтобы на странице у всех были одни и те же стихи
+        if let id = c.paneID, let sync = c.sync {
+            let starts = Set(anchors)
+            DispatchQueue.main.async { sync.layoutReady(id, starts: starts) }
+        }
     }
 
     /// Подстрочник: измеряем высоту каждого блока и кладём блоки на страницы подряд (стих целиком; заголовок — вместе
@@ -341,7 +396,9 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         for i in blocks.indices {
             var need = heights[i]
             if blocks[i].keepWithNext, i + 1 < blocks.count { need += gap + heights[i + 1] }
-            if y > 0, y + need > size.height {
+            // страница начинается с этого стиха по общей договорённости окон
+            let startsVerse = i == 0 || blocks[i].verse != blocks[i - 1].verse
+            if y > 0, (startsVerse && forced.contains(blocks[i].verse)) || y + need > size.height {
                 pages.append([])
                 y = 0
             }
@@ -371,6 +428,26 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             guard let bc = cell as? BlockPageCell, i < blockPages.count else { continue }
             bc.show(blockPages[i].map { blocks[$0] }, spacing: c.blockSpacing, ins: insets(c))
         }
+    }
+
+    /// На этой странице начинается стих из общих границ (не с самого верха) — остаток страницы закрываем: стих и всё
+    /// после него ляжет на следующую
+    private func applyForcedBreak(_ tc: NSTextContainer, _ size: CGSize, _ firstLoc: [Int: Int]) {
+        let gr = layout.glyphRange(for: tc)
+        let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
+        let end = NSMaxRange(cr)
+        guard cr.length > 0, end < storage.length else { return }
+        var at: Int?
+        for v in forced {
+            if let loc = firstLoc[v], loc > cr.location, loc < end, at == nil || loc < at! { at = loc }
+        }
+        guard let loc = at else { return }
+        let g = layout.glyphIndexForCharacter(at: loc)
+        let y = layout.lineFragmentRect(forGlyphAt: g, effectiveRange: nil).minY
+        guard y > 1, y < size.height else { return }
+        tc.exclusionPaths = [UIBezierPath(rect: CGRect(x: -20, y: y, width: size.width + 40, height: size.height))]
+        layout.invalidateLayout(forCharacterRange: NSRange(location: cr.location, length: storage.length - cr.location), actualCharacterRange: nil)
+        layout.ensureLayout(for: tc)
     }
 
     /// Последний стих страницы переходит на следующую: если он начался на этой странице (не с самого верха), закрываем
