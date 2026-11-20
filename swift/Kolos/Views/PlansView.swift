@@ -176,7 +176,7 @@ struct VerseOfDayCard: View {
         // «Отправить» — сверху справа, с ровными отступами от краёв карточки
         .overlay(alignment: .topTrailing) {
             if let v = verse {
-                ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))") {
+                ShareLink(item: "«\(v.text)» — \(label) (\(v.module.name))", preview: SharePreview("\(label) (\(v.module.name))")) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)

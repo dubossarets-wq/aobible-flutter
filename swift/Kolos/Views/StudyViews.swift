@@ -198,7 +198,7 @@ struct CommentarySheet: View {
             .toolbar {
                 if !items.isEmpty {
                     ToolbarItem(placement: .cancellationAction) {
-                        ShareLink(item: shareText(items)) {
+                        ShareLink(item: shareText(items), preview: SharePreview(shareTitle)) {
                             Image(systemName: "square.and.arrow.up")
                         }
                         .accessibilityLabel("Отправить")
@@ -212,6 +212,13 @@ struct CommentarySheet: View {
         .presentationDetents([.medium, .large])
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+    }
+
+    /// Название в окне «Поделиться»: место стиха
+    private var shareTitle: String {
+        let lang = items.first?.module.language ?? "ru"
+        let name = store.nativeBookName(book, language: lang) ?? BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
+        return "\(name) \(chapter):\(verse)"
     }
 
     /// Для отправки: сначала место (на языке толкования), через пустую строку — толкование. Несколько толкователей —

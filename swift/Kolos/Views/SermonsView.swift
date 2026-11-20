@@ -204,7 +204,7 @@ struct SermonEditor: View {
                         Image(systemName: "text.viewfinder")
                     }
                     .accessibilityLabel("Кафедра")
-                    ShareLink(item: SermonStore.text(s)) { Image(systemName: "square.and.arrow.up") }
+                    ShareLink(item: SermonStore.text(s), preview: SharePreview(s.title.isEmpty ? "Проповедь" : s.title)) { Image(systemName: "square.and.arrow.up") }
                     Menu {
                         Button { step(back: true) } label: { Label("Отменить", systemImage: "arrow.uturn.backward") }
                             .disabled(undo.isEmpty)

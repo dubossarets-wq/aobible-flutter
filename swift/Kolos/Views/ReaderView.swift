@@ -2201,6 +2201,11 @@ struct ChapterText: View {
         return "\"\(text)\" - \(short) \(chapter):\(rangeText())"
     }
 
+    /// Название в окне «Поделиться»: место выделенных стихов
+    private func shareTitle(_ verses: [Verse]) -> String {
+        "\(Books.info(book)?.short ?? bookName) \(chapter):\(rangeText())"
+    }
+
     private func toggleFavorites(_ verses: [Verse], _ favorite: Bool) {
         for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
             marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
@@ -2265,7 +2270,7 @@ struct ChapterText: View {
                     show(selected.count > 1 ? "Скопировано стихов: \(selected.count)" : "Стих скопирован")
                     selected = []
                 } label: { Label("Копировать", systemImage: "doc.on.doc") }
-                ShareLink(item: quote(verses)) { Label("Поделиться", systemImage: "square.and.arrow.up") }
+                ShareLink(item: quote(verses), preview: SharePreview(shareTitle(verses))) { Label("Поделиться", systemImage: "square.and.arrow.up") }
                 Divider()
                 Button {
                     collectItems = verses.filter { selected.contains($0.num) }.map {
