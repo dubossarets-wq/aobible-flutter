@@ -1903,3 +1903,11 @@
 "Слева от «Библии»" = "Left of “Bible”";
 "Справа от «Библии»" = "Right of “Bible”";
 "«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "“Bible”, “More” and search are always in the menu. Removed “Plans” and “Bookmarks” stay in “More”.";
+
+/* Настройка нижнего меню */
+"Пусто" = "Empty";
+"Отдельной кнопкой" = "Separate button";
+"В меню" = "In the menu";
+"По умолчанию" = "Default";
+"Применить" = "Apply";
+"Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Tap an item to replace it. “Bible” and “More” are always in the menu; removed “Plans” and “Bookmarks” stay in “More”. The menu changes after “Apply”.";

@@ -1892,3 +1892,11 @@
 "Слева от «Библии»" = "Links von „Bibel“";
 "Справа от «Библии»" = "Rechts von „Bibel“";
 "«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "„Bibel“, „Mehr“ und die Suche sind immer in der Leiste. Entfernte „Pläne“ und „Lesezeichen“ bleiben unter „Mehr“.";
+
+/* Настройка нижнего меню */
+"Пусто" = "Leer";
+"Отдельной кнопкой" = "Eigene Taste";
+"В меню" = "In der Leiste";
+"По умолчанию" = "Standard";
+"Применить" = "Anwenden";
+"Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Tippen Sie auf einen Eintrag, um ihn zu ersetzen. „Bibel“ und „Mehr“ sind immer in der Leiste; entfernte „Pläne“ und „Lesezeichen“ bleiben unter „Mehr“. Die Leiste ändert sich nach „Anwenden“.";

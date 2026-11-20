@@ -1892,3 +1892,11 @@
 "Слева от «Библии»" = "Kushoto mwa «Biblia»";
 "Справа от «Библии»" = "Kulia mwa «Biblia»";
 "«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "«Biblia», «Zaidi» na utafutaji viko kwenye menyu kila wakati. «Mipango» na «Alamisho» zilizoondolewa zinabaki kwenye «Zaidi».";
+
+/* Настройка нижнего меню */
+"Пусто" = "Tupu";
+"Отдельной кнопкой" = "Kitufe tofauti";
+"В меню" = "Kwenye menyu";
+"По умолчанию" = "Chaguo-msingi";
+"Применить" = "Tekeleza";
+"Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Gusa kipengee ili kukibadilisha. «Biblia» na «Zaidi» viko kwenye menyu kila wakati; «Mipango» na «Alamisho» zilizoondolewa zinabaki kwenye «Zaidi». Menyu hubadilika baada ya «Tekeleza».";

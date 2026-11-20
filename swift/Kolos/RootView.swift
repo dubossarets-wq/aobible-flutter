@@ -144,6 +144,7 @@ struct RootView: View {
     /// Нижнее меню: что стоит слева и справа от «Библии» (настраивается в «Настройках»)
     @AppStorage(TabFunction.leftKey) private var tabLeft = TabFunction.plans.rawValue
     @AppStorage(TabFunction.rightKey) private var tabRight = TabFunction.saved.rawValue
+    @AppStorage(TabFunction.searchKey) private var searchInBar = false
 
     /// Тема приложения: «как в системе» — без принуждения; тёмные темы Flutter-версии (dark, ocean, black) — тёмная
     private var scheme: ColorScheme? {
@@ -203,8 +204,15 @@ struct RootView: View {
             Tab("Ещё", systemImage: "line.3.horizontal", value: AppTab.more) {
                 MoreView()
             }
-            Tab(value: AppTab.search, role: .search) {
-                Color.clear
+            // поиск — отдельной круглой кнопкой или пунктом меню (настраивается); нажатие в обоих случаях открывает поиск
+            if searchInBar {
+                Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search) {
+                    Color.clear
+                }
+            } else {
+                Tab(value: AppTab.search, role: .search) {
+                    Color.clear
+                }
             }
         }
         // при прокрутке вниз нижнее меню (вместе с поиском) уходит вниз целиком, как и верхнее, при прокрутке вверх — возвращается

@@ -1892,3 +1892,11 @@
 "Слева от «Библии»" = "În stânga „Bibliei”";
 "Справа от «Библии»" = "În dreapta „Bibliei”";
 "«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "„Biblia”, „Mai mult” și căutarea sunt mereu în meniu. „Planurile” și „Marcajele” scoase rămân în „Mai mult”.";
+
+/* Настройка нижнего меню */
+"Пусто" = "Gol";
+"Отдельной кнопкой" = "Buton separat";
+"В меню" = "În meniu";
+"По умолчанию" = "Implicit";
+"Применить" = "Aplică";
+"Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Atingeți un element pentru a-l înlocui. „Biblia” și „Mai mult” sunt mereu în meniu; „Planurile” și „Marcajele” scoase rămân în „Mai mult”. Meniul se schimbă după „Aplică”.";

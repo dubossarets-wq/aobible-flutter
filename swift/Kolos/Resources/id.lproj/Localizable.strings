@@ -1892,3 +1892,11 @@
 "Слева от «Библии»" = "Kiri dari «Alkitab»";
 "Справа от «Библии»" = "Kanan dari «Alkitab»";
 "«Библия», «Ещё» и поиск в меню всегда. Убранные «Планы» и «Закладки» остаются в «Ещё»." = "«Alkitab», «Lainnya», dan pencarian selalu ada di menu. «Rencana» dan «Penanda» yang dihapus tetap ada di «Lainnya».";
+
+/* Настройка нижнего меню */
+"Пусто" = "Kosong";
+"Отдельной кнопкой" = "Tombol terpisah";
+"В меню" = "Di menu";
+"По умолчанию" = "Bawaan";
+"Применить" = "Terapkan";
+"Нажмите на пункт, чтобы заменить его. «Библия» и «Ещё» в меню всегда; убранные «Планы» и «Закладки» остаются в «Ещё». Меню изменится после «Применить»." = "Ketuk item untuk menggantinya. «Alkitab» dan «Lainnya» selalu ada di menu; «Rencana» dan «Penanda» yang dihapus tetap di «Lainnya». Menu berubah setelah «Terapkan».";
