@@ -1197,7 +1197,8 @@ struct ChapterText: View {
     private var menuAnchor: String { "\(partVerse ?? 0)|\(selected.max() ?? 0)" }
 
     private var menuTransition: AnyTransition {
-        .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top)), removal: .opacity)
+        // и появление, и исчезновение одинаковые: меню вырастает из места под стихом и так же в него сворачивается
+        .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
     }
 
     /// Номер строки: в книге — глава × 1000 + стих (0 — заголовок главы), в одной главе — номер стиха
