@@ -1915,3 +1915,6 @@
 /* Проповеди: блок выше и ниже */
 "Добавить блок выше" = "Add block above";
 "Добавить блок ниже" = "Add block below";
+
+/* Выбор перевода: язык */
+"Нет установленных переводов на этом языке. Другие можно скачать ниже." = "No installed translations in this language. You can download more below.";

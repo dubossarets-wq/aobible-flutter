@@ -1904,3 +1904,6 @@
 /* Проповеди: блок выше и ниже */
 "Добавить блок выше" = "Dodaj blok powyżej";
 "Добавить блок ниже" = "Dodaj blok poniżej";
+
+/* Выбор перевода: язык */
+"Нет установленных переводов на этом языке. Другие можно скачать ниже." = "Brak zainstalowanych przekładów w tym języku. Inne możesz pobrać poniżej.";

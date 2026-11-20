@@ -13,28 +13,53 @@ struct TranslationPicker: View {
     let onPick: (String) -> Void
     /// Перевод, который спрашиваем удалить
     @State private var deleting: InstalledModule?
+    /// Язык переводов: «all» — все (запоминается)
+    @AppStorage("translationLang") private var lang = "all"
 
     private var bibles: [InstalledModule] { store.bibles }
 
+    /// Языки установленных переводов (русский — первым) и выбранный, даже если его переводы уже удалены
+    private var langs: [String] { DictLang.list(bibles.map(\.language) + [lang]) }
+
+    private func shown(_ m: InstalledModule) -> Bool { lang == "all" || m.language == lang }
+
     private var favs: [InstalledModule] {
         let all = bibles
-        return panes.favorites.compactMap { id in all.first { $0.id == id } }
+        return panes.favorites.compactMap { id in all.first { $0.id == id } }.filter(shown)
     }
 
     private var others: [InstalledModule] {
         let f = Set(panes.favorites)
-        return bibles.filter { !f.contains($0.id) }
+        return bibles.filter { !f.contains($0.id) && shown($0) }
     }
 
     var body: some View {
         List {
+            // язык переводов — как в библиотеке модулей
+            if langs.count > 1 {
+                Section {
+                    Picker("Язык модуля", selection: $lang) {
+                        Text("Все языки").tag("all")
+                        ForEach(langs, id: \.self) { l in Text(DictLang.name(l)).tag(l) }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
             if !favs.isEmpty {
                 Section("Избранные") {
                     ForEach(favs) { row($0) }
                 }
             }
-            Section(favs.isEmpty ? "Переводы" : "Остальные") {
-                ForEach(others) { row($0) }
+            if others.isEmpty && favs.isEmpty {
+                Section {
+                    Text("Нет установленных переводов на этом языке. Другие можно скачать ниже.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if !others.isEmpty {
+                Section(favs.isEmpty ? "Переводы" : "Остальные") {
+                    ForEach(others) { row($0) }
+                }
             }
             Section {
                 NavigationLink {
@@ -53,6 +78,7 @@ struct TranslationPicker: View {
         // как библиотека модулей: карточки со скруглёнными краями на сером фоне
         .listStyle(.insetGrouped)
         .animation(.snappy(duration: 0.3), value: panes.favorites)
+        .animation(.snappy(duration: 0.3), value: lang)
         .sensoryFeedback(.selection, trigger: panes.favorites)
         .confirmationDialog(
             deleting.map { "Удалить «\($0.name)»?" } ?? "",

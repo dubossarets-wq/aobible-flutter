@@ -1,9 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Режим «Страницы» — как в «Книгах» (iBooks): глава разбита на страницы по размеру экрана, листаются жестом вправо и влево
-/// (страница «заворачивается») и нажатием у левого или правого края. За последней страницей — следующая глава, перед
-/// первой — предыдущая. Нажатие на слово, двойное касание и долгое нажатие работают как в обычном режиме.
+/// Режим «Страницы»: глава разбита на страницы по размеру окна. Страницы лежат лентой и листаются жестом вправо и влево
+/// или нажатием у левого или правого края: текст уезжает в сторону, следующий приезжает (без «заворота» листа). За
+/// последней страницей — следующая глава, перед первой — предыдущая (тоже сдвигом). Нажатие на слово, двойное касание
+/// и долгое нажатие работают как в обычном режиме.
 struct PagedChapter: UIViewControllerRepresentable {
     let text: NSAttributedString
     /// Меняется, когда главу надо разбить заново (другая глава, перевод, шрифт, поля)
@@ -11,7 +12,7 @@ struct PagedChapter: UIViewControllerRepresentable {
     /// Стих, с которого открыть; 9999 — последняя страница (пришли назад из следующей главы)
     let focus: Int
     let insets: UIEdgeInsets
-    /// Цвет страницы — фон темы: страница не прозрачная, при перелистывании текст соседней не просвечивает
+    /// Цвет фона темы (страницы прозрачные: под ними неподвижный фон, по нему едет только текст)
     var pageColor: UIColor = .systemBackground
     var onTap: (URL?, Int) -> Void
     var onDouble: (Int) -> Void
@@ -40,9 +41,10 @@ struct PagedChapter: UIViewControllerRepresentable {
     }
 }
 
-/// Страничный режим при нескольких окнах: листнули страницу в одном — остальные открывают страницу с тем же стихом
-/// (как синхронная прокрутка, см. ScrollSync). Страницы ставятся прямо в UIKit, без перерисовки SwiftUI; окно в другой
-/// главе переходит в главу ведущего
+/// Страничный режим при нескольких окнах — как синхронная прокрутка (ScrollSync): окно, которое листают, ведёт, другие
+/// едут вместе с ним в том же кадре. Ведущая страница i → ведомая — страница, где начинается первый стих страницы i;
+/// между страницами ведомая сдвигается пропорционально (если тот же стих у неё на той же странице — стоит). Отпустили —
+/// ведомые встают ровно на страницу. Окно в другой главе переходит в главу ведущего (тоже сдвигом)
 @MainActor
 final class PageSync {
     private struct Ref { weak var host: PagerHost? }
@@ -53,56 +55,100 @@ final class PageSync {
         if hosts[id]?.host !== h { hosts[id] = Ref(host: h) }
     }
 
-    /// Человек листнул страницу в окне id: у её верха стих verse главы book/chapter
+    private var on: Bool {
+        guard let store else { return false }
+        return store.panes.count > 1 && (UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true)
+    }
+
+    private func followers(of id: UUID) -> [(PaneState, PagerHost)] {
+        guard let store, let src = store.panes.first(where: { $0.id == id }) else { return [] }
+        return store.panes.compactMap { f in
+            guard f.id != id, f.book == src.book, f.chapter == src.chapter,
+                  let h = hosts[f.id]?.host, h.viewIfLoaded?.window != nil else { return nil }
+            return (f, h)
+        }
+    }
+
+    /// Ведущее окно сдвинулось: page — дробный номер страницы (0 — первая)
+    func scrolled(_ id: UUID, page: CGFloat, anchors: [Int]) {
+        guard on else { return }
+        for (_, h) in followers(of: id) { h.mirror(page, anchors: anchors) }
+    }
+
+    /// Ведущее окно встало на страницу (листнул человек): у верха страницы стих verse главы book/chapter
     func turned(_ id: UUID, book: String, chapter: Int, verse: Int) {
-        guard let store, store.panes.count > 1,
-              UserDefaults.standard.object(forKey: "syncScroll") as? Bool ?? true else { return }
+        guard on, let store else { return }
+        let lead = hosts[id]?.host
+        let anchor = lead?.anchorVerse ?? verse
+        let dir = lead?.takeEdgeDir() ?? 0
         for f in store.panes where f.id != id {
             if f.book == book && f.chapter == chapter, let h = hosts[f.id]?.host, h.viewIfLoaded?.window != nil {
-                h.follow(verse)
+                h.follow(anchor)
             } else {
-                store.go(f.id, book, chapter, max(1, verse), record: false)
+                // в другой главе — туда же, с тем же сдвигом, что у ведущего
+                if dir != 0 { hosts[f.id]?.host?.expectSlide(dir) }
+                store.go(f.id, book, chapter, max(1, anchor), record: false)
             }
         }
     }
 }
 
-final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
-    private let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal)
+final class PagerHost: UIViewController, UIScrollViewDelegate {
+    private let scroll = UIScrollView()
     private let storage = NSTextStorage()
     private let layout = PlateLayoutManager()
     private var containers: [NSTextContainer] = []
-    /// Страницы текста (номер — как у containers)
-    private var pages: [UIViewController] = []
+    /// Страницы на экране и рядом (остальные не создаются)
+    private var cells: [Int: PageCell] = [:]
     private var current = 0
-    /// Листнули за край главы: соседняя глава ляжет с перелистыванием в эту сторону (+1 вперёд, −1 назад)
+    /// Листнули за край главы: соседняя глава въедет с этой стороны (+1 — справа, −1 — слева)
     private var pendingDir = 0
+    /// Последний переход в соседнюю главу (для других окон)
+    private var edgeDir = 0
+    /// В соседнюю главу перелистнул человек в этом окне (а не пришли следом за другим)
+    private var ownEdge = false
     private(set) var cfg: PagedChapter?
     private var builtKey = ""
     private var builtSize = CGSize.zero
     private var lastFocus = -1
     /// Стих у верха текущей страницы: при пересборке (другой шрифт, дозагрузились модули) остаёмся на нём
     private var topVerse = 1
+    /// Опорный стих страницы: первый, что на ней начинается (нет — стих у её верха). По нему встают другие окна
+    private(set) var anchors: [Int] = []
+    /// Стихи по порядку и страница, где каждый начинается
+    private var verseOrder: [Int] = []
+    private var verseStart: [Int: Int] = [:]
     private let counter = UILabel()
+    /// Листание нажатием у края — ведёт это окно
+    private var userAnimating = false
+    /// Смещение ставит другое окно — дальше не передаём
+    private var applying = false
+
+    var anchorVerse: Int { current < anchors.count ? anchors[current] : topVerse }
+
+    func takeEdgeDir() -> Int {
+        let d = edgeDir
+        edgeDir = 0
+        return d
+    }
+
+    /// Другое окно ушло в соседнюю главу — эта глава въедет с той же стороны
+    func expectSlide(_ dir: Int) { pendingDir = dir }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
         storage.addLayoutManager(layout)
-        pvc.dataSource = self
-        pvc.delegate = self
-        pvc.isDoubleSided = false
-        addChild(pvc)
-        view.addSubview(pvc.view)
-        pvc.didMove(toParent: self)
-        pvc.view.backgroundColor = .clear
-        // встроенные нажатия у краёв заменены своими (см. PageTouch): рядом со словами они мешали бы
-        for g in pvc.gestureRecognizers where g is UITapGestureRecognizer { g.isEnabled = false }
-        // за первой и последней страницей листать нечего (система не начинает загиб) — свой жест открывает соседнюю главу
-        let edgePan = UIPanGestureRecognizer(target: self, action: #selector(edgePanned(_:)))
-        edgePan.delegate = self
-        edgePan.cancelsTouchesInView = false
-        pvc.view.addGestureRecognizer(edgePan)
+        scroll.delegate = self
+        scroll.isPagingEnabled = true
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.showsVerticalScrollIndicator = false
+        scroll.alwaysBounceHorizontal = true
+        scroll.alwaysBounceVertical = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        scroll.backgroundColor = .clear
+        scroll.decelerationRate = .fast
+        view.addSubview(scroll)
         counter.font = .systemFont(ofSize: 12, weight: .medium)
         counter.textColor = .secondaryLabel
         counter.textAlignment = .center
@@ -112,21 +158,12 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
 
     func apply(_ c: PagedChapter) {
         cfg = c
-        if isViewLoaded {
-            rebuildIfNeeded()
-            paint()
-        }
-    }
-
-    /// Страницы — цвета фона (не прозрачные)
-    private func paint() {
-        let color = cfg?.pageColor ?? .systemBackground
-        for p in pages where p.view.backgroundColor != color { p.view.backgroundColor = color }
+        if isViewLoaded { rebuildIfNeeded() }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        pvc.view.frame = view.bounds
+        if scroll.frame != view.bounds { scroll.frame = view.bounds }
         counter.frame = CGRect(x: 0, y: view.bounds.height - 26, width: view.bounds.width, height: 18)
         rebuildIfNeeded()
     }
@@ -148,6 +185,8 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         rebuildIfNeeded()
     }
 
+    private var pageWidth: CGFloat { max(1, scroll.bounds.width) }
+
     private func rebuildIfNeeded() {
         guard let c = cfg, let size = pageSize else { return }
         if c.key == builtKey && size == builtSize && c.text.length == storage.length {
@@ -156,7 +195,7 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             if c.focus != lastFocus {
                 lastFocus = c.focus
                 let i = pageIndex(forVerse: c.focus)
-                if i != current { show(i, animated: false, user: false) }
+                if i != current { show(i) }
             }
             return
         }
@@ -164,16 +203,12 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
         // перешли в соседнюю главу — на стихе из панели (начало или конец главы)
         let dir = pendingDir
         pendingDir = 0
-        let startVerse = builtKey.isEmpty || dir != 0 || c.key.split(separator: "|").prefix(3) != builtKey.split(separator: "|").prefix(3) ? c.focus : topVerse
-        // снимок нынешней страницы — с него соседняя глава перелистнётся (старые страницы сейчас потеряют текст)
-        if dir != 0, let snap = pvc.view.snapshotView(afterScreenUpdates: false) {
-            let vc = UIViewController()
-            vc.view.backgroundColor = c.pageColor
-            snap.frame = vc.view.bounds
-            snap.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            vc.view.addSubview(snap)
-            pvc.setViewControllers([vc], direction: .forward, animated: false)
-        }
+        let sameChapter = !builtKey.isEmpty && c.key.split(separator: "|").prefix(3) == builtKey.split(separator: "|").prefix(3)
+        let startVerse = dir != 0 || !sameChapter ? c.focus : topVerse
+        let own = ownEdge
+        ownEdge = false
+        // снимок нынешней страницы — он уедет, новая глава въедет следом
+        let snap: UIView? = dir != 0 && !builtKey.isEmpty ? scroll.snapshotView(afterScreenUpdates: false) : nil
         builtKey = c.key
         builtSize = size
         lastFocus = c.focus
@@ -188,147 +223,210 @@ final class PagerHost: UIViewController, UIPageViewControllerDataSource, UIPageV
             layout.ensureLayout(for: tc)
             if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
         }
-        pages = containers.map { TextPage(container: $0, host: self) }
-        paint()
+        indexVerses()
+        for (_, cell) in cells { cell.removeFromSuperview() }
+        cells = [:]
+        let w = pageWidth
+        scroll.contentSize = CGSize(width: w * CGFloat(max(1, containers.count)), height: scroll.bounds.height)
         let i = pageIndex(forVerse: startVerse)
         current = i
-        if dir != 0 {
-            pvc.setViewControllers([pages[i]], direction: dir > 0 ? .forward : .reverse, animated: true)
-        } else {
-            pvc.setViewControllers([pages[i]], direction: .forward, animated: false)
+        applying = true
+        scroll.setContentOffset(CGPoint(x: CGFloat(i) * w, y: 0), animated: false)
+        applying = false
+        tile()
+        if let s = snap {
+            // старая глава уезжает, новая въезжает с той же стороны — одним движением
+            if own { edgeDir = dir }
+            s.frame = scroll.frame
+            view.insertSubview(s, aboveSubview: scroll)
+            scroll.transform = CGAffineTransform(translationX: CGFloat(dir) * w, y: 0)
+            UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseOut]) {
+                s.transform = CGAffineTransform(translationX: -CGFloat(dir) * w, y: 0)
+                self.scroll.transform = .identity
+            } completion: { _ in s.removeFromSuperview() }
         }
         // в соседнюю главу перелистнул сам человек — за ним и другие окна
-        report(i, user: dir != 0)
+        report(i, user: own && dir != 0)
     }
 
-    /// Ведущее окно листнуло страницу: встаём на страницу с тем же стихом (без перелистывания — сразу)
-    func follow(_ verse: Int) {
-        guard !pages.isEmpty else { return }
-        lastFocus = verse
-        let i = pageIndex(forVerse: verse)
-        if i != current { show(i, animated: false, user: false) }
+    /// Где начинается каждый стих и опорный стих каждой страницы
+    private func indexVerses() {
+        verseOrder = []
+        verseStart = [:]
+        var firstOnPage = [Int](repeating: 0, count: containers.count)
+        guard storage.length > 0, !containers.isEmpty else { anchors = []; return }
+        storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { val, r, _ in
+            guard let n = val as? Int, verseStart[n] == nil else { return }
+            var range = NSRange()
+            guard let tc = layout.textContainer(forGlyphAt: layout.glyphIndexForCharacter(at: r.location), effectiveRange: &range),
+                  let p = containers.firstIndex(where: { $0 === tc }) else { return }
+            verseStart[n] = p
+            verseOrder.append(n)
+            if firstOnPage[p] == 0 { firstOnPage[p] = n }
+        }
+        anchors = containers.indices.map { p in firstOnPage[p] != 0 ? firstOnPage[p] : verseAtTop(p) }
     }
 
-    /// Страница (номер в pages), на которой стих
+    private func verseAtTop(_ p: Int) -> Int {
+        let gr = layout.glyphRange(for: containers[p])
+        let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
+        guard cr.length > 0, cr.location < storage.length else { return 1 }
+        return (storage.attribute(.aobVerse, at: cr.location, effectiveRange: nil) as? Int) ?? 1
+    }
+
+    /// Страница, где начинается стих; такого стиха нет в этом переводе — ближайший следующий
     private func pageIndex(forVerse v: Int) -> Int {
-        guard !pages.isEmpty else { return 0 }
-        if v >= 9999 { return pages.count - 1 }
-        guard v > 0, storage.length > 0 else { return 0 }
-        // стиха нет в этом переводе (другая нумерация) — ближайший следующий
-        var loc: Int?
-        storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { val, r, stop in
-            if let n = val as? Int, n >= v {
-                loc = r.location
-                stop.pointee = true
-            }
-        }
-        guard let l = loc else { return 0 }
-        var range = NSRange()
-        guard let tc = layout.textContainer(forGlyphAt: layout.glyphIndexForCharacter(at: l), effectiveRange: &range),
-              let idx = containers.firstIndex(where: { $0 === tc }) else { return 0 }
-        return idx
+        guard !containers.isEmpty else { return 0 }
+        if v >= 9999 { return containers.count - 1 }
+        if let p = verseStart[v] { return p }
+        if let n = verseOrder.first(where: { $0 >= v }), let p = verseStart[n] { return p }
+        return v > (verseOrder.last ?? 0) ? containers.count - 1 : 0
     }
 
-    private func show(_ i: Int, animated: Bool, user: Bool) {
-        guard i >= 0, i < pages.count else { return }
-        let dir: UIPageViewController.NavigationDirection = i >= current ? .forward : .reverse
-        pvc.setViewControllers([pages[i]], direction: dir, animated: animated) { [weak self] done in
-            if done && animated { self?.landed(i, user: user) }
+    // MARK: - Страницы на экране
+
+    /// Создаёт страницы у текущей (и по одной с каждой стороны), убирает дальние
+    private func tile() {
+        guard !containers.isEmpty, let c = cfg else { return }
+        let w = pageWidth
+        let p = Int(floor(scroll.contentOffset.x / w))
+        let lo = max(0, p - 1), hi = min(containers.count - 1, p + 2)
+        for (i, cell) in cells where i < lo || i > hi {
+            cell.removeFromSuperview()
+            cells[i] = nil
         }
-        if !animated { landed(i, user: user) }
+        guard lo <= hi else { return }
+        let ins = insets(c)
+        for i in lo...hi where cells[i] == nil {
+            let cell = PageCell(container: containers[i], host: self)
+            cell.frame = CGRect(x: CGFloat(i) * w, y: 0, width: w, height: scroll.bounds.height)
+            cell.layoutText(ins)
+            scroll.addSubview(cell)
+            cells[i] = cell
+        }
     }
 
-    /// Листание нажатием у края: +1 вперёд, −1 назад
+    private func show(_ i: Int) {
+        guard i >= 0, i < containers.count else { return }
+        applying = true
+        scroll.setContentOffset(CGPoint(x: CGFloat(i) * pageWidth, y: 0), animated: false)
+        applying = false
+        tile()
+        landed(i, user: false)
+    }
+
+    /// Листание нажатием у края: +1 вперёд, −1 назад (сдвигом; другие окна едут вместе)
     func turn(_ d: Int) {
-        #if DEBUG
-        SyncTrace.write("T,turn,\(d),current=\(current),pages=\(pages.count)")
-        #endif
         let t = current + d
         if t < 0 { edge(-1); return }
-        if t >= pages.count { edge(1); return }
-        show(t, animated: true, user: true)
+        if t >= containers.count { edge(1); return }
+        userAnimating = true
+        scroll.setContentOffset(CGPoint(x: CGFloat(t) * pageWidth, y: 0), animated: true)
     }
 
-    /// За краем главы — сразу соседняя глава (без пустой страницы-перехода)
+    /// За краем главы — сразу соседняя глава
     private func edge(_ d: Int) {
         guard pendingDir == 0 else { return }
         pendingDir = d
+        ownEdge = true
         cfg?.onEdge(d)
         // в начале или конце Библии главы нет — ключ не сменится, ждать нечего
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.pendingDir = 0 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            self?.pendingDir = 0
+            self?.ownEdge = false
+        }
     }
 
-    @objc private func edgePanned(_ g: UIPanGestureRecognizer) {
-        guard g.state == .ended, !pages.isEmpty else { return }
-        let t = g.translation(in: g.view)
-        guard abs(t.x) > 50, abs(t.x) > abs(t.y) * 1.5 else { return }
-        if t.x > 0, current == 0 { edge(-1) }
-        if t.x < 0, current == pages.count - 1 { edge(1) }
+    // MARK: - Ведомое окно
+
+    /// Ведущее окно на дробной странице page (её опорные стихи — anchors): встаём на соответствующее место
+    func mirror(_ page: CGFloat, anchors la: [Int]) {
+        guard !scroll.isTracking, !la.isEmpty, !containers.isEmpty else { return }
+        let last = la.count - 1
+        let i = min(max(0, Int(floor(page))), last)
+        let f = min(max(0, page - CGFloat(i)), 1)
+        let ji = pageIndex(forVerse: la[i])
+        let jn = i < last ? pageIndex(forVerse: la[i + 1]) : ji
+        let target = min(max(0, CGFloat(ji) + f * CGFloat(jn - ji)), CGFloat(containers.count - 1))
+        let x = (target * pageWidth).rounded()
+        guard abs(scroll.contentOffset.x - x) > 0.25 else { return }
+        applying = true
+        scroll.contentOffset = CGPoint(x: x, y: 0)
+        applying = false
+        tile()
     }
 
-    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        true
+    /// Ведущее окно встало на страницу: ровно на страницу с её опорным стихом
+    func follow(_ verse: Int) {
+        guard !containers.isEmpty else { return }
+        lastFocus = verse
+        let i = pageIndex(forVerse: verse)
+        if i != current || abs(scroll.contentOffset.x - CGFloat(i) * pageWidth) > 0.5 { show(i) }
+    }
+
+    // MARK: - Прокрутка
+
+    private var leading: Bool { scroll.isTracking || scroll.isDragging || scroll.isDecelerating || userAnimating }
+
+    func scrollViewDidScroll(_ s: UIScrollView) {
+        tile()
+        guard !applying, leading, let id = cfg?.paneID else { return }
+        cfg?.sync?.scrolled(id, page: s.contentOffset.x / pageWidth, anchors: anchors)
+    }
+
+    func scrollViewWillEndDragging(_ s: UIScrollView, withVelocity v: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        // потянули за первую или последнюю страницу — соседняя глава
+        let w = pageWidth
+        let maxX = s.contentSize.width - w
+        if s.contentOffset.x < -w * 0.12 || (current == 0 && s.contentOffset.x < 0 && v.x < -0.6) {
+            edge(-1)
+        } else if s.contentOffset.x > maxX + w * 0.12 || (current == containers.count - 1 && s.contentOffset.x > maxX && v.x > 0.6) {
+            edge(1)
+        }
+    }
+
+    func scrollViewDidEndDecelerating(_ s: UIScrollView) { settle() }
+
+    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate: Bool) {
+        if !willDecelerate { settle() }
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) {
+        userAnimating = false
+        settle()
+    }
+
+    /// Остановились: страница, на которой стоим, — текущая
+    private func settle() {
+        guard !containers.isEmpty else { return }
+        let i = min(max(0, Int((scroll.contentOffset.x / pageWidth).rounded())), containers.count - 1)
+        if i != current { landed(i, user: true) }
     }
 
     private func landed(_ i: Int, user: Bool) {
-        #if DEBUG
-        SyncTrace.write("T,landed,\(i)")
-        #endif
         current = i
         report(i, user: user)
     }
 
     private func report(_ i: Int, user: Bool) {
         guard i >= 0, i < containers.count else { return }
-        let gr = layout.glyphRange(for: containers[i])
-        let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
-        var verse = 1
-        if cr.length > 0, cr.location < storage.length {
-            verse = (storage.attribute(.aobVerse, at: cr.location, effectiveRange: nil) as? Int) ?? 1
-        }
-        topVerse = verse
-        let total = max(1, pages.count)
+        topVerse = verseAtTop(i)
+        let total = max(1, containers.count)
         counter.text = "\(i + 1) / \(total)"
-        cfg?.onPage(verse, i + 1, total, user)
-    }
-
-    // MARK: - Листание жестом
-
-    func pageViewController(_ p: UIPageViewController, viewControllerBefore vc: UIViewController) -> UIViewController? {
-        guard let i = pages.firstIndex(of: vc), i > 0 else { return nil }
-        return pages[i - 1]
-    }
-
-    func pageViewController(_ p: UIPageViewController, viewControllerAfter vc: UIViewController) -> UIViewController? {
-        guard let i = pages.firstIndex(of: vc), i < pages.count - 1 else { return nil }
-        return pages[i + 1]
-    }
-
-    func pageViewController(_ p: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let vc = p.viewControllers?.first, let i = pages.firstIndex(of: vc) else { return }
-        landed(i, user: true)
+        cfg?.onPage(topVerse, i + 1, total, user)
     }
 }
 
 /// Страница текста: свой кусок главы (свой NSTextContainer общей вёрстки) и нажатия
-final class TextPage: UIViewController {
-    private let container: NSTextContainer
-    private weak var host: PagerHost?
-    private var textView: UITextView?
+final class PageCell: UIView {
+    private let textView: UITextView
     private var touch: PageTouch?
 
     init(container: NSTextContainer, host: PagerHost) {
-        self.container = container
-        self.host = host
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        let tv = UITextView(frame: .zero, textContainer: container)
+        textView = UITextView(frame: .zero, textContainer: container)
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        let tv = textView
         tv.isEditable = false
         tv.isSelectable = false
         tv.isScrollEnabled = false
@@ -336,22 +434,16 @@ final class TextPage: UIViewController {
         // запас по краям для плашек части стиха (см. VerseTextView.bleed); поле на столько же шире страницы текста
         tv.textContainerInset = UIEdgeInsets(top: VerseTextView.bleed, left: VerseTextView.bleed, bottom: VerseTextView.bleed, right: VerseTextView.bleed)
         tv.isUserInteractionEnabled = false
-        view.addSubview(tv)
-        textView = tv
-        #if DEBUG
-        SyncTrace.write("T,pageLoaded,\(view.isUserInteractionEnabled)")
-        #endif
-        if let h = host {
-            let t = PageTouch(host: h, textView: tv)
-            t.attach(to: view)
-            touch = t
-        }
+        addSubview(tv)
+        let t = PageTouch(host: host, textView: tv)
+        t.attach(to: self)
+        touch = t
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        guard let c = host?.cfg else { return }
-        textView?.frame = view.bounds.inset(by: host?.insets(c) ?? c.insets).insetBy(dx: -VerseTextView.bleed, dy: -VerseTextView.bleed)
+    required init?(coder: NSCoder) { nil }
+
+    func layoutText(_ ins: UIEdgeInsets) {
+        textView.frame = bounds.inset(by: ins).insetBy(dx: -VerseTextView.bleed, dy: -VerseTextView.bleed)
     }
 }
 
