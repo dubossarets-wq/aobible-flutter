@@ -495,7 +495,10 @@ struct DictionaryView: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(a.word).font(.body.weight(.medium))
-                Text(a.dictName).font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if a.kind == "strongs" { StrongBadge() }
+                    Text(a.dictName).font(.caption).foregroundStyle(.secondary)
+                }
                 let sn = a.snippet(store)
                 if !sn.isEmpty {
                     Text(sn).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
@@ -594,7 +597,7 @@ struct DictEntryPage: View {
     @ViewBuilder private func pickerCard(_ a: DictArticle) -> some View {
         let langs = DictLang.list(tabs.map(\.language) + [lang])
         VStack(spacing: 0) {
-            pickerRow("Словарь", value: tabLabel(a)) {
+            pickerRow("Словарь", value: tabLabel(a), badge: a.kind == "strongs") {
                 Picker("Словарь", selection: $sel) {
                     ForEach(shownTabs) { t in Text(tabLabel(t)).tag(t.id) }
                 }
@@ -620,7 +623,7 @@ struct DictEntryPage: View {
 
     /// Строка карточки: подпись слева занимает свою ширину, выбор — всю остальную и всегда в одну строку
     /// (у Picker в меню своя подпись делит строку поровну с соседями и переносится)
-    private func pickerRow<P: View>(_ title: String, value: String, @ViewBuilder picker: () -> P) -> some View {
+    private func pickerRow<P: View>(_ title: String, value: String, badge: Bool = false, @ViewBuilder picker: () -> P) -> some View {
         HStack(spacing: 12) {
             Text(LocalizedStringKey(title)).foregroundStyle(pal.text).fixedSize()
             Spacer(minLength: 0)
@@ -628,6 +631,7 @@ struct DictEntryPage: View {
                 picker()
             } label: {
                 HStack(spacing: 5) {
+                    if badge { StrongBadge() }
                     Text(value).lineLimit(1).truncationMode(.middle)
                     Image(systemName: "chevron.up.chevron.down").font(.footnote.weight(.semibold))
                 }
@@ -714,7 +718,7 @@ struct DictEntryPage: View {
         if !list.contains(where: { $0.id == start.id }) && !Lexicon.lexiconIds.contains(start.dictId) { list.insert(start, at: 0) }
         if list.isEmpty { list = [start] }
         let keep = current.dictId
-        tabs = list
+        tabs = list.filter { $0.kind == "strongs" } + list.filter { $0.kind != "strongs" }
         if sel.isEmpty || !list.contains(where: { $0.id == sel }) {
             sel = list.first { $0.id == start.id }?.id ?? list[0].id
         }
@@ -722,7 +726,9 @@ struct DictEntryPage: View {
         let local = DictSearch.siblingsInstalled(store, rel)
         let more = await DictSearch.siblingsRemote(store, rel)
         var seen = Set<String>()
-        tabs = (list + local + more).filter { seen.insert($0.id).inserted }
+        let all = (list + local + more).filter { seen.insert($0.id).inserted }
+        // словари Стронга — первыми (скачанные раньше сетевых), остальные — как были
+        tabs = all.filter { $0.kind == "strongs" } + all.filter { $0.kind != "strongs" }
         // словарь только что скачали — выбранной остаётся статья того же словаря
         if !tabs.contains(where: { $0.id == sel }), let t = tabs.first(where: { $0.dictId == keep }) { sel = t.id }
         // открытая статья — на другом языке, чем выбран: показываем все языки, иначе её не было бы в списке
@@ -825,6 +831,20 @@ struct EntryPage: View {
         if let f = store.dictGetMany(module: hit.module, keys: keys).first {
             refHit = DictHit(module: hit.module, key: f.0, word: (f.1["word"] as? String) ?? (f.1["lemma"] as? String) ?? f.0)
         }
+    }
+}
+
+/// Маленькая плашка «Стронг» у названия словаря Стронга
+struct StrongBadge: View {
+    @Environment(\.readerPalette) private var pal
+
+    var body: some View {
+        Text("Стронг")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(pal.accent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(pal.accent.opacity(0.14), in: Capsule())
     }
 }
 

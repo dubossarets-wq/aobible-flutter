@@ -141,11 +141,11 @@ extension ModuleStore {
         return nil
     }
 
-    /// Словари: словарь Стронга на русском — первым, затем другие русские, затем остальные
+    /// Словари: Стронг — всегда первым (русский — самым первым), затем другие русские, затем остальные
     var dictionaries: [InstalledModule] {
         func rank(_ m: InstalledModule) -> Int {
-            if m.dictionaryKind == "strongs" && m.language == "ru" { return 0 }
-            return m.language == "ru" ? 1 : 2
+            if m.dictionaryKind == "strongs" { return m.language == "ru" ? 0 : 1 }
+            return m.language == "ru" ? 2 : 3
         }
         return installed.filter { $0.type == "dictionary" }.sorted {
             rank($0) != rank($1) ? rank($0) < rank($1) : $0.name < $1.name

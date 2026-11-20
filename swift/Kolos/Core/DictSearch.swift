@@ -260,7 +260,7 @@ enum DictSearch {
                 }
             }
         }
-        return exact + strong + rest
+        return strong + exact + rest
     }
 
     /// Словари сайта, которых нет среди скачанных
@@ -287,7 +287,7 @@ enum DictSearch {
                 }
             }
         }
-        return exact + strong + rest
+        return strong + exact + rest
     }
 
     /// Чем связаны статьи разных словарей: словами и номерами Стронга. Связь та же, что в поиске, — симфония RST+:
