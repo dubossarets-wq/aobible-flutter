@@ -71,6 +71,56 @@ struct CommentaryItem: Identifiable {
 private var verseNumbersCache: [String: [Int]] = [:]
 
 extension ModuleStore {
+    /// Переводы helloao, установленные до того, как названия стали сохраняться, не знают родных названий книг —
+    /// берём их из источника (books.json) один раз и дописываем в модуль на телефоне. Нет сети — в следующий запуск
+    func backfillNativeNames() async {
+        let key = "namesBackfilled1"
+        var done = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        var patched = false
+        for m in allInstalled where m.type == "bible" && m.id.hasPrefix("hao-") && !done.contains(m.id)
+            && !m.books.contains(where: { !$0.native.isEmpty }) {
+            let hid = String(m.id.dropFirst(4))
+            guard let url = URL(string: "https://bible.helloao.org/api/\(hid)/books.json"),
+                  let (data, resp) = try? await URLSession.shared.data(from: url),
+                  (resp as? HTTPURLResponse)?.statusCode == 200,
+                  let j = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let list = j["books"] as? [[String: Any]] else { continue }
+            var names: [String: String] = [:]
+            for b in list {
+                guard let u = b["id"] as? String, let osis = usfmToOsis[u] else { continue }
+                let n = ((b["commonName"] as? String) ?? (b["name"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !n.isEmpty { names[osis] = n }
+            }
+            if Self.patchNames(path: m.path, names: names, language: m.language) {
+                done.insert(m.id)
+                patched = true
+            }
+        }
+        if patched {
+            UserDefaults.standard.set(Array(done), forKey: key)
+            scan()
+        }
+    }
+
+    private static func patchNames(path: String, names: [String: String], language: String) -> Bool {
+        guard let db = try? SQLiteDB(path: path, readOnly: false),
+              let s = db.query("SELECT value FROM meta WHERE key = 'json'", { $0.text(0) }).first,
+              var j = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any] else { return false }
+        var list = (j["bookList"] as? [[String: Any]]) ?? []
+        for i in list.indices {
+            if let id = list[i]["id"] as? String, let n = names[id] { list[i]["nname"] = n }
+        }
+        j["bookList"] = list
+        if let w = BookLocale.chapterFormats(language) {
+            j["chapterWord"] = w.0
+            j["psalmWord"] = w.1
+        }
+        guard let out = try? JSONSerialization.data(withJSONObject: j), let str = String(data: out, encoding: .utf8) else { return false }
+        return (try? db.insert("UPDATE meta SET value = ? WHERE key = 'json'", [[str]])) != nil
+    }
+}
+
+extension ModuleStore {
     /// Номера стихов главы в переводе (для страничного режима: показываем только стихи, которые есть во всех окнах)
     func verseNumbers(module id: String, book: String, chapter: Int) -> [Int] {
         let key = "\(id)|\(book)|\(chapter)"

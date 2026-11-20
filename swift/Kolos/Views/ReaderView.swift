@@ -897,7 +897,8 @@ struct ChapterText: View {
 
     /// Название книги в тексте — то, что записано в самом модуле (у греческого — греческое, у английского — английское)
     private func textBookName(_ id: String) -> String {
-        module.books.first { $0.id == id }?.textName ?? Books.info(id)?.rawName ?? id
+        guard let b = module.books.first(where: { $0.id == id }) else { return Books.info(id)?.rawName ?? id }
+        return b.native.isEmpty ? BookLocale.fallbackName(id, raw: b.rawName, language: module.language) : b.native
     }
 
     private var bookName: String { textBookName(book) }

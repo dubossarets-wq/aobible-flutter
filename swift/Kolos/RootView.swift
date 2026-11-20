@@ -232,6 +232,8 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { !welcomeSeen }, set: { if !$0 { welcomeSeen = true } })) {
             WelcomeSheet()
         }
+        // родные названия книг у ранее установленных переводов helloao — из источника, в фоне
+        .task { await store.backfillNativeNames() }
         .task {
             // перед обновлением приложения — копия данных (последние 5)
             let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""

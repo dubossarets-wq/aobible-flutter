@@ -254,11 +254,23 @@ enum BookLocale {
         return chapterWords[l] ?? ("Chapter %d", "Psalm %d")
     }
 
-    /// «Глава N» («Псалом N») над текстом: слово — из самого модуля, нет его — русское
+    /// Русские названия годятся только русским и церковнославянским переводам; остальным без своих названий — английские
+    private static func russianModule(_ language: String) -> Bool {
+        let l = String(language.lowercased().prefix { $0 != "-" && $0 != "_" })
+        return l == "ru" || l == "cu" || l.isEmpty
+    }
+
+    /// Название книги над текстом, когда в самом модуле его нет: русским модулям — русское, остальным — английское
+    static func fallbackName(_ id: String, raw: String, language: String) -> String {
+        russianModule(language) ? raw : (BookNames.en[id]?.first ?? raw)
+    }
+
+    /// «Глава N» («Псалом N») над текстом: слово — из самого модуля; нет его — русское (русским модулям) или английское
     static func chapterTitle(book: String, chapter: Int, module m: InstalledModule) -> String {
         let psalm = book == "Ps"
         let fmt = psalm ? m.psalmWord : m.chapterWord
         if !fmt.isEmpty { return String(format: fmt, chapter) }
-        return psalm ? "Псалом \(chapter)" : "Глава \(chapter)"
+        if russianModule(m.language) { return psalm ? "Псалом \(chapter)" : "Глава \(chapter)" }
+        return psalm ? "Psalm \(chapter)" : "Chapter \(chapter)"
     }
 }
