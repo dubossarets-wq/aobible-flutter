@@ -68,7 +68,20 @@ struct CommentaryItem: Identifiable {
     let text: String
 }
 
+private var verseNumbersCache: [String: [Int]] = [:]
+
 extension ModuleStore {
+    /// Номера стихов главы в переводе (для страничного режима: показываем только стихи, которые есть во всех окнах)
+    func verseNumbers(module id: String, book: String, chapter: Int) -> [Int] {
+        let key = "\(id)|\(book)|\(chapter)"
+        if let c = verseNumbersCache[key] { return c }
+        guard let d = db(id) else { return [] }
+        let nums = d.query("SELECT verse FROM verses WHERE book = ? AND chapter = ? ORDER BY verse", [book, chapter]) { $0.int(0) }
+        if verseNumbersCache.count > 300 { verseNumbersCache = [:] }
+        verseNumbersCache[key] = nums
+        return nums
+    }
+
     /// Родное название книги по языку: из установленного перевода этого языка (из его модуля); нет такого — nil
     func nativeBookName(_ book: String, language: String) -> String? {
         let l = String(language.lowercased().prefix { $0 != "-" && $0 != "_" })

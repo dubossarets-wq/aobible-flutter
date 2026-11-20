@@ -311,7 +311,7 @@ struct PaneView: View {
             } label: { Image(systemName: "headphones").chromeCircle(30) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Слушать")
-            if panes.panes.count < maxPanes {
+            if panes.panes.count < panes.paneLimit {
                 Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle(30) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Добавить панель")
@@ -392,8 +392,8 @@ struct PaneView: View {
             }
             Button { panes.addPane(after: paneID, moduleId: p.moduleId) } label: { Image(systemName: "rectangle.split.2x1").chromeCircle() }
                 .buttonStyle(.plain)
-                .disabled(panes.panes.count >= maxPanes)
-                .opacity(panes.panes.count >= maxPanes ? 0.4 : 1)
+                .disabled(panes.panes.count >= panes.paneLimit)
+                .opacity(panes.panes.count >= panes.paneLimit ? 0.4 : 1)
                 .accessibilityLabel("Добавить панель")
         }
         }
@@ -1105,9 +1105,11 @@ struct ChapterText: View {
 
     /// Режим «Страницы»: глава листается страницами, как в «Книгах»
     private func pagedView(_ d: ChapterCache) -> some View {
-        PagedChapter(
-            text: pagedNS(d),
-            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(pageVerseBreak)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
+        let common = pagedCommon
+        let il = module.interlinear
+        return PagedChapter(
+            text: il ? NSAttributedString() : pagedNS(d, common),
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(pageVerseBreak)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)|\(il ? "\(ilGloss)\(ilOrig)\(ilStrong)" : "")|\(common?.hashValue ?? 0)",
             focus: focus,
             wholeVerses: pageVerseBreak == "verse",
             insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
@@ -1125,13 +1127,73 @@ struct ChapterText: View {
                 DispatchQueue.main.async { panes.step(pane.id, dir, module: module, atEnd: dir < 0) }
             },
             paneID: pane.id,
-            sync: panes.pageSync
+            sync: panes.pageSync,
+            blocks: il ? pagedBlocks(d, common) : nil,
+            blockSpacing: fontSize * verseSpacing
         )
         .background { ReaderBackdrop(pal: pal) }
     }
 
     /// Вся глава одним текстом для разбивки на страницы: заголовки разделов и стихи (отдельными абзацами или сплошным текстом)
-    private func pagedNS(_ d: ChapterCache) -> NSAttributedString {
+    /// Стихи, которые есть во всех окнах этой главы (режим «Страницы» при нескольких окнах): остальные не показываются ни
+    /// в одном окне. Нет общих (или один перевод без текста) — nil, показываем всё
+    private var pagedCommon: Set<Int>? {
+        guard readingStyle == "pages", panes.panes.count > 1 else { return nil }
+        var common: Set<Int>?
+        for p in panes.panes where p.book == book && p.chapter == chapter {
+            let nums = Set(store.verseNumbers(module: p.moduleId, book: book, chapter: chapter).filter { $0 >= 1 && $0 < 999 })
+            common = common.map { $0.intersection(nums) } ?? nums
+        }
+        if let c = common, c.isEmpty { return nil }
+        return common
+    }
+
+    /// Подстрочный перевод на страницах: название главы, заголовки разделов и стихи столбиками — блоками
+    private func pagedBlocks(_ d: ChapterCache, _ common: Set<Int>?) -> [PageBlock] {
+        let verses = d.verses.filter { common?.contains($0.num) ?? true }
+        guard let first = verses.first else { return [] }
+        var out: [PageBlock] = []
+        out.append(PageBlock(id: 0, verse: first.num, keepWithNext: true, view: AnyView(chapterTitleFor(book, chapter).padding(.bottom, 4))))
+        for v in verses {
+            if showHeadings, let h = d.heads[v.num] {
+                out.append(PageBlock(id: out.count, verse: v.num, keepWithNext: true, view: AnyView(headingText(h).padding(.horizontal, 6))))
+            }
+            out.append(PageBlock(id: out.count, verse: v.num, keepWithNext: false, view: AnyView(interlinearPaged(v, d))))
+        }
+        return out
+    }
+
+    /// Стих подстрочника для страницы — так же, как в ленте (часть стиха, любимые, подсветка выделения)
+    private func interlinearPaged(_ v: Verse, _ d: ChapterCache) -> some View {
+        let c = chapter
+        let selecting = !selected.isEmpty || partVerse != nil
+        let isFav = marks.isFavorite(MarksStore.key(book, c, v.num))
+        let favPart = isFav ? favPartRange(c, v.num) : nil
+        let selPart = partRange(v.num)
+        return InterlinearVerse(
+            verse: v, fontSize: fontSize, fontFamily: fontFamily, fontWeight: fontWeight, lineHeight: lineHeight,
+            showNumber: showNumbers, numberColor: pal.verseNum, textColor: pal.text, accent: pal.accent,
+            showGloss: ilGloss, showOrig: ilOrig, showStrong: ilStrong,
+            favorite: isFav,
+            xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0,
+            mark: { wi in
+                if let r = selPart, r.contains(wi) { return pal.accent.opacity(0.24) }
+                if let r = favPart, r.contains(wi) { return Color(hex: 0xd9475e).opacity(0.2) }
+                return nil
+            },
+            onTap: { url, vn in act(c, .tap(url, vn)) },
+            onDouble: { _ in act(c, .double(v.num)) },
+            onLong: { vn in act(c, .long(vn)) },
+            selecting: selecting,
+            views: nil
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(background(c, v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func pagedNS(_ d: ChapterCache, _ common: Set<Int>?) -> NSAttributedString {
         let out = NSMutableAttributedString()
         let base = uiFont(fontSize)
         let ink = UIColor(pal.text)
@@ -2304,7 +2366,7 @@ struct ChapterText: View {
                         }
                     }
                 } label: { Label("Перевод рядом", systemImage: "rectangle.split.2x1") }
-                    .disabled(panes.panes.count >= maxPanes)
+                    .disabled(panes.panes.count >= panes.paneLimit)
                 Divider()
                 Button { selected = [] } label: { Label("Снять выделение", systemImage: "xmark") }
             } label: {

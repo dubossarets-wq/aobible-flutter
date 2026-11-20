@@ -115,6 +115,19 @@ final class PanesStore: ObservableObject {
         return p
     }
 
+    /// Сколько окон можно открыть: в режиме «Страницы» — два (листать вместе больше двух страниц не получается),
+    /// при прокрутке — шесть
+    var paneLimit: Int {
+        (UserDefaults.standard.string(forKey: "readingStyle") ?? "scroll") == "pages" ? 2 : maxPanes
+    }
+
+    /// Включили «Страницы», а окон больше двух — остаются первые два
+    func trimToLimit() {
+        guard panes.count > paneLimit else { return }
+        panes = Array(panes.prefix(paneLimit))
+        save()
+    }
+
     /// Первая панель при самом первом запуске; панели без установленного перевода получают первый имеющийся
     func ensureStarted(_ store: ModuleStore) {
         guard let first = store.bibles.first else { return }
@@ -128,6 +141,7 @@ final class PanesStore: ObservableObject {
             changed = true
         }
         if changed { save() }
+        trimToLimit()
     }
 
     // MARK: - Первая панель (остальной код читает перевод по умолчанию отсюда)
@@ -249,7 +263,7 @@ final class PanesStore: ObservableObject {
     func openSecond(from id: UUID, _ book: String, _ chapter: Int, _ verse: Int) {
         guard let i = index(id) else { return }
         if i + 1 >= panes.count {
-            guard panes.count < maxPanes else {
+            guard panes.count < paneLimit else {
                 go(id, book, chapter, verse)
                 return
             }
@@ -338,7 +352,7 @@ final class PanesStore: ObservableObject {
     // MARK: - Панели
 
     func addPane(after id: UUID, moduleId: String) {
-        guard panes.count < maxPanes, let i = index(id) else { return }
+        guard panes.count < paneLimit, let i = index(id) else { return }
         var here = panes[i].place
         if let v = live.verse[id] { here.verse = v }
         if let c = live.chapter[id] { here.chapter = c }

@@ -29,6 +29,11 @@ struct PagedChapter: UIViewControllerRepresentable {
     /// Окно и общая синхронизация страниц окон
     var paneID: UUID? = nil
     var sync: PageSync? = nil
+    /// Подстрочный перевод: страницы собираются из готовых блоков (заголовок, стих столбиками), а не из текста.
+    /// Блоки — самостоятельные SwiftUI-вью (без окружения); высота каждого измеряется, потом они кладутся на страницы
+    var blocks: [PageBlock]? = nil
+    /// Расстояние между блоками на странице
+    var blockSpacing: CGFloat = 8
 
     func makeUIViewController(context: Context) -> PagerHost {
         let h = PagerHost()
@@ -41,6 +46,15 @@ struct PagedChapter: UIViewControllerRepresentable {
         h.apply(self)
         if let id = paneID { sync?.register(id, h) }
     }
+}
+
+/// Блок страницы подстрочного перевода. verse — стих, к которому он относится (заголовок раздела — стих после него);
+/// keepWithNext — заголовок не остаётся один внизу страницы, уходит вместе со стихом
+struct PageBlock: Identifiable {
+    let id: Int
+    let verse: Int
+    let keepWithNext: Bool
+    let view: AnyView
 }
 
 /// Страничный режим при нескольких окнах — как синхронная прокрутка (ScrollSync): окно, которое листают, ведёт, другие
@@ -101,7 +115,13 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     private let layout = PlateLayoutManager()
     private var containers: [NSTextContainer] = []
     /// Страницы на экране и рядом (остальные не создаются)
-    private var cells: [Int: PageCell] = [:]
+    private var cells: [Int: UIView] = [:]
+    /// Режим блоков (подстрочник): блоки каждой страницы и стих у её верха
+    private var blockPages: [[Int]] = []
+    private var blockTops: [Int] = []
+    private let measurer = UIHostingController(rootView: AnyView(EmptyView()))
+    private var isBlocks: Bool { cfg?.blocks != nil }
+    private var pageCount: Int { isBlocks ? blockPages.count : containers.count }
     private var current = 0
     /// Листнули за край главы: соседняя глава въедет с этой стороны (+1 — справа, −1 — слева)
     private var pendingDir = 0
@@ -187,13 +207,27 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         rebuildIfNeeded()
     }
 
+    /// Тап в поле слева (−1) или справа (+1) от текста; на самом тексте — nil. Поле — отступ страницы от края окна,
+    /// но не уже 24 пт (иначе в него не попасть пальцем)
+    func marginSide(_ x: CGFloat, in width: CGFloat) -> Int? {
+        guard let c = cfg else { return nil }
+        let ins = insets(c)
+        if x < max(ins.left, 24) { return -1 }
+        if x > width - max(ins.right, 24) { return 1 }
+        return nil
+    }
+
     private var pageWidth: CGFloat { max(1, scroll.bounds.width) }
 
     private func rebuildIfNeeded() {
         guard let c = cfg, let size = pageSize else { return }
-        if c.key == builtKey && size == builtSize && c.text.length == storage.length {
+        if c.key == builtKey && size == builtSize && (c.blocks != nil || c.text.length == storage.length) {
             // тот же вид: изменился только вид текста (выделение, закладки) — вёрстка прежняя
-            if !storage.isEqual(to: c.text) { storage.setAttributedString(c.text) }
+            if c.blocks != nil {
+                refreshBlocks(c)
+            } else if !storage.isEqual(to: c.text) {
+                storage.setAttributedString(c.text)
+            }
             if c.focus != lastFocus {
                 lastFocus = c.focus
                 let i = pageIndex(forVerse: c.focus)
@@ -214,23 +248,30 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         builtKey = c.key
         builtSize = size
         lastFocus = c.focus
-        storage.setAttributedString(c.text)
-        while layout.textContainers.count > 0 { layout.removeTextContainer(at: 0) }
-        containers = []
-        for _ in 0..<500 {
-            let tc = NSTextContainer(size: size)
-            tc.lineFragmentPadding = 0
-            layout.addTextContainer(tc)
-            containers.append(tc)
-            layout.ensureLayout(for: tc)
-            if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
-            if c.wholeVerses { pushStraddlingVerse(tc, size) }
-        }
-        indexVerses()
         for (_, cell) in cells { cell.removeFromSuperview() }
         cells = [:]
+        if let blocks = c.blocks {
+            containers = []
+            buildBlocks(blocks, c, size)
+        } else {
+            blockPages = []
+            blockTops = []
+            storage.setAttributedString(c.text)
+            while layout.textContainers.count > 0 { layout.removeTextContainer(at: 0) }
+            containers = []
+            for _ in 0..<500 {
+                let tc = NSTextContainer(size: size)
+                tc.lineFragmentPadding = 0
+                layout.addTextContainer(tc)
+                containers.append(tc)
+                layout.ensureLayout(for: tc)
+                if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
+                if c.wholeVerses { pushStraddlingVerse(tc, size) }
+            }
+            indexVerses()
+        }
         let w = pageWidth
-        scroll.contentSize = CGSize(width: w * CGFloat(max(1, containers.count)), height: scroll.bounds.height)
+        scroll.contentSize = CGSize(width: w * CGFloat(max(1, pageCount)), height: scroll.bounds.height)
         let i = pageIndex(forVerse: startVerse)
         current = i
         applying = true
@@ -250,6 +291,53 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         }
         // в соседнюю главу перелистнул сам человек — за ним и другие окна
         report(i, user: own && dir != 0)
+    }
+
+    /// Подстрочник: измеряем высоту каждого блока и кладём блоки на страницы подряд (стих целиком; заголовок — вместе
+    /// со стихом). Опорный стих страницы — первый на ней
+    private func buildBlocks(_ blocks: [PageBlock], _ c: PagedChapter, _ size: CGSize) {
+        measurer.sizingOptions = []
+        var heights: [CGFloat] = []
+        for b in blocks {
+            measurer.rootView = AnyView(b.view.frame(width: size.width, alignment: .topLeading).fixedSize(horizontal: false, vertical: true))
+            heights.append(ceil(measurer.sizeThatFits(in: CGSize(width: size.width, height: .greatestFiniteMagnitude)).height))
+        }
+        let gap = c.blockSpacing
+        var pages: [[Int]] = [[]]
+        var y: CGFloat = 0
+        for i in blocks.indices {
+            var need = heights[i]
+            if blocks[i].keepWithNext, i + 1 < blocks.count { need += gap + heights[i + 1] }
+            if y > 0, y + need > size.height {
+                pages.append([])
+                y = 0
+            }
+            pages[pages.count - 1].append(i)
+            y += heights[i] + gap
+        }
+        blockPages = pages.filter { !$0.isEmpty }
+        blockTops = blockPages.map { blocks[$0[0]].verse }
+        verseOrder = []
+        verseStart = [:]
+        for (p, idxs) in blockPages.enumerated() {
+            for k in idxs {
+                let n = blocks[k].verse
+                if n > 0, verseStart[n] == nil {
+                    verseStart[n] = p
+                    verseOrder.append(n)
+                }
+            }
+        }
+        anchors = blockTops
+    }
+
+    /// Блоки обновились (выделение, любимые) — страницы на экране получают новые вью, вёрстка прежняя
+    private func refreshBlocks(_ c: PagedChapter) {
+        guard let blocks = c.blocks else { return }
+        for (i, cell) in cells {
+            guard let bc = cell as? BlockPageCell, i < blockPages.count else { continue }
+            bc.show(blockPages[i].map { blocks[$0] }, spacing: c.blockSpacing, ins: insets(c))
+        }
     }
 
     /// Последний стих страницы переходит на следующую: если он начался на этой странице (не с самого верха), закрываем
@@ -292,6 +380,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     }
 
     private func verseAtTop(_ p: Int) -> Int {
+        if isBlocks { return p < blockTops.count ? blockTops[p] : 1 }
         let gr = layout.glyphRange(for: containers[p])
         let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
         guard cr.length > 0, cr.location < storage.length else { return 1 }
@@ -300,21 +389,21 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
 
     /// Страница, где начинается стих; такого стиха нет в этом переводе — ближайший следующий
     private func pageIndex(forVerse v: Int) -> Int {
-        guard !containers.isEmpty else { return 0 }
-        if v >= 9999 { return containers.count - 1 }
+        guard pageCount > 0 else { return 0 }
+        if v >= 9999 { return pageCount - 1 }
         if let p = verseStart[v] { return p }
         if let n = verseOrder.first(where: { $0 >= v }), let p = verseStart[n] { return p }
-        return v > (verseOrder.last ?? 0) ? containers.count - 1 : 0
+        return v > (verseOrder.last ?? 0) ? pageCount - 1 : 0
     }
 
     // MARK: - Страницы на экране
 
     /// Создаёт страницы у текущей (и по одной с каждой стороны), убирает дальние
     private func tile() {
-        guard !containers.isEmpty, let c = cfg else { return }
+        guard pageCount > 0, let c = cfg else { return }
         let w = pageWidth
         let p = Int(floor(scroll.contentOffset.x / w))
-        let lo = max(0, p - 1), hi = min(containers.count - 1, p + 2)
+        let lo = max(0, p - 1), hi = min(pageCount - 1, p + 2)
         for (i, cell) in cells where i < lo || i > hi {
             cell.removeFromSuperview()
             cells[i] = nil
@@ -322,16 +411,25 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         guard lo <= hi else { return }
         let ins = insets(c)
         for i in lo...hi where cells[i] == nil {
-            let cell = PageCell(container: containers[i], host: self)
-            cell.frame = CGRect(x: CGFloat(i) * w, y: 0, width: w, height: scroll.bounds.height)
-            cell.layoutText(ins)
-            scroll.addSubview(cell)
-            cells[i] = cell
+            let frame = CGRect(x: CGFloat(i) * w, y: 0, width: w, height: scroll.bounds.height)
+            if let blocks = c.blocks, i < blockPages.count {
+                let cell = BlockPageCell(host: self)
+                cell.frame = frame
+                cell.show(blockPages[i].map { blocks[$0] }, spacing: c.blockSpacing, ins: ins)
+                scroll.addSubview(cell)
+                cells[i] = cell
+            } else if i < containers.count {
+                let cell = PageCell(container: containers[i], host: self)
+                cell.frame = frame
+                cell.layoutText(ins)
+                scroll.addSubview(cell)
+                cells[i] = cell
+            }
         }
     }
 
     private func show(_ i: Int) {
-        guard i >= 0, i < containers.count else { return }
+        guard i >= 0, i < pageCount else { return }
         applying = true
         scroll.setContentOffset(CGPoint(x: CGFloat(i) * pageWidth, y: 0), animated: false)
         applying = false
@@ -343,7 +441,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     func turn(_ d: Int) {
         let t = current + d
         if t < 0 { edge(-1); return }
-        if t >= containers.count { edge(1); return }
+        if t >= pageCount { edge(1); return }
         userAnimating = true
         scroll.setContentOffset(CGPoint(x: CGFloat(t) * pageWidth, y: 0), animated: true)
     }
@@ -365,13 +463,13 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
 
     /// Ведущее окно на дробной странице page (её опорные стихи — anchors): встаём на соответствующее место
     func mirror(_ page: CGFloat, anchors la: [Int]) {
-        guard !scroll.isTracking, !la.isEmpty, !containers.isEmpty else { return }
+        guard !scroll.isTracking, !la.isEmpty, pageCount > 0 else { return }
         let last = la.count - 1
         let i = min(max(0, Int(floor(page))), last)
         let f = min(max(0, page - CGFloat(i)), 1)
         let ji = pageIndex(forVerse: la[i])
         let jn = i < last ? pageIndex(forVerse: la[i + 1]) : ji
-        let target = min(max(0, CGFloat(ji) + f * CGFloat(jn - ji)), CGFloat(containers.count - 1))
+        let target = min(max(0, CGFloat(ji) + f * CGFloat(jn - ji)), CGFloat(pageCount - 1))
         let x = (target * pageWidth).rounded()
         guard abs(scroll.contentOffset.x - x) > 0.25 else { return }
         applying = true
@@ -382,7 +480,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
 
     /// Ведущее окно встало на страницу: ровно на страницу с её опорным стихом
     func follow(_ verse: Int) {
-        guard !containers.isEmpty else { return }
+        guard pageCount > 0 else { return }
         lastFocus = verse
         let i = pageIndex(forVerse: verse)
         if i != current || abs(scroll.contentOffset.x - CGFloat(i) * pageWidth) > 0.5 { show(i) }
@@ -404,7 +502,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         let maxX = s.contentSize.width - w
         if s.contentOffset.x < -w * 0.12 || (current == 0 && s.contentOffset.x < 0 && v.x < -0.6) {
             edge(-1)
-        } else if s.contentOffset.x > maxX + w * 0.12 || (current == containers.count - 1 && s.contentOffset.x > maxX && v.x > 0.6) {
+        } else if s.contentOffset.x > maxX + w * 0.12 || (current == pageCount - 1 && s.contentOffset.x > maxX && v.x > 0.6) {
             edge(1)
         }
     }
@@ -422,8 +520,8 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
 
     /// Остановились: страница, на которой стоим, — текущая
     private func settle() {
-        guard !containers.isEmpty else { return }
-        let i = min(max(0, Int((scroll.contentOffset.x / pageWidth).rounded())), containers.count - 1)
+        guard pageCount > 0 else { return }
+        let i = min(max(0, Int((scroll.contentOffset.x / pageWidth).rounded())), pageCount - 1)
         if i != current { landed(i, user: true) }
     }
 
@@ -433,11 +531,62 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
     }
 
     private func report(_ i: Int, user: Bool) {
-        guard i >= 0, i < containers.count else { return }
+        guard i >= 0, i < pageCount else { return }
         topVerse = verseAtTop(i)
-        let total = max(1, containers.count)
+        let total = max(1, pageCount)
         counter.text = "\(i + 1) / \(total)"
         cfg?.onPage(topVerse, i + 1, total, user)
+    }
+}
+
+/// Страница подстрочника: блоки (SwiftUI) столбиком сверху вниз
+final class BlockPageCell: UIView {
+    private let hc = UIHostingController(rootView: AnyView(EmptyView()))
+    private weak var host: PagerHost?
+
+    init(host: PagerHost) {
+        self.host = host
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        hc.view.backgroundColor = .clear
+        hc.sizingOptions = []
+        if #available(iOS 16.4, *) { hc.safeAreaRegions = [] }
+        host.addChild(hc)
+        addSubview(hc.view)
+        hc.didMove(toParent: host)
+        // поля по бокам от столбиков (вне содержимого) — листание тапом
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        tap.cancelsTouchesInView = false
+        addGestureRecognizer(tap)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    @objc private func tapped(_ g: UITapGestureRecognizer) {
+        guard g.state == .ended, let h = host, let side = h.marginSide(g.location(in: self).x, in: bounds.width) else { return }
+        h.turn(side)
+    }
+
+    func show(_ blocks: [PageBlock], spacing: CGFloat, ins: UIEdgeInsets) {
+        hc.rootView = AnyView(
+            VStack(alignment: .leading, spacing: spacing) {
+                ForEach(blocks) { $0.view }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        )
+        hc.view.frame = bounds.inset(by: ins)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        hc.view.frame = bounds.inset(by: host?.cfg.map { host?.insets($0) ?? .zero } ?? .zero)
+    }
+
+    override func removeFromSuperview() {
+        hc.willMove(toParent: nil)
+        hc.view.removeFromSuperview()
+        hc.removeFromParent()
+        super.removeFromSuperview()
     }
 }
 
@@ -530,9 +679,8 @@ final class PageTouch: NSObject, UIGestureRecognizerDelegate {
         if lpActive || Date().timeIntervalSince(lpEnded) < 0.4 { return }
         let p = g.location(in: v)
         if let d = downAt, hypot(p.x - d.x, p.y - d.y) > 12 { return }
-        // у краёв страницы — листание, как в «Книгах»
-        if p.x < v.bounds.width * 0.22 { host?.turn(-1); return }
-        if p.x > v.bounds.width * 0.78 { host?.turn(1); return }
+        // листание тапом — только в полях слева и справа от текста (до края окна), на словах — слово
+        if let side = host?.marginSide(p.x, in: v.bounds.width) { host?.turn(side); return }
         let h = hit(p, in: v)
         pendingTap?.cancel()
         if host?.cfg?.selecting == true {

@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage("panesStacked") private var panesStacked = true
     @AppStorage("keepScreenOn") private var keepScreenOn = false
     @AppStorage("interfaceLanguage") private var interfaceLanguage = "ru"
+    @EnvironmentObject private var panes: PanesStore
 
     var body: some View {
         Form {
@@ -40,6 +41,10 @@ struct SettingsView: View {
                     Text("Прокрутка").tag("scroll")
                     Text("Страницы").tag("pages")
                 }
+                // листать вместе можно не больше двух окон: лишние закрываются
+                .onChange(of: readingStyle) { _, new in
+                    if new == "pages" { panes.trimToLimit() }
+                }
                 if readingStyle == "pages" {
                     Picker("Стих не помещается на странице", selection: $pageVerseBreak) {
                         Text("По строкам").tag("line")
@@ -54,6 +59,7 @@ struct SettingsView: View {
                 Text("Чтение и листание")
             } footer: {
                 if readingStyle == "pages" {
+                    Text("В режиме «Страницы» открывается не больше двух окон.")
                     Text("«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились.")
                 }
             }

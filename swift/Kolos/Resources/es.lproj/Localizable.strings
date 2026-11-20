@@ -1917,3 +1917,4 @@
 "Прокрутка" = "Desplazamiento";
 "Страницы" = "Páginas";
 "«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "«Completo a la siguiente»: el versículo que no cabe en la página pasa entero a la siguiente. «Por líneas»: solo pasan las líneas que no caben.";
+"В режиме «Страницы» открывается не больше двух окон." = "En el modo «Páginas» se pueden abrir como máximo dos ventanas.";
