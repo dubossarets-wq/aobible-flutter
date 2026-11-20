@@ -221,15 +221,11 @@ struct CommentarySheet: View {
         let name = BookLocale.name(book, Books.info(book)?.rawName ?? book, lang: lang)
         var parts = ["\(name) \(chapter):\(verse)"]
         for it in items {
-            var body = it.title.isEmpty ? it.text : it.title + "
-" + it.text
-            if items.count > 1 { body = it.module.name + "
-" + body }
+            var body = it.title.isEmpty ? it.text : it.title + "\n" + it.text
+            if items.count > 1 { body = it.module.name + "\n" + body }
             parts.append(body.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return parts.joined(separator: "
-
-")
+        return parts.joined(separator: "\n\n")
     }
 }
 
