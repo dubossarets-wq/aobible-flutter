@@ -1154,6 +1154,11 @@ struct ChapterText: View {
             zoomBox: zoomBox
         )
         .background { ReaderBackdrop(pal: pal) }
+        // перешли к стиху (закладка, ссылка, поиск) — подсветка: стих, а из поиска — ещё и найденные слова
+        .onAppear {
+            if let j = panes.lastJump, j.id == pane.id, Date().timeIntervalSince(j.at) < 3 { flash() }
+        }
+        .onChange(of: "\(chapter)|\(focus)") { _, _ in flash() }
         // озвучка идёт — страница переворачивается к звучащему стиху (во всех окнах); ушла в другую главу — окно за ней
         .onChange(of: audio.current) { old, new in
             guard audio.active, let n = new else { return }
@@ -1631,7 +1636,7 @@ struct ChapterText: View {
         }
     }
 
-    /// Подсветить стих, к которому перешли (и найденные слова, если пришли из поиска), на две секунды
+    /// Подсветить стих, к которому перешли, и найденные слова, если пришли из поиска (слова — пять секунд, стих — три)
     private func flash() {
         let v = focus
         guard v > 0 && v < 9999 else { return }
@@ -1645,8 +1650,10 @@ struct ChapterText: View {
         flashWhole = whole
         flashWords = words
         flashVerse = v
+        // найденные слова — пять секунд (успеть увидеть, где они в стихе); просто стих — три
+        let seconds: UInt64 = words.isEmpty ? 3 : 5
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
             if flashVerse == v {
                 flashVerse = 0
                 flashWords = ""
@@ -1980,7 +1987,7 @@ struct ChapterText: View {
             add("\u{2009}\(illus)", [.font: small, .foregroundColor: UIColor(pal.accent), .aobURL: url])
         }
         let mainLength = out.length
-        // пришли из поиска: найденные слова в этом стихе — плашками цвета акцента (на две секунды)
+        // пришли из поиска: найденные слова в этом стихе — плашками цвета акцента (на пять секунд)
         if ch == chapter, v.num == flashVerse, !flashWords.isEmpty, let re = SearchEngine.regex(for: flashWords, wholeWord: flashWhole) {
             let plate = PlateStyle(UIColor(pal.accent.opacity(0.32)), radius: 5, inflate: 2)
             for m in re.matches(in: out.string, range: NSRange(location: 0, length: mainLength)) where m.range.length > 0 {
