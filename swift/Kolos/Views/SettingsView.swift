@@ -15,6 +15,9 @@ struct SettingsView: View {
     @AppStorage("showVerseNumbers") private var showVerseNumbers = true
     @AppStorage("showStrongs") private var showStrongs = false
     @AppStorage("syncScroll") private var syncScroll = true
+    @AppStorage("readingStyle") private var readingStyle = "scroll"
+    @AppStorage("pageVerseBreak") private var pageVerseBreak = "line"
+    @AppStorage("hideOnScroll") private var hideOnScroll = true
     @AppStorage("showXrefs") private var showXrefs = true
     @AppStorage("showIllustrations") private var showIllustrations = true
     @AppStorage("panesStacked") private var panesStacked = true
@@ -31,19 +34,38 @@ struct SettingsView: View {
                     }
                 }
             }
+            // всё, что про чтение и листание, — в одном месте
+            Section {
+                Picker("Режим чтения", selection: $readingStyle) {
+                    Text("Прокрутка").tag("scroll")
+                    Text("Страницы").tag("pages")
+                }
+                if readingStyle == "pages" {
+                    Picker("Стих не помещается на странице", selection: $pageVerseBreak) {
+                        Text("По строкам").tag("line")
+                        Text("Целиком на следующую").tag("verse")
+                    }
+                }
+                Toggle("Панели друг над другом", isOn: $panesStacked)
+                Toggle("Синхронная прокрутка", isOn: $syncScroll)
+                Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
+                Toggle("Не гасить экран при чтении", isOn: $keepScreenOn)
+            } header: {
+                Text("Чтение и листание")
+            } footer: {
+                if readingStyle == "pages" {
+                    Text("«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились.")
+                }
+            }
             Section {
                 Toggle("Номера стихов", isOn: $showVerseNumbers)
                 Toggle("Номера Стронга", isOn: $showStrongs)
                 Toggle("Параллельные места после стиха", isOn: $showXrefs)
                 Toggle("Иллюстрации к стихам", isOn: $showIllustrations)
-                Toggle("Панели друг над другом", isOn: $panesStacked)
             } header: {
-                Text("Чтение")
+                Text("В тексте")
             } footer: {
                 Text("Номера Стронга показываются у слов, для которых в модуле есть подстрочник.")
-            }
-            Section {
-                Toggle("Не гасить экран при чтении", isOn: $keepScreenOn)
             }
         }
         .navigationTitle("Настройки")

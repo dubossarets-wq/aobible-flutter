@@ -1907,3 +1907,13 @@
 
 /* Выбор перевода: язык */
 "Нет установленных переводов на этом языке. Другие можно скачать ниже." = "Nu există traduceri instalate în această limbă. Puteți descărca altele mai jos.";
+
+/* Настройки чтения и листания */
+"Чтение и листание" = "Citire și răsfoire";
+"Стих не помещается на странице" = "Versetul nu încape pe pagină";
+"По строкам" = "Pe rânduri";
+"Целиком на следующую" = "Întreg pe următoarea";
+"Прятать меню при прокрутке" = "Ascunde meniul la derulare";
+"Прокрутка" = "Derulare";
+"Страницы" = "Pagini";
+"«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "„Întreg pe următoarea”: versetul care nu încape pe pagină trece întreg pe următoarea. „Pe rânduri”: trec doar rândurile care nu încap.";

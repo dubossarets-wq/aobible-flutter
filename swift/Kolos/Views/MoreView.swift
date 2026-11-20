@@ -4,9 +4,6 @@ import SwiftUI
 /// рисует сама система
 struct MoreView: View {
     @EnvironmentObject private var marks: MarksStore
-    @AppStorage("panesStacked") private var panesStacked = true
-    @AppStorage("syncScroll") private var syncScroll = true
-    @AppStorage("readingStyle") private var readingStyle = "scroll"
     @AppStorage(TabFunction.leftKey) private var tabLeft = TabFunction.plans.rawValue
     @AppStorage(TabFunction.rightKey) private var tabRight = TabFunction.saved.rawValue
     @State private var bookmarkedMessage: String?
@@ -73,21 +70,6 @@ struct MoreView: View {
                     }
                 }
                 Section {
-                    Picker(selection: $readingStyle) {
-                        Text("Прокрутка").tag("scroll")
-                        Text("Страницы").tag("pages")
-                    } label: {
-                        IconLabel(title: "Режим чтения", symbol: "book.pages.fill", color: .orange)
-                    }
-                    .pickerStyle(.menu)
-                    Toggle(isOn: $panesStacked) {
-                        IconLabel(title: "Панели друг над другом", symbol: "rectangle.split.1x2.fill", color: Color(red: 0.35, green: 0.34, blue: 0.84))
-                    }
-                    if panes.panes.count > 1 {
-                        Toggle(isOn: $syncScroll) {
-                            IconLabel(title: "Синхронная прокрутка", symbol: "arrow.up.arrow.down", color: .teal)
-                        }
-                    }
                     NavigationLink {
                         LibraryScreen()
                     } label: {

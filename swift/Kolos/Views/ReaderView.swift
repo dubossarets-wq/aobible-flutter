@@ -823,6 +823,8 @@ struct ChapterText: View {
     @AppStorage("verseSpacing") private var verseSpacing = 0.55
     @AppStorage("verseNumPos") private var verseNumPos = "sup"
     @AppStorage("showHeadings") private var showHeadings = true
+    /// Режим «Страницы»: стих, который не помещается, — по строкам («line») или целиком на следующую («verse»)
+    @AppStorage("pageVerseBreak") private var pageVerseBreak = "line"
     @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
     @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
@@ -1105,8 +1107,9 @@ struct ChapterText: View {
     private func pagedView(_ d: ChapterCache) -> some View {
         PagedChapter(
             text: pagedNS(d),
-            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
+            key: "\(module.id)|\(book)|\(chapter)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(continuous)|\(showHeadings)|\(pageVerseBreak)|\(headingColor)|\(headingSize)|\(textMargin)|\(verseSpacing)",
             focus: focus,
+            wholeVerses: pageVerseBreak == "verse",
             insets: UIEdgeInsets(top: 14 + headerTop + ilInset, left: textMargin + 6, bottom: 34, right: textMargin + 6),
             pageColor: UIColor(pal.bg),
             onTap: { url, vn in tapped(url, vn) },

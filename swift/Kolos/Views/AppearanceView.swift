@@ -88,7 +88,6 @@ struct AppearanceView: View {
                     row("Размер заголовков: \(Int((headingSize * 100).rounded()))%", value: $headingSize, range: 0.7...1.3, step: 0.05, def: HeadingStyle.defaultSize)
                 }
                 Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous)
-                Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
             }
             Section {
                 PhotosPicker(selection: $photo, matching: .images) {

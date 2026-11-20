@@ -1918,3 +1918,13 @@
 
 /* Выбор перевода: язык */
 "Нет установленных переводов на этом языке. Другие можно скачать ниже." = "No installed translations in this language. You can download more below.";
+
+/* Настройки чтения и листания */
+"Чтение и листание" = "Reading and turning pages";
+"Стих не помещается на странице" = "Verse doesn’t fit on a page";
+"По строкам" = "By lines";
+"Целиком на следующую" = "Whole verse to next page";
+"Прятать меню при прокрутке" = "Hide menu while scrolling";
+"Прокрутка" = "Scroll";
+"Страницы" = "Pages";
+"«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "“Whole verse to next page”: a verse that doesn’t fit on the page moves to the next page whole. “By lines”: only the lines that don’t fit move on.";

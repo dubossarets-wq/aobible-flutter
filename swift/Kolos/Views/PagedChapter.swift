@@ -11,6 +11,8 @@ struct PagedChapter: UIViewControllerRepresentable {
     let key: String
     /// Стих, с которого открыть; 9999 — последняя страница (пришли назад из следующей главы)
     let focus: Int
+    /// Стих, который не помещается на странице, уходит на следующую целиком (иначе — только строки, что не поместились)
+    var wholeVerses = false
     let insets: UIEdgeInsets
     /// Цвет фона темы (страницы прозрачные: под ними неподвижный фон, по нему едет только текст)
     var pageColor: UIColor = .systemBackground
@@ -222,6 +224,7 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
             containers.append(tc)
             layout.ensureLayout(for: tc)
             if NSMaxRange(layout.glyphRange(for: tc)) >= layout.numberOfGlyphs { break }
+            if c.wholeVerses { pushStraddlingVerse(tc, size) }
         }
         indexVerses()
         for (_, cell) in cells { cell.removeFromSuperview() }
@@ -247,6 +250,27 @@ final class PagerHost: UIViewController, UIScrollViewDelegate {
         }
         // в соседнюю главу перелистнул сам человек — за ним и другие окна
         report(i, user: own && dir != 0)
+    }
+
+    /// Последний стих страницы переходит на следующую: если он начался на этой странице (не с самого верха), закрываем
+    /// ему остаток страницы — текст стиха (и заголовок раздела перед ним) сам ляжет на следующую
+    private func pushStraddlingVerse(_ tc: NSTextContainer, _ size: CGSize) {
+        let gr = layout.glyphRange(for: tc)
+        let cr = layout.characterRange(forGlyphRange: gr, actualGlyphRange: nil)
+        let end = NSMaxRange(cr)
+        guard cr.length > 0, end < storage.length,
+              let v = storage.attribute(.aobVerse, at: end - 1, effectiveRange: nil) as? Int,
+              (storage.attribute(.aobVerse, at: end, effectiveRange: nil) as? Int) == v else { return }
+        // где этот стих начинается
+        var first = end - 1
+        while first > cr.location, (storage.attribute(.aobVerse, at: first - 1, effectiveRange: nil) as? Int) == v { first -= 1 }
+        guard first > cr.location else { return }   // с самого верха страницы и всё равно не помещается — не трогаем
+        let g = layout.glyphIndexForCharacter(at: first)
+        let y = layout.lineFragmentRect(forGlyphAt: g, effectiveRange: nil).minY
+        guard y > 1, y < size.height else { return }
+        tc.exclusionPaths = [UIBezierPath(rect: CGRect(x: -20, y: y, width: size.width + 40, height: size.height))]
+        layout.invalidateLayout(forCharacterRange: NSRange(location: cr.location, length: storage.length - cr.location), actualCharacterRange: nil)
+        layout.ensureLayout(for: tc)
     }
 
     /// Где начинается каждый стих и опорный стих каждой страницы

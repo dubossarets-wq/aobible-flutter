@@ -1907,3 +1907,13 @@
 
 /* Выбор перевода: язык */
 "Нет установленных переводов на этом языке. Другие можно скачать ниже." = "No hay traducciones instaladas en este idioma. Puede descargar más abajo.";
+
+/* Настройки чтения и листания */
+"Чтение и листание" = "Lectura y paso de páginas";
+"Стих не помещается на странице" = "El versículo no cabe en la página";
+"По строкам" = "Por líneas";
+"Целиком на следующую" = "Completo a la siguiente";
+"Прятать меню при прокрутке" = "Ocultar menú al desplazar";
+"Прокрутка" = "Desplazamiento";
+"Страницы" = "Páginas";
+"«Целиком на следующую»: стих, который не помещается на странице, уходит на следующую целиком. «По строкам»: на следующую уходят только строки, что не поместились." = "«Completo a la siguiente»: el versículo que no cabe en la página pasa entero a la siguiente. «Por líneas»: solo pasan las líneas que no caben.";
