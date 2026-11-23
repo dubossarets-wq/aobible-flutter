@@ -1,15 +1,40 @@
 import SwiftUI
 
-extension View {
-    /// Горизонтальная лента плашек: у краёв плавно гаснет, а не обрезается резким срезом посреди плашки
-    func softEdges(_ width: CGFloat = 16) -> some View {
-        mask(
-            HStack(spacing: 0) {
-                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: width)
-                Color.black
-                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: width)
+/// Сколько прокручено влево и сколько осталось вправо (доли ширины затухания, 0…1)
+private struct SoftEdgeAmounts: Equatable {
+    var lead: CGFloat = 0
+    var trail: CGFloat = 0
+}
+
+private struct SoftEdgesModifier: ViewModifier {
+    let width: CGFloat
+    @State private var amounts = SoftEdgeAmounts()
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: SoftEdgeAmounts.self) { g in
+                let scrolled = max(0, g.contentOffset.x + g.contentInsets.leading)
+                let total = max(0, g.contentSize.width + g.contentInsets.leading + g.contentInsets.trailing - g.containerSize.width)
+                return SoftEdgeAmounts(lead: min(1, scrolled / width), trail: min(1, max(0, total - scrolled) / width))
+            } action: { _, new in
+                amounts = new
             }
-        )
+            // прижато к левому краю — слева затухания нет; прижато к правому — справа нет; по мере прокрутки край плавно растёт
+            .mask(
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: width * amounts.lead)
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: width * amounts.trail)
+                }
+            )
+    }
+}
+
+extension View {
+    /// Горизонтальная лента плашек: у края, за который ещё можно прокрутить, плавно гаснет вместо резкого среза
+    /// посреди плашки; у края, к которому лента прижата, затухания нет
+    func softEdges(_ width: CGFloat = 16) -> some View {
+        modifier(SoftEdgesModifier(width: width))
     }
 
     /// Лента плашек до краёв экрана: отступ страницы (inset) отдан содержимому, а не обрезке; плашки уходят под край плавно
@@ -73,75 +98,59 @@ struct ProportionalRow: Layout {
     }
 }
 
-/// Переключатель в одну строку на всю ширину: общая стеклянная плашка с тонкими разделителями (как «перевод | книга»
-/// в шапке Библии), выбранный пункт — стеклянная капсула акцента, которая переезжает на новое место. Можно нажать
-/// на пункт или провести пальцем по плашке: капсула следует за пальцем (как в нижнем меню), пункты меняются на ходу
+/// Переключатель в одну строку на всю ширину — системный UISegmentedControl: стекло iOS 26, выбор нажатием или
+/// проведением пальца по плашке, анимацию и отклик даёт сама система (свой рисованный переключатель подтормаживал).
+/// Ширина пунктов — по содержимому (длинное название книги получает больше места)
 struct CapsuleSwitcher<T: Hashable>: View {
-    let options: [(value: T, title: Text)]
+    let options: [(value: T, title: String)]
     @Binding var selection: T
-    @Namespace private var ns
-    @State private var frames: [Int: CGRect] = [:]
-    @State private var dragging = false
-
-    private func pick(_ i: Int) {
-        guard options.indices.contains(i), options[i].value != selection else { return }
-        UISelectionFeedbackGenerator().selectionChanged()
-        withAnimation(.snappy(duration: 0.25)) { selection = options[i].value }
-    }
-
-    /// Пункт под пальцем (за краями плашки — крайний)
-    private func index(at x: CGFloat) -> Int? {
-        guard !frames.isEmpty else { return nil }
-        if let hit = frames.first(where: { $0.value.minX <= x && x <= $0.value.maxX }) { return hit.key }
-        return x < (frames.values.map(\.minX).min() ?? 0) ? frames.keys.min() : frames.keys.max()
-    }
 
     var body: some View {
-        ProportionalRow {
-            ForEach(Array(options.enumerated()), id: \.offset) { i, o in
-                let on = o.value == selection
-                // разделитель справа от пункта — если ни он, ни следующий не выбраны
-                let divider = i < options.count - 1 && !on && options[i + 1].value != selection
-                Button {
-                    pick(i)
-                } label: {
-                    o.title
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                        .foregroundStyle(on ? Color.white : Color.primary)
-                        .padding(.horizontal, 10)
-                        .frame(maxWidth: .infinity, minHeight: 38)
-                        .background {
-                            if on {
-                                Color.clear
-                                    .glassEffect(.regular.tint(Color.accentColor).interactive(), in: Capsule())
-                                    .scaleEffect(dragging ? 1.07 : 1)
-                                    .matchedGeometryEffect(id: "sel", in: ns)
-                            }
-                        }
-                        .overlay(alignment: .trailing) {
-                            if divider {
-                                Rectangle().fill(Color.primary.opacity(0.18)).frame(width: 1, height: 18)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("capsuleSwitcher")) } action: { frames[i] = $0 }
-            }
-        }
-        .padding(3)
-        .coordinateSpace(.named("capsuleSwitcher"))
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 8)
-                .onChanged { v in
-                    if !dragging { withAnimation(.snappy(duration: 0.2)) { dragging = true } }
-                    if let i = index(at: v.location.x) { pick(i) }
-                }
-                .onEnded { _ in withAnimation(.snappy(duration: 0.25)) { dragging = false } }
+        NativeSegments(
+            titles: options.map(\.title),
+            index: Binding(
+                get: { options.firstIndex { $0.value == selection } ?? 0 },
+                set: { if options.indices.contains($0) { selection = options[$0].value } }
+            )
         )
-        .glassEffect(.regular, in: Capsule())
+    }
+}
+
+private struct NativeSegments: UIViewRepresentable {
+    let titles: [String]
+    @Binding var index: Int
+
+    final class Coordinator: NSObject {
+        var index: Binding<Int>
+        init(_ index: Binding<Int>) { self.index = index }
+        @objc func changed(_ sender: UISegmentedControl) { index.wrappedValue = sender.selectedSegmentIndex }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator($index) }
+
+    func makeUIView(context: Context) -> UISegmentedControl {
+        let c = UISegmentedControl(items: titles)
+        c.apportionsSegmentWidthsByContent = true
+        c.selectedSegmentIndex = index
+        c.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
+        c.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        c.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return c
+    }
+
+    func updateUIView(_ c: UISegmentedControl, context: Context) {
+        context.coordinator.index = $index
+        let current = (0..<c.numberOfSegments).map { c.titleForSegment(at: $0) ?? "" }
+        if current != titles {
+            c.removeAllSegments()
+            for (i, t) in titles.enumerated() { c.insertSegment(withTitle: t, at: i, animated: false) }
+        }
+        if c.selectedSegmentIndex != index { c.selectedSegmentIndex = index }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UISegmentedControl, context: Context) -> CGSize? {
+        let ideal = uiView.intrinsicContentSize
+        return CGSize(width: proposal.width ?? ideal.width, height: ideal.height)
     }
 }
 

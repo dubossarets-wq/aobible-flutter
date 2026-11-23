@@ -68,7 +68,7 @@ enum CommentaryLinks {
         Int(s) ?? roman(s)
     }
 
-    private static let verseList = #"\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–]\s*\d+)?)*"#
+    private static let verseList = #"\d+(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*\d+)?)*"#
     private static let chap = #"(?:\d+|[IVXLC]+)"#
     /// Книга (с номером впереди и, возможно, вторым словом: «Иис. Нав.»), глава (цифрами или римскими), стихи
     private static let bookRe = try! NSRegularExpression(
@@ -79,7 +79,7 @@ enum CommentaryLinks {
     /// «ст. 13», «стт. 3-5»
     private static let verseOnlyRe = try! NSRegularExpression(
         pattern: #"(?<![\p{L}])стт?\.\s*("# + verseList + #")"#)
-    private static let partRe = try! NSRegularExpression(pattern: #"(\d+)(?:\s*[-–]\s*(\d+))?"#)
+    private static let partRe = try! NSRegularExpression(pattern: #"(\d+)(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*(\d+))?"#)
     private static let strongRe = try! NSRegularExpression(pattern: #"(?<![A-Za-z])[HG]\d+"#)
     private static let originalRe = try! NSRegularExpression(pattern: "[\u{0370}-\u{03FF}\u{1F00}-\u{1FFF}]{2,}|[\u{0590}-\u{05FF}]{2,}")
     /// Слово латиницей после «евр.» / «греч.» — транслитерация слова оригинала
@@ -92,11 +92,12 @@ enum CommentaryLinks {
         let ns = s as NSString
         let all = NSRange(location: 0, length: ns.length)
         // что показываем вместо куска исходного текста и куда он ведёт
-        var spans: [(r: NSRange, text: String, link: CommLink)] = []
+        var spans: [(r: NSRange, text: String, link: CommLink, lead: Bool)] = []
 
         func free(_ r: NSRange) -> Bool { !spans.contains { NSIntersectionRange($0.r, r).length > 0 } }
-        func put(_ r: NSRange, _ text: String, _ link: CommLink) {
-            if free(r) { spans.append((r, text, link)) }
+        // lead — перед местом нужен пробел, если оно приклеено к слову («путьИн 14:6» → «путь Ин 14:6»)
+        func put(_ r: NSRange, _ text: String, _ link: CommLink, lead: Bool = false) {
+            if free(r) { spans.append((r, text, link, lead)) }
         }
 
         /// Место целиком: от начала («Иез 16:») до первого стиха — одна ссылка; «25-26», «6, 9» — у остальных частей своя
@@ -108,7 +109,7 @@ enum CommentaryLinks {
                 let part = ns.substring(with: m.range)
                 let link = CommLink.verse(book: b, chapter: c, verse: v, end: e)
                 if first {
-                    put(NSRange(location: start, length: m.range.location + m.range.length - start), label + part, link)
+                    put(NSRange(location: start, length: m.range.location + m.range.length - start), label + part, link, lead: true)
                     first = false
                 } else {
                     put(m.range, part, link)
@@ -170,6 +171,11 @@ enum CommentaryLinks {
         for sp in spans.sorted(by: { $0.r.location < $1.r.location }) {
             if sp.r.location > at {
                 out += AttributedString(ns.substring(with: NSRange(location: at, length: sp.r.location - at)))
+            }
+            // место приклеено к слову или знаку («Твое» + «Пс 109:3») — между ними пробел
+            if sp.lead, sp.r.location > 0, let u = UnicodeScalar(ns.character(at: sp.r.location - 1)),
+               CharacterSet.letters.union(.decimalDigits).union(CharacterSet(charactersIn: ")»”.,;:!?")).contains(u) {
+                out += AttributedString(" ")
             }
             var piece = AttributedString(sp.text)
             piece.link = sp.link.url

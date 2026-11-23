@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
-import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../hub.dart';
 import '../shell/shell.dart' show appVersion;
@@ -52,10 +51,8 @@ void onVerseDoubleTap(BuildContext context, WidgetRef ref, int pane, VerseRef at
   activeWord.value = null; // как в веб-версии: выборку и подсветку слова снимаем
   if (fav) {
     ref.read(marksProvider.notifier).setFavorite(at, '', false);
-    Hub.toast(t('Убрано из любимых стихов'));
   } else {
     ref.read(marksProvider.notifier).setFavorite(at, verseText(moduleId, at) ?? '', true);
-    Hub.toast(t('♥ Добавлено в любимые стихи'));
   }
   _pulse(ref, at);
 }
@@ -63,7 +60,6 @@ void onVerseDoubleTap(BuildContext context, WidgetRef ref, int pane, VerseRef at
 /// Hub.addFavoritePart: слова from..to (text — только эти слова, как в списке «Любимые стихи»)
 void addFavoritePart(BuildContext context, WidgetRef ref, VerseRef at, String moduleId, int from, int to, String text) {
   ref.read(marksProvider.notifier).setFavoritePart(at, text, from < to ? from : to, from < to ? to : from);
-  Hub.toast(t('♥ Часть стиха — в любимых'));
 }
 
 // --- автокопия данных при первом запуске новой версии ---

@@ -126,7 +126,7 @@ private struct HistoryList: View {
             // переключатель — сам по себе, без карточки; день или месяц — своей карточкой под ним
             Section {
                 CapsuleSwitcher(
-                    options: [(Mode.all, Text("Всё")), (Mode.day, Text("День")), (Mode.month, Text("Месяц"))],
+                    options: [(Mode.all, String(localized: "Всё")), (Mode.day, String(localized: "День")), (Mode.month, String(localized: "Месяц"))],
                     selection: $mode
                 )
                 .listRowBackground(Color.clear)

@@ -30,8 +30,8 @@ import '../core/rtl.dart';
 /// Пауза двойного касания (DOUBLE_TAP_MS в tapState.js)
 const kDoubleTapMs = 350;
 
-/// Мигание стиха после перехода (@keyframes flash: 2,4 с)
-const kFlashMs = 2400;
+/// Подсветка стиха после перехода: две секунды полным цветом и плавное затухание 0,2 с
+const kFlashMs = 2200;
 
 /// Цвет сердечка (--love)
 const _love = Color(0xffd9475e);
@@ -440,7 +440,7 @@ class _BlockState extends ConsumerState<_Block> with SingleTickerProviderStateMi
     final stack = hl
         ? TweenAnimationBuilder<double>(
             tween: Tween(end: v.mark!.fade ? 0.0 : 1.0),
-            duration: s.get<bool>('animations') ? const Duration(milliseconds: 700) : Duration.zero,
+            duration: s.get<bool>('animations') ? const Duration(milliseconds: 200) : Duration.zero,
             builder: (context, o, _) => Stack(fit: StackFit.passthrough, children: [paint(o), text]),
           )
         : Stack(fit: StackFit.passthrough, children: [paint(1), text]);
@@ -839,10 +839,11 @@ class _Plate {
   final int kind; // 0 обычная, 1 мигание стиха, 2 найденное слово (гаснет)
 }
 
-// Мигание: первые 30 % времени — полный цвет, дальше плавно гаснет (@keyframes flash)
+// Подсветка: первые две секунды — полный цвет, последние 0,2 с — плавно гаснет
 double _flashAlpha(double t) {
-  if (t <= 0.3) return 1;
-  final k = (t - 0.3) / 0.7;
+  const hold = 2000 / kFlashMs;
+  if (t <= hold) return 1;
+  final k = (t - hold) / (1 - hold);
   return 1 - Curves.easeOut.transform(k.clamp(0.0, 1.0));
 }
 

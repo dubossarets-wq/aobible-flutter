@@ -157,7 +157,7 @@ struct VerseImageSheet: View {
                     Text("Двигайте текст пальцем, размер — двумя пальцами.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    CapsuleSwitcher(options: ArtFormat.allCases.map { (value: $0, title: Text(LocalizedStringKey($0.title))) }, selection: $format)
+                    CapsuleSwitcher(options: ArtFormat.allCases.map { (value: $0, title: String(localized: String.LocalizationValue($0.title))) }, selection: $format)
                     HStack {
                         Text("Размер текста")
                         Slider(value: $scale, in: 0.5...2.5)

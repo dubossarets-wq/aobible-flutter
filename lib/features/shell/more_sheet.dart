@@ -137,6 +137,12 @@ class MoreSheet extends ConsumerWidget {
         _Entry(icon: LucideIcons.link, label: t('Синхронная прокрутка'), extra: onOff(s.get<bool>('syncScroll')), keep: true, order: 520, run: (_, r) => r.read(settingsProvider.notifier).set({'syncScroll': !s.get<bool>('syncScroll')})),
         _Entry(icon: rows ? LucideIcons.columns2 : LucideIcons.rows2, label: rows ? t('Панели рядом') : t('Панели друг над другом'), keep: true, order: 530, run: (_, r) => r.read(settingsProvider.notifier).set({'splitLayout': rows ? 'columns' : 'rows'})),
       ],
+      // «Читать параллельно» и другие переключатели чтения, которые человек вынес в меню (Настройки → «Меню «Ещё»»)
+      if (menuFlag(s, 'parallel'))
+        _Entry(icon: LucideIcons.columns2, label: t('Читать параллельно'), extra: onOff(split), keep: true, order: 505, run: (_, r) => r.read(panesProvider.notifier).toggleSplit()),
+      for (final q in quickToggles)
+        if (menuFlag(s, 'q_${q.$1}'))
+          _Entry(icon: q.$3, label: t(q.$2), extra: onOff(s.get<bool>(q.$1)), keep: true, order: 540, run: (_, r) => r.read(settingsProvider.notifier).set({q.$1: !s.get<bool>(q.$1)})),
       // Свои пункты — после остальных, отдельной группой
       // модули — сразу из «Ещё» (по просьбе владельца), а не только через «Настройки»
       _Entry(icon: LucideIcons.bookA, label: t('Словарь'), keep: true, order: 885, run: (c, r) => openDictionarySearch(c)),

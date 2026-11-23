@@ -13,7 +13,7 @@ struct MapsView: View {
     var body: some View {
         List {
             Section {
-                CapsuleSwitcher(options: [(0, Text("Места")), (1, Text("Карты"))], selection: $kind)
+                CapsuleSwitcher(options: [(0, String(localized: "Места")), (1, String(localized: "Карты"))], selection: $kind)
                 // переключатель лежит прямо на сером фоне, без белого блока вокруг
                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 .listRowBackground(Color.clear)
@@ -130,7 +130,7 @@ struct PlaceDetail: View {
                 .mapStyle(satellite ? .hybrid : .standard)
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
-                CapsuleSwitcher(options: [(false, Text("Обычная карта")), (true, Text("Спутник"))], selection: $satellite)
+                CapsuleSwitcher(options: [(false, String(localized: "Обычная карта")), (true, String(localized: "Спутник"))], selection: $satellite)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 Link("Спутник Google", destination: URL(string: "https://www.google.com/maps/@\(place.lat),\(place.lng),2000m/data=!3m1!1e3")!)
             }
@@ -169,7 +169,7 @@ struct PlaceDetail: View {
                                 }
                             }
                         }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     }

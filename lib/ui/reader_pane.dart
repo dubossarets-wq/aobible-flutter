@@ -31,7 +31,7 @@ import 'verse_view.dart';
 import '../core/rtl.dart';
 
 /// Подсветка найденного слова держится столько после перехода (HL_MS в ChapterView.jsx)
-const kHighlightMs = 8000;
+const kHighlightMs = 2000; // найденное слово — две секунды, затем гаснет за 0,2 с
 const _fontMin = 13, _fontMax = 40; // FONT_MIN / FONT_MAX в usePinchFont.js
 
 // Строка списка: заголовок главы, заголовок раздела, стих или абзац стихов
@@ -349,8 +349,8 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     _mkFlash = m.flash;
     if (m.highlight != null && m.highlight!.trim().isNotEmpty && age < kHighlightMs) {
       _mkQuery = m.highlight;
-      // Слово гаснет за 0,8 с до конца, потом отметка снимается
-      _hlFadeTimer = Timer(Duration(milliseconds: math.max(0, kHighlightMs - 800 - age)), () {
+      // Слово гаснет за 0,2 с до конца, потом отметка снимается
+      _hlFadeTimer = Timer(Duration(milliseconds: math.max(0, kHighlightMs - 200 - age)), () {
         if (mounted) setState(() => _hlFade = true);
       });
       _hlEndTimer = Timer(Duration(milliseconds: math.max(0, kHighlightMs - age)), () {
@@ -364,7 +364,7 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
     if (_mkQuery == null || _hlFade) return;
     setState(() => _hlFade = true);
     _hlEndTimer?.cancel();
-    _hlEndTimer = Timer(const Duration(milliseconds: 700), () {
+    _hlEndTimer = Timer(const Duration(milliseconds: 200), () {
       if (mounted) setState(() => _mkQuery = null);
     });
   }

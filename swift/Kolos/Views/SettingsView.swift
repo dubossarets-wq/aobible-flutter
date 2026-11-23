@@ -47,30 +47,20 @@ struct SettingsView: View {
                 .onChange(of: readingStyle) { _, new in
                     if new == "pages" { panes.trimToLimit() }
                 }
+                .pinnable("readingStyle")
                 if readingStyle == "pages" {
                     Picker("Переносить стихи", selection: $pageVerseBreak) {
                         Text("Построчно").tag("line")
                         Text("По стихам").tag("verse")
                     }
+                    .pinnable("pageVerseBreak")
                 }
                 // читать параллельно или нет: включить — рядом откроется второе окно с тем же переводом, выключить — останется одно
-                Toggle("Читать параллельно", isOn: Binding(
-                    get: { panes.panes.count > 1 },
-                    set: { on in
-                        if on {
-                            if let last = panes.panes.last, panes.panes.count < panes.paneLimit {
-                                panes.addPane(after: last.id, moduleId: last.moduleId)
-                            }
-                        } else {
-                            for p in panes.panes.dropFirst() { panes.closePane(p.id) }
-                        }
-                    }
-                ))
-                .disabled(panes.paneLimit < 2 && panes.panes.count < 2)
-                Toggle("Панели друг над другом", isOn: $panesStacked)
-                Toggle("Синхронная прокрутка", isOn: $syncScroll)
-                Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)
-                Toggle("Не гасить экран при чтении", isOn: $keepScreenOn)
+                ParallelToggle().pinnable("parallel")
+                Toggle("Панели друг над другом", isOn: $panesStacked).pinnable("panesStacked")
+                Toggle("Синхронная прокрутка", isOn: $syncScroll).pinnable("syncScroll")
+                Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll).pinnable("hideOnScroll")
+                Toggle("Не гасить экран при чтении", isOn: $keepScreenOn).pinnable("keepScreenOn")
             } header: {
                 Text("Чтение и листание")
             } footer: {
@@ -80,14 +70,17 @@ struct SettingsView: View {
                 }
             }
             Section {
-                Toggle("Номера стихов", isOn: $showVerseNumbers)
-                Toggle("Номера Стронга", isOn: $showStrongs)
-                Toggle("Параллельные места после стиха", isOn: $showXrefs)
-                Toggle("Иллюстрации к стихам", isOn: $showIllustrations)
+                Toggle("Номера стихов", isOn: $showVerseNumbers).pinnable("showVerseNumbers")
+                Toggle("Номера Стронга", isOn: $showStrongs).pinnable("showStrongs")
+                Toggle("Параллельные места после стиха", isOn: $showXrefs).pinnable("showXrefs")
+                Toggle("Иллюстрации к стихам", isOn: $showIllustrations).pinnable("showIllustrations")
             } header: {
                 Text("В тексте")
             } footer: {
                 Text("Номера Стронга показываются у слов, для которых в модуле есть подстрочник.")
+            }
+            Section {} footer: {
+                Text("Любую настройку можно вынести в «Ещё»: проведите по ней пальцем вправо или зажмите.")
             }
         }
         .scrollDisabled(tabDragging)

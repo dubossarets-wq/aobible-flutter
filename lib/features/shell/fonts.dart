@@ -2,6 +2,7 @@
 // Файлы шрифтов Google Fonts (лицензия SIL OFL, тексты лицензий рядом) лежат в assets/fonts; в pubspec.yaml
 // они описаны в разделе fonts (см. отчёт). «Системный» — шрифт устройства, Georgia — запасной serif Android.
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/settings.dart';
 
@@ -43,6 +44,17 @@ TextStyle readerTextStyle(Settings s, {double? size, FontDef? font, double? weig
 }
 
 TextAlign textAlignOf(Settings s) => s.get<String>('textAlign') == 'justify' ? TextAlign.justify : TextAlign.left;
+
+/// Переключатели, которые можно вынести в меню «Ещё» (Настройки → «Меню «Ещё»»): ключ настройки, подпись, значок.
+/// Флаг в настройке menu — «q_<ключ>»
+const quickToggles = <(String, String, IconData)>[
+  ('showVerseNumbers', 'Номера стихов', LucideIcons.hash),
+  ('showStrongs', 'Номера Стронга', LucideIcons.languages),
+  ('showXrefButtons', 'Параллельные места после стиха', LucideIcons.link),
+  ('showIllustrations', 'Иллюстрации к стихам', LucideIcons.image),
+  ('showHeadings', 'Заголовки разделов', LucideIcons.heading),
+  ('continuousVerses', 'Сплошной текст', LucideIcons.alignJustify),
+];
 
 /// Включён ли пункт меню «Ещё» (настройка menu; по умолчанию — как в веб-версии)
 bool menuFlag(Settings s, String key) {

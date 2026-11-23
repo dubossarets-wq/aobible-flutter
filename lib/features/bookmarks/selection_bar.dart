@@ -74,14 +74,12 @@ class _SelectionBar extends ConsumerWidget {
 
     void toggleFav() {
       r.read(marksProvider.notifier).setFavorites([for (final x in refs) (x, selectionText(moduleId, [x]))], !fav);
-      toast(c, fav ? t('Убрано из любимых стихов') : t('♥ Добавлено в любимые стихи'));
       done();
     }
 
     void toggleBm() {
       final was = bm;
       r.read(marksProvider.notifier).toggleBookmark(first, was ? '' : _cut(selectionText(moduleId, [first]), 160));
-      toast(c, was ? t('Закладка удалена') : t('Закладка: {ref}', {'ref': Books.instance.formatRef(first.book, first.chapter, first.verse)}));
       done();
     }
 

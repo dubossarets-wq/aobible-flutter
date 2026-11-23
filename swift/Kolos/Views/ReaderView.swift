@@ -850,12 +850,19 @@ struct ChapterText: View {
     @State private var pull = PullState()
     @State private var touchScroll = PhaseBox()
     @State private var flashVerse = 0
+    /// Ступень затухания найденных слов (0 — полные, 1…2 — бледнеют, потом убираются): плашки рисуются в тексте,
+    /// поэтому плавность — три коротких шага за 0,2 с
+    @State private var flashStage = 0
+    @State private var flashToken = 0
+    /// Номер перехода, который уже обработан сменой места (повторный переход на то же место обрабатывается отдельно)
+    @State private var handledJump = 0
     /// Переход из поиска: в подсвеченном стихе ещё и найденные слова
     @State private var flashWords = ""
     @State private var flashWhole = false
     @State private var collectItems: [MarkItem] = []
     @State private var req = StudyRequests()
     @State private var paneWidth: CGFloat = 400
+    @State private var paneHeight: CGFloat = 700
     @State private var partVerse: Int?
     @State private var partFrom: Int?
     @State private var partTo: Int?
@@ -1022,7 +1029,9 @@ struct ChapterText: View {
                 DispatchQueue.main.async { scroll(proxy, initial: true) }
             }
             .onDisappear { panes.scrollSync.windowPanes.remove(pane.id) }
+            .onChange(of: panes.jumpSeq) { _, seq in repeatJump(seq, proxy: proxy) }
             .onChange(of: "\(chapter)|\(focus)") { old, _ in
+                handledJump = panes.jumpSeq
                 // глава сменилась от прокрутки книги — текст уже там, где надо
                 if nav.silent {
                     nav.silent = false
@@ -1045,6 +1054,7 @@ struct ChapterText: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
         // книга — один экран на всю книгу (смена главы его не пересоздаёт); при нескольких панелях — экран на главу
         .id(book1 ? "\(module.id)|\(book)" : "\(module.id)|\(book)|\(chapter)")
         }
@@ -1176,7 +1186,17 @@ struct ChapterText: View {
         .onAppear {
             if let j = panes.lastJump, j.id == pane.id, Date().timeIntervalSince(j.at) < 3 { flash() }
         }
-        .onChange(of: "\(chapter)|\(focus)") { _, _ in flash() }
+        .onChange(of: panes.jumpSeq) { _, seq in
+            DispatchQueue.main.async {
+                guard seq != handledJump, let j = panes.lastJump, j.id == pane.id else { return }
+                handledJump = seq
+                flash()
+            }
+        }
+        .onChange(of: "\(chapter)|\(focus)") { _, _ in
+            handledJump = panes.jumpSeq
+            flash()
+        }
         // озвучка идёт — страница переворачивается к звучащему стиху (во всех окнах); ушла в другую главу — окно за ней
         .onChange(of: audio.current) { old, new in
             guard audio.active, let n = new else { return }
@@ -1426,7 +1446,7 @@ struct ChapterText: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(background(c, v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .animation(.easeInOut(duration: 0.45), value: cur && flashVerse == v.num)
+            .animation(.easeInOut(duration: 0.2), value: cur && flashVerse == v.num)
             .overlay(alignment: .topTrailing) {
                 if marks.isBookmarked(book, c, v.num) {
                     Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
@@ -1691,7 +1711,7 @@ struct ChapterText: View {
     private func chapterCache(_ c: Int) -> ChapterCache {
         let favs = favNums(c)
         let comm = expandedComm.filter { $0.hasPrefix("\(c)|") }.sorted()
-        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)|\(c == chapter && !flashWords.isEmpty ? "\(flashVerse):\(flashWords):\(flashWhole)" : "")"
+        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)|\(c == chapter && !flashWords.isEmpty ? "\(flashVerse):\(flashWords):\(flashWhole):\(flashStage)" : "")"
         if let x = cacheBox.chapters[c], x.key == key { return x }
         let verses = store.verses(module: module.id, book: book, chapter: c)
         let heads = store.headings(module: module.id, book: book, chapter: c)
@@ -1758,15 +1778,37 @@ struct ChapterText: View {
         }
         flashWhole = whole
         flashWords = words
+        flashStage = 0
+        flashVerse = 0
         flashVerse = v
-        // найденные слова — пять секунд (успеть увидеть, где они в стихе); просто стих — три
-        let seconds: UInt64 = words.isEmpty ? 3 : 5
+        // стих и найденные слова — две секунды, потом плавно гаснут за 0,2 с. Новый переход (в том числе на тот же
+        // стих) начинает отсчёт заново — старый таймер его не гасит
+        flashToken += 1
+        let token = flashToken
         Task {
-            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-            if flashVerse == v {
-                flashVerse = 0
-                flashWords = ""
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard flashToken == token else { return }
+            // плашки слов бледнеют ступенями, фон стиха — анимацией 0,2 с
+            if !flashWords.isEmpty {
+                for stage in 1...2 {
+                    flashStage = stage
+                    try? await Task.sleep(nanoseconds: 67_000_000)
+                    guard flashToken == token else { return }
+                }
             }
+            flashVerse = 0
+            flashWords = ""
+            flashStage = 0
+        }
+    }
+
+    /// Повторный переход на то же место (ссылка, закладка, поиск): снова прокрутить и подсветить
+    private func repeatJump(_ seq: Int, proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            guard seq != handledJump, let j = panes.lastJump, j.id == pane.id else { return }
+            handledJump = seq
+            scroll(proxy, initial: false, animated: true)
+            flash()
         }
     }
 
@@ -1780,6 +1822,12 @@ struct ChapterText: View {
 
     /// К месту панели. initial — экран только появился (открыли книгу, сменили перевод): встаём сразу, без «подъезда»,
     /// и там, где читали (верхний видимый стих), если глава та же
+    /// Куда ставить стих при переходе: не вплотную к верхнему меню, а на ~10 пт ниже. Точка привязки задаётся долей
+    /// высоты окна (одной и той же для стиха и для окна), поэтому доля считается из высоты окна и типичной высоты стиха
+    private var jumpAnchor: UnitPoint {
+        UnitPoint(x: 0, y: min(0.05, 10 / max(200, paneHeight - 90)))
+    }
+
     private func scroll(_ proxy: ScrollViewProxy, initial: Bool, animated: Bool = true) {
         var v = focus
         if initial, (panes.live.chapter[pane.id] ?? chapter) == chapter, let lv = panes.live.verse[pane.id], lv > 0 { v = lv }
@@ -1795,18 +1843,18 @@ struct ChapterText: View {
                 target = r.id
             }
             if initial {
-                withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
+                withTransaction(t) { proxy.scrollTo(target, anchor: jumpAnchor) }
                 // второй раз — после раскладки: строки выше нужной ещё не были построены, их высота была примерной
                 DispatchQueue.main.async {
-                    withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
+                    withTransaction(t) { proxy.scrollTo(target, anchor: jumpAnchor) }
                     positioned = true
                 }
             } else if animated {
-                withAnimation { proxy.scrollTo(target, anchor: .top) }
+                withAnimation { proxy.scrollTo(target, anchor: jumpAnchor) }
             } else {
                 // другая глава книги: сразу, без «проезда» через всю книгу
-                withTransaction(t) { proxy.scrollTo(target, anchor: .top) }
-                DispatchQueue.main.async { withTransaction(t) { proxy.scrollTo(target, anchor: .top) } }
+                withTransaction(t) { proxy.scrollTo(target, anchor: jumpAnchor) }
+                DispatchQueue.main.async { withTransaction(t) { proxy.scrollTo(target, anchor: jumpAnchor) } }
             }
             return
         }
@@ -1818,11 +1866,11 @@ struct ChapterText: View {
         }
         if initial && v != focus {
             // открыли или закрыли панель — глава построилась заново: остаёмся на том же стихе
-            DispatchQueue.main.async { withTransaction(t) { proxy.scrollTo(target, anchor: .top) } }
+            DispatchQueue.main.async { withTransaction(t) { proxy.scrollTo(target, anchor: jumpAnchor) } }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation { proxy.scrollTo(target, anchor: .top) }
+            withAnimation { proxy.scrollTo(target, anchor: jumpAnchor) }
         }
     }
 
@@ -2099,7 +2147,7 @@ struct ChapterText: View {
         let mainLength = out.length
         // пришли из поиска: найденные слова в этом стихе — плашками цвета акцента (на пять секунд)
         if ch == chapter, v.num == flashVerse, !flashWords.isEmpty, let re = SearchEngine.regex(for: flashWords, wholeWord: flashWhole) {
-            let plate = PlateStyle(UIColor(pal.accent.opacity(0.32)), radius: 5, inflate: 2)
+            let plate = PlateStyle(UIColor(pal.accent.opacity(0.32 * (flashStage == 0 ? 1 : (flashStage == 1 ? 0.62 : 0.3)))), radius: 5, inflate: 2)
             for m in re.matches(in: out.string, range: NSRange(location: 0, length: mainLength)) where m.range.length > 0 {
                 out.addAttribute(.aobPlate, value: plate, range: m.range)
             }
@@ -2207,9 +2255,7 @@ struct ChapterText: View {
         if Date().timeIntervalSince(req.openedAt) < 0.5 {
             req.sheet = nil
         }
-        let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
-        show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
     }
 
     /// Долгое нажатие в любом месте стиха (и на слове) выделяет его
@@ -2318,7 +2364,6 @@ struct ChapterText: View {
                 if !text.isEmpty, let r = partRange(v.num) {
                     barButton("heart", "В любимые") {
                         marks.setFavoritePart(book, chapter, v.num, text: text, part: Part(from: r.lowerBound, to: r.upperBound))
-                        show("♥ Часть стиха — в любимых")
                         endPart()
                     }
                     barButton("scroll", "В проповедь") {
@@ -2361,6 +2406,11 @@ struct ChapterText: View {
 
     /// Нажатие на слово: находим слово и его разметку (номера Стронга, морфология) и открываем окно слова
     private func openWord(_ url: URL) {
+        // выбор словаря уже на экране: нажатие на слово (то же или другое) только убирает его, а не раскрывает окно
+        if case .word = req.sheet {
+            req.sheet = nil
+            return
+        }
         let p = url.absoluteString.dropFirst("aobword:".count).split(separator: ",").map { Int($0) ?? -1 }
         guard p.count == 3, let raw = store.verseRaw(module: module.id, book: book, chapter: chapter, verse: p[0]) else { return }
         let toks = Markup.parse(raw)
@@ -2424,7 +2474,6 @@ struct ChapterText: View {
         for v in verses where selected.contains(v.num) && marks.isFavorite(MarksStore.key(book, chapter, v.num)) == favorite {
             marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
         }
-        show(favorite ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
         selected = []
     }
 

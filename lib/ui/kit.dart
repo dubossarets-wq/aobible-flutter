@@ -1,4 +1,4 @@
-// Общие элементы интерфейса — один в один с веб-версией (G:\AO Bible\src\styles.css, src/components/ui.jsx,
+// Общие элементы интерфейса — один в один с веб-версией (G:\Kolos\AO Bible\src\styles.css, src/components/ui.jsx,
 // BottomSheet.jsx). Значки — Lucide (как lucide-react в веб-версии): LucideIcons.<имя в camelCase>.
 // Базовый размер шрифта интерфейса — 15 px (body в веб-версии), 1rem = 16 px.
 import 'dart:math' as math;

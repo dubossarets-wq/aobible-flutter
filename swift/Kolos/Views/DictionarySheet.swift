@@ -547,7 +547,7 @@ struct UnderlineTabs: View {
     var body: some View {
         if labels.count <= 4 {
             CapsuleSwitcher(
-                options: labels.enumerated().map { (value: $0.offset, title: Text(verbatim: $0.element)) },
+                options: labels.enumerated().map { (value: $0.offset, title: $0.element) },
                 selection: Binding(get: { index }, set: { i in onTap(i) })
             )
         } else {

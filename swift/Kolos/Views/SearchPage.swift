@@ -117,10 +117,10 @@ struct SearchPage: View {
     private func scopeSwitcher(book: String) -> some View {
         CapsuleSwitcher(
             options: [
-                (SearchScope.all, Text("Вся Библия")),
-                (SearchScope.ot, Text("ВЗ")),
-                (SearchScope.nt, Text("НЗ")),
-                (SearchScope.book, Text(verbatim: book)),
+                (SearchScope.all, String(localized: "Вся Библия")),
+                (SearchScope.ot, String(localized: "ВЗ")),
+                (SearchScope.nt, String(localized: "НЗ")),
+                (SearchScope.book, book),
             ],
             selection: $scope
         )
@@ -406,7 +406,7 @@ struct SearchPage: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             Button("Очистить историю", role: .destructive) {
                 history = []
                 historyOpen = false

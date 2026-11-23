@@ -37,4 +37,17 @@ void main() {
     final links = [for (final (t, l) in parts('LXX: αγχιστευς, G26') ) if (l) t];
     expect(links, ['αγχιστευς', 'G26']);
   });
+
+  test('место, приклеенное к слову, получает пробел', () {
+    final s = 'раба: Я есмь путьИн 14:6. И первенец из мертвыхОткр 1:5 проложил';
+    expect([for (final (t, _) in parts(s)) t].join(), 'раба: Я есмь путь Ин 14:6. И первенец из мертвых Откр 1:5 проложил');
+    expect([for (final (t, l) in parts(s)) if (l) t], ['Ин 14:6', 'Откр 1:5']);
+  });
+
+  test('диапазон стихов с любым тире — одной ссылкой', () {
+    for (final dash in ['-', '‐', '‑', '‒', '–', '—', '−']) {
+      final links = [for (final (t, l) in parts('(См. Флп 2:6${dash}7)')) if (l) t];
+      expect(links, ['Флп 2:6${dash}7'], reason: 'тире U+${dash.codeUnitAt(0).toRadixString(16)}');
+    }
+  });
 }

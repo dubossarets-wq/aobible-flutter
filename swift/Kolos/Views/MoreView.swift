@@ -15,6 +15,8 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
+                // настройки, вынесенные сюда из «Настроек» и «Оформления»
+                QuickSettingsSection()
                 // «Планы» и «Закладки», убранные из нижнего меню, — здесь
                 let inBar = Set([tabLeft, tabRight])
                 if !inBar.contains(TabFunction.plans.rawValue) || !inBar.contains(TabFunction.saved.rawValue) {

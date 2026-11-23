@@ -269,7 +269,7 @@ struct ReminderEditor: View {
 
                 Section {
                     CapsuleSwitcher(
-                        options: [(false, Text("Напоминание")), (true, Text("Будильник"))],
+                        options: [(false, String(localized: "Напоминание")), (true, String(localized: "Будильник"))],
                         selection: Binding(get: { item.isAlarm }, set: { item.alarm = $0 ? true : nil })
                     )
                     .listRowBackground(Color.clear)
@@ -291,7 +291,7 @@ struct ReminderEditor: View {
 
                 // переключатель — отдельно над карточкой (внутри карточки он срезал её верхние углы)
                 Section {
-                    CapsuleSwitcher(options: [(0, Text("Дни недели")), (1, Text("Календарь"))], selection: $mode.animation())
+                    CapsuleSwitcher(options: [(0, String(localized: "Дни недели")), (1, String(localized: "Календарь"))], selection: $mode.animation())
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 } header: {

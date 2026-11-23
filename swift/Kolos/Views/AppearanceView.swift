@@ -65,29 +65,32 @@ struct AppearanceView: View {
                         Text(LocalizedStringKey(f.label)).tag(f.id)
                     }
                 }
-                row("Размер: \(Int(fontSize))", value: $fontSize, range: 13...40, step: 1, def: 19)
-                row("Толщина: \(Int(fontWeight))", value: $fontWeight, range: 300...700, step: 100, def: 400)
-                row("Межстрочный интервал: \(String(format: "%.2f", lineHeight))", value: $lineHeight, range: 1.1...2.2, step: 0.05, def: 1.45)
-                row("Между стихами: \(String(format: "%.2f", verseSpacing))", value: $verseSpacing, range: 0...1.6, step: 0.05, def: 0.55)
-                row("Поля по бокам: \(Int(textMargin))", value: $textMargin, range: 8...48, step: 2, def: 14)
+                .pinnable("fontFamily")
+                row("Размер: \(Int(fontSize))", value: $fontSize, range: 13...40, step: 1, def: 19).pinnable("fontSize")
+                row("Толщина: \(Int(fontWeight))", value: $fontWeight, range: 300...700, step: 100, def: 400).pinnable("fontWeight")
+                row("Межстрочный интервал: \(String(format: "%.2f", lineHeight))", value: $lineHeight, range: 1.1...2.2, step: 0.05, def: 1.45).pinnable("lineHeight")
+                row("Между стихами: \(String(format: "%.2f", verseSpacing))", value: $verseSpacing, range: 0...1.6, step: 0.05, def: 0.55).pinnable("verseSpacing")
+                row("Поля по бокам: \(Int(textMargin))", value: $textMargin, range: 8...48, step: 2, def: 14).pinnable("textMargin")
             }
             Section("Текст") {
                 // «Режим чтения» (прокрутка / страницы) — в «Ещё»
-                Toggle("Номера стихов", isOn: $showNumbers)
+                Toggle("Номера стихов", isOn: $showNumbers).pinnable("showVerseNumbers")
                 if showNumbers {
                     Picker("Номер стиха", selection: $verseNumPos) {
                         Text("Над строкой").tag("sup")
                         Text("В строке").tag("inline")
                     }
+                    .pinnable("verseNumPos")
                 }
-                Toggle("Заголовки разделов", isOn: $showHeadings)
+                Toggle("Заголовки разделов", isOn: $showHeadings).pinnable("showHeadings")
                 if showHeadings {
                     Picker("Цвет заголовков", selection: $headingColor) {
                         ForEach(HeadingStyle.colors, id: \.0) { c in Text(LocalizedStringKey(c.1)).tag(c.0) }
                     }
-                    row("Размер заголовков: \(Int((headingSize * 100).rounded()))%", value: $headingSize, range: 0.7...1.3, step: 0.05, def: HeadingStyle.defaultSize)
+                    .pinnable("headingColor")
+                    row("Размер заголовков: \(Int((headingSize * 100).rounded()))%", value: $headingSize, range: 0.7...1.3, step: 0.05, def: HeadingStyle.defaultSize).pinnable("headingSize")
                 }
-                Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous)
+                Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous).pinnable("continuousVerses")
             }
             Section {
                 PhotosPicker(selection: $photo, matching: .images) {
@@ -110,9 +113,10 @@ struct AppearanceView: View {
             }
             if !store.commentaries.isEmpty {
                 Section {
-                    row("Размер текста: \(Int(commentaryFontSize)) px", value: $commentaryFontSize, range: 14...32, step: 1, def: 19)
-                    CapsuleSwitcher(options: [("below", Text("Под стихом")), ("tag", Text("Меткой после стиха"))], selection: $commentView)
+                    row("Размер текста: \(Int(commentaryFontSize)) px", value: $commentaryFontSize, range: 14...32, step: 1, def: 19).pinnable("commentaryFontSize")
+                    CapsuleSwitcher(options: [("below", String(localized: "Под стихом")), ("tag", String(localized: "Меткой после стиха"))], selection: $commentView)
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .pinnable("commentView")
                 } header: {
                     Text("Комментарии в тексте")
                 }
@@ -131,6 +135,8 @@ struct AppearanceView: View {
             }
             Section {
                 Button("Сбросить оформление", role: .destructive) { confirmReset = true }
+            } footer: {
+                Text("Любую настройку можно вынести в «Ещё»: проведите по ней пальцем вправо или зажмите.")
             }
         }
         // образец следует за экраном: меняете параметры внизу — видно вверху

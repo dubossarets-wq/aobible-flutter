@@ -16,7 +16,7 @@ import 'greek_nfd.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 
-const _verseList = r'\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–]\s*\d+)?)*';
+const _verseList = r'\d+(?:\s*[-\u2010-\u2015\u2212]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-\u2010-\u2015\u2212]\s*\d+)?)*';
 const _chap = r'(?:\d+|[IVXLC]+)';
 
 /// Книга (с номером впереди и, возможно, вторым словом: «Иис. Нав.»), глава (цифрами или римскими), стихи
@@ -25,7 +25,7 @@ final _bookRe = RegExp('((?:[1-4]\\s?)?[А-ЯЁ][а-яё]+\\.?)(\\s[А-ЯЁ][а-
 final _chapOnlyRe = RegExp('(?<![\\p{L}\\d])([IVXLC]+)\\s*:\\s*($_verseList)', unicode: true);
 /// «ст. 13», «стт. 3-5»
 final _verseOnlyRe = RegExp('(?<!\\p{L})стт?\\.\\s*($_verseList)', unicode: true);
-final _partRe = RegExp(r'(\d+)(?:\s*[-–]\s*(\d+))?');
+final _partRe = RegExp(r'(\d+)(?:\s*[-\u2010-\u2015\u2212]\s*(\d+))?');
 final _strongRe = RegExp(r'(?<![A-Za-z])[HG]\d+');
 final _originalRe = RegExp('[Ͱ-Ͽἀ-῿]{2,}|[֐-׿]{2,}');
 /// Слово латиницей после «евр.» / «греч.» — транслитерация слова оригинала
@@ -57,10 +57,11 @@ List<(String, VoidCallback?)> commentaryParts(
   required void Function(String word) onWord,
 }) {
   // что показываем вместо куска исходного текста и что при нажатии
-  final spans = <({int a, int b, String text, VoidCallback f})>[];
+  final spans = <({int a, int b, String text, VoidCallback f, bool lead})>[];
   bool free(int a, int b) => !spans.any((x) => x.a < b && a < x.b);
-  void put(int a, int b, String text, VoidCallback f) {
-    if (free(a, b)) spans.add((a: a, b: b, text: text, f: f));
+  // lead — перед местом нужен пробел, если оно приклеено к слову («путьИн 14:6» → «путь Ин 14:6»)
+  void put(int a, int b, String text, VoidCallback f, {bool lead = false}) {
+    if (free(a, b)) spans.add((a: a, b: b, text: text, f: f, lead: lead));
   }
 
   /// Место целиком: от начала («Иез 16:») до первого стиха — одна ссылка; «25-26», «6, 9» — у остальных частей своя
@@ -72,7 +73,7 @@ List<(String, VoidCallback?)> commentaryParts(
       final part = m.group(0)!;
       void open() => onVerse(VerseRef(bk, ch, v), e);
       if (first) {
-        put(start, listStart + m.end, label + part, open);
+        put(start, listStart + m.end, label + part, open, lead: true);
         first = false;
       } else {
         put(listStart + m.start, listStart + m.end, part, open);
@@ -137,6 +138,7 @@ List<(String, VoidCallback?)> commentaryParts(
   var at = 0;
   for (final sp in spans) {
     if (sp.a > at) out.add((s.substring(at, sp.a), null));
+    if (sp.lead && sp.a > 0 && RegExp(r'[\p{L}\p{N})»”.,;:!?]', unicode: true).hasMatch(s[sp.a - 1])) out.add((' ', null));
     out.add((sp.text, sp.f));
     at = sp.b;
   }

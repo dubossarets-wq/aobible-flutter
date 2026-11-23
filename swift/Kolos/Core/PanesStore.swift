@@ -232,6 +232,9 @@ final class PanesStore: ObservableObject {
     }
 
     var lastJump: Jump?
+    /// Номер перехода: растёт при каждом переходе по ссылке, закладке, поиску — даже на то же самое место
+    /// (повторный переход на тот же стих снова прокручивает и подсвечивает его)
+    @Published var jumpSeq = 0
     /// Поиск перед переходом кладёт сюда запрос — переход забирает его в lastJump
     var pendingWords: (query: String, whole: Bool)?
 
@@ -239,6 +242,7 @@ final class PanesStore: ObservableObject {
         guard let i = index(id) else { return }
         if record && verse > 0 && verse < 9999 {
             lastJump = Jump(id: id, at: Date(), words: pendingWords?.query, whole: pendingWords?.whole ?? false)
+            jumpSeq += 1
         }
         pendingWords = nil
         panes[i].book = book
