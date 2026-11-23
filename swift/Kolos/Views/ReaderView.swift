@@ -2545,7 +2545,112 @@ struct GotoSheet: View {
         module.books.first { $0.id == id }
     }
 
+    // MARK: - Поиск книги по словам
+
+    private var query: String { link.trimmingCharacters(in: .whitespaces) }
+
+    private static let bookQueryRe = try! NSRegularExpression(pattern: #"^\s*[1-4]?\s*([^\d\s:.,][^\d:,]*)?$"#)
+
+    /// В поле — только название книги, без глав: «ин», «1 кор», «бытие»
+    private var isBookQuery: Bool {
+        guard !query.isEmpty else { return false }
+        return Self.bookQueryRe.firstMatch(in: query, range: NSRange(location: 0, length: (query as NSString).length)) != nil
+    }
+
+    /// Нижний регистр, «ё» = «е», без пробелов и точек
+    private func fold(_ s: String) -> String {
+        s.lowercased().replacingOccurrences(of: "ё", with: "е").filter { !$0.isWhitespace && $0 != "." }
+    }
+
+    /// Слова названия: «1-я Царств» → «1», «я», «царств»
+    private func words(_ s: String) -> [String] {
+        s.lowercased().replacingOccurrences(of: "ё", with: "е").split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+    }
+
+    /// Книги, подходящие слову: сокращение или название с этого начала, любое слово названия («царств», «навин»),
+    /// все сокращения (как в ссылках: «мф», «флп», «1кор»); точное сокращение — первым
+    private var matches: [ModuleBook] {
+        let k = fold(query)
+        guard !k.isEmpty else { return [] }
+        let alias = RefParser.findBook(query)
+        let list = module.books.filter { b in
+            b.id == alias || fold(b.short).hasPrefix(k) || fold(b.name).hasPrefix(k) || words(b.name).contains { $0.hasPrefix(k) }
+        }
+        guard let alias else { return list }
+        return list.filter { $0.id == alias } + list.filter { $0.id != alias }
+    }
+
+    /// «Возможно, вы искали»: книги, близкие по написанию (опечатка, лишняя или пропущенная буква, перестановка)
+    private var suggestions: [ModuleBook] {
+        let q = Array(fold(query))
+        guard q.count >= 3 else { return [] }
+        let allowed = Fuzzy.allowed(q.count)
+        var scored: [(score: Int, order: Int, book: ModuleBook)] = []
+        for (i, b) in module.books.enumerated() {
+            var best = Int.max
+            for c in [fold(b.short), fold(b.name)] + words(b.name) {
+                if let s = Fuzzy.score(q, Array(c), allowed: allowed) { best = min(best, s) }
+            }
+            if best != Int.max { scored.append((best, i, b)) }
+        }
+        scored.sort { $0.score != $1.score ? $0.score < $1.score : $0.order < $1.order }
+        return scored.prefix(6).map(\.book)
+    }
+
+    /// Ссылка уже понятна («Ин 3:16») — куда приведёт «Перейти»
+    private var refHit: (book: ModuleBook, chapter: Int, verse: Int)? {
+        guard !query.isEmpty, !isBookQuery, let r = RefParser.parse(query), let b = book(r.book), r.chapter >= 1, r.chapter <= max(1, b.chapters) else { return nil }
+        return (b, r.chapter, r.verse)
+    }
+
+    private func color(for id: String) -> Color {
+        bookCategories.first { $0.ids.contains(id) }?.color ?? .gray
+    }
+
+    private func bookButton(_ b: ModuleBook, _ color: Color) -> some View {
+        Button { path.append(b) } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(b.short.replacingOccurrences(of: ".", with: "")).font(.headline)
+                    .foregroundStyle(b.id == current ? Color.white : Color.primary)
+                Text(b.name).font(.caption).foregroundStyle(b.id == current ? Color.white.opacity(0.85) : Color.secondary).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .padding(.horizontal, 10)
+            .background(b.id == current ? Color.accentColor : color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func bookGrid(_ list: [ModuleBook]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+            ForEach(list) { b in bookButton(b, color(for: b.id)) }
+        }
+    }
+
+    /// Результаты поиска по слову: подходящие книги; нет таких — близкие по написанию
+    @ViewBuilder private var bookMatches: some View {
+        let list = matches
+        if list.isEmpty {
+            Text("Книги с таким названием нет.").foregroundStyle(.secondary)
+            let near = suggestions
+            if !near.isEmpty {
+                Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                bookGrid(near)
+            }
+        } else {
+            bookGrid(list)
+        }
+    }
+
     private func submitLink() {
+        // только название книги («Ин», «бытие») — открываем её главы
+        if isBookQuery {
+            let alias = RefParser.findBook(query)
+            if let only = module.books.first(where: { $0.id == alias }) ?? (matches.count == 1 ? matches.first : nil) {
+                path.append(only)
+                return
+            }
+        }
         guard let r = RefParser.parse(link), let b = book(r.book), r.chapter >= 1, r.chapter <= max(1, b.chapters) else {
             linkError = true
             return
@@ -2562,7 +2667,22 @@ struct GotoSheet: View {
                         Text("Не нашёл такое место в этом переводе.").font(.footnote).foregroundStyle(.red)
                     }
 
-                    let rec = recents.compactMap { book($0) }
+                    // по слову: подходящие книги вместо списка разделов; по ссылке — кнопка «Перейти»
+                    if isBookQuery {
+                        bookMatches
+                    } else if let hit = refHit {
+                        let label = "\(hit.book.name) \(hit.chapter):\(hit.verse)"
+                        Button {
+                            onPick(hit.book.id, hit.chapter, hit.verse)
+                            dismiss()
+                        } label: {
+                            Label("Перейти: \(label)", systemImage: "arrow.turn.down.right")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    let rec = isBookQuery ? [] : recents.compactMap { book($0) }
                     if !rec.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
@@ -2582,25 +2702,13 @@ struct GotoSheet: View {
                         }
                     }
 
-                    ForEach(sections(), id: \.title) { sec in
+                    ForEach(isBookQuery ? [] : sections(), id: \.title) { sec in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {
                                 Text(LocalizedStringKey(sec.title)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                             }
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
-                                ForEach(sec.books) { b in
-                                    Button { path.append(b) } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(b.short.replacingOccurrences(of: ".", with: "")).font(.headline)
-                                                .foregroundStyle(b.id == current ? Color.white : Color.primary)
-                                            Text(b.name).font(.caption).foregroundStyle(b.id == current ? Color.white.opacity(0.85) : Color.secondary).lineLimit(1)
-                                        }
-                                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                                        .padding(.horizontal, 10)
-                                        .background(b.id == current ? Color.accentColor : sec.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                                ForEach(sec.books) { b in bookButton(b, sec.color) }
                             }
                         }
                     }

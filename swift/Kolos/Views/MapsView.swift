@@ -342,7 +342,9 @@ struct InterlinearSheet: View {
     let verse: Int
     /// Выбор помнится; по умолчанию — Винокуров
     @AppStorage("ilSource") private var sourceRaw = "vin"
-    @State private var word: WordRequest?
+    /// Окна слова и статьи — те же, что в тексте Библии (со формой слова «В этом стихе»)
+    @StateObject private var req = StudyRequests()
+    @Environment(\.openVerse) private var openVerse
     /// Модуль подстрочника ставится при первом открытии вкладки
     @State private var loading = false
     @State private var failed = false
@@ -378,7 +380,10 @@ struct InterlinearSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
-            .sheet(item: $word) { WordSheet(req: $0) }
+            .background(StudySheets(req: req) { b, c, v in
+                openVerse(b, c, v)
+                dismiss()
+            })
             .task(id: source.module) { await ensure(source.module) }
         }
         .presentationDetents([.medium, .large])
@@ -403,7 +408,8 @@ struct InterlinearSheet: View {
                 if source == .vulg {
                     ForEach(Array(vulgWords(raw).enumerated()), id: \.offset) { _, w in vulgColumn(w) }
                 } else {
-                    ForEach(Array(Markup.parse(raw).enumerated()), id: \.offset) { _, t in column(t) }
+                    let toks = Markup.parse(raw)
+                    ForEach(Array(toks.enumerated()), id: \.offset) { i, t in column(t, i, toks) }
                 }
             }
             .padding(.vertical, 6)
@@ -454,7 +460,7 @@ struct InterlinearSheet: View {
     }
 
     @ViewBuilder
-    private func column(_ t: Token) -> some View {
+    private func column(_ t: Token, _ index: Int, _ toks: [Token]) -> some View {
         let words = t.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let tagged = t.orig != nil || !t.strongs.isEmpty
         // знаки препинания между словами — не слова; «·» у Винокурова — слово оригинала без перевода
@@ -462,6 +468,11 @@ struct InterlinearSheet: View {
             VStack(spacing: 2) {
                 if let o = t.orig {
                     Text(o).font(.system(size: 19, design: .serif)).foregroundStyle(.tint)
+                    // чтение русскими буквами (греческий — по эразмову произношению, еврейский — по огласовкам)
+                    let tr = Translit.of(o)
+                    if !tr.isEmpty {
+                        Text(tr).font(.system(size: 13)).italic().foregroundStyle(.secondary)
+                    }
                 }
                 Text(words == "·" || words.isEmpty ? " " : words).font(.system(size: 17, weight: .semibold))
                 if !t.strongs.isEmpty {
@@ -472,9 +483,18 @@ struct InterlinearSheet: View {
             .padding(.vertical, 4)
             .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .onTapGesture {
-                if !t.strongs.isEmpty {
-                    word = WordRequest(text: words, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: verse)
+                guard !t.strongs.isEmpty else { return }
+                // слово оригинала и его разбор — в статье Стронга видно, какой именно формой слово стоит в этом стихе
+                // (статья — по начальной форме: «βοάω», а в стихе «ἐβόησεν»)
+                var ow: OrigInfo?
+                if let o = t.orig, let n = t.strongs.first {
+                    let key = Align.strongNum(n)
+                    let occ = toks[..<index].filter { $0.strongs.first.map(Align.strongNum) == key }.count
+                    ow = OrigInfo(orig: o, morph: t.morph.first ?? Align.origMorph(store: store, book: book, chapter: chapter, verse: verse, num: n, occurrence: occ), num: key)
                 }
+                let title = words.isEmpty || words == "·" ? (t.orig ?? words) : words
+                req.openedAt = Date()
+                req.open(.word(WordRequest(text: title, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: verse, origWord: ow)))
             }
         }
     }

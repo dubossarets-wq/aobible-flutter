@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/bible.dart';
 import '../core/books.dart';
+import '../core/fuzzy.dart';
 import '../core/i18n.dart';
 import '../core/modules.dart';
 import '../core/panes.dart';
@@ -235,6 +236,25 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     final list = books.where(hit).toList();
     // Точное сокращение («мф», «ин») — первым
     return alias != null ? [...list.where((b) => b.id == alias), ...list.where((b) => b.id != alias)] : list;
+  }
+
+  /// «Возможно, вы искали»: книги, близкие по написанию (опечатка, лишняя или пропущенная буква, перестановка)
+  List<_Book> _near(List<_Book> books, String q) {
+    final qc = _norm(q).codeUnits;
+    if (qc.length < 3) return const [];
+    final allowed = fuzzyAllowed(qc.length);
+    final scored = <(int, int, _Book)>[];
+    for (var i = 0; i < books.length; i++) {
+      final b = books[i];
+      var best = 1 << 30;
+      for (final c in [_norm(b.short), _norm(b.name), ..._words(b.name).map(_norm)]) {
+        final s = fuzzyScore(qc, c.codeUnits, allowed);
+        if (s != null && s < best) best = s;
+      }
+      if (best < 1 << 30) scored.add((best, i, b));
+    }
+    scored.sort((a, b) => a.$1 != b.$1 ? a.$1.compareTo(b.$1) : a.$2.compareTo(b.$2));
+    return [for (final s in scored.take(6)) s.$3];
   }
 
   int _lastVerse(String book, int chapter) {
@@ -465,6 +485,11 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           ),
         ),
       if (bookMode && matches.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
+      // слово с опечаткой: близкие по написанию книги
+      if (bookMode && matches.isEmpty && _near(books, q).isNotEmpty) ...[
+        Padding(padding: const EdgeInsets.only(top: 16, bottom: 8), child: Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
+        _grid(pal, fill, _near(books, q), at),
+      ],
       if (bookMode && matches.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: _grid(pal, fill, matches, at)),
       if (!bookMode && q.trim().isEmpty && recent.isNotEmpty && !recentBelow) ...[const SizedBox(height: 12), recentRow()],
     ];
