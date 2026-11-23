@@ -433,11 +433,27 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
     // поле поиска — отдельно, закреплённой шапкой (ниже); под ним всё, что уезжает при прокрутке
     final top = <Widget>[
-      Segmented<String>(
-        options: [('all', t('Вся Библия')), ('OT', t('ВЗ')), ('NT', t('НЗ')), ('book', Books.instance.meta(_pane.ref.book).short)],
-        value: _scope,
-        onChanged: (v) => _setOption('searchScope', v, () => _scope = v),
-      ),
+      // название книги — целиком, если помещается в строку («Сирах», «Руфь»); нет — сокращённое («1Фес»)
+      LayoutBuilder(builder: (context, c) {
+        final meta = Books.instance.meta(_pane.ref.book);
+        final fixed = [t('Вся Библия'), t('ВЗ'), t('НЗ')];
+        final style = const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600);
+        final scale = MediaQuery.textScalerOf(context);
+        double w(String s) {
+          final tp = TextPainter(text: TextSpan(text: s, style: style), textDirection: TextDirection.ltr, maxLines: 1, textScaler: scale)..layout();
+          final r = tp.width + 16.5 + 2; // поля варианта и промежуток
+          tp.dispose();
+          return r;
+        }
+
+        final rest = fixed.fold<double>(0, (a, s) => a + w(s)) + 6;
+        final book = rest + w(meta.name) <= c.maxWidth ? meta.name : meta.short;
+        return Segmented<String>(
+          options: [('all', fixed[0]), ('OT', fixed[1]), ('NT', fixed[2]), ('book', book)],
+          value: _scope,
+          onChanged: (v) => _setOption('searchScope', v, () => _scope = v),
+        );
+      }),
       gap,
       // стиль iPhone: переключатели — одной карточкой, без пояснений под каждым (верх окна поиска компактнее:
       // с клавиатурой виднее найденное)

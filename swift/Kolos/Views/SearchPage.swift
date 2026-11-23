@@ -107,6 +107,25 @@ struct SearchPage: View {
         store.module(moduleId) ?? store.bibles.first
     }
 
+    private var bookShortName: String { Books.info(currentBook)?.short ?? "Книга" }
+
+    /// Полное название книги в открытом переводе
+    private var bookFullName: String {
+        module?.books.first { $0.id == currentBook }?.name ?? Books.info(currentBook)?.name ?? bookShortName
+    }
+
+    private func scopeSwitcher(book: String) -> some View {
+        CapsuleSwitcher(
+            options: [
+                (SearchScope.all, Text("Вся Библия")),
+                (SearchScope.ot, Text("ВЗ")),
+                (SearchScope.nt, Text("НЗ")),
+                (SearchScope.book, Text(verbatim: book)),
+            ],
+            selection: $scope
+        )
+    }
+
     /// Переводы для поиска: открытый — или все (кроме помощников-подстрочников; оригиналы — по отдельному выбору)
     private var targets: [InstalledModule] {
         guard let m = module else { return [] }
@@ -148,15 +167,11 @@ struct SearchPage: View {
             List {
                 // где искать — переключатель прямо на сером фоне, вне белого блока с настройками
                 Section {
-                    CapsuleSwitcher(
-                        options: [
-                            (SearchScope.all, Text("Вся Библия")),
-                            (SearchScope.ot, Text("ВЗ")),
-                            (SearchScope.nt, Text("НЗ")),
-                            (SearchScope.book, Text(verbatim: Books.info(currentBook)?.short ?? "Книга")),
-                        ],
-                        selection: $scope
-                    )
+                    // название книги — целиком, если помещается («Сирах», «Руфь»); нет — сокращённое («1Фес»)
+                    ViewThatFits(in: .horizontal) {
+                        scopeSwitcher(book: bookFullName)
+                        scopeSwitcher(book: bookShortName)
+                    }
                     .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
