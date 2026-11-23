@@ -395,9 +395,11 @@ struct InterlinearSheet: View {
             nv = 1
         }
         dir = d > 0 ? .trailing : .leading
-        withAnimation(.snappy(duration: 0.3)) {
-            c = nc
-            v = nv
+        DispatchQueue.main.async {
+            withAnimation(.snappy(duration: 0.3)) {
+                c = nc
+                v = nv
+            }
         }
     }
 
@@ -407,7 +409,10 @@ struct InterlinearSheet: View {
         let from = sources.firstIndex(of: source) ?? 0
         let to = sources.firstIndex(of: new) ?? 0
         dir = to > from ? .trailing : .leading
-        withAnimation(.snappy(duration: 0.3)) { picked = new }
+        // направление должно попасть в уходящий вид раньше, чем он начнёт уходить, — меняем перевод следующим проходом
+        DispatchQueue.main.async {
+            withAnimation(.snappy(duration: 0.3)) { picked = new }
+        }
     }
 
     var body: some View {

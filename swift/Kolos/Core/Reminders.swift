@@ -201,7 +201,7 @@ enum Reminders {
             var lines: [String] = []
             for p in plans {
                 guard let i = planDayOn(p, day), !PlanLogic.dayDone(p, i) else { continue }
-                lines.append("\(p.name): " + p.readings[i].map { PlanLogic.readingLabel($0) }.joined(separator: ", "))
+                lines.append("\(p.title): " + p.readings[i].map { PlanLogic.readingLabel($0) }.joined(separator: ", "))
             }
             // планов нет — простое напоминание; план есть, но на этот день всё прочитано — не беспокоим
             if lines.isEmpty && !plans.isEmpty { continue }

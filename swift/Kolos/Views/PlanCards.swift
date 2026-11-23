@@ -75,7 +75,7 @@ struct PlanCard: View {
         }
         .padding(.vertical, 8)
         .sheet(item: $dayRef) { PlanDayView(uid: plan.uid, day: $0.id) }
-        .alert("Удалить план «\(plan.name)»?", isPresented: $confirmDelete) {
+        .alert("Удалить план «\(plan.title)»?", isPresented: $confirmDelete) {
             Button("Удалить", role: .destructive) { plans.remove(plan.uid) }
             Button("Отмена", role: .cancel) {}
         } message: {
@@ -138,7 +138,7 @@ struct PlanCard: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(plan.name)
+                    Text(plan.title)
                         .font(.title2.weight(.bold))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -253,7 +253,7 @@ struct PlanDetailView: View {
                 List {
                     Section {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(plan.name).font(.headline)
+                            Text(plan.title).font(.headline)
                             ProgressView(value: Double(plan.done.count), total: Double(max(1, total)))
                             HStack {
                                 Text("Прочитано дней: \(plan.done.count) из \(total)")
@@ -309,7 +309,7 @@ struct PlanDetailView: View {
                     }
                 }
                 .sheet(item: $dayRef) { PlanDayView(uid: uid, day: $0.id) }
-                .alert("Удалить план «\(plan.name)»?", isPresented: $confirmDelete) {
+                .alert("Удалить план «\(plan.title)»?", isPresented: $confirmDelete) {
                     Button("Удалить", role: .destructive) {
                         plans.remove(uid)
                         dismiss()

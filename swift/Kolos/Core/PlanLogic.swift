@@ -287,3 +287,26 @@ enum PlanLogic {
         return readings.filter { !$0.isEmpty }
     }
 }
+
+extension PlanLogic {
+    /// «день», «дня», «дней» по числу
+    static func daysWord(_ n: Int) -> String {
+        let m10 = n % 10
+        let m100 = n % 100
+        if m10 == 1 && m100 != 11 { return "день" }
+        if (2...4).contains(m10) && !(12...14).contains(m100) { return "дня" }
+        return "дней"
+    }
+
+    /// Название без сокращения: «Новый Завет за 218 дн.» → «Новый Завет за 218 дней» (старые планы, сохранённые с «дн.»)
+    static func fullName(_ name: String) -> String {
+        guard let r = name.range(of: #"\d+ дн\.$"#, options: .regularExpression),
+              let n = Int(name[r].dropLast(4)) else { return name }
+        return name.replacingCharacters(in: r, with: "\(n) \(daysWord(n))")
+    }
+}
+
+extension Plan {
+    /// Название для показа
+    var title: String { PlanLogic.fullName(name) }
+}

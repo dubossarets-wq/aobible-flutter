@@ -80,7 +80,7 @@ struct PlanDayView: View {
                 .animation(.default, value: message)
                 }
                 .background(pal.bg)
-                .navigationTitle("\(plan.name) · день \(day + 1)")
+                .navigationTitle("\(plan.title) · день \(day + 1)")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } }

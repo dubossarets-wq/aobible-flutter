@@ -33,28 +33,66 @@ struct SoonView: View {
     }
 }
 
-/// Переключатель в одну строку на всю ширину: плашки-капсулы поровну, выбранная — цветом акцента.
-/// Вместо системного сегментного переключателя (окно «Подстрочник», выбор области поиска)
+/// Строка, где каждый элемент получает ширину пропорционально своему тексту: короткие подписи не раздуваются,
+/// длинные не режутся (на узком экране все ужимаются поровну по доле)
+struct ProportionalRow: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        return CGSize(width: proposal.width ?? ideal.reduce(0) { $0 + $1.width }, height: ideal.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified).width }
+        let sum = max(1, ideal.reduce(0, +))
+        var x = bounds.minX
+        for (i, s) in subviews.enumerated() {
+            let w = bounds.width * ideal[i] / sum
+            s.place(at: CGPoint(x: x, y: bounds.minY), proposal: ProposedViewSize(width: w, height: bounds.height))
+            x += w
+        }
+    }
+}
+
+/// Переключатель в одну строку на всю ширину: общая стеклянная плашка с тонкими разделителями (как «перевод | книга»
+/// в шапке Библии), выбранный пункт — капсула акцента, которая переезжает на новое место
 struct CapsuleSwitcher<T: Hashable>: View {
     let options: [(value: T, title: Text)]
     @Binding var selection: T
+    @Namespace private var ns
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(Array(options.enumerated()), id: \.offset) { _, o in
+        ProportionalRow {
+            ForEach(Array(options.enumerated()), id: \.offset) { i, o in
                 let on = o.value == selection
-                Button { selection = o.value } label: {
+                // разделитель справа от пункта — если ни он, ни следующий не выбраны
+                let divider = i < options.count - 1 && !on && options[i + 1].value != selection
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) { selection = o.value }
+                } label: {
                     o.title
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.55)
                         .foregroundStyle(on ? Color.white : Color.primary)
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                        .background(on ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .background {
+                            if on {
+                                Capsule().fill(Color.accentColor).matchedGeometryEffect(id: "sel", in: ns)
+                            }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if divider {
+                                Rectangle().fill(Color.primary.opacity(0.18)).frame(width: 1, height: 18)
+                            }
+                        }
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(3)
+        .glassEffect(.regular, in: Capsule())
     }
 }
 

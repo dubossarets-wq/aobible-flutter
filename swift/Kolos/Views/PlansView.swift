@@ -241,6 +241,55 @@ struct PlanPreview: View {
     @State private var readings: [[String]] = []
     @State private var failed = false
     @State private var starting = false
+    /// Чтения по дням показываются страницами по 30 дней
+    @State private var page = 0
+    private let pageSize = 30
+
+    /// Переключатель страниц: стрелки и меню с номерами дней («1–30», «31–60»…)
+    private func pager(_ total: Int) -> some View {
+        let pages = (total + pageSize - 1) / pageSize
+        let lo = page * pageSize + 1
+        let hi = min(total, (page + 1) * pageSize)
+        return HStack(spacing: 8) {
+            pagerArrow("chevron.left", enabled: page > 0) { page -= 1 }
+            Menu {
+                ForEach(0..<pages, id: \.self) { p in
+                    Button {
+                        page = p
+                    } label: {
+                        if p == page {
+                            Label(String(p * pageSize + 1) + "–" + String(min(total, (p + 1) * pageSize)), systemImage: "checkmark")
+                        } else {
+                            Text(verbatim: String(p * pageSize + 1) + "–" + String(min(total, (p + 1) * pageSize)))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(verbatim: "\(lo)–\(hi) / \(total)").font(.subheadline.weight(.semibold)).monospacedDigit()
+                    Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(Color.accentColor.opacity(0.13), in: Capsule())
+            }
+            pagerArrow("chevron.right", enabled: page < pages - 1) { page += 1 }
+        }
+    }
+
+    private func pagerArrow(_ icon: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) { action() }
+        } label: {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(enabled ? Color.accentColor : Color.secondary.opacity(0.4))
+                .frame(width: 48, height: 40)
+                .background(Color.accentColor.opacity(enabled ? 0.13 : 0.05), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
 
     var body: some View {
         List {
@@ -263,13 +312,32 @@ struct PlanPreview: View {
                 Section { Text("Не удалось загрузить состав плана").foregroundStyle(.secondary) }
             }
             if !readings.isEmpty {
-                Section("Чтения по дням") {
-                    ForEach(Array(readings.enumerated()), id: \.offset) { i, day in
+                let paged = readings.count > pageSize
+                let lo = min(page * pageSize, max(0, readings.count - 1))
+                let hi = paged ? min(readings.count, lo + pageSize) : readings.count
+                Section {
+                    // больше 30 дней — вверху страницы переключатель, ниже — только дни этой страницы
+                    if paged {
+                        pager(readings.count)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 6, trailing: 0))
+                    }
+                    ForEach(lo..<hi, id: \.self) { i in
                         HStack(alignment: .firstTextBaseline) {
                             Text("День \(i + 1)").foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
-                            Text(day.map { PlanLogic.readingLabel($0) }.joined(separator: " · "))
+                            Text(readings[i].map { PlanLogic.readingLabel($0) }.joined(separator: " · "))
                         }
                     }
+                    if paged {
+                        // тот же переключатель внизу страницы: не надо возвращаться наверх
+                        pager(readings.count)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 2, trailing: 0))
+                    }
+                } header: {
+                    Text("Чтения по дням")
                 }
             }
         }
