@@ -429,22 +429,27 @@ struct InterlinearSheet: View {
                 .padding(.top, 8)
                 .padding(.bottom, 10)
                 .clipped()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        content
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if !loading && !failed {
-                            Text(hint).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
+                // слова уезжают целиком вместе с прокруткой, на их место въезжают другие (в сторону смахивания)
+                ZStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            content
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if !loading && !failed {
+                                Text(hint).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .id("\(c):\(v):\(source.rawValue)")
                     .transition(.push(from: dir))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .clipped()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.container, edges: .bottom)
+                .clipped()
             }
             // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)
             .simultaneousGesture(
