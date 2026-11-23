@@ -10,6 +10,7 @@ import '../../core/i18n.dart';
 import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../shell/fonts.dart' show readerTextStyle;
 import 'dictionary_sheet.dart';
 import 'interlinear.dart';
 import 'sheet.dart';
@@ -31,22 +32,32 @@ class InterlinearSheet extends ConsumerStatefulWidget {
 enum _Status { loading, install, none, error, ok }
 
 class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
+  /// Показанный сейчас стих; пока грузится соседний, на экране остаётся прежний
   late VerseRef _ref = widget.at;
+  /// Стих, который загружается (быстрые нажатия стрелок идут от него)
+  late VerseRef _target = widget.at;
   _Status _status = _Status.loading;
   String _label = '';
   String _error = '';
   List<IlWord> _words = const [];
   String _ru = '';
   int _gen = 0;
-  // Новый Завет: syn | vin | vulg; Ветхий Завет: heb | lxx | vulg — выбор запоминается
-  String _source = prefs.getString('ilSource') ?? 'syn';
+  // Откуда въезжает следующий вид: 1 — справа (вперёд), -1 — слева
+  int _dir = 1;
+  // Новый Завет: vin | syn | vulg (всегда открывается на Винокурове); Ветхий Завет: heb | lxx | vulg — выбор запоминается
+  String _source = 'vin';
   String _otSource = prefs.getString('ilSourceOT') ?? 'heb';
+  // Как оформлены показанные слова (меняются вместе со словами, а не раньше)
+  bool _shownHebrew = false;
+  bool _shownLatin = false;
+  String _shownCur = '';
 
-  bool get _ot => !isNt(_ref.book);
+  bool get _ot => !isNt(_target.book);
   bool get _vin => !_ot && _source == 'vin';
   bool get _lxx => _ot && _otSource == 'lxx';
   bool get _vulg => (_ot ? _otSource : _source) == 'vulg';
   bool get _hebrew => _ot && !_lxx && !_vulg;
+  String get _cur => _vulg ? 'vulg' : (_ot ? (_lxx ? 'lxx' : 'heb') : (_vin ? 'vin' : 'syn'));
 
   @override
   void initState() {
@@ -56,9 +67,12 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
 
   Future<void> _load() async {
     final gen = ++_gen;
-    if (_status != _Status.loading) setState(() => _status = _Status.loading);
+    final target = _target;
+    final cur = _cur, hebrew = _hebrew, latin = _vulg;
+    // первая загрузка — показываем «Загрузка…»; потом старое остаётся на экране, пока готовится новое
+    if (_shownCur.isEmpty && _status != _Status.loading) setState(() => _status = _Status.loading);
     try {
-      if (originalFor(_ref.book) == null) return setState(() => _status = _Status.none);
+      if (originalFor(target.book) == null) return setState(() => _status = _Status.none);
       void progress(double p, String label) {
         if (gen == _gen && mounted) {
           setState(() {
@@ -68,19 +82,23 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
         }
       }
 
-      if (!_lxx && !_vulg) await ensureOriginal(_ref.book, progress);
+      if (!_lxx && !_vulg) await ensureOriginal(target.book, progress);
       final words = _lxx
-          ? await lxxInterlinear(_ref, progress)
+          ? await lxxInterlinear(target, progress)
           : _vulg
-              ? await vulgInterlinear(_ref, progress)
+              ? await vulgInterlinear(target, progress)
               : _vin
-                  ? await vinInterlinear(_ref, progress)
-                  : origInterlinear(_ref);
-      final ru = StudyData.verse(widget.moduleId, _ref);
+                  ? await vinInterlinear(target, progress)
+                  : origInterlinear(target);
+      final ru = StudyData.verse(widget.moduleId, target);
       if (gen != _gen || !mounted) return;
       setState(() {
+        _ref = target;
         _words = words ?? const [];
         _ru = ru == null ? '' : plainOf(ru);
+        _shownCur = cur;
+        _shownHebrew = hebrew;
+        _shownLatin = latin;
         _status = _Status.ok;
       });
     } catch (e) {
@@ -94,13 +112,14 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
   }
 
   void _pick(String v) {
+    final order = _ot ? ['heb', 'lxx', 'vulg'] : ['vin', 'syn', 'vulg'];
+    _dir = order.indexOf(v) >= order.indexOf(_cur) ? 1 : -1;
     setState(() {
       if (_ot) {
         _otSource = v;
         prefs.setString('ilSourceOT', v);
       } else {
         _source = v;
-        prefs.setString('ilSource', v);
       }
     });
     _load();
@@ -108,20 +127,21 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
 
   /// Соседний стих по оригинальному тексту (с переходом через главу)
   void _step(int d) {
-    final id = _lxx ? lxxModule : _vulg ? vulgModule : originalFor(_ref.book);
+    final id = _lxx ? lxxModule : _vulg ? vulgModule : originalFor(_target.book);
     if (id == null || !StudyData.isInstalled(id)) return;
-    var chapter = _ref.chapter, verse = _ref.verse + d;
+    var chapter = _target.chapter, verse = _target.verse + d;
     if (verse < 1) {
       if (chapter == 1) return;
       chapter -= 1;
-      final n = StudyData.verseCount(id, _ref.book, chapter);
+      final n = StudyData.verseCount(id, _target.book, chapter);
       verse = n == 0 ? 1 : n;
-    } else if (verse > StudyData.verseCount(id, _ref.book, chapter)) {
-      if (chapter >= StudyData.chapterCount(id, _ref.book)) return;
+    } else if (verse > StudyData.verseCount(id, _target.book, chapter)) {
+      if (chapter >= StudyData.chapterCount(id, _target.book)) return;
       chapter += 1;
       verse = 1;
     }
-    _ref = VerseRef(_ref.book, chapter, verse);
+    _dir = d > 0 ? 1 : -1;
+    _target = VerseRef(_target.book, chapter, verse);
     _load();
   }
 
@@ -179,31 +199,101 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
     );
   }
 
+  /// Подсказка под словами: коротко, что это за перевод
+  String get _hint => _shownCur == 'vin'
+      ? t('Подстрочный перевод Нового Завета А. Винокурова.')
+      : _shownCur == 'lxx'
+          ? t('Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.')
+          : _shownCur == 'vulg'
+              ? t('Латинская Вульгата; под словами — значение и начальная форма.')
+              : _shownCur == 'heb'
+                  ? t('Под словом: чтение, перевод и номер Стронга; бледным — обычное значение. Нажмите на слово — откроется словарь.')
+                  : t('Синодальный перевод; под словами — оригинал, чтение и номер Стронга.');
+
   Widget _okBody(Palette pal) {
-    final hint = _vin
-        ? t('Подстрочник А. Винокурова — с разрешения автора. Под словом: чтение, перевод и номер Стронга.')
-        : _lxx
-            ? t('Септуагинта — греческий Ветхий Завет (изд. Г. Б. Свита). Под словом: чтение, значение и номер Стронга. Нажмите на слово — откроется словарь.')
-            : _vulg
-                ? t('Вульгата — латинская Библия бл. Иеронима (Климентинское издание). Под словом: начальная форма и значение. Значения — из Викисловаря (CC BY-SA 4.0), формы — по Collatinus.')
-                : t('Под словом: чтение, перевод и номер Стронга; бледным — обычное значение. Нажмите на слово — откроется словарь.');
-    final cur = _vulg ? 'vulg' : (_ot ? (_lxx ? 'lxx' : 'heb') : (_vin ? 'vin' : 'syn'));
-    final rtl = _hebrew;
-    return SheetList(children: [
-      Segmented(
-        value: cur,
-        onChanged: _pick,
-        options: _ot ? [('heb', t('Еврейский')), ('lxx', t('Септуагинта')), ('vulg', t('Вульгата'))] : [('syn', t('Синодальный')), ('vin', t('Винокуров')), ('vulg', t('Вульгата'))],
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final rtl = _shownHebrew;
+    final key = ValueKey('${_ref.chapter}:${_ref.verse}:$_shownCur');
+    final content = SingleChildScrollView(
+      key: key,
+      padding: EdgeInsets.fromLTRB(16, 6, 16, 24 + bottom),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (_words.isEmpty) Text(t('В оригинале этого стиха нет.'), style: TextStyle(color: pal.muted)),
+        if ((_shownCur == 'lxx' || _shownCur == 'vulg') && _words.isNotEmpty)
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t('Под словами — значения по словарю, а не перевод.'), style: TextStyle(color: pal.muted, fontSize: 12.9))), // .muted.small
+        Directionality(
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          child: Wrap(spacing: 6, runSpacing: 10, children: [for (final w in _words) _Cell(word: w, hebrew: rtl, latin: _shownLatin, onTap: () => _open(w))]),
+        ),
+        const SizedBox(height: 12),
+        Text(_hint, style: TextStyle(color: pal.muted, fontSize: 13.6)), // .sheet-hint
+      ]),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v < -300) _step(1);
+        if (v > 300) _step(-1);
+      },
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // закреплено сверху: переключатель переводов и стих; прокручиваются только слова
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+          child: Segmented(
+            value: _cur,
+            onChanged: _pick,
+            options: _ot ? [('heb', t('Еврейский')), ('lxx', t('Септуагинта')), ('vulg', t('Вульгата'))] : [('vin', t('Винокуров')), ('syn', t('Синодальный')), ('vulg', t('Вульгата'))],
+          ),
+        ),
+        if (_ru.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 6), child: _QuoteCard(verse: _ref.verse, text: _ru)),
+        Expanded(
+          // слова уезжают целиком, на их место въезжают другие — в сторону смахивания
+          child: ClipRect(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              layoutBuilder: (cur, prev) => Stack(fit: StackFit.expand, children: [...prev, if (cur != null) cur]),
+              transitionBuilder: (child, anim) {
+                final incoming = child.key == key;
+                final from = Offset(incoming ? _dir.toDouble() : -_dir.toDouble(), 0);
+                return SlideTransition(position: Tween(begin: from, end: Offset.zero).animate(anim), child: child);
+              },
+              child: content,
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Стих с номером на карточке: компактная, длинный стих прокручивается внутри (не отнимает место у слов)
+class _QuoteCard extends ConsumerWidget {
+  const _QuoteCard({required this.verse, required this.text});
+  final int verse;
+  final String text;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pal = ref.watch(settingsProvider.select((s) => s.palette));
+    final settings = ref.watch(settingsProvider);
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 132),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: mix(pal.text, 0.055, pal.panel), borderRadius: BorderRadius.circular(18)),
+      child: SingleChildScrollView(
+        child: Text.rich(
+          TextSpan(children: [
+            TextSpan(text: '$verse ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: pal.accent, fontFeatures: const [FontFeature.superscripts()])),
+            TextSpan(text: text),
+          ]),
+          style: readerTextStyle(settings, size: 16.5, weight: 400).copyWith(height: 1.45, color: pal.text),
+        ),
       ),
-      if (_ru.isNotEmpty) QuoteBox(_ru),
-      if (_words.isEmpty) Text(t('В оригинале этого стиха нет.'), style: TextStyle(color: pal.muted)),
-      if ((_lxx || _vulg) && _words.isNotEmpty) Text(t('Под словами — значения по словарю, а не перевод.'), style: TextStyle(color: pal.muted, fontSize: 12.9)), // .muted.small
-      Directionality(
-        textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        child: Wrap(spacing: 6, runSpacing: 10, children: [for (final w in _words) _Cell(word: w, hebrew: rtl, latin: _vulg, onTap: () => _open(w))]),
-      ),
-      Text(hint, style: TextStyle(color: pal.muted, fontSize: 13.6)), // .sheet-hint
-    ]);
+    );
   }
 }
 
