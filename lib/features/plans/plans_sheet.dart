@@ -1375,6 +1375,25 @@ class _ReminderCardState extends State<_ReminderCard> with WidgetsBindingObserve
                 ),
               for (final (i, x) in _r.list.indexed) ...[if (i > 0) const SizedBox(height: 8), _item(x)],
               const SizedBox(height: 4),
+              // что реально поставлено в телефон (или почему не вышло) и проверка «пришло ли»
+              ValueListenableBuilder<String>(
+                valueListenable: reminderStatus,
+                builder: (context, v, _) => Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 6, left: 4, right: 4),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Expanded(child: Text(v.isEmpty ? t('Расписание собирается…') : v, style: TextStyle(fontSize: 13.5, height: 1.35, color: pal.muted))),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () async {
+                        final err = await sendTestReminder();
+                        if (context.mounted) toast(context, err ?? t('Проверочное уведомление отправлено'));
+                      },
+                      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8), child: Text(t('Проверить'), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: pal.accent))),
+                    ),
+                  ]),
+                ),
+              ),
               // .rem-add: «+ Напоминание» и «+ Будильник» ссылками цвета акцента
               Wrap(spacing: 16, children: [
                 for (final alarm in const [false, true])

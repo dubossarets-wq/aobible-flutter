@@ -175,6 +175,17 @@ Future<void> scheduleReminders() {
   return _busy = _busy.then((_) => _schedule(), onError: (_) => _schedule());
 }
 
+/// Итог последней сборки расписания — строка в карточке напоминаний: сколько уведомлений поставлено, когда ближайшее,
+/// а если что-то не вышло — причина (раньше ошибка тихо терялась, и было непонятно, почему ничего не приходит)
+final reminderStatus = ValueNotifier<String>('');
+
+NotificationDetails _plainDetails(String body) => NotificationDetails(
+      android: AndroidNotificationDetails('plan_reminder', t('Напоминание о чтении'), importance: Importance.defaultImportance, priority: Priority.defaultPriority, icon: 'ic_stat_aob', styleInformation: BigTextStyleInformation(body)),
+      iOS: const DarwinNotificationDetails(),
+    );
+
+String _when(DateTime d) => '${d.day}.${'${d.month}'.padLeft(2, '0')} ${'${d.hour}'.padLeft(2, '0')}:${'${d.minute}'.padLeft(2, '0')}';
+
 Future<void> _schedule() async {
   try {
     await _init();
@@ -183,27 +194,72 @@ Future<void> _schedule() async {
     }
     final r = getReminder();
     final plans = loadPlans();
-    if (!r.on) return;
+    if (!r.on) {
+      reminderStatus.value = '';
+      return;
+    }
     final title = plans.isEmpty ? 'Колос' : t('Чтение на сегодня');
     // точно в назначенное время — если разрешено «Будильники и напоминания», иначе Android может отложить
-    final mode = await exactAllowed() ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
-    for (final n in reminderSchedule(plans, r.list, DateTime.now())) {
-      await _plugin.zonedSchedule(
-        id: n.id,
-        // Одноразовые уведомления на точный момент: UTC-представление того же мгновения, пояс устройства не нужен
-        scheduledDate: tz.TZDateTime.from(n.at, tz.UTC),
-        title: title,
-        body: n.body,
-        payload: 'plans',
-        androidScheduleMode: mode,
-        notificationDetails: n.alarm ? _alarmDetails(n.body) : NotificationDetails(
-          android: AndroidNotificationDetails('plan_reminder', t('Напоминание о чтении'), importance: Importance.defaultImportance, priority: Priority.defaultPriority, icon: 'ic_stat_aob', styleInformation: BigTextStyleInformation(n.body)),
-          iOS: const DarwinNotificationDetails(),
-        ),
-      );
+    final exact = await exactAllowed();
+    final all = reminderSchedule(plans, r.list, DateTime.now());
+    Future<void> put(({int id, DateTime at, String body, bool alarm}) n, AndroidScheduleMode mode) => _plugin.zonedSchedule(
+          id: n.id,
+          // Одноразовые уведомления на точный момент: UTC-представление того же мгновения, пояс устройства не нужен
+          scheduledDate: tz.TZDateTime.from(n.at, tz.UTC),
+          title: title,
+          body: n.body,
+          payload: 'plans',
+          androidScheduleMode: mode,
+          notificationDetails: n.alarm ? _alarmDetails(n.body) : _plainDetails(n.body),
+        );
+    var ok = 0;
+    String? error;
+    for (final n in all) {
+      // одно неудавшееся уведомление не должно останавливать остальные; точное время не вышло — ставим обычное
+      try {
+        await put(n, exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle);
+        ok++;
+      } catch (e) {
+        try {
+          await put(n, AndroidScheduleMode.inexactAllowWhileIdle);
+          ok++;
+        } catch (e2) {
+          error ??= '$e2';
+        }
+      }
+    }
+    int pending = ok;
+    try {
+      pending = (await _plugin.pendingNotificationRequests()).where((x) => x.id >= _baseId && x.id < _baseId + _max).length;
+    } catch (_) {}
+    if (error != null) {
+      reminderStatus.value = '${t('Не удалось поставить напоминания')}: $error';
+    } else if (all.isEmpty) {
+      reminderStatus.value = t('На ближайшие 14 дней напоминаний нет: по планам всё прочитано или время уже прошло');
+    } else if (pending == 0) {
+      reminderStatus.value = t('Телефон не принял напоминания: проверьте разрешения приложения');
+    } else {
+      reminderStatus.value = '${t('Поставлено напоминаний')}: $pending · ${t('ближайшее')} ${_when(all.first.at)}';
     }
   } catch (e) {
     debugPrint('Напоминания: $e');
+    reminderStatus.value = '${t('Не удалось поставить напоминания')}: $e';
+  }
+}
+
+/// Показать уведомление сразу — проверка, что телефон вообще их принимает. null — отправлено, иначе причина
+Future<String?> sendTestReminder() async {
+  try {
+    await _init();
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    final allowed = android != null ? await android.areNotificationsEnabled() : await ios?.requestPermissions(alert: true, badge: true, sound: true);
+    if (allowed == false) return t('Уведомления для приложения выключены в настройках телефона');
+    final body = t('Так будет выглядеть напоминание о чтении');
+    await _plugin.show(id: _baseId - 1, title: t('Проверка напоминаний'), body: body, payload: 'plans', notificationDetails: _plainDetails(body));
+    return null;
+  } catch (e) {
+    return '$e';
   }
 }
 
