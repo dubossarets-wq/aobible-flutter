@@ -546,10 +546,10 @@ struct UnderlineTabs: View {
 
     var body: some View {
         if labels.count <= 4 {
-            Picker("", selection: Binding(get: { index }, set: { i in withAnimation(.easeInOut(duration: 0.24)) { onTap(i) } })) {
-                ForEach(Array(labels.enumerated()), id: \.offset) { i, l in Text(l).tag(i) }
-            }
-            .pickerStyle(.segmented)
+            CapsuleSwitcher(
+                options: labels.enumerated().map { (value: $0.offset, title: Text(verbatim: $0.element)) },
+                selection: Binding(get: { index }, set: { i in onTap(i) })
+            )
         } else {
             PillTabs(labels: labels, index: index, onTap: onTap)
         }

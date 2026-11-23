@@ -111,11 +111,9 @@ struct AppearanceView: View {
             if !store.commentaries.isEmpty {
                 Section {
                     row("Размер текста: \(Int(commentaryFontSize)) px", value: $commentaryFontSize, range: 14...32, step: 1, def: 19)
-                    Picker("Как показывать", selection: $commentView) {
-                        Text("Под стихом").tag("below")
-                        Text("Меткой после стиха").tag("tag")
-                    }
-                    .pickerStyle(.segmented)
+                    CapsuleSwitcher(options: [("below", Text("Под стихом")), ("tag", Text("Меткой после стиха"))], selection: $commentView)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
                 } header: {
                     Text("Комментарии в тексте")
                 }

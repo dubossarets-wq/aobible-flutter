@@ -54,11 +54,27 @@ struct ProportionalRow: Layout {
 }
 
 /// Переключатель в одну строку на всю ширину: общая стеклянная плашка с тонкими разделителями (как «перевод | книга»
-/// в шапке Библии), выбранный пункт — капсула акцента, которая переезжает на новое место
+/// в шапке Библии), выбранный пункт — стеклянная капсула акцента, которая переезжает на новое место. Можно нажать
+/// на пункт или провести пальцем по плашке: капсула следует за пальцем (как в нижнем меню), пункты меняются на ходу
 struct CapsuleSwitcher<T: Hashable>: View {
     let options: [(value: T, title: Text)]
     @Binding var selection: T
     @Namespace private var ns
+    @State private var frames: [Int: CGRect] = [:]
+    @State private var dragging = false
+
+    private func pick(_ i: Int) {
+        guard options.indices.contains(i), options[i].value != selection else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.snappy(duration: 0.25)) { selection = options[i].value }
+    }
+
+    /// Пункт под пальцем (за краями плашки — крайний)
+    private func index(at x: CGFloat) -> Int? {
+        guard !frames.isEmpty else { return nil }
+        if let hit = frames.first(where: { $0.value.minX <= x && x <= $0.value.maxX }) { return hit.key }
+        return x < (frames.values.map(\.minX).min() ?? 0) ? frames.keys.min() : frames.keys.max()
+    }
 
     var body: some View {
         ProportionalRow {
@@ -67,7 +83,7 @@ struct CapsuleSwitcher<T: Hashable>: View {
                 // разделитель справа от пункта — если ни он, ни следующий не выбраны
                 let divider = i < options.count - 1 && !on && options[i + 1].value != selection
                 Button {
-                    withAnimation(.snappy(duration: 0.25)) { selection = o.value }
+                    pick(i)
                 } label: {
                     o.title
                         .font(.subheadline.weight(.semibold))
@@ -78,7 +94,10 @@ struct CapsuleSwitcher<T: Hashable>: View {
                         .frame(maxWidth: .infinity, minHeight: 38)
                         .background {
                             if on {
-                                Capsule().fill(Color.accentColor).matchedGeometryEffect(id: "sel", in: ns)
+                                Color.clear
+                                    .glassEffect(.regular.tint(Color.accentColor).interactive(), in: Capsule())
+                                    .scaleEffect(dragging ? 1.07 : 1)
+                                    .matchedGeometryEffect(id: "sel", in: ns)
                             }
                         }
                         .overlay(alignment: .trailing) {
@@ -89,9 +108,19 @@ struct CapsuleSwitcher<T: Hashable>: View {
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("capsuleSwitcher")) } action: { frames[i] = $0 }
             }
         }
         .padding(3)
+        .coordinateSpace(.named("capsuleSwitcher"))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 8)
+                .onChanged { v in
+                    if !dragging { withAnimation(.snappy(duration: 0.2)) { dragging = true } }
+                    if let i = index(at: v.location.x) { pick(i) }
+                }
+                .onEnded { _ in withAnimation(.snappy(duration: 0.25)) { dragging = false } }
+        )
         .glassEffect(.regular, in: Capsule())
     }
 }

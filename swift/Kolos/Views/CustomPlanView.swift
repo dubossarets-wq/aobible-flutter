@@ -125,11 +125,7 @@ struct CustomPlanView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Picker("Режим", selection: $mode) {
-                    Text("Последовательно").tag("seq")
-                    Text("Параллельно").tag("par")
-                }
-                .pickerStyle(.segmented)
+                CapsuleSwitcher(options: [("seq", Text("Последовательно")), ("par", Text("Параллельно"))], selection: $mode)
                 Text(par ? "Каждый день — немного из разных частей Библии" : "Читаете книги по порядку, понемногу каждый день")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -239,11 +235,7 @@ struct CustomPlanView: View {
     // MARK: параллельно
 
     @ViewBuilder private var parallelBody: some View {
-        Picker("Режим", selection: $parMode) {
-            Text("Глав в день").tag("perday")
-            Text("За срок").tag("period")
-        }
-        .pickerStyle(.segmented)
+        CapsuleSwitcher(options: [("perday", Text("Глав в день")), ("period", Text("За срок"))], selection: $parMode)
         VStack(alignment: .leading, spacing: 8) {
             caption(period ? "Разделы" : "Разделы и глав в день")
             VStack(spacing: 8) {

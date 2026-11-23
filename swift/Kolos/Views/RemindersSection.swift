@@ -268,13 +268,12 @@ struct ReminderEditor: View {
                 }
 
                 Section {
-                    Picker("Вид", selection: Binding(get: { item.isAlarm }, set: { item.alarm = $0 ? true : nil })) {
-                        Text("Напоминание").tag(false)
-                        Text("Будильник").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                    CapsuleSwitcher(
+                        options: [(false, Text("Напоминание")), (true, Text("Будильник"))],
+                        selection: Binding(get: { item.isAlarm }, set: { item.alarm = $0 ? true : nil })
+                    )
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 } footer: {
                     Text(item.isAlarm
                          ? "Звонит, как будильник «Часов», даже в беззвучном режиме и в «Фокусе»."
@@ -292,13 +291,9 @@ struct ReminderEditor: View {
 
                 // переключатель — отдельно над карточкой (внутри карточки он срезал её верхние углы)
                 Section {
-                    Picker("Когда", selection: $mode.animation()) {
-                        Text("Дни недели").tag(0)
-                        Text("Календарь").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                    CapsuleSwitcher(options: [(0, Text("Дни недели")), (1, Text("Календарь"))], selection: $mode.animation())
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 } header: {
                     Text("Когда напоминать")
                 }

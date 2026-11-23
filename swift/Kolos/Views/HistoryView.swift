@@ -125,14 +125,12 @@ private struct HistoryList: View {
         List {
             // переключатель — сам по себе, без карточки; день или месяц — своей карточкой под ним
             Section {
-                Picker("Показать", selection: $mode) {
-                    Text("Всё").tag(Mode.all)
-                    Text("День").tag(Mode.day)
-                    Text("Месяц").tag(Mode.month)
-                }
-                .pickerStyle(.segmented)
+                CapsuleSwitcher(
+                    options: [(Mode.all, Text("Всё")), (Mode.day, Text("День")), (Mode.month, Text("Месяц"))],
+                    selection: $mode
+                )
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 .listRowSeparator(.hidden)
             }
             if mode != .all {

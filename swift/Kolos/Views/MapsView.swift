@@ -13,11 +13,7 @@ struct MapsView: View {
     var body: some View {
         List {
             Section {
-                Picker("Что показывать", selection: $kind) {
-                    Text("Места").tag(0)
-                    Text("Карты").tag(1)
-                }
-                .pickerStyle(.segmented)
+                CapsuleSwitcher(options: [(0, Text("Места")), (1, Text("Карты"))], selection: $kind)
                 // переключатель лежит прямо на сером фоне, без белого блока вокруг
                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 .listRowBackground(Color.clear)
@@ -134,11 +130,8 @@ struct PlaceDetail: View {
                 .mapStyle(satellite ? .hybrid : .standard)
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
-                Picker("Карта", selection: $satellite) {
-                    Text("Обычная карта").tag(false)
-                    Text("Спутник").tag(true)
-                }
-                .pickerStyle(.segmented)
+                CapsuleSwitcher(options: [(false, Text("Обычная карта")), (true, Text("Спутник"))], selection: $satellite)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 Link("Спутник Google", destination: URL(string: "https://www.google.com/maps/@\(place.lat),\(place.lng),2000m/data=!3m1!1e3")!)
             }
             Section {
