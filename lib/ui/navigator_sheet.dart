@@ -2,6 +2,8 @@
 // («кор», «1 ин») — список сразу сужается; недавние книги, Ветхий / Новый Завет / Апокрифы (свайп по окну тоже
 // переключает), разделы с цветной точкой и плитками «сокращение + название», затем главы и стихи.
 // Шаги сменяют друг друга сдвигом: вперёд — справа, назад — слева.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +18,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import 'kit.dart';
 import 'scoped_search.dart';
+import '../features/study/study_data.dart' show fmtRef;
 import 'ios_style.dart';
 
 Future<void> openNavigator(BuildContext context, int pane) => showAobSheet(context, builder: (_) => NavigatorSheet(pane: pane), scripture: true);
@@ -111,12 +114,16 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     _pos = ValueNotifier(groups.indexOf(_tab).clamp(0, 99).toDouble());
     _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 260))
       ..addListener(() => _pos.value = _animFrom + (_animTo - _animFrom) * Curves.easeOutCubic.transform(_anim.value));
-    _input.addListener(() => setState(() => _err = ''));
+    _input.addListener(() {
+      setState(() => _err = '');
+      _scheduleText();
+    });
     _focus.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
+    _textTimer?.cancel();
     _input.dispose();
     _focus.dispose();
     _listCtl.dispose();
@@ -227,6 +234,47 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
     if (v < -250) i = _dragBase + 1;
     if (v > 250) i = _dragBase - 1;
     _settle(i.clamp(0, _groups().length - 1));
+  }
+
+  // --- Поиск по тексту: слово, которого нет среди книг («слово стало»), ищется в тексте открытого перевода ---
+
+  List<SearchHit> _tHits = const [];
+  List<SearchSuggestion> _tNear = const [];
+  String _tDone = ''; // для какого запроса готовы результаты
+  int _tGen = 0;
+  Timer? _textTimer;
+
+  void _scheduleText() {
+    _textTimer?.cancel();
+    final q = _input.text.trim();
+    final gen = ++_tGen;
+    // только когда запрос похож на слово и книги с таким названием нет
+    if (q.length < 2 || !_isBookQuery(q) || _match(_books(), q).isNotEmpty || ModuleStore.instance.get(_moduleId) == null) {
+      if (_tHits.isNotEmpty || _tNear.isNotEmpty || _tDone.isNotEmpty) {
+        setState(() {
+          _tHits = const [];
+          _tNear = const [];
+          _tDone = '';
+        });
+      }
+      return;
+    }
+    _textTimer = Timer(const Duration(milliseconds: 250), () async {
+      List<SearchHit> hits;
+      var near = const <SearchSuggestion>[];
+      try {
+        hits = await searchText(_moduleId, q);
+        if (hits.isEmpty) near = await suggestSearch([(_moduleId, null)], q);
+      } catch (_) {
+        hits = const [];
+      }
+      if (!mounted || gen != _tGen) return;
+      setState(() {
+        _tHits = hits;
+        _tNear = near;
+        _tDone = q;
+      });
+    });
   }
 
   List<_Book> _match(List<_Book> books, String q) {
@@ -485,9 +533,30 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
             ),
           ),
         ),
-      if (bookMode && matches.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
+      // книги такой нет — стихи, где есть эти слова
+      if (bookMode && matches.isEmpty && _tDone != q.trim())
+        Padding(padding: const EdgeInsets.only(top: 18), child: Center(child: Spinner(size: 22, color: muted)))
+      else if (bookMode && matches.isEmpty && _tHits.isNotEmpty) ..._textResults(pal, muted, fill),
+      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
+      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty && _tNear.isNotEmpty) ...[
+        Padding(padding: const EdgeInsets.only(top: 16, bottom: 4), child: Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
+        for (final s in _tNear)
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _input.value = TextEditingValue(text: s.query, selection: TextSelection.collapsed(offset: s.query.length)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+              child: Row(children: [
+                AIcon(ico(LucideIcons.search), size: 16, color: muted),
+                const SizedBox(width: 10),
+                Expanded(child: Text(s.query, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: pal.accent))),
+                Text('${s.count}', style: TextStyle(fontSize: 14, color: muted)),
+              ]),
+            ),
+          ),
+      ],
       // слово с опечаткой: близкие по написанию книги
-      if (bookMode && matches.isEmpty && _near(books, q).isNotEmpty) ...[
+      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty && _near(books, q).isNotEmpty) ...[
         Padding(padding: const EdgeInsets.only(top: 16, bottom: 8), child: Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
         _grid(pal, fill, _near(books, q), at),
       ],
@@ -556,6 +625,42 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           SliverToBoxAdapter(child: SizedBox(height: bottomPad)),
       ],
     );
+  }
+
+  /// Стихи с этими словами: нажатие открывает стих
+  List<Widget> _textResults(Palette pal, Color muted, Color fill) {
+    final re = QueryMatcher(_tDone).highlight;
+    final style = TextStyle(fontSize: 16, height: 1.5, color: pal.text);
+    TextSpan hl(String text) {
+      if (re == null) return TextSpan(text: text);
+      final out = <TextSpan>[];
+      var pos = 0;
+      for (final m in re.allMatches(text)) {
+        if (m.end == m.start) break;
+        if (m.start > pos) out.add(TextSpan(text: text.substring(pos, m.start)));
+        out.add(TextSpan(text: m.group(0), style: TextStyle(backgroundColor: pal.hl)));
+        pos = m.end;
+      }
+      if (pos < text.length) out.add(TextSpan(text: text.substring(pos)));
+      return TextSpan(children: out);
+    }
+
+    return [
+      Padding(padding: const EdgeInsets.only(top: 16, bottom: 4), child: Text(t('Найдено: {n}', {'n': '${_tHits.length}'}), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
+      for (final h in _tHits.take(50))
+        InkWell(
+          onTap: () => _go(h.ref),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(fmtRef(h.ref), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: pal.accent)),
+              const SizedBox(height: 3),
+              Text.rich(hl(h.snippet), style: style),
+            ]),
+          ),
+        ),
+    ];
   }
 
   Widget _grid(Palette pal, Color fill, List<_Book> list, VerseRef at) => LayoutBuilder(builder: (context, c) {

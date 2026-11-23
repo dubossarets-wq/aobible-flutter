@@ -53,6 +53,20 @@ struct SettingsView: View {
                         Text("По стихам").tag("verse")
                     }
                 }
+                // читать параллельно или нет: включить — рядом откроется второе окно с тем же переводом, выключить — останется одно
+                Toggle("Читать параллельно", isOn: Binding(
+                    get: { panes.panes.count > 1 },
+                    set: { on in
+                        if on {
+                            if let last = panes.panes.last, panes.panes.count < panes.paneLimit {
+                                panes.addPane(after: last.id, moduleId: last.moduleId)
+                            }
+                        } else {
+                            for p in panes.panes.dropFirst() { panes.closePane(p.id) }
+                        }
+                    }
+                ))
+                .disabled(panes.paneLimit < 2 && panes.panes.count < 2)
                 Toggle("Панели друг над другом", isOn: $panesStacked)
                 Toggle("Синхронная прокрутка", isOn: $syncScroll)
                 Toggle("Прятать меню при прокрутке", isOn: $hideOnScroll)

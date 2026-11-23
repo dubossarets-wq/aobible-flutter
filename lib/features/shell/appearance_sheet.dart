@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/modules.dart';
+import '../../core/panes.dart' show panesProvider;
 import '../../core/settings.dart';
 import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
@@ -776,6 +777,8 @@ class _AppearanceSheetState extends ConsumerState<AppearanceSheet> {
 
   List<Widget> _ui(Settings s) => [
         Card2(title: t('В тексте'), children: [
+          // читать параллельно или нет: включить — рядом откроется вторая панель с тем же переводом, выключить — останется одна
+          SwitchField(bold: true, label: t('Читать параллельно'), value: ref.watch(panesProvider).length > 1, onChanged: (_) => ref.read(panesProvider.notifier).toggleSplit()),
           SwitchField(bold: true, label: t('Кнопки параллельных мест'), hint: t('Число после стиха — сколько у него параллельных мест'), value: s.get<bool>('showXrefButtons'), onChanged: (v) => set({'showXrefButtons': v})),
           SwitchField(bold: true, label: t('Значки иллюстраций у стихов'), value: s.get<bool>('showIllustrations'), onChanged: (v) => set({'showIllustrations': v})),
           SwitchField(bold: true, label: t('Прятать меню при прокрутке'), hint: t('Вниз — меню уходит, вверх — возвращается'), value: s.j['hideOnScroll'] != false, onChanged: (v) => set({'hideOnScroll': v})),

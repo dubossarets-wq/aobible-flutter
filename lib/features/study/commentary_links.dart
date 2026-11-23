@@ -46,7 +46,8 @@ int? romanToInt(String s) {
 
 int? _num(String s) => int.tryParse(s) ?? romanToInt(s);
 
-/// Текст толкования → куски; у кусков-ссылок есть действие
+/// Текст толкования → куски; у кусков-ссылок есть действие. Место ведёт целиком («Иез XVI:8» → ссылка «Иез 16:8»:
+/// римские главы заменены арабскими); у номеров Стронга и слов оригинала текст прежний
 List<(String, VoidCallback?)> commentaryParts(
   String s, {
   required String book,
@@ -55,18 +56,27 @@ List<(String, VoidCallback?)> commentaryParts(
   required void Function(String strong) onStrong,
   required void Function(String word) onWord,
 }) {
-  final spans = <({int a, int b, VoidCallback f})>[];
+  // что показываем вместо куска исходного текста и что при нажатии
+  final spans = <({int a, int b, String text, VoidCallback f})>[];
   bool free(int a, int b) => !spans.any((x) => x.a < b && a < x.b);
-  void put(int a, int b, VoidCallback f) {
-    if (free(a, b)) spans.add((a: a, b: b, f: f));
+  void put(int a, int b, String text, VoidCallback f) {
+    if (free(a, b)) spans.add((a: a, b: b, text: text, f: f));
   }
 
-  /// Стихи «25-26», «6, 9» — у каждой части своя ссылка
-  void putVerses(int listStart, String list, String bk, int ch) {
+  /// Место целиком: от начала («Иез 16:») до первого стиха — одна ссылка; «25-26», «6, 9» — у остальных частей своя
+  void putPlace(int start, String label, int listStart, String list, String bk, int ch) {
+    var first = true;
     for (final m in _partRe.allMatches(list)) {
       final v = int.parse(m.group(1)!);
       final e = m.group(2) == null ? null : int.parse(m.group(2)!);
-      put(listStart + m.start, listStart + m.end, () => onVerse(VerseRef(bk, ch, v), e));
+      final part = m.group(0)!;
+      void open() => onVerse(VerseRef(bk, ch, v), e);
+      if (first) {
+        put(start, listStart + m.end, label + part, open);
+        first = false;
+      } else {
+        put(listStart + m.start, listStart + m.end, part, open);
+      }
     }
   }
 
@@ -75,39 +85,51 @@ List<(String, VoidCallback?)> commentaryParts(
     final first = m.group(1)!;
     final second = m.group(2);
     // «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
-    final b = (second == null ? null : Books.instance.findBookId(first + second)) ??
-        (second == null ? null : Books.instance.findBookId(second)) ??
-        Books.instance.findBookId(first);
+    String? b;
+    var from = m.start;
+    if (second != null && Books.instance.findBookId(first + second) != null) {
+      b = Books.instance.findBookId(first + second);
+    } else if (second != null && Books.instance.findBookId(second) != null) {
+      b = Books.instance.findBookId(second);
+      from = m.start + first.length + 1;
+    } else {
+      b = Books.instance.findBookId(first);
+    }
     final c = _num(m.group(3)!);
     if (b == null || c == null || c < 1) continue;
     final list = m.group(4)!;
-    putVerses(m.end - list.length, list, b, c);
+    final listStart = m.end - list.length;
+    final sep = RegExp(r'\s*[:.]\s*$').firstMatch(s.substring(0, listStart));
+    final chapStart = (sep?.start ?? listStart) - m.group(3)!.length;
+    final name = s.substring(from, chapStart).trim();
+    putPlace(from, '$name $c:', listStart, list, b, c);
   }
-  // 2. Глава римскими без книги — книга толкования
+  // 2. Глава римскими без книги — книга толкования («IV:10» → «4:10»)
   for (final m in _chapOnlyRe.allMatches(s)) {
     final c = romanToInt(m.group(1)!);
     if (c == null || !free(m.start, m.end)) continue;
     final list = m.group(2)!;
-    putVerses(m.end - list.length, list, book, c);
+    putPlace(m.start, '$c:', m.end - list.length, list, book, c);
   }
   // 3. «ст. 13» — стих этой же главы
   for (final m in _verseOnlyRe.allMatches(s)) {
     final list = m.group(1)!;
-    putVerses(m.end - list.length, list, book, chapter);
+    final listStart = m.end - list.length;
+    putPlace(m.start, s.substring(m.start, listStart), listStart, list, book, chapter);
   }
   // 4. Номера Стронга
   for (final m in _strongRe.allMatches(s)) {
     final n = m.group(0)!;
-    put(m.start, m.end, () => onStrong(n));
+    put(m.start, m.end, n, () => onStrong(n));
   }
   // 5. Слова на греческом и иврите
   for (final m in _originalRe.allMatches(s)) {
     final w = m.group(0)!;
-    put(m.start, m.end, () => onWord(w));
+    put(m.start, m.end, w, () => onWord(w));
   }
   for (final m in _translitRe.allMatches(s)) {
     final w = m.group(1)!;
-    put(m.end - w.length, m.end, () => onWord(w));
+    put(m.end - w.length, m.end, w, () => onWord(w));
   }
 
   spans.sort((x, y) => x.a.compareTo(y.a));
@@ -115,7 +137,7 @@ List<(String, VoidCallback?)> commentaryParts(
   var at = 0;
   for (final sp in spans) {
     if (sp.a > at) out.add((s.substring(at, sp.a), null));
-    out.add((s.substring(sp.a, sp.b), sp.f));
+    out.add((sp.text, sp.f));
     at = sp.b;
   }
   if (at < s.length) out.add((s.substring(at), null));

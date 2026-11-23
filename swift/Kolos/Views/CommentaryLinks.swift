@@ -85,61 +85,99 @@ enum CommentaryLinks {
     /// Слово латиницей после «евр.» / «греч.» — транслитерация слова оригинала
     private static let translitRe = try! NSRegularExpression(pattern: #"(?:евр|греч|арам)\.\s*([A-Za-z][A-Za-z'’ʼ]{1,})"#)
 
+    /// Текст толкования со ссылками. Место ведёт целиком («Иез XVI:8» → ссылка «Иез 16:8»: римские главы заменены
+    /// арабскими); у номеров Стронга и слов оригинала текст прежний
     @MainActor
     static func attributed(_ s: String, book: String, chapter: Int) -> AttributedString {
-        var attr = AttributedString(s)
         let ns = s as NSString
         let all = NSRange(location: 0, length: ns.length)
-        var taken: [NSRange] = []
+        // что показываем вместо куска исходного текста и куда он ведёт
+        var spans: [(r: NSRange, text: String, link: CommLink)] = []
 
-        func free(_ r: NSRange) -> Bool { !taken.contains { NSIntersectionRange($0, r).length > 0 } }
-
-        func put(_ r: NSRange, _ link: CommLink) {
-            guard let u = link.url, free(r), let rr = Range(r, in: attr) else { return }
-            attr[rr].link = u
-            taken.append(r)
+        func free(_ r: NSRange) -> Bool { !spans.contains { NSIntersectionRange($0.r, r).length > 0 } }
+        func put(_ r: NSRange, _ text: String, _ link: CommLink) {
+            if free(r) { spans.append((r, text, link)) }
         }
 
-        /// Стихи «25-26», «6, 9» — у каждой части своя ссылка
-        func putVerses(_ list: NSRange, book b: String, chapter c: Int) {
+        /// Место целиком: от начала («Иез 16:») до первого стиха — одна ссылка; «25-26», «6, 9» — у остальных частей своя
+        func putPlace(from start: Int, label: String, list: NSRange, book b: String, chapter c: Int) {
+            var first = true
             for m in partRe.matches(in: s, range: list) {
                 guard let v = Int(ns.substring(with: m.range(at: 1))) else { continue }
                 let e = m.range(at: 2).location == NSNotFound ? nil : Int(ns.substring(with: m.range(at: 2)))
-                put(m.range, .verse(book: b, chapter: c, verse: v, end: e))
+                let part = ns.substring(with: m.range)
+                let link = CommLink.verse(book: b, chapter: c, verse: v, end: e)
+                if first {
+                    put(NSRange(location: start, length: m.range.location + m.range.length - start), label + part, link)
+                    first = false
+                } else {
+                    put(m.range, part, link)
+                }
             }
         }
 
         // 1. С названием книги
         for m in bookRe.matches(in: s, range: all) {
             let first = ns.substring(with: m.range(at: 1))
-            let second = m.range(at: 2).location == NSNotFound ? nil : ns.substring(with: m.range(at: 2))
+            let hasSecond = m.range(at: 2).location != NSNotFound
+            let second = hasSecond ? ns.substring(with: m.range(at: 2)) : nil
             // «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
-            let b = second.flatMap { RefParser.findBook(first + $0) } ?? second.flatMap { RefParser.findBook($0) } ?? RefParser.findBook(first)
-            guard let b, let c = number(ns.substring(with: m.range(at: 3))), c >= 1 else { continue }
-            putVerses(m.range(at: 4), book: b, chapter: c)
+            var b: String?
+            var from = m.range(at: 1).location
+            if let second, let x = RefParser.findBook(first + second) {
+                b = x
+            } else if let second, let x = RefParser.findBook(second) {
+                b = x
+                from = m.range(at: 2).location + 1
+            } else {
+                b = RefParser.findBook(first)
+            }
+            let chapRange = m.range(at: 3)
+            guard let b, let c = number(ns.substring(with: chapRange)), c >= 1 else { continue }
+            let name = ns.substring(with: NSRange(location: from, length: chapRange.location - from)).trimmingCharacters(in: .whitespaces)
+            putPlace(from: from, label: "\(name) \(c):", list: m.range(at: 4), book: b, chapter: c)
         }
-        // 2. Глава римскими без книги — книга толкования
+        // 2. Глава римскими без книги — книга толкования («IV:10» → «4:10»)
         for m in chapOnlyRe.matches(in: s, range: all) {
             guard let c = roman(ns.substring(with: m.range(at: 1))) else { continue }
             if !free(m.range) { continue }
-            putVerses(m.range(at: 2), book: book, chapter: c)
+            putPlace(from: m.range.location, label: "\(c):", list: m.range(at: 2), book: book, chapter: c)
         }
         // 3. «ст. 13» — стих этой же главы
         for m in verseOnlyRe.matches(in: s, range: all) {
-            putVerses(m.range(at: 1), book: book, chapter: chapter)
+            let list = m.range(at: 1)
+            let label = ns.substring(with: NSRange(location: m.range.location, length: list.location - m.range.location))
+            putPlace(from: m.range.location, label: label, list: list, book: book, chapter: chapter)
         }
         // 4. Номера Стронга
         for m in strongRe.matches(in: s, range: all) {
-            put(m.range, .strong(Lexicon.strongKey(ns.substring(with: m.range))))
+            let t = ns.substring(with: m.range)
+            put(m.range, t, .strong(Lexicon.strongKey(t)))
         }
         // 5. Слова на греческом и иврите
         for m in originalRe.matches(in: s, range: all) {
-            put(m.range, .word(ns.substring(with: m.range)))
+            let t = ns.substring(with: m.range)
+            put(m.range, t, .word(t))
         }
         for m in translitRe.matches(in: s, range: all) {
-            put(m.range(at: 1), .word(ns.substring(with: m.range(at: 1))))
+            let t = ns.substring(with: m.range(at: 1))
+            put(m.range(at: 1), t, .word(t))
         }
-        return attr
+
+        // сборка: нетронутый текст — как есть, ссылки — с новым текстом
+        var out = AttributedString()
+        var at = 0
+        for sp in spans.sorted(by: { $0.r.location < $1.r.location }) {
+            if sp.r.location > at {
+                out += AttributedString(ns.substring(with: NSRange(location: at, length: sp.r.location - at)))
+            }
+            var piece = AttributedString(sp.text)
+            piece.link = sp.link.url
+            out += piece
+            at = sp.r.location + sp.r.length
+        }
+        if at < ns.length { out += AttributedString(ns.substring(from: at)) }
+        return out
     }
 }
 

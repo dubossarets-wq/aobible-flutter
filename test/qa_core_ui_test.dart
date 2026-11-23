@@ -164,7 +164,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'абракадабра');
       await tester.testTextInput.receiveAction(TextInputAction.go);
-      await tester.pumpAndSettle();
+      // слово без такой книги ищется в тексте (крутится индикатор) — ждать «покоя» нельзя
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Не понял ссылку. Пример: Ин 3:16'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Ин 3:16');
       await tester.testTextInput.receiveAction(TextInputAction.go);
