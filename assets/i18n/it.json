@@ -1490,5 +1490,7 @@
  "Слово или номер Стронга": "Word or Strong's number",
  "Введите слово или номер Стронга, например G26 или H430.": "Enter a word or a Strong's number, for example G26 or H430.",
  "Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».": "No dictionaries yet. Install them: More → Module library → Dictionaries.",
- "Слова в заданном порядке": "Parole nell’ordine indicato"
+ "Слова в заданном порядке": "Parole nell’ordine indicato",
+ "Такого стиха в этом переводе нет": "Questo versetto non è presente in questa traduzione",
+ "Толкования": "Commenti"
 }

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../ui/kit.dart' show LucideIcons, Spinner;
+import 'share_image.dart';
 import 'study_data.dart';
 import '../../ui/ios_style.dart';
 
@@ -42,6 +43,18 @@ class _ViewerState extends State<_Viewer> {
 
   void _go(int d) => setState(() => _i = (_i + d).clamp(0, widget.items.length - 1));
 
+  /// Подпись для отправки: место, название, автор, год, лицензия и страница файла
+  String _caption(Map<String, dynamic> it) {
+    final by = [it['author'], it['year']].where((x) => x != null && x.toString().isNotEmpty).join(', ') + (it['license'] != null && '${it['license']}'.isNotEmpty ? ' · ${it['license']}' : '');
+    final src = it['src'] as String?;
+    return [
+      fmtRef(widget.at),
+      if (it['title'] != null && '${it['title']}'.isNotEmpty) '${it['title']}',
+      if (by.isNotEmpty) by,
+      if (src != null && src.startsWith('http')) src,
+    ].join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = widget.items;
@@ -62,6 +75,8 @@ class _ViewerState extends State<_Viewer> {
             child: Row(children: [
               Expanded(child: Text(fmtRef(widget.at), style: const TextStyle(fontWeight: FontWeight.w700))),
               if (items.length > 1) Text(t('{n} из {total}', {'n': '${_i + 1}', 'total': '${items.length}'}), style: const TextStyle(fontSize: 13.6, color: Color(0xBFF2EFE9))),
+              const SizedBox(width: 6),
+              _RoundBtn(icon: LucideIcons.share2, label: t('Поделиться'), onTap: () => shareRemoteImage(item['img'] as String, name: fmtRef(widget.at), text: _caption(item))),
               const SizedBox(width: 6),
               _RoundBtn(icon: LucideIcons.x, label: t('Закрыть'), onTap: () => Navigator.pop(context)),
             ]),

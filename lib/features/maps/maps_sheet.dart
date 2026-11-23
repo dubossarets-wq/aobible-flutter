@@ -14,6 +14,7 @@ import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import '../study/share_image.dart';
 import 'map_screen.dart';
 import 'places_data.dart';
 import '../../ui/ios_style.dart';
@@ -335,6 +336,23 @@ class _Viewer extends StatelessWidget {
                     cursor: SystemMouseCursors.zoomIn,
                     child: Stack(fit: StackFit.expand, children: [
                       Image.memory(s.data!, fit: BoxFit.contain),
+                      // «Поделиться»: карта уходит картинкой с названием и описанием
+                      Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => shareImageBytes(s.data!, name: m.title, ext: imageExtOf(m.image), text: [m.title, if (m.description.isNotEmpty) m.description].join('\n')),
+                          child: Tooltip(
+                            message: t('Поделиться'),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(color: pal.panel.withValues(alpha: 0.9), shape: BoxShape.circle, border: Border.all(color: pal.line)),
+                              child: AIcon(ico(LucideIcons.share2), size: 16, color: pal.text),
+                            ),
+                          ),
+                        ),
+                      ),
                       Positioned(
                         right: 8,
                         bottom: 8,

@@ -7,7 +7,7 @@ import '../../core/i18n.dart';
 import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
-import 'dictionary_sheet.dart';
+import 'commentary_links.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 
@@ -60,7 +60,7 @@ class _CommentarySheetState extends ConsumerState<CommentarySheet> {
         for (final it in cur.items) {
           children.add(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             H4('${fmtOsis(it.ref, full: true)}${it.title.isNotEmpty ? ' · ${it.title}' : ''}'),
-            LinkedText(text: it.text, onOpen: (r) => openRefInOther(context, ref, widget.pane, r), style: TextStyle(fontSize: fs, height: 1.6)),
+            CommentaryText(text: it.text, pane: widget.pane, at: widget.at, book: widget.at.book, chapter: widget.at.chapter, style: TextStyle(fontSize: fs, height: 1.6)),
           ]));
         }
         final m = cur.module;

@@ -9,12 +9,14 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
+import '../study/share_image.dart';
 import 'places_data.dart';
 import 'tile_map.dart';
 import '../../ui/ios_style.dart';
@@ -210,6 +212,16 @@ class _MapPaneViewState extends ConsumerState<MapPaneView> {
                     setState(() => _sat = !_sat);
                     _applyLayers();
                   },
+          ),
+          _BarIcon(
+            tooltip: t('Поделиться'),
+            icon: LucideIcons.share2,
+            size: 21,
+            color: fg,
+            onTap: () => SharePlus.instance.share(ShareParams(
+              text: placeShareText(name: place.name, modern: place.modern, lat: place.lat, lng: place.lng),
+              title: place.name,
+            )),
           ),
           _BarIcon(tooltip: t('Закрыть карту'), icon: LucideIcons.x, size: 22, color: fg, onTap: widget.onClose),
         ]),
