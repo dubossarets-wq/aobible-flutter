@@ -497,7 +497,7 @@ struct InterlinearSheet: View {
     }
 
     private var switcher: some View {
-        CapsuleSwitcher(options: sources.map { (value: $0, title: Text($0.title)) }, selection: Binding(get: { source }, set: { select($0) }))
+        CapsuleSwitcher(options: sources.map { (value: $0, title: String(localized: String.LocalizationValue($0.title))) }, selection: Binding(get: { source }, set: { select($0) }))
     }
 
     /// Высота текста стиха — чтобы длинный стих прокручивался внутри карточки, а короткий не оставлял пустоты
