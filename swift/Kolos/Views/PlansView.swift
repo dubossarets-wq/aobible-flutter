@@ -7,6 +7,10 @@ struct PlansView: View {
     @State private var catalogFailed = false
     @State private var busy: String?
     @State private var message: String?
+    /// Видимая высота между шапкой и нижним меню и высота карточки статистики: по ним «Стих дня» растягивается так,
+    /// чтобы на первом экране помещались обе карточки — на любом размере экрана
+    @State private var visibleH: CGFloat = 0
+    @State private var statsH: CGFloat = 0
 
     /// Открыт внутри чужой навигации («Ещё»): без своей NavigationStack
     var embedded = false
@@ -15,16 +19,29 @@ struct PlansView: View {
         if embedded { content } else { NavigationStack { content } }
     }
 
+    /// Поля строки статистики сверху и снизу
+    private static let statsInset: CGFloat = 8
+
+    /// «Стих дня» занимает всё, что не заняла статистика: обе карточки — ровно на высоту экрана между шапкой и меню
+    /// (промежуток между ними — 14, сверху запас 8); пока размеры не измерены — обычная высота
+    private var verseHeight: CGFloat? {
+        guard visibleH > 0, statsH > 0 else { return nil }
+        return max(260, visibleH - statsH - Self.statsInset * 2 - 14 - 8)
+    }
+
     private var content: some View {
         Group {
             List {
                 Section {
-                    VerseOfDayCard()
+                    VerseOfDayCard(height: verseHeight)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
+                .listSectionSpacing(14)
                 Section {
                     StatsCard(stats: PlanLogic.stats(plans.log))
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { statsH = $0 }
+                        .listRowInsets(EdgeInsets(top: Self.statsInset, leading: 16, bottom: Self.statsInset, trailing: 16))
                 }
                 RemindersSection(flash: flash)
                 ForEach(plans.plans) { p in
@@ -63,6 +80,9 @@ struct PlansView: View {
                 }
             }
             .navigationTitle("Планы чтения")
+            .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height - $0.contentInsets.top - $0.contentInsets.bottom } action: { _, h in
+                if abs(h - visibleH) > 0.5 { visibleH = h }
+            }
             .task { await loadCatalog() }
             .overlay(alignment: .top) {
                 if let m = message {
@@ -133,6 +153,8 @@ struct VerseOfDayCard: View {
     @AppStorage("interfaceLanguage") private var lang = "ru"
     @State private var verse: DayVerse?
     @State private var photo: URL?
+    /// Высота карточки (подбирается по экрану, см. PlansView); nil — обычная
+    var height: CGFloat? = nil
 
     private var label: String {
         guard let v = verse else { return "" }
@@ -159,6 +181,7 @@ struct VerseOfDayCard: View {
                 if let v = verse {
                     Text(v.text).bidi(v.text)
                         .font(.system(size: 24, weight: .semibold, design: .serif))
+                        .minimumScaleFactor(0.6)
                         .foregroundStyle(.white)
                         .shadow(radius: 4)
                     Rectangle().fill(.white.opacity(0.7)).frame(width: 40, height: 2)
@@ -172,7 +195,9 @@ struct VerseOfDayCard: View {
             }
             .padding(20)
         }
-        .frame(maxWidth: .infinity, minHeight: 240)
+        .frame(maxWidth: .infinity, minHeight: height == nil ? 240 : nil)
+        .frame(height: height)
+        .clipped()
         // «Отправить» — сверху справа, с ровными отступами от краёв карточки
         .overlay(alignment: .topTrailing) {
             if let v = verse {
@@ -343,7 +368,8 @@ struct StatsCard: View {
                         Text(d.n > 0 && isToday ? "\(d.n)" : " ")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(Color.accentColor)
-                        Capsule()
+                        // скругление у всех столбиков одно, как у серого (пустого) дня: высокий столбик не превращается в шарик
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(d.n == 0 ? AnyShapeStyle(Color.secondary.opacity(0.2))
                                   : isToday ? AnyShapeStyle(LinearGradient(colors: [Color.accentColor, Color.accentColor.opacity(0.65)], startPoint: .top, endPoint: .bottom))
                                   : AnyShapeStyle(Color.accentColor.opacity(0.4)))

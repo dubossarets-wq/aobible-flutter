@@ -132,4 +132,89 @@ enum Translit {
         }
         return out
     }
+    // MARK: - Латинский
+
+    /// Латинское слово (Вульгата) — русскими буквами по церковному произношению: c перед e/i — «ч», g — «дж», ae/oe — «э»,
+    /// gn — «нь», ti + гласная — «ци», h не читается. Приблизительно, как греческий и еврейский
+    static func latinToRu(_ word: String) -> String {
+        var s = word.lowercased()
+            .replacingOccurrences(of: "æ", with: "ae").replacingOccurrences(of: "œ", with: "oe")
+            .replacingOccurrences(of: "ǽ", with: "ae")
+        s = s.folding(options: .diacriticInsensitive, locale: nil)
+        let ch = Array(s.filter { $0.isLetter })
+        guard !ch.isEmpty else { return "" }
+        let whole = String(ch)
+        if whole == "mihi" { return "мики" }
+        if whole == "nihil" { return "никиль" }
+        let vowels: Set<Character> = ["a", "e", "i", "o", "u", "y"]
+        let ruVowels: Set<Character> = ["а", "е", "и", "о", "у", "э"]
+        // перед этой буквой (или парой ae / oe) c и g читаются мягко
+        func front(_ i: Int) -> Bool {
+            guard i < ch.count else { return false }
+            if ch[i] == "e" || ch[i] == "i" || ch[i] == "y" { return true }
+            return (ch[i] == "a" || ch[i] == "o") && i + 1 < ch.count && ch[i + 1] == "e"
+        }
+        var out = ""
+        var i = 0
+        while i < ch.count {
+            let c = ch[i]
+            let n: Character? = i + 1 < ch.count ? ch[i + 1] : nil
+            let n2: Character? = i + 2 < ch.count ? ch[i + 2] : nil
+            // «е» — после согласной, «э» — в начале слова и после гласной
+            let hard = out.isEmpty || (out.last.map { ruVowels.contains($0) } ?? false)
+            switch c {
+            case "a":
+                if n == "e" { out += hard ? "э" : "е"; i += 2; continue }
+                if n == "u" { out += "ау"; i += 2; continue }
+                out += "а"
+            case "o":
+                if n == "e" { out += hard ? "э" : "е"; i += 2; continue }
+                out += "о"
+            case "e":
+                if n == "u" { out += hard ? "эу" : "еу"; i += 2; continue }
+                out += hard ? "э" : "е"
+            case "i": out += "и"
+            case "u": out += "у"
+            case "y": out += "и"
+            case "j": out += "й"
+            case "b": out += "б"
+            case "d": out += "д"
+            case "f": out += "ф"
+            case "k": out += "к"
+            case "l": out += "л"
+            case "m": out += "м"
+            case "n": out += "н"
+            case "r": out += "р"
+            case "v", "w": out += "в"
+            case "x": out += "кс"
+            case "z": out += "дз"
+            case "h": break
+            case "p":
+                if n == "h" { out += "ф"; i += 2; continue }
+                out += "п"
+            case "t":
+                if n == "h" { out += "т"; i += 2; continue }
+                // ti + гласная — «ци» (но не после s, t, x)
+                if n == "i", let v = n2, vowels.contains(v), !(i > 0 && "stx".contains(ch[i - 1])) { out += "ци"; i += 2; continue }
+                out += "т"
+            case "c":
+                if n == "h" { out += "к"; i += 2; continue }
+                if n == "c", front(i + 2) { out += "тч"; i += 2; continue }
+                out += front(i + 1) ? "ч" : "к"
+            case "g":
+                if n == "n" { out += "нь"; i += 2; continue }
+                if n == "u", let v = n2, vowels.contains(v), out.last == "н" { out += "гв"; i += 2; continue }
+                out += front(i + 1) ? "дж" : "г"
+            case "q":
+                if n == "u" { out += "кв"; i += 2; continue }
+                out += "к"
+            case "s":
+                if n == "c", front(i + 2) { out += "ш"; i += 2; continue }
+                out += "с"
+            default: break
+            }
+            i += 1
+        }
+        return out
+    }
 }

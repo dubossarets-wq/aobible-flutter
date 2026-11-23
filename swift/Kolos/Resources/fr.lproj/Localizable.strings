@@ -1931,3 +1931,8 @@
 "Возможно, вы искали" = "Vous cherchiez peut-être";
 "Перевод текста" = "Traduction du texte";
 "В режиме «Страницы» доступно только одно окно." = "En mode « Pages », une seule fenêtre est disponible.";
+"Подстрочный перевод Нового Завета А. Винокурова." = "Traduction interlinéaire du Nouveau Testament par A. Vinokourov.";
+"Синодальный перевод; под словами — оригинал, чтение и номер Стронга." = "Traduction synodale ; sous chaque mot : l’original, sa lecture et le numéro de Strong.";
+"Латинская Вульгата; под словами — чтение, значение и начальная форма." = "Vulgate latine ; sous chaque mot : lecture, sens et forme de base.";
+"Книги с таким названием нет." = "Aucun livre de ce nom.";
+"Пунктиром отмечены пропущенные дни." = "Les cercles en pointillés sont les jours manqués.";

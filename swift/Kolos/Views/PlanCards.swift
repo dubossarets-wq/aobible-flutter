@@ -59,7 +59,7 @@ struct PlanCard: View {
                         bigButton("Читать день", icon: "book.fill", fill: Color.accentColor, text: .white) { dayRef = DayRef(id: today) }
                     }
                     if let first = behind.first {
-                        bigButton("Догнать · \(behind.count)", icon: "forward.end.fill", fill: Color.orange.opacity(0.16), text: .orange) { dayRef = DayRef(id: first) }
+                        bigButton("Догнать · \(behind.count)", icon: "forward.end.fill", fill: Color.accentColor.opacity(0.14), text: Color.accentColor) { dayRef = DayRef(id: first) }
                     }
                 }
             }
@@ -178,11 +178,14 @@ struct PlanCard: View {
         }
     }
 
-    /// Семь дней вокруг сегодняшнего: сегодня — закрашен акцентом, прочитан — зелёная галочка, пропущен — оранжевый
+    /// Семь дней вокруг сегодняшнего: сегодня — закрашен акцентом, прочитан — зелёная галочка, пропущен — пустой круг с
+    /// пунктирной обводкой (под лентой — подпись), будущий — светло-серый
     private func strip(today: Int, total: Int) -> some View {
         let start = max(0, min(today - 3, total - 7))
         let days = Array(start..<min(total, start + 7))
-        return HStack(spacing: 0) {
+        let hasMissed = days.contains { $0 < today && !PlanLogic.dayDone(plan, $0) }
+        return VStack(spacing: 8) {
+          HStack(spacing: 0) {
             ForEach(days, id: \.self) { d in
                 let done = PlanLogic.dayDone(plan, d)
                 let missed = d < today && !done
@@ -192,9 +195,13 @@ struct PlanCard: View {
                         Circle().fill(
                             done ? Color.green
                                 : isToday ? Color.accentColor
-                                : missed ? Color.orange.opacity(0.18)
+                                : missed ? Color.clear
                                 : Color.secondary.opacity(0.12)
                         )
+                        // пропущенный день — пустой круг с пунктиром: «здесь ничего не прочитано»
+                        if missed {
+                            Circle().strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                        }
                         if done {
                             Image(systemName: "checkmark").font(.body.weight(.bold)).foregroundStyle(.white)
                         } else {
@@ -202,7 +209,7 @@ struct PlanCard: View {
                                 .font(.body.weight(.semibold))
                                 .monospacedDigit()
                                 .minimumScaleFactor(0.6)
-                                .foregroundStyle(isToday ? Color.white : (missed ? Color.orange : Color.primary.opacity(0.7)))
+                                .foregroundStyle(isToday ? Color.white : (missed ? Color.secondary : Color.primary.opacity(0.7)))
                         }
                     }
                     .frame(width: 42, height: 42)
@@ -211,6 +218,10 @@ struct PlanCard: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("День \(d + 1)")
+            }
+          }
+            if hasMissed {
+                Text("Пунктиром отмечены пропущенные дни.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -323,13 +334,13 @@ struct PlanDetailView: View {
             dayRef = DayRef(id: d)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: done ? "checkmark.circle.fill" : (d == today ? "circle.inset.filled" : "circle"))
-                    .foregroundStyle(done ? Color.green : (d == today ? Color.accentColor : (missed ? Color.orange : Color.secondary)))
+                Image(systemName: done ? "checkmark.circle.fill" : (d == today ? "circle.inset.filled" : (missed ? "circle.dashed" : "circle")))
+                    .foregroundStyle(done ? Color.green : (d == today ? Color.accentColor : Color.secondary))
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text("День \(d + 1)").foregroundStyle(.primary)
                         if d == today { Text("сегодня").font(.caption.weight(.semibold)).foregroundStyle(Color.accentColor) }
-                        if missed { Text("пропущен").font(.caption).foregroundStyle(.orange) }
+                        if missed { Text("пропущен").font(.caption).foregroundStyle(.secondary) }
                     }
                     Text(plan.readings[d].map { PlanLogic.readingLabel($0) }.joined(separator: " · "))
                         .font(.footnote)

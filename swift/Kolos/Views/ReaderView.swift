@@ -1109,7 +1109,7 @@ struct ChapterText: View {
             case .compare(let v):
                 CompareSheet(book: book, chapter: chapter, verses: selected.isEmpty ? [v] : selected.sorted())
             case .interlinear(let v):
-                InterlinearSheet(book: book, chapter: chapter, verse: v)
+                InterlinearSheet(book: book, chapter: chapter, verse: v, moduleId: module.id)
             case .illustrations(let v):
                 IllustrationsSheet(book: book, chapter: chapter, verse: v)
             case .collect:

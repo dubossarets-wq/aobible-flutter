@@ -32,3 +32,28 @@ struct SoonView: View {
         }
     }
 }
+
+/// Переключатель в одну строку на всю ширину: плашки-капсулы поровну, выбранная — цветом акцента.
+/// Вместо системного сегментного переключателя (окно «Подстрочник», выбор области поиска)
+struct CapsuleSwitcher<T: Hashable>: View {
+    let options: [(value: T, title: Text)]
+    @Binding var selection: T
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, o in
+                let on = o.value == selection
+                Button { selection = o.value } label: {
+                    o.title
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(on ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}

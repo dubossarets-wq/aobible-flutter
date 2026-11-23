@@ -146,13 +146,15 @@ struct SearchPage: View {
             List {
                 // где искать — переключатель прямо на сером фоне, вне белого блока с настройками
                 Section {
-                    Picker("Где искать", selection: $scope) {
-                        Text("Вся Библия").tag(SearchScope.all)
-                        Text("ВЗ").tag(SearchScope.ot)
-                        Text("НЗ").tag(SearchScope.nt)
-                        Text(Books.info(currentBook)?.short ?? "Книга").tag(SearchScope.book)
-                    }
-                    .pickerStyle(.segmented)
+                    CapsuleSwitcher(
+                        options: [
+                            (SearchScope.all, Text("Вся Библия")),
+                            (SearchScope.ot, Text("ВЗ")),
+                            (SearchScope.nt, Text("НЗ")),
+                            (SearchScope.book, Text(verbatim: Books.info(currentBook)?.short ?? "Книга")),
+                        ],
+                        selection: $scope
+                    )
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
