@@ -3,6 +3,7 @@
 // получаса — продлевается старая запись, а не появляется новая. Хранится в prefs «readingHistory» — служебный ключ:
 // в файл «Мои данные» и резервные копии не входит (до 3000 записей заняли бы место копий настроек и закладок).
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -85,6 +86,8 @@ class ReadingHistory extends ChangeNotifier {
 
   void _changed() {
     notifyListeners();
+    // в тестах отложенного таймера быть не должно (остаётся «висящим» после теста) — там пишем сразу
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return save();
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 1), save);
   }
