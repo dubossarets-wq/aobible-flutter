@@ -329,11 +329,11 @@ struct InterlinearSheet: View {
             }
         }
 
-        var title: LocalizedStringKey {
+        var title: String {
             switch self {
-            case .vin: return "Винокуров"
-            case .syn: return "Синодальный"
-            case .vulg: return "Вульгата"
+            case .vin: return String(localized: "Винокуров")
+            case .syn: return String(localized: "Синодальный")
+            case .vulg: return String(localized: "Вульгата")
             }
         }
     }
@@ -497,7 +497,7 @@ struct InterlinearSheet: View {
     }
 
     private var switcher: some View {
-        CapsuleSwitcher(options: sources.map { (value: $0, title: String(localized: String.LocalizationValue($0.title))) }, selection: Binding(get: { source }, set: { select($0) }))
+        CapsuleSwitcher(options: sources.map { (value: $0, title: $0.title) }, selection: Binding(get: { source }, set: { select($0) }))
     }
 
     /// Высота текста стиха — чтобы длинный стих прокручивался внутри карточки, а короткий не оставлял пустоты
