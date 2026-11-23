@@ -116,6 +116,69 @@ struct CapsuleSwitcher<T: Hashable>: View {
     }
 }
 
+/// Системный переключатель, чуть выше обычного (44 пт) и с тонкими разделителями между невыбранными пунктами.
+/// Ширину пунктов задаём сами — по длине подписей: так известно, где проводить разделители
+private final class DividedSegmentedControl: UISegmentedControl {
+    static let font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    static let height: CGFloat = 44
+
+    var weights: [CGFloat] = []
+    private var appliedWidth: CGFloat = 0
+    private var lines: [UIView] = []
+
+    override var selectedSegmentIndex: Int {
+        didSet { updateLines() }
+    }
+
+    static func weights(for titles: [String]) -> [CGFloat] {
+        titles.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) + 36 }
+    }
+
+    func resetLayout() { appliedWidth = 0; setNeedsLayout() }
+
+    private func widths(for total: CGFloat) -> [CGFloat] {
+        let sum = max(1, weights.reduce(0, +))
+        var out = weights.map { floor(total * $0 / sum) }
+        if !out.isEmpty { out[out.count - 1] = total - out.dropLast().reduce(0, +) }
+        return out
+    }
+
+    override func layoutSubviews() {
+        let w = bounds.width
+        if w > 0, weights.count == numberOfSegments, abs(w - appliedWidth) > 0.5 {
+            appliedWidth = w
+            for (i, x) in widths(for: w).enumerated() { setWidth(x, forSegmentAt: i) }
+        }
+        super.layoutSubviews()
+        updateLines()
+    }
+
+    private func updateLines() {
+        let n = numberOfSegments
+        guard n > 1, weights.count == n, bounds.width > 0 else {
+            lines.forEach { $0.isHidden = true }
+            return
+        }
+        while lines.count < n - 1 {
+            let v = UIView()
+            v.isUserInteractionEnabled = false
+            v.backgroundColor = UIColor.label.withAlphaComponent(0.18)
+            addSubview(v)
+            lines.append(v)
+        }
+        let ws = widths(for: bounds.width)
+        var x: CGFloat = 0
+        for i in 0..<(n - 1) {
+            x += ws[i]
+            let v = lines[i]
+            v.frame = CGRect(x: x - 0.5, y: (bounds.height - 20) / 2, width: 1, height: 20)
+            // разделитель — только между двумя невыбранными пунктами
+            v.isHidden = selectedSegmentIndex == i || selectedSegmentIndex == i + 1
+            bringSubviewToFront(v)
+        }
+    }
+}
+
 private struct NativeSegments: UIViewRepresentable {
     let titles: [String]
     @Binding var index: Int
@@ -128,9 +191,12 @@ private struct NativeSegments: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator($index) }
 
-    func makeUIView(context: Context) -> UISegmentedControl {
-        let c = UISegmentedControl(items: titles)
-        c.apportionsSegmentWidthsByContent = true
+    func makeUIView(context: Context) -> DividedSegmentedControl {
+        let c = DividedSegmentedControl(items: titles)
+        c.weights = DividedSegmentedControl.weights(for: titles)
+        let attrs: [NSAttributedString.Key: Any] = [.font: DividedSegmentedControl.font]
+        c.setTitleTextAttributes(attrs, for: .normal)
+        c.setTitleTextAttributes(attrs, for: .selected)
         c.selectedSegmentIndex = index
         c.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
         c.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -138,19 +204,21 @@ private struct NativeSegments: UIViewRepresentable {
         return c
     }
 
-    func updateUIView(_ c: UISegmentedControl, context: Context) {
+    func updateUIView(_ c: DividedSegmentedControl, context: Context) {
         context.coordinator.index = $index
         let current = (0..<c.numberOfSegments).map { c.titleForSegment(at: $0) ?? "" }
         if current != titles {
             c.removeAllSegments()
             for (i, t) in titles.enumerated() { c.insertSegment(withTitle: t, at: i, animated: false) }
+            c.weights = DividedSegmentedControl.weights(for: titles)
+            c.resetLayout()
         }
         if c.selectedSegmentIndex != index { c.selectedSegmentIndex = index }
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UISegmentedControl, context: Context) -> CGSize? {
-        let ideal = uiView.intrinsicContentSize
-        return CGSize(width: proposal.width ?? ideal.width, height: ideal.height)
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: DividedSegmentedControl, context: Context) -> CGSize? {
+        let ideal = DividedSegmentedControl.weights(for: titles).reduce(0, +)
+        return CGSize(width: proposal.width ?? ideal, height: DividedSegmentedControl.height)
     }
 }
 
