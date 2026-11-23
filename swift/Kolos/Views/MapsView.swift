@@ -630,9 +630,11 @@ struct FlowLayout: Layout {
             }
             x += sz.width + spacing
             rowH = max(rowH, sz.height)
-            w = max(w, x)
+            // ширина — без промежутка после последнего слова строки: иначе плотная строка выходила за край на spacing,
+            // и блок целиком съезжал влево (отступы по бокам менялись от перевода к переводу)
+            w = max(w, x - spacing)
         }
-        return CGSize(width: w, height: y + rowH)
+        return CGSize(width: min(w, maxW), height: y + rowH)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
