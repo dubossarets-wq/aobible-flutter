@@ -849,8 +849,6 @@ struct ChapterText: View {
     @State private var flashWords = ""
     @State private var flashWhole = false
     @State private var collectItems: [MarkItem] = []
-    @State private var pulseVerse = 0
-    @State private var pulseAmt = 0.0
     @State private var req = StudyRequests()
     @State private var paneWidth: CGFloat = 400
     @State private var partVerse: Int?
@@ -1408,7 +1406,6 @@ struct ChapterText: View {
             .padding(.vertical, 3)
             .background(background(c, v.num), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .animation(.easeInOut(duration: 0.45), value: cur && flashVerse == v.num)
-            .background(Color(hex: 0xd9475e).opacity(cur && pulseVerse == v.num ? pulseAmt : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if marks.isBookmarked(book, c, v.num) {
                     Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(.orange)
@@ -1809,7 +1806,7 @@ struct ChapterText: View {
 
     private func background(_ ch: Int, _ n: Int) -> Color {
         let cur = ch == chapter
-        if cur && selected.contains(n) { return pal.accent.opacity(continuous ? 0.16 : 0.09) }
+        if cur && selected.contains(n) { return pal.accent.opacity(0.16) }
         // звучащий стих подсвечен — во всех окнах, не только в переводе, который озвучен (нумерация у них одна)
         if audio.active, let c = audio.current, c.book == book, c.chapter == ch, c.verse == n {
             return pal.accent.opacity(0.16)
@@ -1817,7 +1814,8 @@ struct ChapterText: View {
         if let c = hlColor(marks.highlight(MarksStore.key(book, ch, n))) {
             return c.color.opacity(0.4)
         }
-        if marks.isFavorite(MarksStore.key(book, ch, n)) { return Color(hex: 0xd9475e).opacity(0.09) }
+        // любимый стих — сплошной розовый цвет, без вспышки и затухания
+        if marks.isFavorite(MarksStore.key(book, ch, n)) { return Color(hex: 0xd9475e).opacity(0.2) }
         if cur && n == flashVerse { return pal.hl }
         return Color.clear
     }
@@ -2100,9 +2098,6 @@ struct ChapterText: View {
         let was = marks.isFavorite(MarksStore.key(book, chapter, v.num))
         marks.toggleFavorite(book, chapter, v.num, text: Markup.plain(v.text))
         show(was ? "Убрано из любимых стихов" : "♥ Добавлено в любимые стихи")
-        pulseVerse = v.num
-        pulseAmt = 0.3
-        withAnimation(.easeOut(duration: 0.8)) { pulseAmt = 0 }
     }
 
     /// Долгое нажатие в любом месте стиха (и на слове) выделяет его
