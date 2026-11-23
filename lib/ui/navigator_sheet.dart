@@ -18,6 +18,7 @@ import '../core/panes.dart';
 import '../core/settings.dart';
 import 'kit.dart';
 import 'scoped_search.dart';
+import 'search_screen.dart' show shortName;
 import '../features/study/study_data.dart' show fmtRef;
 import 'ios_style.dart';
 
@@ -238,9 +239,37 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
 
   // --- Поиск по тексту: слово, которого нет среди книг («слово стало»), ищется в тексте открытого перевода ---
 
-  List<SearchHit> _tHits = const [];
+  List<(SearchHit, String)> _tHits = const [];
   List<SearchSuggestion> _tNear = const [];
   String _tDone = ''; // для какого запроса готовы результаты
+  String _tKey = ''; // для какого запроса вместе с настройками
+  // те же настройки, что на странице поиска (общие)
+  bool _whole = searchOpt('searchWhole', false);
+  bool _ordered = searchOpt('searchOrdered', false);
+  bool _allMods = searchOpt('searchAllModules', false);
+
+  String _keyOf(String q) => '${q.trim()}|$_whole|$_ordered|$_allMods';
+
+  List<InstalledModule> get _tTargets {
+    final m = ModuleStore.instance.get(_moduleId);
+    if (m == null) return const [];
+    final rest = searchOthers(_moduleId);
+    if (!_allMods || rest.isEmpty) return [m];
+    rest.sort((a, b) => (a.language == m.language ? 0 : 1) - (b.language == m.language ? 0 : 1));
+    return [m, ...rest];
+  }
+
+  void _setOpt(String key, bool v, VoidCallback apply) {
+    setState(apply);
+    saveSearchOpt(key, v);
+    _scheduleText();
+  }
+
+  Widget _options() => Column(children: [
+        SwitchRow(label: t('Только целые слова'), value: _whole, onChanged: (v) => _setOpt('searchWhole', v, () => _whole = v)),
+        SwitchRow(label: t('Слова в заданном порядке'), value: _ordered, onChanged: (v) => _setOpt('searchOrdered', v, () => _ordered = v)),
+        if (searchOthers(_moduleId).isNotEmpty) SwitchRow(label: t('Во всех модулях'), value: _allMods, onChanged: (v) => _setOpt('searchAllModules', v, () => _allMods = v)),
+      ]);
   int _tGen = 0;
   Timer? _textTimer;
 
@@ -255,24 +284,52 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           _tHits = const [];
           _tNear = const [];
           _tDone = '';
+          _tKey = '';
         });
       }
       return;
     }
     _textTimer = Timer(const Duration(milliseconds: 250), () async {
-      List<SearchHit> hits;
+      final list = _tTargets;
+      final key = _keyOf(q);
+      final hits = <(SearchHit, String)>[];
       var near = const <SearchSuggestion>[];
-      try {
-        hits = await searchText(_moduleId, q);
-        if (hits.isEmpty) near = await suggestSearch([(_moduleId, null)], q);
-      } catch (_) {
-        hits = const [];
+      for (final m in list) {
+        try {
+          for (final h in await searchText(m.id, q, wholeWord: _whole, ordered: _ordered)) {
+            hits.add((h, m.id));
+          }
+        } catch (_) {
+          continue; // перевод недоступен — ищем в остальных
+        }
+        if (!mounted || gen != _tGen) return;
+      }
+      // несколько переводов: места по порядку, у одного места — переводы подряд
+      if (list.length > 1) {
+        final order = {for (var i = 0; i < list.length; i++) list[i].id: i};
+        final canon = {for (final (i, b) in _books().indexed) b.id: i};
+        hits.sort((a, b) {
+          final bk = (canon[a.$1.ref.book] ?? 999) - (canon[b.$1.ref.book] ?? 999);
+          if (bk != 0) return bk;
+          final c = a.$1.ref.chapter - b.$1.ref.chapter;
+          if (c != 0) return c;
+          final v = a.$1.ref.verse - b.$1.ref.verse;
+          return v != 0 ? v : order[a.$2]! - order[b.$2]!;
+        });
+      }
+      if (hits.isEmpty) {
+        try {
+          near = await suggestSearch([for (final m in list) (m.id, null)], q, wholeWord: _whole, ordered: _ordered);
+        } catch (_) {
+          near = const [];
+        }
       }
       if (!mounted || gen != _tGen) return;
       setState(() {
         _tHits = hits;
         _tNear = near;
         _tDone = q;
+        _tKey = key;
       });
     });
   }
@@ -534,11 +591,12 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           ),
         ),
       // книги такой нет — стихи, где есть эти слова
-      if (bookMode && matches.isEmpty && _tDone != q.trim())
+      if (bookMode && matches.isEmpty && q.trim().length >= 2 && ModuleStore.instance.get(_moduleId) != null) Padding(padding: const EdgeInsets.only(top: 12), child: _options()),
+      if (bookMode && matches.isEmpty && _tKey != _keyOf(q))
         Padding(padding: const EdgeInsets.only(top: 18), child: Center(child: Spinner(size: 22, color: muted)))
       else if (bookMode && matches.isEmpty && _tHits.isNotEmpty) ..._textResults(pal, muted, fill),
-      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
-      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty && _tNear.isNotEmpty) ...[
+      if (bookMode && matches.isEmpty && _tKey == _keyOf(q) && _tHits.isEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Center(child: Text(t('Ничего не найдено.'), style: TextStyle(color: muted)))),
+      if (bookMode && matches.isEmpty && _tKey == _keyOf(q) && _tHits.isEmpty && _tNear.isNotEmpty) ...[
         Padding(padding: const EdgeInsets.only(top: 16, bottom: 4), child: Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
         for (final s in _tNear)
           InkWell(
@@ -556,7 +614,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
           ),
       ],
       // слово с опечаткой: близкие по написанию книги
-      if (bookMode && matches.isEmpty && _tDone == q.trim() && _tHits.isEmpty && _near(books, q).isNotEmpty) ...[
+      if (bookMode && matches.isEmpty && _tKey == _keyOf(q) && _tHits.isEmpty && _near(books, q).isNotEmpty) ...[
         Padding(padding: const EdgeInsets.only(top: 16, bottom: 8), child: Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
         _grid(pal, fill, _near(books, q), at),
       ],
@@ -629,7 +687,7 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
 
   /// Стихи с этими словами: нажатие открывает стих
   List<Widget> _textResults(Palette pal, Color muted, Color fill) {
-    final re = QueryMatcher(_tDone).highlight;
+    final re = QueryMatcher(_tDone, wholeWord: _whole).highlight;
     final style = TextStyle(fontSize: 16, height: 1.5, color: pal.text);
     TextSpan hl(String text) {
       if (re == null) return TextSpan(text: text);
@@ -647,14 +705,24 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
 
     return [
       Padding(padding: const EdgeInsets.only(top: 16, bottom: 4), child: Text(t('Найдено: {n}', {'n': '${_tHits.length}'}), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: muted))),
-      for (final h in _tHits.take(50))
+      for (final (h, mid) in _tHits.take(50))
         InkWell(
           onTap: () => _go(h.ref),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(border: Border(bottom: BorderSide(color: pal.line))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(fmtRef(h.ref), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: pal.accent)),
+              Row(children: [
+                Text(fmtRef(h.ref), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: pal.accent)),
+                if (_allMods && _tTargets.length > 1 && ModuleStore.instance.get(mid) != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(8)),
+                    child: Text(shortName(ModuleStore.instance.get(mid)!), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: muted)),
+                  ),
+                ],
+              ]),
               const SizedBox(height: 3),
               Text.rich(hl(h.snippet), style: style),
             ]),

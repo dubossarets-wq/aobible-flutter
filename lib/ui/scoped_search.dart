@@ -21,7 +21,7 @@ import 'search_screen.dart' show shortName;
 
 const _originals = ['oshb', 'byz-rp2018'];
 
-T _opt<T>(String key, T def) {
+T searchOpt<T>(String key, T def) {
   try {
     final v = prefs.getString(key);
     return v == null ? def : jsonDecode(v) as T;
@@ -29,6 +29,13 @@ T _opt<T>(String key, T def) {
     return def;
   }
 }
+
+/// Другие переводы, в которых можно искать (оригиналы и подстрочники — нет)
+List<InstalledModule> searchOthers(String moduleId) =>
+    ModuleStore.instance.bibles.where((m) => m.features['helper'] != true && m.id != moduleId && !_originals.contains(m.id)).toList();
+
+/// Записать настройку поиска (общую для основного поиска, поиска в книге и «Перейти»)
+void saveSearchOpt(String key, bool v) => prefs.setString(key, jsonEncode(v));
 
 class ScopedSearch extends ConsumerStatefulWidget {
   const ScopedSearch({super.key, required this.moduleId, required this.book, this.chapter, required this.hint, required this.idle, required this.onPick, this.bottomPad = 20});
@@ -51,9 +58,9 @@ class ScopedSearch extends ConsumerStatefulWidget {
 class _ScopedSearchState extends ConsumerState<ScopedSearch> {
   final _input = TextEditingController();
   final _focus = FocusNode();
-  bool _whole = _opt('searchWhole', false);
-  bool _ordered = _opt('searchOrdered', false);
-  bool _allMods = _opt('searchAllModules', false);
+  bool _whole = searchOpt('searchWhole', false);
+  bool _ordered = searchOpt('searchOrdered', false);
+  bool _allMods = searchOpt('searchAllModules', false);
   List<(SearchHit, String)>? _hits;
   List<SearchSuggestion> _near = const [];
   String _ran = '';

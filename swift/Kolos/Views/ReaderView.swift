@@ -2652,6 +2652,18 @@ struct GotoSheet: View {
     @State private var textSuggestions: [QuerySuggestion] = []
     /// Для какого запроса готов поиск по тексту (пока не готов — вместо «ничего не найдено» крутится индикатор)
     @State private var textDone = ""
+    // те же переключатели, что в основном поиске и в поиске по книге
+    @AppStorage("searchWhole") private var searchWhole = false
+    @AppStorage("searchOrdered") private var searchOrdered = false
+    @AppStorage("searchAllModules") private var searchAllMods = false
+
+    /// Другие переводы, в которых можно искать (оригиналы и подстрочники — нет)
+    private var searchOthers: [InstalledModule] {
+        store.bibles.filter { !$0.interlinear && !$0.online && $0.id != module.id && !["oshb", "byz-rp2018"].contains($0.id) }
+    }
+
+    /// Запрос вместе с настройками: смена любой настройки запускает поиск заново
+    private var textKey: String { "\(query)|\(searchWhole)|\(searchOrdered)|\(searchAllMods)" }
 
     private func book(_ id: String) -> ModuleBook? {
         module.books.first { $0.id == id }
@@ -2745,11 +2757,15 @@ struct GotoSheet: View {
         let list = matches
         if !list.isEmpty {
             bookGrid(list)
-        } else if textDone != query {
+        } else if textDone != textKey {
+            // поиск по тексту: переключатели как в основном поиске
+            if query.count >= 2 && !module.online { SearchOptionsCard(showAll: !searchOthers.isEmpty) }
             ProgressView().frame(maxWidth: .infinity).padding(.top, 8)
         } else if !textHits.isEmpty {
+            SearchOptionsCard(showAll: !searchOthers.isEmpty)
             textResults
         } else {
+            if query.count >= 2 && !module.online { SearchOptionsCard(showAll: !searchOthers.isEmpty) }
             Text("Ничего не найдено.").font(.subheadline).foregroundStyle(.secondary)
             let near = suggestions
             if !textSuggestions.isEmpty {
@@ -2777,8 +2793,15 @@ struct GotoSheet: View {
                     dismiss()
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(book(h.book)?.short ?? h.book) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
-                        PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: false))
+                        HStack {
+                            Text("\(book(h.book)?.short ?? h.book) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
+                            if searchAllMods, let m = store.module(h.moduleId) {
+                                Text(m.name).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(.fill.tertiary, in: Capsule())
+                            }
+                        }
+                        PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: searchWhole))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
@@ -2793,25 +2816,46 @@ struct GotoSheet: View {
     /// Ищет слова запроса в тексте открытого перевода (в фоне; индекс готовится один раз)
     private func runTextSearch() async {
         let q = query
+        let finished = textKey
         guard q.count >= 2, isBookQuery, matches.isEmpty, !module.online else {
             textHits = []
             textSuggestions = []
-            textDone = q
+            textDone = finished
             return
         }
         try? await Task.sleep(nanoseconds: 250_000_000)
         if Task.isCancelled { return }
-        let path = module.path
+        let list = (searchAllMods ? [module] + searchOthers : [module]).map { (id: $0.id, path: $0.path) }
+        let order = module.books.enumerated().reduce(into: [String: Int]()) { $0[$1.element.id] = $1.offset }
+        let whole = searchWhole
+        let ordered = searchOrdered
         let found = await Task.detached(priority: .userInitiated) { () -> ([SearchHit], [QuerySuggestion]) in
-            guard let idx = SearchIndex.index(path: path) else { return ([], []) }
-            let hits = SearchEngine.run(index: idx, query: q, wholeWord: false, books: nil)
-            let near = hits.isEmpty ? SearchEngine.suggestions(indexes: [idx], query: q, wholeWord: false, ordered: false, books: nil) : []
+            var all: [(order: Int, hit: SearchHit)] = []
+            var indexes: [SearchIndex] = []
+            for (n, t) in list.enumerated() {
+                guard let idx = SearchIndex.index(path: t.path) else { continue }
+                indexes.append(idx)
+                let h = SearchEngine.run(index: idx, query: q, wholeWord: whole, ordered: ordered, books: nil)
+                all.append(contentsOf: h.map { (order: n, hit: $0.tagged(t.id)) })
+            }
+            // несколько переводов: места по порядку, у одного места — переводы подряд
+            if list.count > 1 {
+                all.sort {
+                    let b0 = order[$0.hit.book] ?? 999, b1 = order[$1.hit.book] ?? 999
+                    if b0 != b1 { return b0 < b1 }
+                    if $0.hit.chapter != $1.hit.chapter { return $0.hit.chapter < $1.hit.chapter }
+                    if $0.hit.verse != $1.hit.verse { return $0.hit.verse < $1.hit.verse }
+                    return $0.order < $1.order
+                }
+            }
+            let hits = all.map(\.hit)
+            let near = hits.isEmpty ? SearchEngine.suggestions(indexes: indexes, query: q, wholeWord: whole, ordered: ordered, books: nil) : []
             return (hits, near)
         }.value
         if Task.isCancelled { return }
         textHits = found.0
         textSuggestions = found.1
-        textDone = q
+        textDone = finished
     }
 
     private func submitLink() {
@@ -2906,7 +2950,7 @@ struct GotoSheet: View {
                     Button("Закрыть") { dismiss() }
                 }
             }
-            .task(id: link) { await runTextSearch() }
+            .task(id: textKey) { await runTextSearch() }
             .onAppear { if !module.online { SearchIndex.warm(path: module.path) } }
             .navigationDestination(for: ModuleBook.self) { b in
                 ChapterGrid(module: module, book: b, onPick: { c in path.append(ChapterPick(book: b, chapter: c)) }, onVerse: { c, v in
@@ -2992,6 +3036,30 @@ struct ChapterGrid: View {
 
 /// Результаты поиска слова или части стиха внутри книги (chapter == nil) или одной главы.
 /// Сверху те же настройки, что на странице поиска (общие): целые слова, порядок слов, все модули
+/// Три переключателя поиска (общие для основного поиска, поиска в книге и в «Перейти»)
+struct SearchOptionsCard: View {
+    let showAll: Bool
+    @AppStorage("searchWhole") private var whole = false
+    @AppStorage("searchOrdered") private var ordered = false
+    @AppStorage("searchAllModules") private var allMods = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Toggle("Только целые слова", isOn: $whole)
+                .padding(.horizontal, 16).padding(.vertical, 7)
+            Divider().padding(.leading, 16)
+            Toggle("Слова в заданном порядке", isOn: $ordered)
+                .padding(.horizontal, 16).padding(.vertical, 7)
+            if showAll {
+                Divider().padding(.leading, 16)
+                Toggle("Во всех модулях", isOn: $allMods)
+                    .padding(.horizontal, 16).padding(.vertical, 7)
+            }
+        }
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
 struct ScopedSearchResults: View {
     @EnvironmentObject private var store: ModuleStore
     let module: InstalledModule
@@ -3024,20 +3092,7 @@ struct ScopedSearchResults: View {
     private var key: String { "\(query)|\(whole)|\(ordered)|\(allMods)" }
 
     private var options: some View {
-        VStack(spacing: 0) {
-            Toggle("Только целые слова", isOn: $whole)
-                .padding(.horizontal, 16).padding(.vertical, 7)
-            Divider().padding(.leading, 16)
-            Toggle("Слова в заданном порядке", isOn: $ordered)
-                .padding(.horizontal, 16).padding(.vertical, 7)
-            if !others.isEmpty {
-                Divider().padding(.leading, 16)
-                Toggle("Во всех модулях", isOn: $allMods)
-                    .padding(.horizontal, 16).padding(.vertical, 7)
-            }
-        }
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .padding(.bottom, 14)
+        SearchOptionsCard(showAll: !others.isEmpty).padding(.bottom, 14)
     }
 
     var body: some View {
