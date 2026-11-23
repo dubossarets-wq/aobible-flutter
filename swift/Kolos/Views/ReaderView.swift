@@ -2233,12 +2233,13 @@ struct ChapterText: View {
     }
 
     private func barLabel(_ icon: String, _ title: LocalizedStringKey) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: icon).font(.body).frame(height: 24)
-            Text(title).font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
+        // размеры, как у пунктов нижнего меню: значок 20, подпись 10 — в панель помещается больше кнопок
+        VStack(spacing: 2) {
+            Image(systemName: icon).font(.system(size: 20)).frame(height: 24)
+            Text(title).font(.system(size: 10, weight: .medium)).lineLimit(1).minimumScaleFactor(0.6)
         }
         .foregroundStyle(.primary)
-        .frame(maxWidth: .infinity, minHeight: 52)
+        .frame(maxWidth: .infinity, minHeight: 50)
     }
 
     private func barButton(_ icon: String, _ title: LocalizedStringKey, _ action: @escaping () -> Void) -> some View {
@@ -2336,6 +2337,8 @@ struct ChapterText: View {
                 }
             }
             barButton("text.alignleft", "Подстрочник") { panel = .interlinear(first) }
+            // любимые — одной кнопкой для одного и для нескольких стихов (все уже любимые — убирает)
+            barButton(favorite ? "heart.fill" : "heart", favorite ? "Убрать из любимых" : "В любимые") { toggleFavorites(verses, favorite) }
             Menu {
                 Menu {
                     ForEach(hlColors) { c in
@@ -2352,9 +2355,6 @@ struct ChapterText: View {
                         selected = []
                     }
                 } label: { Label("Выделить цветом", systemImage: "highlighter") }
-                Button {
-                    toggleFavorites(verses, favorite)
-                } label: { Label(favorite ? "Убрать из любимых" : "В любимые", systemImage: favorite ? "heart.slash" : "heart") }
                 Button {
                     if let v = verses.first(where: { $0.num == first }) {
                         marks.toggleBookmark(book, chapter, v.num, text: String(Markup.plain(v.text).prefix(160)))
@@ -2406,9 +2406,9 @@ struct ChapterText: View {
                 Button { selected = [] } label: { Label("Снять выделение", systemImage: "xmark") }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.body)
+                    .font(.system(size: 20))
                     .foregroundStyle(.primary)
-                    .frame(width: 40, height: 52)
+                    .frame(width: 40, height: 50)
             }
             .tint(.primary)
             .accessibilityLabel("Ещё")
