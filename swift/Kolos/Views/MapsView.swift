@@ -15,7 +15,7 @@ struct MapsView: View {
             Section {
                 CapsuleSwitcher(options: [(0, Text("Места")), (1, Text("Карты"))], selection: $kind)
                 // переключатель лежит прямо на сером фоне, без белого блока вокруг
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -168,7 +168,7 @@ struct PlaceDetail: View {
                                 }
                             }
                         }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     }

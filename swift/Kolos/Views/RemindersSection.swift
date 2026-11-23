@@ -273,7 +273,7 @@ struct ReminderEditor: View {
                         selection: Binding(get: { item.isAlarm }, set: { item.alarm = $0 ? true : nil })
                     )
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 } footer: {
                     Text(item.isAlarm
                          ? "Звонит, как будильник «Часов», даже в беззвучном режиме и в «Фокусе»."
@@ -293,7 +293,7 @@ struct ReminderEditor: View {
                 Section {
                     CapsuleSwitcher(options: [(0, Text("Дни недели")), (1, Text("Календарь"))], selection: $mode.animation())
                         .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 } header: {
                     Text("Когда напоминать")
                 }

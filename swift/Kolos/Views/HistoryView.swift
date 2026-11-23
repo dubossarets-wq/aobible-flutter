@@ -130,7 +130,7 @@ private struct HistoryList: View {
                     selection: $mode
                 )
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                 .listRowSeparator(.hidden)
             }
             if mode != .all {
