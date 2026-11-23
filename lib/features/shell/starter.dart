@@ -74,6 +74,7 @@ void prepareFirstRun(String latestNewsId) {
 Future<void> installStarterModules(WidgetRef ref) async {
   final store = ModuleStore.instance;
   unawaited(store.installBundled()); // модули, вложенные в личную сборку
+  unawaited(store.fixItalicStrongsIndex()); // поиск по курсиву со Стронгом (RST+), один раз
   for (var i = 0; store.bibles.isEmpty; i++) {
     if (i > 1200) return;
     await Future<void>.delayed(const Duration(milliseconds: 500));

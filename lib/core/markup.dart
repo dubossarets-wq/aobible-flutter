@@ -23,7 +23,10 @@ List<Token> parseVerse(String raw) {
   for (final m in _re.allMatches(raw)) {
     if (m.start > pos) out.add(Token(raw.substring(pos, m.start)));
     if (m.group(5) != null) {
-      out.add(Token(m.group(5)!, italic: true));
+      // внутри курсива бывают слова с номерами Стронга (RST+: ‹{во|G1223}›) — разбираем и их
+      for (final t in parseVerse(m.group(5)!)) {
+        out.add(Token(t.text, strongs: t.strongs, morph: t.morph, orig: t.orig, italic: true));
+      }
     } else {
       final orig = m.group(4);
       out.add(Token(
@@ -40,7 +43,7 @@ List<Token> parseVerse(String raw) {
 }
 
 /// Текст без разметки — для поиска, копирования и «Поделиться»
-String plainText(String raw) => raw.replaceAllMapped(_re, (m) => m.group(5) ?? m.group(1)!);
+String plainText(String raw) => raw.replaceAllMapped(_re, (m) => m.group(5) != null ? plainText(m.group(5)!) : m.group(1)!);
 
 /// Слово стиха — то, на что можно нажать (tokenize/wordAt в веб-версии): слово с номером Стронга — целиком,
 /// в обычном тексте — каждое слово отдельно. start/end — границы внутри текста фрагмента token.

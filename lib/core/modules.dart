@@ -253,6 +253,45 @@ class ModuleStore {
     } catch (_) {}
   }
 
+  /// Один раз: поисковый указатель переводов, где в курсиве стоят слова с номерами Стронга (RST+: ‹{во|G1223}›),
+  /// был построен с номерами внутри текста — «во G1223 избежание»: поиск слов подряд их не находил. Перестраиваем
+  Future<void> fixItalicStrongsIndex() async {
+    final mark = File('${dir.path}${Platform.pathSeparator}fts-italic.done');
+    if (mark.existsSync()) return;
+    for (final m in bibles.where((m) => m.meta['online'] == null).toList()) {
+      final path = m.path;
+      try {
+        final changed = await Isolate.run(() {
+          final db = sqlite3.open(path);
+          try {
+            if (db.select("SELECT 1 FROM verses WHERE text LIKE '%‹{%' LIMIT 1").isEmpty) return false;
+            db.execute('BEGIN');
+            db.execute('DROP TABLE IF EXISTS verses_fts');
+            db.execute("CREATE VIRTUAL TABLE verses_fts USING fts5(plain, content='', tokenize='unicode61 remove_diacritics 2')");
+            final ins = db.prepare('INSERT INTO verses_fts(rowid, plain) VALUES (?, ?)');
+            for (final r in db.select('SELECT id, text FROM verses')) {
+              ins.execute([r['id'], plainText(r['text'] as String)]);
+            }
+            ins.close();
+            db.execute('COMMIT');
+            return true;
+          } catch (_) {
+            try {
+              db.execute('ROLLBACK');
+            } catch (_) {}
+            return false;
+          } finally {
+            db.close();
+          }
+        });
+        if (changed) _open.remove(m.id)?.close();
+      } catch (_) {}
+    }
+    try {
+      mark.writeAsStringSync('1');
+    } catch (_) {}
+  }
+
   Future<void> _finish(String id, String tmp, String target) async {
     _open.remove(id)?.close();
     await File(tmp).rename(target);

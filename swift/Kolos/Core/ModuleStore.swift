@@ -210,6 +210,31 @@ final class ModuleStore: ObservableObject {
         }
     }
 
+    /// Один раз: поисковый указатель переводов, где в курсиве стоят слова с номерами Стронга (RST+: ‹{во|G1223}›),
+    /// был построен с номерами внутри текста — «во G1223 избежание»: поиск слов подряд их не находил. Перестраиваем
+    func fixItalicStrongsIndex() async {
+        let key = "ftsFix.italicStrongs"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let paths = bibles.filter { !$0.online }.map(\.path)
+        await Task.detached(priority: .utility) {
+            for p in paths {
+                guard let db = try? SQLiteDB(path: p, readOnly: false) else { continue }
+                let hit = db.query("SELECT 1 FROM verses WHERE text LIKE '%‹{%' LIMIT 1") { $0.int(0) }
+                guard !hit.isEmpty else { continue }
+                let rows = db.query("SELECT id, text FROM verses") { [$0.int(0), Markup.plain($0.text(1))] as [Any] }
+                do {
+                    try db.exec("BEGIN; DROP TABLE IF EXISTS verses_fts; CREATE VIRTUAL TABLE verses_fts USING fts5(plain, content='', tokenize='unicode61 remove_diacritics 2');")
+                    try db.insert("INSERT INTO verses_fts(rowid, plain) VALUES (?, ?)", rows)
+                    try db.exec("COMMIT;")
+                } catch {
+                    try? db.exec("ROLLBACK;")
+                }
+            }
+        }.value
+        opened.removeAll()
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
     func db(_ id: String) -> SQLiteDB? {
         if let d = opened[id] { return d }
         guard let m = module(id), let d = try? SQLiteDB(path: m.path, readOnly: true) else { return nil }

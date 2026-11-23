@@ -290,6 +290,7 @@ struct RootView: View {
             }
             // модули, вложенные в сборку (если есть), затем первый запуск: основной перевод и остальное в фоне
             await store.installBundled()
+            await store.fixItalicStrongsIndex()
             await Starter.run(store: store, lang: lang)
         }
         // первый запуск: пока нет ни одного перевода — экран установки; появился — открывается читалка

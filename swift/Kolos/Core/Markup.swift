@@ -32,7 +32,12 @@ enum Markup {
                 return r.location == NSNotFound ? nil : ns.substring(with: r)
             }
             if let italic = group(5) {
-                out.append(Token(text: italic, italic: true))
+                // внутри курсива бывают слова с номерами Стронга (RST+: ‹{во|G1223}›) — разбираем и их
+                out += parse(italic).map { t in
+                    var t = t
+                    t.italic = true
+                    return t
+                }
             } else {
                 let orig = group(4)
                 let strongs = (group(2) ?? "").split(separator: " ").map { String($0) }
