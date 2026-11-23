@@ -195,6 +195,45 @@ struct StrongSheet: View {
     }
 }
 
+/// Текст толкований стиха; ссылки внутри (места Писания, номера Стронга, слова оригинала) открываются страницами
+/// поверх — «назад» возвращает к этому тексту
+struct CommentaryBody: View {
+    @EnvironmentObject private var store: ModuleStore
+    let book: String
+    let chapter: Int
+    let verse: Int
+    var moduleId: String? = nil
+    @Binding var path: [CommLink]
+
+    var body: some View {
+        let items = store.commentary(book: book, chapter: chapter, verse: verse).filter { moduleId == nil || $0.module.id == moduleId }
+        List {
+            if items.isEmpty {
+                ContentUnavailableView {
+                    Label("Нет толкований", systemImage: "text.book.closed")
+                } description: {
+                    Text("К этому стиху толкований нет. Установить комментарии можно в «Ещё» → «Библиотека модулей» → «Толкования».")
+                }
+            }
+            ForEach(items) { it in
+                Section {
+                    if !it.title.isEmpty {
+                        Text(it.title).font(.headline)
+                    }
+                    Text(CommentaryLinks.attributed(it.text, book: book, chapter: chapter))
+                } header: {
+                    Text(it.module.name)
+                }
+            }
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let link = CommLink(url: url) else { return .systemAction }
+            path.append(link)
+            return .handled
+        })
+    }
+}
+
 /// Толкования к стиху из установленных комментариев
 struct CommentarySheet: View {
     @EnvironmentObject private var store: ModuleStore
@@ -204,44 +243,61 @@ struct CommentarySheet: View {
     /// только этот комментарий (нажали на метку после стиха); nil — все
     var moduleId: String? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openVerse) private var openVerse
+    /// Страницы, открытые по ссылкам из текста (последняя — сверху)
+    @State private var path: [CommLink] = []
+
+    private func close() { dismiss() }
+
+    /// «Читать»: окно закрывается, стих открывается в чтении
+    private func read(_ b: String, _ c: Int, _ v: Int) {
+        dismiss()
+        openVerse(b, c, v)
+    }
+
+    @ViewBuilder private func destination(_ link: CommLink) -> some View {
+        Group {
+            switch link {
+            case .verse(let b, let c, let v, let e):
+                CommentaryVersePage(book: b, chapter: c, verse: v, end: e, onRead: read) { bb, cc, vv in
+                    path.append(.comment(book: bb, chapter: cc, verse: vv))
+                }
+            case .strong(let k):
+                CommentaryStrongPage(key: k) { path.append(.strong($0)) }
+            case .word(let w):
+                OriginalWordPage(word: w)
+            case .comment(let b, let c, let v):
+                CommentaryBody(book: b, chapter: c, verse: v, path: $path)
+                    .navigationTitle("\(Books.info(b)?.short ?? b) \(c):\(v)")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        // «Готово» есть и на страницах по ссылкам: закрывает всё окно сразу
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) { Button("Готово") { close() } }
+        }
+    }
 
     var body: some View {
         let items = store.commentary(book: book, chapter: chapter, verse: verse).filter { moduleId == nil || $0.module.id == moduleId }
-        NavigationStack {
-            List {
-                if items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Нет толкований", systemImage: "text.book.closed")
-                    } description: {
-                        Text("К этому стиху толкований нет. Установить комментарии можно в «Ещё» → «Библиотека модулей» → «Толкования».")
-                    }
-                }
-                ForEach(items) { it in
-                    Section {
-                        if !it.title.isEmpty {
-                            Text(it.title).font(.headline)
+        NavigationStack(path: $path) {
+            CommentaryBody(book: book, chapter: chapter, verse: verse, moduleId: moduleId, path: $path)
+                .navigationTitle(moduleId != nil ? (items.first?.module.name ?? "") : String(localized: "Толкования"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if !items.isEmpty {
+                        ToolbarItem(placement: .cancellationAction) {
+                            ShareLink(item: shareText(items), preview: SharePreview(shareTitle(items))) {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            .accessibilityLabel("Отправить")
                         }
-                        Text(it.text)
-                    } header: {
-                        Text(it.module.name)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Готово") { dismiss() }
                     }
                 }
-            }
-            .navigationTitle(moduleId != nil ? (items.first?.module.name ?? "") : String(localized: "Толкования"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if !items.isEmpty {
-                    ToolbarItem(placement: .cancellationAction) {
-                        ShareLink(item: shareText(items), preview: SharePreview(shareTitle(items))) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                        .accessibilityLabel("Отправить")
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { dismiss() }
-                }
-            }
+                .navigationDestination(for: CommLink.self) { destination($0) }
         }
         .presentationDetents([.medium, .large])
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
