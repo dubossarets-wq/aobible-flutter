@@ -100,7 +100,7 @@ struct ProportionalRow: Layout {
 
 /// Переключатель в одну строку на всю ширину — системный UISegmentedControl: стекло iOS 26, выбор нажатием или
 /// проведением пальца по плашке, анимацию и отклик даёт сама система (свой рисованный переключатель подтормаживал).
-/// Ширина пунктов — по содержимому (длинное название книги получает больше места)
+/// Пункты одной ширины; длинное название книги заменяется коротким, если не помещается
 struct CapsuleSwitcher<T: Hashable>: View {
     let options: [(value: T, title: String)]
     @Binding var selection: T
@@ -117,45 +117,32 @@ struct CapsuleSwitcher<T: Hashable>: View {
 }
 
 /// Системный переключатель, чуть выше обычного (44 пт) и с тонкими разделителями между невыбранными пунктами.
-/// Ширину пунктов задаём сами — по длине подписей: так известно, где проводить разделители
+/// Пункты одной ширины, как у нижнего меню: выбранная капсула при смене пункта не меняет размер, а плавно переезжает
 private final class DividedSegmentedControl: UISegmentedControl {
-    static let font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    static let font = UIFont.systemFont(ofSize: 14, weight: .semibold)
     static let height: CGFloat = 44
+    /// Поля внутри пункта по бокам: подпись + поля — минимальная ширина пункта
+    static let padding: CGFloat = 16
 
-    var weights: [CGFloat] = []
-    private var appliedWidth: CGFloat = 0
     private var lines: [UIView] = []
 
     override var selectedSegmentIndex: Int {
         didSet { updateLines() }
     }
 
-    static func weights(for titles: [String]) -> [CGFloat] {
-        titles.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) + 36 }
-    }
-
-    func resetLayout() { appliedWidth = 0; setNeedsLayout() }
-
-    private func widths(for total: CGFloat) -> [CGFloat] {
-        let sum = max(1, weights.reduce(0, +))
-        var out = weights.map { floor(total * $0 / sum) }
-        if !out.isEmpty { out[out.count - 1] = total - out.dropLast().reduce(0, +) }
-        return out
+    /// Ширина пункта, которой хватает самой длинной подписи
+    static func cell(for titles: [String]) -> CGFloat {
+        (titles.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0) + padding
     }
 
     override func layoutSubviews() {
-        let w = bounds.width
-        if w > 0, weights.count == numberOfSegments, abs(w - appliedWidth) > 0.5 {
-            appliedWidth = w
-            for (i, x) in widths(for: w).enumerated() { setWidth(x, forSegmentAt: i) }
-        }
         super.layoutSubviews()
         updateLines()
     }
 
     private func updateLines() {
         let n = numberOfSegments
-        guard n > 1, weights.count == n, bounds.width > 0 else {
+        guard n > 1, bounds.width > 0 else {
             lines.forEach { $0.isHidden = true }
             return
         }
@@ -166,12 +153,10 @@ private final class DividedSegmentedControl: UISegmentedControl {
             addSubview(v)
             lines.append(v)
         }
-        let ws = widths(for: bounds.width)
-        var x: CGFloat = 0
+        let cell = bounds.width / CGFloat(n)
         for i in 0..<(n - 1) {
-            x += ws[i]
             let v = lines[i]
-            v.frame = CGRect(x: x - 0.5, y: (bounds.height - 20) / 2, width: 1, height: 20)
+            v.frame = CGRect(x: cell * CGFloat(i + 1) - 0.5, y: (bounds.height - 20) / 2, width: 1, height: 20)
             // разделитель — только между двумя невыбранными пунктами
             v.isHidden = selectedSegmentIndex == i || selectedSegmentIndex == i + 1
             bringSubviewToFront(v)
@@ -185,15 +170,32 @@ private struct NativeSegments: UIViewRepresentable {
 
     final class Coordinator: NSObject {
         var index: Binding<Int>
+        var pending: DispatchWorkItem?
+        /// Выбор, который система уже показала, а страница ещё не получила
+        var pendingIndex: Int?
         init(_ index: Binding<Int>) { self.index = index }
-        @objc func changed(_ sender: UISegmentedControl) { index.wrappedValue = sender.selectedSegmentIndex }
+
+        @objc func changed(_ sender: UISegmentedControl) {
+            let i = sender.selectedSegmentIndex
+            pending?.cancel()
+            pendingIndex = i
+            // тяжёлая перерисовка страницы (поиск, список) — после того как система доиграла анимацию выбора:
+            // иначе они идут одновременно и анимация подтормаживает
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.index.wrappedValue = i
+                self.pendingIndex = nil
+            }
+            pending = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator($index) }
 
     func makeUIView(context: Context) -> DividedSegmentedControl {
         let c = DividedSegmentedControl(items: titles)
-        c.weights = DividedSegmentedControl.weights(for: titles)
+        c.apportionsSegmentWidthsByContent = false
         let attrs: [NSAttributedString.Key: Any] = [.font: DividedSegmentedControl.font]
         c.setTitleTextAttributes(attrs, for: .normal)
         c.setTitleTextAttributes(attrs, for: .selected)
@@ -210,14 +212,13 @@ private struct NativeSegments: UIViewRepresentable {
         if current != titles {
             c.removeAllSegments()
             for (i, t) in titles.enumerated() { c.insertSegment(withTitle: t, at: i, animated: false) }
-            c.weights = DividedSegmentedControl.weights(for: titles)
-            c.resetLayout()
         }
-        if c.selectedSegmentIndex != index { c.selectedSegmentIndex = index }
+        if context.coordinator.pendingIndex == nil, c.selectedSegmentIndex != index { c.selectedSegmentIndex = index }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: DividedSegmentedControl, context: Context) -> CGSize? {
-        let ideal = DividedSegmentedControl.weights(for: titles).reduce(0, +)
+        // нужная ширина — пункты одной ширины по самой длинной подписи; не помещается — выбирается более короткий вариант
+        let ideal = DividedSegmentedControl.cell(for: titles) * CGFloat(titles.count)
         return CGSize(width: proposal.width ?? ideal, height: DividedSegmentedControl.height)
     }
 }
