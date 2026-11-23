@@ -370,7 +370,11 @@ struct InterlinearSheet: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 Section {
+                    // слова — прямо на фоне окна, каждое на своей плашке, без общей серой карточки вокруг
                     content
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                 } footer: {
                     if !loading && !failed { Text(hint) }
                 }
