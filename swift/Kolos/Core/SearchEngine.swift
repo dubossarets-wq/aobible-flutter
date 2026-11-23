@@ -287,7 +287,7 @@ enum SearchEngine {
         var options: [[String]] = []
         var changed = false
         for t in toks {
-            let f = fold(t).trimmingCharacters(in: .whitespaces)
+            let f = SearchIndex.fold(t).trimmingCharacters(in: .whitespaces)
             guard f.count >= 3, !f.contains(" "), !f.contains(where: \.isNumber) else {
                 options.append([t.contains(" ") ? "\"\(t)\"" : t])
                 continue

@@ -77,7 +77,7 @@ enum Translit {
 
     static func hebrewToRu(_ word: String) -> String {
         // кантилляция, метег, макаф — прочь
-        let s = word.unicodeScalars.filter { !isCantillation($0.value) }
+        let s = Array(word.unicodeScalars.filter { !isCantillation($0.value) })
         func isLetter(_ u: Unicode.Scalar) -> Bool { (0x05D0...0x05EA).contains(u.value) }
         let name: [UInt32] = [0x05D9, 0x05D4, 0x05D5, 0x05D4] // יהוה
         // Имя Божье (огласовано гласными «Адонай») — традиционное «Иегова», с приставкой (ла-, ва-, ми-…)
