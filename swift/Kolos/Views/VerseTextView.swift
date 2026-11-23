@@ -6,6 +6,8 @@ extension NSAttributedString.Key {
     static let aobURL = NSAttributedString.Key("aobURL")
     /// Номер стиха, которому принадлежит символ
     static let aobVerse = NSAttributedString.Key("aobVerse")
+    /// Глава этого стиха (в окне глав стихи с одним номером бывают в разных главах — синхронная прокрутка их различает)
+    static let aobChapter = NSAttributedString.Key("aobChapter")
 }
 
 /// Текст стиха (или сплошного блока): свой слой нажатий вместо ссылок SwiftUI. Нажатие на слово открывает словарь,

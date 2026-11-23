@@ -813,6 +813,11 @@ struct ChapterText: View {
     @State private var commBox = CommBox()
     /// Сплошной текст книги: все главы книги одной лентой, глава за главой без переключения
     @State private var bookBox = BookBox()
+    /// Несколько панелей: окно глав [winStart … winStart + winTail], построенных сразу (положения стихов точные — на них
+    /// держится синхронная прокрутка). Окно растёт вниз, когда текст доходит до его конца: следующая глава идёт сразу
+    /// за этой, без переходов
+    @State private var winStart = 0
+    @State private var winTail = 1
     @State private var idsBox = IdsBox()
     @State private var nav = NavBox()
     /// текст уже поставлен на нужное место (до этого прокрутка скрыта, чтобы не мелькало начало книги)
@@ -918,12 +923,7 @@ struct ChapterText: View {
                     if book1 {
                         // сплошной текст книги: все главы подряд, глава за главой, без переключения. Строки строятся
                         // по мере прокрутки; вверху и внизу книги — переход к соседней книге
-                        LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
-                            bookEdge(-1).id(-1)
-                            ForEach(bookRows()) { r in bookRow(r) }
-                            bookEdge(1).id(-2)
-                        }
-                        .scrollTargetLayout()
+                        bookList
                     } else {
                         // несколько панелей: все стихи главы строятся сразу — их положения точные и не «плывут»
                         // при прокрутке (на этом держится синхронная прокрутка, см. ScrollSync)
@@ -994,6 +994,8 @@ struct ChapterText: View {
             }
             .background { ReaderBackdrop(pal: pal) }
             .onAppear {
+                if winStart == 0 { winStart = chapter }
+                syncWindowFlag()
                 scroll(proxy, initial: true)
                 // открыли книгу переходом (закладка, поиск, ссылка) — стих подсвечивается
                 if let j = panes.lastJump, j.id == pane.id, Date().timeIntervalSince(j.at) < 3 { flash() }
@@ -1012,6 +1014,14 @@ struct ChapterText: View {
                     selected = [n > 0 ? n : 1]
                 }
             }
+            .onChange(of: windowMode) { _, _ in
+                // открыли или закрыли вторую панель: текст перестраивается — остаёмся на том же месте
+                winStart = chapter
+                winTail = 1
+                syncWindowFlag()
+                DispatchQueue.main.async { scroll(proxy, initial: true) }
+            }
+            .onDisappear { panes.scrollSync.windowPanes.remove(pane.id) }
             .onChange(of: "\(chapter)|\(focus)") { old, _ in
                 // глава сменилась от прокрутки книги — текст уже там, где надо
                 if nav.silent {
@@ -1019,6 +1029,16 @@ struct ChapterText: View {
                     return
                 }
                 let sameChapter = old.split(separator: "|").first.flatMap { Int($0) } == chapter
+                // переход в главу вне окна — окно ставится на неё, текст прокручивается после раскладки
+                if windowMode, chapter < winFirst || chapter > winFirst + winTail {
+                    winStart = chapter
+                    winTail = 1
+                    DispatchQueue.main.async {
+                        scroll(proxy, initial: false, animated: false)
+                        flash()
+                    }
+                    return
+                }
                 scroll(proxy, initial: false, animated: sameChapter || !book1)
                 // перешли к стиху (закладка, ссылка, поиск) — он подсвечивается на пару секунд
                 flash()
@@ -1377,6 +1397,7 @@ struct ChapterText: View {
                         showGloss: ilGloss, showOrig: ilOrig, showStrong: ilStrong,
                         favorite: isFav,
                         xrefs: d.xcounts[v.num] ?? 0, illus: d.icounts[v.num] ?? 0,
+                        chapter: c,
                         mark: { wi in
                             if let r = selPart, r.contains(wi) { return pal.accent.opacity(0.24) }
                             if let r = favPart, r.contains(wi) { return Color(hex: 0xd9475e).opacity(0.2) }
@@ -1427,17 +1448,108 @@ struct ChapterText: View {
 
     /// Вся книга одной лентой: при чтении прокруткой в одной панели (перевод по сети приходит по главам — у него глава)
     private var bookOn: Bool {
-        readingStyle != "pages" && panes.panes.count == 1 && !module.online
+        readingStyle != "pages" && !module.online
+    }
+
+    /// Несколько панелей: вместо всей книги — окно глав, построенных сразу (см. winStart)
+    private var windowMode: Bool { bookOn && panes.panes.count > 1 }
+    private var winFirst: Int { winStart > 0 ? winStart : chapter }
+    private var chapterTotal: Int { module.books.first { $0.id == book }?.chapters ?? chapter }
+
+    private func syncWindowFlag() {
+        if windowMode { panes.scrollSync.windowPanes.insert(pane.id) } else { panes.scrollSync.windowPanes.remove(pane.id) }
+    }
+
+    /// Строки глав: для окна глав нужные тексты строятся сразу и записываются для синхронной прокрутки
+    private var rowViews: VerseViews? { windowMode ? panes.scrollSync.views(pane.id) : nil }
+
+    @ViewBuilder private var bookList: some View {
+        if windowMode {
+            VStack(alignment: .leading, spacing: fontSize * verseSpacing) {
+                windowTop.id(-1)
+                ForEach(bookRows()) { r in bookRow(r) }
+                windowBottom.id(-2)
+            }
+            .scrollTargetLayout()
+        } else {
+            LazyVStack(alignment: .leading, spacing: fontSize * verseSpacing) {
+                bookEdge(-1).id(-1)
+                ForEach(bookRows()) { r in bookRow(r) }
+                bookEdge(1).id(-2)
+            }
+            .scrollTargetLayout()
+        }
+    }
+
+    /// Вверху окна: предыдущая глава (кнопкой), у первой главы — предыдущая книга
+    @ViewBuilder private var windowTop: some View {
+        if winFirst > 1 {
+            chapterEdge(-1)
+        } else {
+            bookEdge(-1)
+        }
+    }
+
+    /// Внизу окна: пока есть главы — невидимая «приманка» достраивает следующую; дальше предела — кнопка; конец книги —
+    /// переход к следующей книге
+    @ViewBuilder private var windowBottom: some View {
+        if winFirst + winTail < chapterTotal {
+            if winTail < 20 {
+                Color.clear.frame(height: 700)
+                    .onScrollVisibilityChange { visible in
+                        if visible, winTail < 20 { winTail += 1 }
+                    }
+            } else {
+                chapterEdge(1)
+            }
+        } else {
+            bookEdge(1)
+        }
+    }
+
+    /// Кнопка соседней главы (вверху окна — предыдущая; внизу при очень длинном чтении — следующая)
+    @ViewBuilder private func chapterEdge(_ dir: Int) -> some View {
+        let c = dir < 0 ? winFirst - 1 : winFirst + winTail + 1
+        let short = module.books.first { $0.id == book }?.short.replacingOccurrences(of: ".", with: "") ?? book
+        Button {
+            panes.go(pane.id, book, c, dir < 0 ? 9999 : 0)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: dir < 0 ? "arrow.up" : "arrow.down")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(pal.accent)
+                    .frame(width: 34, height: 34)
+                    .background(pal.accent.opacity(0.12), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dir < 0 ? "Предыдущая глава" : "Следующая глава")
+                        .font(.footnote)
+                        .foregroundStyle(pal.muted)
+                    Text(verbatim: "\(short) \(c)")
+                        .font(.headline)
+                        .foregroundStyle(pal.text)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 22)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, dir > 0 ? fontSize : 0)
+        .padding(.bottom, dir < 0 ? fontSize * 0.6 : 24)
     }
 
     /// Строки всей книги (номера стихов — одним запросом; текст глав строится, когда до них доходит прокрутка)
     private func bookRows() -> [BookRow] {
         let blocksMode = continuous && !module.interlinear
-        let key = "\(module.id)|\(book)|\(blocksMode)|\(store.installed.count)"
+        let key = "\(module.id)|\(book)|\(blocksMode)|\(store.installed.count)|\(windowMode ? "\(winFirst)-\(winTail)" : "")"
         if bookBox.key == key { return bookBox.rows }
         let lay = store.bookLayout(module: module.id, book: book)
         var rows: [BookRow] = []
-        let chs = lay.verses.keys.sorted()
+        let chs = lay.verses.keys.sorted().filter { !windowMode || ($0 >= winFirst && $0 <= winFirst + winTail) }
         var counts: [Int: Int] = [:]
         for c in chs {
             let vs = (lay.verses[c] ?? []).filter { $0 >= 1 && $0 < 999 }
@@ -1483,12 +1595,12 @@ struct ChapterText: View {
             let d = chapterCache(r.chapter)
             if continuous && !module.interlinear {
                 if let blk = blocks(d.verses, d.heads).first(where: { $0.id == r.verse }) {
-                    blockRow(r.chapter, blk, d, views: nil)
+                    blockRow(r.chapter, blk, d, views: rowViews)
                 } else {
                     Color.clear.frame(height: 1).id(r.id)
                 }
             } else if let v = d.verses.first(where: { $0.num == r.verse }) {
-                verseRow(r.chapter, v, d, views: nil)
+                verseRow(r.chapter, v, d, views: rowViews)
             } else {
                 Color.clear.frame(height: 1).id(r.id)
             }
@@ -1898,7 +2010,7 @@ struct ChapterText: View {
         let base = uiFont(fontSize)
         let ink = UIColor(pal.text)
         func add(_ s: String, _ attrs: [K: Any] = [:]) {
-            var a: [K: Any] = [.font: base, .foregroundColor: ink, .aobVerse: v.num]
+            var a: [K: Any] = [.font: base, .foregroundColor: ink, .aobVerse: v.num, .aobChapter: ch]
             a.merge(attrs) { _, new in new }
             out.append(NSAttributedString(string: s, attributes: a))
         }

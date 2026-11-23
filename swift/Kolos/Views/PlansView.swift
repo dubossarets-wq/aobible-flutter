@@ -80,8 +80,12 @@ struct PlansView: View {
                 }
             }
             .navigationTitle("Планы чтения")
-            .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height - $0.contentInsets.top - $0.contentInsets.bottom } action: { _, h in
-                if abs(h - visibleH) > 0.5 { visibleH = h }
+            .onScrollGeometryChange(for: CGFloat.self) { g in
+                // меряем только у самого верха: пока листают, шапка сжимается и отступы меняются — карточка «Стих дня»
+                // не должна от этого двигаться
+                g.contentOffset.y + g.contentInsets.top <= 1 ? g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom : -1
+            } action: { _, h in
+                if h > 0, abs(h - visibleH) > 0.5 { visibleH = h }
             }
             .task { await loadCatalog() }
             .overlay(alignment: .top) {

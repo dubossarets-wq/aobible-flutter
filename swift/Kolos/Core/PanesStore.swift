@@ -324,7 +324,8 @@ final class PanesStore: ObservableObject {
     /// atEnd — открыть конец предыдущей главы (листаем страницами назад)
     func step(_ id: UUID, _ delta: Int, module m: InstalledModule, atEnd: Bool = false) {
         guard let i = index(id), let bi = m.books.firstIndex(where: { $0.id == panes[i].book }) else { return }
-        var c = panes[i].chapter + delta
+        // от главы, которую читают сейчас (в окне глав и в сплошном тексте книги она меняется прокруткой)
+        var c = (live.chapter[id] ?? panes[i].chapter) + delta
         var b = bi
         if c < 1 {
             guard b > 0 else { return }

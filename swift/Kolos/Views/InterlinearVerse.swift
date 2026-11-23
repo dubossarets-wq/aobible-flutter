@@ -21,6 +21,8 @@ struct InterlinearVerse: View {
     var favorite = false
     var xrefs = 0
     var illus = 0
+    /// Глава стиха — для синхронной прокрутки (ключ привязки: глава × 1000 + стих)
+    var chapter = 0
     /// Подкраска слова по его номеру в стихе (выбор части стиха, любимая часть)
     var mark: (Int) -> Color? = { _ in nil }
     var onTap: (URL?, Int) -> Void
@@ -142,7 +144,7 @@ struct InterlinearVerse: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(VerseAnchor(verse: verse.num, views: views))
+        .background(VerseAnchor(verse: chapter * 1000 + verse.num, views: views))
         .contentShape(Rectangle())
         .gesture(TapGesture(count: 2).onEnded { onDouble(verse.num) }, including: selecting ? .subviews : .all)
         .onTapGesture { onTap(nil, verse.num) }

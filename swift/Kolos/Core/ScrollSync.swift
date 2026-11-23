@@ -192,6 +192,10 @@ final class ScrollSync {
     }
 
     weak var store: PanesStore?
+    /// Панели, где текст — окно глав книги (несколько глав подряд): глава у них меняется от прокрутки, и главы
+    /// ведущей и ведомой сверять не нужно
+    var windowPanes = Set<UUID>()
+    private var lastJump: [UUID: CFTimeInterval] = [:]
     private var panes: [UUID: Pane] = [:]
     private var session: Session?
     private var applying = false
@@ -219,6 +223,7 @@ final class ScrollSync {
     }
 
     func detach(_ id: UUID) {
+        windowPanes.remove(id)
         panes[id]?.observation?.invalidate()
         panes[id] = nil
         if session?.leader == id { session = nil }
@@ -243,7 +248,11 @@ final class ScrollSync {
             let lm = tv.layoutManager
             lm.ensureLayout(for: tv.textContainer)
             storage.enumerateAttribute(.aobVerse, in: NSRange(location: 0, length: storage.length), options: []) { v, r, _ in
-                guard let n = v as? Int, out[n] == nil else { return }
+                // ключ — глава × 1000 + стих: в окне глав стих 5 бывает в нескольких главах
+                guard let verse = v as? Int else { return }
+                let chapter = (storage.attribute(.aobChapter, at: r.location, effectiveRange: nil) as? Int) ?? 0
+                let n = chapter * 1000 + verse
+                guard out[n] == nil else { return }
                 let g = lm.glyphIndexForCharacter(at: r.location)
                 let line = lm.lineFragmentRect(forGlyphAt: g, effectiveRange: nil)
                 out[n] = tv.convert(CGPoint(x: 0, y: line.minY + tv.textContainerInset.top), to: sv).y
@@ -294,7 +303,8 @@ final class ScrollSync {
 
         for f in store.panes where f.id != id {
             guard let fp = panes[f.id], let fv = fp.scrollView, fv.window != nil, !fv.isTracking else { continue }
-            if f.book != src.book || f.chapter != src.chapter {
+            let both = windowPanes.contains(id) && windowPanes.contains(f.id)
+            if f.book != src.book || (!both && f.chapter != src.chapter) {
                 store.go(f.id, src.book, src.chapter, 0, record: false)
                 session?.followers[f.id] = nil
                 continue
@@ -302,7 +312,16 @@ final class ScrollSync {
             let fgeo = PaneGeometry(fv)
             var st = session?.followers[f.id]
             if st == nil || st?.mapping.fromGeo != geo || st?.mapping.toGeo != fgeo {
-                guard let m = SyncCurve.make(fromTops: tops(p, sv), geo, toTops: tops(fp, fv), fgeo) else { continue }
+                guard let m = SyncCurve.make(fromTops: tops(p, sv), geo, toTops: tops(fp, fv), fgeo) else {
+                    // окна глав не пересекаются: ведомая читает другую главу — ставим её на главу ведущей (не чаще раза
+                    // в полсекунды; когда окно перестроится, общие стихи найдутся и панели поедут вместе)
+                    if both, start - (lastJump[f.id] ?? 0) > 0.6 {
+                        lastJump[f.id] = start
+                        store.go(f.id, src.book, store.live.chapter[id] ?? src.chapter, 0, record: false)
+                        session?.followers[f.id] = nil
+                    }
+                    continue
+                }
                 // панели стояли немного не вместе (открыли новую, поменялась раскладка) — догоняем по пути, без рывка;
                 // совсем в другом месте — сразу встаём на нужное
                 var bias = fv.contentOffset.y + fgeo.insetTop - m.target(previousTop ?? y)
