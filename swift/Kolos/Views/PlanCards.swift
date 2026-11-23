@@ -178,7 +178,7 @@ struct PlanCard: View {
         }
     }
 
-    /// Семь дней вокруг сегодняшнего: сегодня — закрашен акцентом, прочитан — зелёная галочка, пропущен — пустой круг с
+    /// Семь дней вокруг сегодняшнего: сегодня — закрашен акцентом, прочитан — зелёный с номером, пропущен — пустой круг с
     /// пунктирной обводкой (под лентой — подпись), будущий — светло-серый
     private func strip(today: Int, total: Int) -> some View {
         let start = max(0, min(today - 3, total - 7))
@@ -202,15 +202,12 @@ struct PlanCard: View {
                         if missed {
                             Circle().strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                         }
-                        if done {
-                            Image(systemName: "checkmark").font(.body.weight(.bold)).foregroundStyle(.white)
-                        } else {
-                            Text("\(d + 1)")
-                                .font(.body.weight(.semibold))
-                                .monospacedDigit()
-                                .minimumScaleFactor(0.6)
-                                .foregroundStyle(isToday ? Color.white : (missed ? Color.secondary : Color.primary.opacity(0.7)))
-                        }
+                        // прочитанный день — зелёный круг с номером дня (без галочки)
+                        Text("\(d + 1)")
+                            .font(.body.weight(.semibold))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(done || isToday ? Color.white : (missed ? Color.secondary : Color.primary.opacity(0.7)))
                     }
                     .frame(width: 42, height: 42)
                     .frame(maxWidth: .infinity)
