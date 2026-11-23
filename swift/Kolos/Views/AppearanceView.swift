@@ -113,7 +113,6 @@ struct AppearanceView: View {
                     row("Размер текста: \(Int(commentaryFontSize)) px", value: $commentaryFontSize, range: 14...32, step: 1, def: 19)
                     CapsuleSwitcher(options: [("below", Text("Под стихом")), ("tag", Text("Меткой после стиха"))], selection: $commentView)
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowBackground(Color.clear)
                 } header: {
                     Text("Комментарии в тексте")
                 }
