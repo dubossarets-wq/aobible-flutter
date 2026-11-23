@@ -308,7 +308,7 @@ struct ZoomScrollImage: UIViewRepresentable {
 
 /// Подстрочник стиха: слова перевода, под каждым — слово оригинала, его чтение и номер Стронга. Три источника: Винокуров
 /// (главный; Новый Завет), подстрочник на основе синодального перевода и Вульгата (значения по словарю).
-/// Над словами — стих из перевода, откуда открыли окно; стрелки листают стихи, смахивание влево-вправо — переводы
+/// Над словами — стих из перевода, откуда открыли окно; стрелки и смахивание влево-вправо листают стихи
 struct InterlinearSheet: View {
     private enum Source: String {
         case vin, syn, vulg
@@ -438,14 +438,12 @@ struct InterlinearSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipped()
             }
-            // смахивание влево — следующий перевод в переключателе, вправо — предыдущий
+            // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24).onEnded { g in
                     let dx = g.translation.width
-                    guard abs(dx) > 60, abs(dx) > abs(g.translation.height) * 1.5,
-                          let i = sources.firstIndex(of: source) else { return }
-                    let j = i + (dx < 0 ? 1 : -1)
-                    if j >= 0, j < sources.count { select(sources[j]) }
+                    guard abs(dx) > 60, abs(dx) > abs(g.translation.height) * 1.5 else { return }
+                    step(dx < 0 ? 1 : -1)
                 }
             )
             .background(Color(.systemGroupedBackground))
@@ -461,7 +459,7 @@ struct InterlinearSheet: View {
             .task(id: source.module) { await ensure(source.module) }
             .task { counts = store.verseCounts(module: moduleId, book: book) }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
