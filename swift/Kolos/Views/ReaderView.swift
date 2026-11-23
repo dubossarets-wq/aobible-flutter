@@ -2990,8 +2990,10 @@ struct ChapterGrid: View {
     }
 }
 
-/// Результаты поиска слова или части стиха внутри книги (chapter == nil) или одной главы
+/// Результаты поиска слова или части стиха внутри книги (chapter == nil) или одной главы.
+/// Сверху те же настройки, что на странице поиска (общие): целые слова, порядок слов, все модули
 struct ScopedSearchResults: View {
+    @EnvironmentObject private var store: ModuleStore
     let module: InstalledModule
     let book: String
     let chapter: Int?
@@ -2999,15 +3001,49 @@ struct ScopedSearchResults: View {
     let onSuggestion: (String) -> Void
     /// Глава и стих найденного места
     let onPick: (Int, Int) -> Void
+    @AppStorage("searchWhole") private var whole = false
+    @AppStorage("searchOrdered") private var ordered = false
+    @AppStorage("searchAllModules") private var allMods = false
     @State private var hits: [SearchHit] = []
     @State private var near: [QuerySuggestion] = []
     @State private var done: String?
 
     private var bookShort: String { module.books.first { $0.id == book }?.short ?? book }
 
+    /// Другие переводы, в которых можно искать (оригиналы и подстрочники — нет)
+    private var others: [InstalledModule] {
+        store.bibles.filter { !$0.interlinear && !$0.online && $0.id != module.id && !["oshb", "byz-rp2018"].contains($0.id) }
+    }
+
+    /// Переводы для поиска: открытый — или все
+    private var targets: [InstalledModule] {
+        allMods ? [module] + others : [module]
+    }
+
+    /// Запрос вместе с настройками: смена любой настройки запускает поиск заново
+    private var key: String { "\(query)|\(whole)|\(ordered)|\(allMods)" }
+
+    private var options: some View {
+        VStack(spacing: 0) {
+            Toggle("Только целые слова", isOn: $whole)
+                .padding(.horizontal, 16).padding(.vertical, 7)
+            Divider().padding(.leading, 16)
+            Toggle("Слова в заданном порядке", isOn: $ordered)
+                .padding(.horizontal, 16).padding(.vertical, 7)
+            if !others.isEmpty {
+                Divider().padding(.leading, 16)
+                Toggle("Во всех модулях", isOn: $allMods)
+                    .padding(.horizontal, 16).padding(.vertical, 7)
+            }
+        }
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.bottom, 14)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if done != query {
+            options
+            if done != key {
                 ProgressView().frame(maxWidth: .infinity).padding(.top, 24)
             } else if hits.isEmpty {
                 Text("Ничего не найдено.").font(.subheadline).foregroundStyle(.secondary)
@@ -3020,8 +3056,15 @@ struct ScopedSearchResults: View {
                 ForEach(hits.prefix(100), id: \.uid) { h in
                     Button { onPick(h.chapter, h.verse) } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("\(bookShort) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
-                            PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: false))
+                            HStack {
+                                Text("\(bookShort) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
+                                if targets.count > 1, let m = store.module(h.moduleId) {
+                                    Text(m.name).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(.fill.tertiary, in: Capsule())
+                                }
+                            }
+                            PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: whole))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 10)
@@ -3033,31 +3076,52 @@ struct ScopedSearchResults: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .task(id: query) { await run() }
+        .task(id: key) { await run() }
     }
 
     private func run() async {
         let q = query.trimmingCharacters(in: .whitespaces)
+        let finished = key
         guard q.count >= 2 else {
             hits = []
             near = []
-            done = query
+            done = finished
             return
         }
         try? await Task.sleep(nanoseconds: 250_000_000)
         if Task.isCancelled { return }
-        let path = module.path
+        let list = targets.map { (id: $0.id, path: $0.path) }
         let book = book
         let chapter = chapter
+        let whole = whole
+        let ordered = ordered
         let r = await Task.detached(priority: .userInitiated) { () -> ([SearchHit], [QuerySuggestion]) in
-            guard let idx = SearchIndex.index(path: path) else { return ([], []) }
-            var h = SearchEngine.run(index: idx, query: q, wholeWord: false, books: [book])
-            if let c = chapter { h = h.filter { $0.chapter == c } }
+            var all: [(order: Int, hit: SearchHit)] = []
+            var indexes: [SearchIndex] = []
+            for (n, t) in list.enumerated() {
+                guard let idx = SearchIndex.index(path: t.path) else { continue }
+                indexes.append(idx)
+                var h = SearchEngine.run(index: idx, query: q, wholeWord: whole, ordered: ordered, books: [book])
+                if let c = chapter { h = h.filter { $0.chapter == c } }
+                all.append(contentsOf: h.map { (order: n, hit: $0.tagged(t.id)) })
+            }
+            // несколько переводов: места по порядку, у одного места — переводы подряд
+            if list.count > 1 {
+                all.sort {
+                    if $0.hit.chapter != $1.hit.chapter { return $0.hit.chapter < $1.hit.chapter }
+                    if $0.hit.verse != $1.hit.verse { return $0.hit.verse < $1.hit.verse }
+                    return $0.order < $1.order
+                }
+            }
+            let h = all.map(\.hit)
             var near: [QuerySuggestion] = []
             if h.isEmpty {
-                near = SearchEngine.suggestions(indexes: [idx], query: q, wholeWord: false, ordered: false, books: [book]).compactMap { s in
+                near = SearchEngine.suggestions(indexes: indexes, query: q, wholeWord: whole, ordered: ordered, books: [book]).compactMap { s in
                     guard let c = chapter else { return s }
-                    let n = SearchEngine.run(index: idx, query: s.query, wholeWord: false, books: [book]).filter { $0.chapter == c }.count
+                    var n = 0
+                    for idx in indexes {
+                        n += SearchEngine.run(index: idx, query: s.query, wholeWord: whole, ordered: ordered, books: [book]).filter { $0.chapter == c }.count
+                    }
                     return n > 0 ? QuerySuggestion(query: s.query, count: n) : nil
                 }
             }
@@ -3066,7 +3130,7 @@ struct ScopedSearchResults: View {
         if Task.isCancelled { return }
         hits = r.0
         near = r.1
-        done = query
+        done = finished
     }
 }
 
