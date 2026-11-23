@@ -71,6 +71,7 @@ class _Memo {
   final String key;
   final List<SearchHit> hits = [];
   final List<String> mods = []; // перевод каждого результата
+  List<SearchSuggestion> near = const []; // «Возможно, вы искали»
   int shown = _page;
   double scroll = 0;
 }
@@ -110,6 +111,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
   List<SearchHit>? _hits;
   List<String> _hitMods = const [];
+  List<SearchSuggestion> _near = const []; // ничего не нашлось — запросы с исправленными словами
   int _shown = _page;
   String _ran = '';
   String? _shownKey; // условия, чьи результаты сейчас на экране
@@ -136,6 +138,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     if (restored != null) {
       _hits = restored.hits;
       _hitMods = restored.mods;
+      _near = restored.near;
       _shown = restored.shown;
       _ran = _q.text.trim();
       _shownKey = restored.key;
@@ -237,6 +240,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     _gen++;
     _shownKey = null;
     _hits = null;
+    _near = const [];
     _progress = null;
     _ran = '';
   }
@@ -277,6 +281,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
         _shown = _memo!.shown;
         _hits = _memo!.hits;
         _hitMods = _memo!.mods;
+        _near = _memo!.near;
       });
       return;
     }
@@ -291,6 +296,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
       _shownKey = key;
       _hits = memo.hits;
       _hitMods = memo.mods;
+      _near = const [];
       _shown = _page;
       _ran = q;
       _progress = (p: 0, label: t('Поиск…'));
@@ -314,6 +320,18 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     if (!mounted || gen != _gen) return;
     _memo = memo;
     setState(() => _progress = null);
+    // ничего не нашлось — ищем исправления опечаток (в отдельном потоке; словарь слов перевода строится заново)
+    if (memo.hits.isEmpty) {
+      List<SearchSuggestion> near;
+      try {
+        near = await suggestSearch([for (final m in list) (m.id, _books(m.id))], q, wholeWord: _whole, ordered: _ordered);
+      } catch (_) {
+        return;
+      }
+      if (!mounted || gen != _gen) return;
+      memo.near = near;
+      setState(() => _near = near);
+    }
   }
 
   void _remember(String q) {
@@ -321,6 +339,20 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     setState(() => _history = [q, ..._history.where((x) => x != q)].take(15).toList());
     _save('searchHistory', _history);
   }
+
+  Widget _nearRow(Palette pal, SearchSuggestion s) => InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _setQuery(s.query),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+          child: Row(children: [
+            AIcon(ico(LucideIcons.search), size: 16, color: pal.muted),
+            const SizedBox(width: 10),
+            Expanded(child: Text(s.query, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: pal.accent))),
+            Text('${s.count}', style: TextStyle(fontSize: 14, color: pal.muted)),
+          ]),
+        ),
+      );
 
   void _setQuery(String q) {
     _q.value = TextEditingValue(text: q, selection: TextSelection.collapsed(offset: q.length));
@@ -462,6 +494,12 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
             ),
           ),
         ]),
+        // слово с опечаткой: близкие слова перевода, у которых есть результаты
+        if (hits.isEmpty && _progress == null && _near.isNotEmpty) ...[
+          gap,
+          Text(t('Возможно, вы искали'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: pal.muted)),
+          for (final s in _near) _nearRow(pal, s),
+        ],
       ],
     ];
 

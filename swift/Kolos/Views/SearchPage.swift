@@ -17,6 +17,8 @@ final class SearchModel: ObservableObject {
     @Published var hits: [SearchHit] = []
     @Published var running = false
     @Published var searched = ""
+    /// Ничего не нашлось — запросы с исправленными словами («Возможно, вы искали»)
+    @Published var suggestions: [QuerySuggestion] = []
     private var generation = 0
 
     /// Поиск без пауз: на каждое изменение запроса — новый проход по готовому индексу (миллисекунды);
@@ -27,6 +29,7 @@ final class SearchModel: ObservableObject {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !targets.isEmpty, q.count >= 2 else {
             hits = []
+            suggestions = []
             running = false
             searched = ""
             return
@@ -34,8 +37,10 @@ final class SearchModel: ObservableObject {
         running = hits.isEmpty
         Task.detached(priority: .userInitiated) { [weak self] in
             var all: [SearchHit] = []
+            var indexes: [SearchIndex] = []
             for (id, path) in targets {
                 if let idx = SearchIndex.index(path: path) {
+                    indexes.append(idx)
                     all.append(contentsOf: SearchEngine.run(index: idx, query: q, wholeWord: whole, ordered: ordered, books: books).map { $0.tagged(id) })
                 }
             }
@@ -55,6 +60,14 @@ final class SearchModel: ObservableObject {
                 self.hits = result
                 self.searched = q
                 self.running = false
+                if !result.isEmpty { self.suggestions = [] }
+            }
+            // ничего не нашлось — ищем исправления опечаток (словарь слов перевода строится один раз)
+            guard result.isEmpty else { return }
+            let near = SearchEngine.suggestions(indexes: indexes, query: q, wholeWord: whole, ordered: ordered, books: books)
+            await MainActor.run {
+                guard let self, g == self.generation else { return }
+                self.suggestions = near
             }
         }
     }
@@ -200,6 +213,22 @@ struct SearchPage: View {
                         }
                     }
                 } else {
+                    // слово с опечаткой: предлагаем близкие слова перевода, у которых есть результаты
+                    if model.hits.isEmpty && !model.running && !model.suggestions.isEmpty {
+                        Section("Возможно, вы искали") {
+                            ForEach(model.suggestions) { s in
+                                Button {
+                                    query = s.query
+                                } label: {
+                                    HStack {
+                                        Text(s.query).foregroundStyle(.primary)
+                                        Spacer()
+                                        Text("\(s.count)").foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Section {
                         ForEach(model.hits.prefix(shown), id: \.uid) { h in
                             Button {

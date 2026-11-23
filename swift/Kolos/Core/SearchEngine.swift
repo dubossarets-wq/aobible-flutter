@@ -13,6 +13,13 @@ struct SearchHit: Identifiable {
     var uid: String { "\(moduleId)|\(id)" }
 }
 
+/// Исправленный запрос с числом найденных стихов («Возможно, вы искали»)
+struct QuerySuggestion: Identifiable {
+    let query: String
+    let count: Int
+    var id: String { query }
+}
+
 /// Текст перевода, подготовленный для поиска: один раз читается из файла и хранится в памяти (~10 МБ),
 /// дальше любой запрос — проход по готовым байтам за считанные миллисекунды
 final class SearchIndex: @unchecked Sendable {
@@ -27,6 +34,34 @@ final class SearchIndex: @unchecked Sendable {
     }
 
     let rows: [Row]
+
+    /// Слово текста: как записано в указателе (нижний регистр, ё = е), сколько раз встречается
+    struct VWord {
+        let text: String
+        let chars: [Character]
+        let count: Int
+    }
+
+    private var vocabCache: [VWord]?
+    private let vocabLock = NSLock()
+
+    /// Все слова перевода — для подсказок «Возможно, вы искали». Собираются один раз, когда понадобятся
+    var vocabulary: [VWord] {
+        vocabLock.lock()
+        defer { vocabLock.unlock() }
+        if let v = vocabCache { return v }
+        var freq: [String: Int] = [:]
+        for r in rows {
+            for w in r.folded.split(separator: 0x20) where w.count >= 4 {
+                freq[String(decoding: w, as: UTF8.self), default: 0] += 1
+            }
+        }
+        let list = freq.compactMap { k, n -> VWord? in
+            k.contains(where: \.isNumber) ? nil : VWord(text: k, chars: Array(k), count: n)
+        }
+        vocabCache = list
+        return list
+    }
 
     private init(rows: [Row]) {
         self.rows = rows
@@ -229,6 +264,81 @@ enum SearchEngine {
             }
         }
         return out
+    }
+
+    /// «Возможно, вы искали»: запрос с исправленными словами. Слово запроса, которого нет в тексте, заменяется
+    /// близкими по написанию словами перевода (опечатка, лишняя или пропущенная буква, перестановка); предлагаются
+    /// только запросы, у которых есть результаты
+    static func suggestions(indexes: [SearchIndex], query: String, wholeWord: Bool, ordered: Bool, books: Set<String>?, limit: Int = 5) -> [QuerySuggestion] {
+        guard strongNumber(query) == nil, let first = indexes.first else { return [] }
+        let toks = tokens(query)
+        guard !toks.isEmpty, toks.count <= 6 else { return [] }
+        var vocab = first.vocabulary
+        if indexes.count > 1 {
+            var merged: [String: SearchIndex.VWord] = [:]
+            for idx in indexes {
+                for w in idx.vocabulary {
+                    merged[w.text] = SearchIndex.VWord(text: w.text, chars: w.chars, count: (merged[w.text]?.count ?? 0) + w.count)
+                }
+            }
+            vocab = Array(merged.values)
+        }
+        // варианты для каждого слова запроса: само слово, если оно есть в тексте, иначе близкие слова текста
+        var options: [[String]] = []
+        var changed = false
+        for t in toks {
+            let f = fold(t).trimmingCharacters(in: .whitespaces)
+            guard f.count >= 3, !f.contains(" "), !f.contains(where: \.isNumber) else {
+                options.append([t.contains(" ") ? "\"\(t)\"" : t])
+                continue
+            }
+            let known = vocab.contains { wholeWord ? $0.text == f : $0.text.contains(f) }
+            if known {
+                options.append([t])
+                continue
+            }
+            let q = Array(f)
+            let allowed = Fuzzy.allowed(q.count)
+            var scored: [(s: Int, n: Int, w: String)] = []
+            for w in vocab {
+                if let s = Fuzzy.score(q, w.chars, allowed: allowed) { scored.append((s, w.count, w.text)) }
+            }
+            scored.sort { $0.s != $1.s ? $0.s < $1.s : $0.n > $1.n }
+            let near = scored.prefix(3).map { cased($0.w, like: t) }
+            if near.isEmpty {
+                options.append([t])
+            } else {
+                options.append(near)
+                changed = true
+            }
+        }
+        guard changed else { return [] }
+        // лучшее исправление всех слов сразу, затем другие варианты по одному слову
+        var combos: [[String]] = []
+        let best = options.map { $0[0] }
+        combos.append(best)
+        for i in options.indices where options[i].count > 1 {
+            for j in 1..<options[i].count {
+                var c = best
+                c[i] = options[i][j]
+                combos.append(c)
+            }
+        }
+        var out: [QuerySuggestion] = []
+        for c in combos {
+            let q = c.joined(separator: " ")
+            var n = 0
+            for idx in indexes { n += run(index: idx, query: q, wholeWord: wholeWord, ordered: ordered, books: books).count }
+            if n > 0 { out.append(QuerySuggestion(query: q, count: n)) }
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
+    /// Слово с такой же заглавной буквой, как у слова запроса
+    private static func cased(_ word: String, like original: String) -> String {
+        guard let f = original.first, f.isUppercase, let w = word.first else { return word }
+        return w.uppercased() + word.dropFirst()
     }
 
     /// Текст результата с найденным на скруглённых плашках (для PlateLabel): слова подсвечены цельным фоном со скруглением

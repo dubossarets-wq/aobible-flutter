@@ -101,10 +101,7 @@ extension ModuleStore {
             var scored: [(score: Int, len: Int, id: String)] = []
             for (id, norm) in names {
                 let n = Array(norm)
-                let whole = Self.distance(query, n)
-                let head = n.count > query.count ? Self.distance(query, Array(n.prefix(query.count))) + 1 : whole
-                let s = min(whole, head)
-                if s <= allowed { scored.append((s, n.count, id)) }
+                if let s = Fuzzy.score(query, n, allowed: allowed) { scored.append((s, n.count, id)) }
             }
             scored.sort { $0.score != $1.score ? $0.score < $1.score : $0.len < $1.len }
             let ids = scored.prefix(limit - out.count).map(\.id)
@@ -125,28 +122,6 @@ extension ModuleStore {
         let rows = d.query("SELECT id, name_norm FROM places") { ($0.text(0), $0.text(1)) }
         placeNameCache[moduleId] = rows
         return rows
-    }
-
-    /// Расстояние Дамерау — Левенштейна (вставка, удаление, замена, перестановка соседних букв)
-    private static func distance(_ a: [Character], _ b: [Character]) -> Int {
-        if a.isEmpty { return b.count }
-        if b.isEmpty { return a.count }
-        var prev2 = [Int](repeating: 0, count: b.count + 1)
-        var prev = Array(0...b.count)
-        var cur = [Int](repeating: 0, count: b.count + 1)
-        for i in 1...a.count {
-            cur[0] = i
-            for j in 1...b.count {
-                let cost = a[i - 1] == b[j - 1] ? 0 : 1
-                cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
-                if i > 1, j > 1, a[i - 1] == b[j - 2], a[i - 2] == b[j - 1] {
-                    cur[j] = min(cur[j], prev2[j - 2] + 1)
-                }
-            }
-            prev2 = prev
-            prev = cur
-        }
-        return prev[b.count]
     }
 
     /// Карты-картинки из установленных модулей карт

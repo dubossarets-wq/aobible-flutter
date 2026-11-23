@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'books.dart';
+import 'fuzzy.dart';
 import 'markup.dart';
 import 'modules.dart';
 
@@ -236,6 +237,99 @@ Future<List<_PlainVerse>> _plainOf(String moduleId, String path) {
 void warmSearch(String moduleId) {
   final path = ModuleStore.instance.get(moduleId)?.path;
   if (path != null) _plainOf(moduleId, path).ignore();
+}
+
+/// Исправленный запрос с числом найденных стихов («Возможно, вы искали»)
+typedef SearchSuggestion = ({String query, int count});
+
+/// «Возможно, вы искали»: запрос с исправленными словами. Слово запроса, которого нет в тексте, заменяется близкими
+/// по написанию словами перевода (опечатка, лишняя или пропущенная буква, перестановка); предлагаются только запросы,
+/// у которых есть результаты. sources — переводы (id) и книги, в которых ищем. Всё — в отдельном потоке
+Future<List<SearchSuggestion>> suggestSearch(List<(String, Set<String>?)> sources, String query, {bool wholeWord = false, bool ordered = false, int limit = 5}) async {
+  final specs = <(String, Set<String>?)>[
+    for (final (id, books) in sources)
+      if (ModuleStore.instance.get(id)?.path case final p?) (p, books),
+  ];
+  if (specs.isEmpty) return const [];
+  return Isolate.run(() {
+    final toks = queryTokens(query);
+    if (toks.isEmpty || toks.length > 6) return const <SearchSuggestion>[];
+    // слова перевода (сколько раз встречаются) и тексты стихов тех книг, где ищем
+    final wordRe = RegExp(r'[\p{L}\p{M}]+', unicode: true);
+    final vocab = <String, int>{};
+    final corpora = <List<String>>[];
+    for (final (path, books) in specs) {
+      final db = sqlite3.open(path, mode: OpenMode.readOnly);
+      final list = <String>[];
+      try {
+        for (final r in db.select('SELECT book, text FROM verses ORDER BY id')) {
+          final text = plainText(r['text'] as String);
+          for (final m in wordRe.allMatches(fuzzyFold(text))) {
+            final w = m[0]!;
+            if (w.length >= 3) vocab[w] = (vocab[w] ?? 0) + 1;
+          }
+          if (books == null || books.contains(r['book'])) list.add(text);
+        }
+      } finally {
+        db.close();
+      }
+      corpora.add(list);
+    }
+    // варианты для каждого слова запроса: само слово, если оно есть в тексте, иначе близкие слова текста
+    String cased(String word, String like) => like.isNotEmpty && like[0] != like[0].toLowerCase() ? word[0].toUpperCase() + word.substring(1) : word;
+    final options = <List<String>>[];
+    var changed = false;
+    for (final t in toks) {
+      final f = fuzzyFold(t).trim();
+      if (f.length < 3 || RegExp(r'[\s\d]').hasMatch(f)) {
+        options.add([t.contains(' ') ? '"$t"' : t]);
+        continue;
+      }
+      final known = wholeWord ? vocab.containsKey(f) : vocab.keys.any((w) => w.contains(f));
+      if (known) {
+        options.add([t]);
+        continue;
+      }
+      final q = f.codeUnits;
+      final allowed = fuzzyAllowed(q.length);
+      final scored = <(int, int, String)>[];
+      for (final e in vocab.entries) {
+        final s = fuzzyScore(q, e.key.codeUnits, allowed);
+        if (s != null) scored.add((s, e.value, e.key));
+      }
+      scored.sort((a, b) => a.$1 != b.$1 ? a.$1.compareTo(b.$1) : b.$2.compareTo(a.$2));
+      final near = [for (final s in scored.take(3)) cased(s.$3, t)];
+      if (near.isEmpty) {
+        options.add([t]);
+      } else {
+        options.add(near);
+        changed = true;
+      }
+    }
+    if (!changed) return const <SearchSuggestion>[];
+    // лучшее исправление всех слов сразу, затем другие варианты по одному слову
+    final best = [for (final o in options) o.first];
+    final combos = <List<String>>[best];
+    for (var i = 0; i < options.length; i++) {
+      for (var j = 1; j < options[i].length; j++) {
+        combos.add([...best]..[i] = options[i][j]);
+      }
+    }
+    final out = <SearchSuggestion>[];
+    for (final c in combos) {
+      final q = c.join(' ');
+      final qm = QueryMatcher(q, wholeWord: wholeWord, ordered: ordered);
+      var n = 0;
+      for (final corp in corpora) {
+        for (final text in corp) {
+          if (qm.matches(text)) n++;
+        }
+      }
+      if (n > 0) out.add((query: q, count: n));
+      if (out.length >= limit) break;
+    }
+    return out;
+  });
 }
 
 Future<List<SearchHit>> searchText(String moduleId, String query, {Set<String>? books, bool wholeWord = false, bool ordered = false}) async {

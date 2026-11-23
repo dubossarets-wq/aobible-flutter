@@ -437,6 +437,8 @@ struct DictionaryView: View {
     @State private var others: [DictArticle] = []
     @State private var searched = ""
     @State private var loadingOthers = false
+    /// Ничего не нашлось — близкие по написанию слова («Возможно, вы искали»)
+    @State private var near: [String] = []
     @FocusState private var focused: Bool
     /// Язык словарей: «all» — все (общий с выбором на странице статьи)
     @AppStorage("dictLang") private var lang = "all"
@@ -489,6 +491,18 @@ struct DictionaryView: View {
                         Text("Другие словари")
                     } footer: {
                         Text("Эти словари ещё не скачаны — статьи приходят по сети. Скачать словарь можно на странице статьи.")
+                    }
+                }
+                // слово с опечаткой: предлагаем близкие слова словарей; нажатие подставляет его в поиск
+                if searched == q, !loadingOthers, mineShown.isEmpty, othersShown.isEmpty, !near.isEmpty {
+                    Section("Возможно, вы искали") {
+                        ForEach(near, id: \.self) { w in
+                            Button {
+                                query = w
+                            } label: {
+                                Text(w).foregroundStyle(.primary)
+                            }
+                        }
                     }
                 }
             }
@@ -545,10 +559,12 @@ struct DictionaryView: View {
         guard !q.isEmpty else {
             mine = []
             others = []
+            near = []
             searched = ""
             loadingOthers = false
             return
         }
+        near = []
         try? await Task.sleep(nanoseconds: 220_000_000)
         if Task.isCancelled { return }
         // сначала скачанные (сразу), потом — словари сайта
@@ -564,6 +580,13 @@ struct DictionaryView: View {
         if Task.isCancelled { return }
         others = more
         loadingOthers = false
+        // нигде ничего: ищем близкие по написанию слова (в фоне — слов в словарях десятки тысяч)
+        if mine.isEmpty && more.isEmpty {
+            let paths = store.dictionaries.map(\.path)
+            let found = await Task.detached(priority: .userInitiated) { DictSuggest.suggest(paths: paths, query: q) }.value
+            if Task.isCancelled { return }
+            near = found
+        }
     }
 }
 

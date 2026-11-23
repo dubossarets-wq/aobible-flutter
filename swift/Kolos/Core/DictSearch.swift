@@ -218,6 +218,64 @@ final class RemoteDicts {
     }
 }
 
+/// «Возможно, вы искали» для словарей: слова, близкие по написанию к запросу, — заголовки статей словарей «по словам»
+/// и слова обратного указателя (русские слова, по которым находятся номера Стронга). Читает базы своими соединениями —
+/// можно звать не из главного потока
+enum DictSuggest {
+    private static let lock = NSLock()
+    private static var cache: [String: [(text: String, chars: [Character])]] = [:]
+
+    private static func words(_ path: String) -> [(text: String, chars: [Character])] {
+        lock.lock()
+        let hit = cache[path]
+        lock.unlock()
+        if let hit { return hit }
+        var raw: [String] = []
+        if let db = try? SQLiteDB(path: path, readOnly: true) {
+            func has(_ table: String) -> Bool {
+                !db.query("SELECT 1 FROM sqlite_master WHERE name = ?", [table]) { $0.int(0) }.isEmpty
+            }
+            if has("dict") {
+                // номера Стронга — не слова
+                raw += db.query("SELECT key FROM dict") { $0.text(0) }
+                    .filter { $0.range(of: "^[GH][0-9]+$", options: .regularExpression) == nil }
+            }
+            if has("windex") { raw += db.query("SELECT word FROM windex") { $0.text(0) } }
+        }
+        var seen = Set<String>()
+        var list: [(text: String, chars: [Character])] = []
+        for w in raw {
+            let l = w.lowercased().replacingOccurrences(of: "ё", with: "е")
+            guard l.count >= 3, seen.insert(l).inserted else { continue }
+            list.append((l, Array(l)))
+        }
+        lock.lock()
+        cache[path] = list
+        lock.unlock()
+        return list
+    }
+
+    /// Ближайшие слова: сначала с меньшим числом исправлений, затем покороче
+    static func suggest(paths: [String], query: String, limit: Int = 6) -> [String] {
+        let q = Array(query)
+        guard q.count >= 3, SearchEngine.strongNumber(query) == nil else { return [] }
+        let allowed = Fuzzy.allowed(q.count)
+        var best: [String: Int] = [:]
+        for p in paths {
+            for w in words(p) where w.text != query {
+                guard let s = Fuzzy.score(q, w.chars, allowed: allowed) else { continue }
+                if s < (best[w.text] ?? Int.max) { best[w.text] = s }
+            }
+        }
+        let sorted = best.sorted { a, b in
+            if a.value != b.value { return a.value < b.value }
+            if a.key.count != b.key.count { return a.key.count < b.key.count }
+            return a.key < b.key
+        }
+        return sorted.prefix(limit).map(\.key)
+    }
+}
+
 /// Поиск по всем словарям: скачанные и с сайта
 @MainActor
 enum DictSearch {
