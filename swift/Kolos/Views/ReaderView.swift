@@ -2800,7 +2800,10 @@ struct GotoSheet: View {
             .task(id: link) { await runTextSearch() }
             .onAppear { if !module.online { SearchIndex.warm(path: module.path) } }
             .navigationDestination(for: ModuleBook.self) { b in
-                ChapterGrid(book: b) { c in path.append(ChapterPick(book: b, chapter: c)) }
+                ChapterGrid(module: module, book: b, onPick: { c in path.append(ChapterPick(book: b, chapter: c)) }, onVerse: { c, v in
+                    onPick(b.id, c, v)
+                    dismiss()
+                })
             }
             .navigationDestination(for: ChapterPick.self) { p in
                 VerseGrid(module: module, pick: p) { v in
@@ -2851,17 +2854,121 @@ struct NumberGrid: View {
     }
 }
 
+/// Главы книги; строка поиска внизу ищет слово или часть стиха только в этой книге
 struct ChapterGrid: View {
+    let module: InstalledModule
     let book: ModuleBook
     let onPick: (Int) -> Void
+    /// Нашли стих поиском: глава, стих
+    let onVerse: (Int, Int) -> Void
+    @State private var q = ""
 
     var body: some View {
         ScrollView {
-            NumberGrid(numbers: Array(1...max(1, book.chapters)), onPick: onPick)
-                .padding(16)
+            if q.trimmingCharacters(in: .whitespaces).isEmpty {
+                NumberGrid(numbers: Array(1...max(1, book.chapters)), onPick: onPick)
+                    .padding(16)
+            } else {
+                ScopedSearchResults(module: module, book: book.id, chapter: nil, query: q, onSuggestion: { q = $0 }, onPick: onVerse)
+                    .padding(16)
+            }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle(book.name)
         .navigationBarTitleDisplayMode(.inline)
+        .bottomSearch($q, prompt: "Поиск в этой книге", isOn: !module.online)
+        .onAppear { if !module.online { SearchIndex.warm(path: module.path) } }
+    }
+}
+
+/// Результаты поиска слова или части стиха внутри книги (chapter == nil) или одной главы
+struct ScopedSearchResults: View {
+    let module: InstalledModule
+    let book: String
+    let chapter: Int?
+    let query: String
+    let onSuggestion: (String) -> Void
+    /// Глава и стих найденного места
+    let onPick: (Int, Int) -> Void
+    @State private var hits: [SearchHit] = []
+    @State private var near: [QuerySuggestion] = []
+    @State private var done: String?
+
+    private var bookShort: String { module.books.first { $0.id == book }?.short ?? book }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if done != query {
+                ProgressView().frame(maxWidth: .infinity).padding(.top, 24)
+            } else if hits.isEmpty {
+                Text("Ничего не найдено.").foregroundStyle(.secondary)
+                if !near.isEmpty {
+                    Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 14).padding(.bottom, 4)
+                    ForEach(near) { s in
+                        Button { onSuggestion(s.query) } label: {
+                            HStack {
+                                Text(s.query).foregroundStyle(.primary)
+                                Spacer()
+                                Text("\(s.count)").foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } else {
+                Text("Найдено: \(hits.count)").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.bottom, 6)
+                ForEach(hits.prefix(100), id: \.uid) { h in
+                    Button { onPick(h.chapter, h.verse) } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(bookShort) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
+                            PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: false))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: query) { await run() }
+    }
+
+    private func run() async {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else {
+            hits = []
+            near = []
+            done = query
+            return
+        }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+        let path = module.path
+        let book = book
+        let chapter = chapter
+        let r = await Task.detached(priority: .userInitiated) { () -> ([SearchHit], [QuerySuggestion]) in
+            guard let idx = SearchIndex.index(path: path) else { return ([], []) }
+            var h = SearchEngine.run(index: idx, query: q, wholeWord: false, books: [book])
+            if let c = chapter { h = h.filter { $0.chapter == c } }
+            var near: [QuerySuggestion] = []
+            if h.isEmpty {
+                near = SearchEngine.suggestions(indexes: [idx], query: q, wholeWord: false, ordered: false, books: [book]).compactMap { s in
+                    guard let c = chapter else { return s }
+                    let n = SearchEngine.run(index: idx, query: s.query, wholeWord: false, books: [book]).filter { $0.chapter == c }.count
+                    return n > 0 ? QuerySuggestion(query: s.query, count: n) : nil
+                }
+            }
+            return (h, near)
+        }.value
+        if Task.isCancelled { return }
+        hits = r.0
+        near = r.1
+        done = query
     }
 }
 
@@ -2871,25 +2978,35 @@ private struct VerseGrid: View {
     let module: InstalledModule
     let pick: ChapterPick
     let onPick: (Int) -> Void
+    @State private var q = ""
 
     var body: some View {
         let counts = store.verseCounts(module: module.id, book: pick.book.id)
         let n = counts[pick.chapter] ?? 0
         ScrollView {
-            VStack(spacing: 14) {
-                Button { onPick(0) } label: {
-                    Label("Читать главу \(pick.chapter)", systemImage: "book")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+            if q.trimmingCharacters(in: .whitespaces).isEmpty {
+                VStack(spacing: 14) {
+                    Button { onPick(0) } label: {
+                        Label("Читать главу \(pick.chapter)", systemImage: "book")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    if n > 0 {
+                        NumberGrid(numbers: Array(1...n), onPick: onPick)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                if n > 0 {
-                    NumberGrid(numbers: Array(1...n), onPick: onPick)
-                }
+                .padding(16)
+            } else {
+                // слово или часть стиха — поиск только в этой главе
+                ScopedSearchResults(module: module, book: pick.book.id, chapter: pick.chapter, query: q, onSuggestion: { q = $0 }, onPick: { _, v in onPick(v) })
+                    .padding(16)
             }
-            .padding(16)
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("\(pick.book.name) \(pick.chapter)")
         .navigationBarTitleDisplayMode(.inline)
+        .bottomSearch($q, prompt: "Поиск в этой главе", isOn: !module.online)
+        .onAppear { if !module.online { SearchIndex.warm(path: module.path) } }
     }
 }
 
