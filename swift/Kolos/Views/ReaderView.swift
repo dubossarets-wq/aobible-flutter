@@ -2535,6 +2535,11 @@ struct GotoSheet: View {
     @State private var link = ""
     @State private var linkError = false
     @State private var path = NavigationPath()
+    /// Поиск по словам в тексте перевода (когда в поле не название книги): найденные стихи и исправления опечаток
+    @State private var textHits: [SearchHit] = []
+    @State private var textSuggestions: [QuerySuggestion] = []
+    /// Для какого запроса готов поиск по тексту (пока не готов — вместо «ничего не найдено» крутится индикатор)
+    @State private var textDone = ""
 
     private func book(_ id: String) -> ModuleBook? {
         module.books.first { $0.id == id }
@@ -2622,19 +2627,82 @@ struct GotoSheet: View {
         }
     }
 
-    /// Результаты поиска по слову: подходящие книги; нет таких — близкие по написанию
+    /// Результаты поиска по слову: подходящие книги; книги такой нет — стихи, где есть эти слова («слово стало»);
+    /// и их нет — близкие по написанию слова и книги
     @ViewBuilder private var bookMatches: some View {
         let list = matches
-        if list.isEmpty {
-            Text("Книги с таким названием нет.").foregroundStyle(.secondary)
-            let near = suggestions
-            if !near.isEmpty {
-                Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                bookGrid(near)
-            }
-        } else {
+        if !list.isEmpty {
             bookGrid(list)
+        } else if textDone != query {
+            ProgressView().frame(maxWidth: .infinity).padding(.top, 8)
+        } else if !textHits.isEmpty {
+            textResults
+        } else {
+            Text("Ничего не найдено.").foregroundStyle(.secondary)
+            let near = suggestions
+            if !textSuggestions.isEmpty || !near.isEmpty {
+                Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                ForEach(textSuggestions) { s in
+                    Button { link = s.query } label: {
+                        HStack {
+                            Text(s.query).foregroundStyle(.primary)
+                            Spacer()
+                            Text("\(s.count)").foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if !near.isEmpty { bookGrid(near) }
+            }
         }
+    }
+
+    /// Стихи с этими словами: нажатие открывает стих
+    private var textResults: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Найдено: \(textHits.count)").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.bottom, 6)
+            ForEach(textHits.prefix(50), id: \.uid) { h in
+                Button {
+                    onPick(h.book, h.chapter, h.verse)
+                    dismiss()
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(book(h.book)?.short ?? h.book) \(h.chapter):\(h.verse)").font(.subheadline.weight(.semibold)).foregroundStyle(.tint)
+                        PlateLabel(text: SearchEngine.highlightedNS(h.text, query: query, wholeWord: false))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Divider()
+            }
+        }
+    }
+
+    /// Ищет слова запроса в тексте открытого перевода (в фоне; индекс готовится один раз)
+    private func runTextSearch() async {
+        let q = query
+        guard q.count >= 2, isBookQuery, matches.isEmpty, !module.online else {
+            textHits = []
+            textSuggestions = []
+            textDone = q
+            return
+        }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+        let path = module.path
+        let found = await Task.detached(priority: .userInitiated) { () -> ([SearchHit], [QuerySuggestion]) in
+            guard let idx = SearchIndex.index(path: path) else { return ([], []) }
+            let hits = SearchEngine.run(index: idx, query: q, wholeWord: false, books: nil)
+            let near = hits.isEmpty ? SearchEngine.suggestions(indexes: [idx], query: q, wholeWord: false, ordered: false, books: nil) : []
+            return (hits, near)
+        }.value
+        if Task.isCancelled { return }
+        textHits = found.0
+        textSuggestions = found.1
+        textDone = q
     }
 
     private func submitLink() {
@@ -2729,6 +2797,8 @@ struct GotoSheet: View {
                     Button("Закрыть") { dismiss() }
                 }
             }
+            .task(id: link) { await runTextSearch() }
+            .onAppear { if !module.online { SearchIndex.warm(path: module.path) } }
             .navigationDestination(for: ModuleBook.self) { b in
                 ChapterGrid(book: b) { c in path.append(ChapterPick(book: b, chapter: c)) }
             }
@@ -2761,24 +2831,34 @@ struct GotoSheet: View {
     }
 }
 
+/// Сетка номеров — глав и стихов: одинаковые кружки одного размера
+struct NumberGrid: View {
+    let numbers: [Int]
+    let onPick: (Int) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 10)], spacing: 10) {
+            ForEach(numbers, id: \.self) { n in
+                Button { onPick(n) } label: {
+                    Text("\(n)")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(.primary)
+            }
+        }
+    }
+}
+
 struct ChapterGrid: View {
     let book: ModuleBook
     let onPick: (Int) -> Void
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: 10)], spacing: 10) {
-                ForEach(1...max(1, book.chapters), id: \.self) { n in
-                    Button { onPick(n) } label: {
-                        Text("\(n)")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.primary)
-                }
-            }
-            .padding(16)
+            NumberGrid(numbers: Array(1...max(1, book.chapters)), onPick: onPick)
+                .padding(16)
         }
         .navigationTitle(book.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -2803,17 +2883,7 @@ private struct VerseGrid: View {
                 }
                 .buttonStyle(.borderedProminent)
                 if n > 0 {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 10)], spacing: 10) {
-                        ForEach(1...n, id: \.self) { v in
-                            Button { onPick(v) } label: {
-                                Text("\(v)")
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity, minHeight: 44)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.primary)
-                        }
-                    }
+                    NumberGrid(numbers: Array(1...n), onPick: onPick)
                 }
             }
             .padding(16)
