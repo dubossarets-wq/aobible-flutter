@@ -92,6 +92,8 @@ struct SearchPage: View {
     // поле поиска активно с самого начала: клавиатура выезжает вместе со страницей, без паузы
     @State private var searching = true
     @State private var shown = 50
+    /// Недавние: сразу видно 20, «Раскрыть все» — до 50
+    @State private var historyOpen = false
     @State private var history: [String] = UserDefaults.standard.stringArray(forKey: "searchHistory") ?? []
     @StateObject private var model = SearchModel()
     /// Смахивание вправо от левого края: страница едет за пальцем и закрывается (страница открыта поверх
@@ -137,7 +139,7 @@ struct SearchPage: View {
     private func remember(_ q: String) {
         let t = q.trimmingCharacters(in: .whitespaces)
         guard t.count > 1 else { return }
-        history = ([t] + history.filter { $0 != t }).prefix(15).map { $0 }
+        history = ([t] + history.filter { $0 != t }).prefix(50).map { $0 }
         UserDefaults.standard.set(history, forKey: "searchHistory")
     }
 
@@ -361,19 +363,35 @@ struct SearchPage: View {
 
     private var historySection: some View {
         Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock").foregroundStyle(.secondary)
-                    ForEach(history, id: \.self) { h in
+            let shown = Array(history.prefix(historyOpen ? 50 : 20))
+            VStack(alignment: .leading, spacing: 10) {
+                // плашки переносятся на следующую строку и не выходят за край экрана
+                FlowLayout(spacing: 8) {
+                    Image(systemName: "clock").foregroundStyle(.secondary).frame(height: 32)
+                    ForEach(shown, id: \.self) { h in
                         chip(h)
                     }
                 }
+                if history.count > 20 {
+                    Button {
+                        withAnimation(.smooth(duration: 0.3)) { historyOpen.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(historyOpen ? "Свернуть" : "Раскрыть все")
+                            if !historyOpen { Text(verbatim: "· \(min(50, history.count))").foregroundStyle(.secondary) }
+                            Image(systemName: "chevron.down").font(.caption.weight(.bold)).rotationEffect(.degrees(historyOpen ? 180 : 0))
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            // лента до самых краёв карточки (отступ — у содержимого): иначе плашки обрезались на полпути, в 12 пт от края
-            .contentMargins(.horizontal, 16, for: .scrollContent)
-            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             Button("Очистить историю", role: .destructive) {
                 history = []
+                historyOpen = false
                 UserDefaults.standard.removeObject(forKey: "searchHistory")
             }
         } header: {
@@ -385,7 +403,7 @@ struct SearchPage: View {
         Button {
             query = h
         } label: {
-            Text(h).font(.subheadline.weight(.semibold))
+            Text(h).font(.subheadline.weight(.semibold)).lineLimit(1).frame(maxWidth: 260)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
