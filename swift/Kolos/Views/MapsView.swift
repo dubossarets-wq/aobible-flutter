@@ -191,6 +191,15 @@ struct PlaceDetail: View {
         }
         .navigationTitle(place.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // место уходит текстом: название, координаты и ссылки на карты Apple и Google
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: place.shareText, subject: Text(place.name)) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Поделиться")
+            }
+        }
     }
 }
 
@@ -212,6 +221,11 @@ struct MapImageView: View {
             }
             .navigationTitle(map.title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareImageButton(url: map.url, caption: [map.title, map.descr].filter { !$0.isEmpty }.joined(separator: "\n"))
+                }
+            }
     }
 }
 

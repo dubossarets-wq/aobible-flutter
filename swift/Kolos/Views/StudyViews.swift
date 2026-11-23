@@ -342,11 +342,23 @@ struct IllustrationsSheet: View {
     let book: String
     let chapter: Int
     let verse: Int
+    /// Какая иллюстрация открыта сейчас (её и отправляет «Поделиться»)
+    @State private var current: String?
+
+    /// Подпись для отправки: место, название, автор, год, лицензия и страница файла
+    private func caption(_ it: BibleIllustration) -> String {
+        var lines = ["\(Books.info(book)?.short ?? book) \(chapter):\(verse)", it.title]
+        let by = [it.author, it.year].filter { !$0.isEmpty }.joined(separator: ", ") + (it.license.isEmpty ? "" : " · \(it.license)")
+        if !by.isEmpty { lines.append(by) }
+        if it.src.hasPrefix("http") { lines.append(it.src) }
+        return lines.joined(separator: "\n")
+    }
 
     var body: some View {
         let items = store.illustrations(book: book, chapter: chapter, verse: verse)
+        let shown = items.first { $0.id == current } ?? items.first
         NavigationStack {
-            TabView {
+            TabView(selection: $current) {
                 ForEach(items) { it in
                     VStack(spacing: 10) {
                         ZoomableImage(url: URL(string: it.img))
@@ -361,12 +373,18 @@ struct IllustrationsSheet: View {
                         }
                     }
                     .padding()
+                    .tag(Optional(it.id))
                 }
             }
             .tabViewStyle(.page)
             .navigationTitle("Иллюстрации")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if let it = shown {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ShareImageButton(url: URL(string: it.img), caption: caption(it))
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
         }
