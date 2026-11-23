@@ -2916,6 +2916,7 @@ struct GotoSheet: View {
                                 }
                             }
                         }
+                        .bleedingRow()
                     }
 
                     ForEach(isBookQuery ? [] : sections(), id: \.title) { sec in

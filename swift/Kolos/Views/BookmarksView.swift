@@ -145,6 +145,7 @@ struct BookmarksView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
         }
+        .softEdges()
     }
 
     private func empty(_ icon: String, _ title: LocalizedStringKey, _ hint: LocalizedStringKey) -> some View {
@@ -314,6 +315,7 @@ struct BookmarksView: View {
                 }
                 // лента до краёв карточки, отступ — у содержимого (иначе плашки обрезались в 12 пт от края)
                 .contentMargins(.horizontal, 16, for: .scrollContent)
+                .softEdges()
                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
             }
             let keys = marks.data.highlights.filter { colorFilter == "all" || $0.value == colorFilter }.map { $0.key }.sorted(by: bibleOrder)

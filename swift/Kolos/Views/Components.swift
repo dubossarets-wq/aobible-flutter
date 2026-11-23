@@ -1,5 +1,25 @@
 import SwiftUI
 
+extension View {
+    /// Горизонтальная лента плашек: у краёв плавно гаснет, а не обрезается резким срезом посреди плашки
+    func softEdges(_ width: CGFloat = 16) -> some View {
+        mask(
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: width)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: width)
+            }
+        )
+    }
+
+    /// Лента плашек до краёв экрана: отступ страницы (inset) отдан содержимому, а не обрезке; плашки уходят под край плавно
+    func bleedingRow(_ inset: CGFloat = 16) -> some View {
+        padding(.horizontal, -inset)
+            .contentMargins(.horizontal, inset, for: .scrollContent)
+            .softEdges(inset)
+    }
+}
+
 /// Строка списка со значком в цветном квадрате — как в «Настройках» iPhone
 struct IconLabel: View {
     let title: LocalizedStringKey

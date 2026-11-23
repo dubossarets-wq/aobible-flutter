@@ -602,6 +602,7 @@ struct PillTabs: View {
                 }
             }
         }
+        .bleedingRow()
     }
 }
 
@@ -861,6 +862,7 @@ struct ConcordanceView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) { c() }.padding(.horizontal, 16)
         }
+        .softEdges()
     }
 
     private struct Model {

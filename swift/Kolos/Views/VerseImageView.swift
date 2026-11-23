@@ -207,6 +207,7 @@ struct VerseImageSheet: View {
                             }
                         }
                     }
+                    .bleedingRow()
                     if let p = photos.first(where: { ($0["id"] as? String) == bg }) {
                         Text("Фото: \(p["title"] as? String ?? "")" + (p["author"].map { " — \($0)" } ?? "") + " (\(p["license"] as? String ?? ""))")
                             .font(.caption2)
