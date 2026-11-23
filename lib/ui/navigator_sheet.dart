@@ -15,6 +15,7 @@ import '../core/modules.dart';
 import '../core/panes.dart';
 import '../core/settings.dart';
 import 'kit.dart';
+import 'scoped_search.dart';
 import 'ios_style.dart';
 
 Future<void> openNavigator(BuildContext context, int pane) => showAobSheet(context, builder: (_) => NavigatorSheet(pane: pane), scripture: true);
@@ -601,17 +602,28 @@ class _NavigatorSheetState extends ConsumerState<NavigatorSheet> with SingleTick
         ]);
       });
 
-  Widget _chapters(Palette pal, Color fill, _Book b, VerseRef at) => SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + _tabBottom),
-        child: _numGrid(pal, fill, b.chapters, (n) => at.book == b.id && at.chapter == n, _openChapter),
+  // Главы; поле сверху ищет слово или часть стиха только в этой книге
+  Widget _chapters(Palette pal, Color fill, _Book b, VerseRef at) => ScopedSearch(
+        moduleId: _moduleId,
+        book: b.id,
+        hint: t('Поиск в этой книге'),
+        bottomPad: 20 + _tabBottom,
+        onPick: _go,
+        idle: _numGrid(pal, fill, b.chapters, (n) => at.book == b.id && at.chapter == n, _openChapter),
       );
 
   Widget _verseStep(Palette pal, Color fill, _Book b, int ch, VerseRef at) {
     final counts = _verses(b.id);
     final n = ch <= counts.length ? counts[ch - 1] : 0;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 14, 16, 20 + _tabBottom),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    // Стихи; поле сверху ищет слово или часть стиха только в этой главе
+    return ScopedSearch(
+      moduleId: _moduleId,
+      book: b.id,
+      chapter: ch,
+      hint: t('Поиск в этой главе'),
+      bottomPad: 20 + _tabBottom,
+      onPick: _go,
+      idle: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Material(
           color: mix(pal.accent, 0.13, pal.panel),
           shape: iosUiNow ? RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(iosRadius)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),

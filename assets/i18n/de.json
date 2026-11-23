@@ -1486,5 +1486,8 @@
  "Словарей пока нет. Установите их: «Ещё» → «Библиотека модулей» → «Словари».": "No dictionaries yet. Install them: More → Module library → Dictionaries.",
  "Слова в заданном порядке": "Wörter in der angegebenen Reihenfolge",
  "Такого стиха в этом переводе нет": "Diesen Vers gibt es in dieser Übersetzung nicht",
- "Толкования": "Kommentare"
+ "Толкования": "Kommentare",
+ "Поиск в этой книге": "In diesem Buch suchen",
+ "Поиск в этой главе": "In diesem Kapitel suchen",
+ "Возможно, вы искали": "Meinten Sie"
 }
