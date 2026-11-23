@@ -307,7 +307,8 @@ struct ZoomScrollImage: UIViewRepresentable {
 }
 
 /// Подстрочник стиха: слова перевода, под каждым — слово оригинала, его чтение и номер Стронга. Три источника: Винокуров
-/// (главный; Новый Завет), подстрочник на основе синодального перевода и Вульгата (значения по словарю)
+/// (главный; Новый Завет), подстрочник на основе синодального перевода и Вульгата (значения по словарю).
+/// Над словами — стих из перевода, откуда открыли окно; стрелки листают стихи, смахивание влево-вправо — переводы
 struct InterlinearSheet: View {
     private enum Source: String {
         case vin, syn, vulg
@@ -338,10 +339,15 @@ struct InterlinearSheet: View {
     @EnvironmentObject private var store: ModuleStore
     @Environment(\.dismiss) private var dismiss
     let book: String
-    let chapter: Int
-    let verse: Int
     /// Перевод, из которого открыли окно: его стих написан над подстрочником
     let moduleId: String
+    /// Какой стих показан сейчас (стрелками и смахиванием листается)
+    @State private var c: Int
+    @State private var v: Int
+    /// Откуда въезжает следующий стих (при листании назад — с другой стороны)
+    @State private var dir: Edge = .trailing
+    /// Сколько стихов в каждой главе книги — для листания через границу главы
+    @State private var counts: [Int: Int] = [:]
     /// Окно всегда открывается на Винокурове; выбранное в этом окне — пока оно открыто
     @State private var picked: Source?
     /// Окна слова и статьи — те же, что в тексте Библии (со формой слова «В этом стихе»)
@@ -350,6 +356,13 @@ struct InterlinearSheet: View {
     /// Модуль подстрочника ставится при первом открытии вкладки
     @State private var loading = false
     @State private var failed = false
+
+    init(book: String, chapter: Int, verse: Int, moduleId: String) {
+        self.book = book
+        self.moduleId = moduleId
+        _c = State(initialValue: chapter)
+        _v = State(initialValue: verse)
+    }
 
     /// Винокуров переводит только Новый Завет
     private var sources: [Source] {
@@ -361,44 +374,87 @@ struct InterlinearSheet: View {
         return sources[0]
     }
 
-    /// Строка окна без белой карточки: прямо на фоне окна
-    private func plainRow<V: View>(_ v: V, top: CGFloat = 4, bottom: CGFloat = 4) -> some View {
-        v.listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: top, leading: 4, bottom: bottom, trailing: 4))
+    private var chapterCount: Int {
+        store.module(moduleId)?.books.first { $0.id == book }?.chapters ?? c
+    }
+
+    private var canPrev: Bool { c > 1 || v > 1 }
+    private var canNext: Bool { c < chapterCount || v < (counts[c] ?? v) }
+
+    /// Соседний стих (через границу главы тоже)
+    private func step(_ d: Int) {
+        var nc = c
+        var nv = v + d
+        if nv < 1 {
+            guard c > 1 else { return }
+            nc = c - 1
+            nv = max(1, counts[nc] ?? 1)
+        } else if nv > (counts[c] ?? v) {
+            guard c < chapterCount else { return }
+            nc = c + 1
+            nv = 1
+        }
+        dir = d > 0 ? .trailing : .leading
+        withAnimation(.snappy(duration: 0.3)) {
+            c = nc
+            v = nv
+        }
+    }
+
+    /// Другой перевод: слова въезжают с той стороны, куда он стоит в переключателе
+    private func select(_ new: Source) {
+        guard new != source else { return }
+        let from = sources.firstIndex(of: source) ?? 0
+        let to = sources.firstIndex(of: new) ?? 0
+        dir = to > from ? .trailing : .leading
+        withAnimation(.snappy(duration: 0.3)) { picked = new }
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                // переключатель — три капсулы в одну строку на всю ширину
-                plainRow(switcher)
-                // стих — как он написан в переводе, из которого открыли окно
-                if let q = store.verseText(module: moduleId, book: book, chapter: chapter, verse: verse), !q.isEmpty {
-                    plainRow(
-                        Text(q)
-                            .font(.system(size: 17, design: .serif))
-                            .frame(maxWidth: .infinity, alignment: .leading),
-                        top: 6, bottom: 10
-                    )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    // переключатель — три капсулы в одну строку на всю ширину
+                    switcher
+                    quoteCard
+                        .id("\(c):\(v)")
+                        .transition(.push(from: dir))
+                    VStack(alignment: .leading, spacing: 14) {
+                        content
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if !loading && !failed {
+                            Text(hint).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
+                        }
+                    }
+                    .id("\(c):\(v):\(source.rawValue)")
+                    .transition(.push(from: dir))
                 }
-                Section {
-                    // слова — прямо на фоне окна, каждое на своей плашке, без общей серой карточки вокруг
-                    plainRow(content)
-                } footer: {
-                    if !loading && !failed { Text(hint) }
-                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
             }
-            .navigationTitle("\(Books.info(book)?.short ?? book) \(chapter):\(verse)")
+            // смахивание влево — следующий перевод в переключателе, вправо — предыдущий
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { g in
+                    let dx = g.translation.width
+                    guard abs(dx) > 60, abs(dx) > abs(g.translation.height) * 1.5,
+                          let i = sources.firstIndex(of: source) else { return }
+                    let j = i + (dx < 0 ? 1 : -1)
+                    if j >= 0, j < sources.count { select(sources[j]) }
+                }
+            )
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("\(Books.info(book)?.short ?? book) \(c):\(v)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
-            .background(StudySheets(req: req) { b, c, v in
-                openVerse(b, c, v)
+            .background(StudySheets(req: req) { bb, cc, vv in
+                openVerse(bb, cc, vv)
                 dismiss()
             })
             .task(id: source.module) { await ensure(source.module) }
+            .task { counts = store.verseCounts(module: moduleId, book: book) }
         }
         .presentationDetents([.medium, .large])
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
@@ -406,7 +462,45 @@ struct InterlinearSheet: View {
     }
 
     private var switcher: some View {
-        CapsuleSwitcher(options: sources.map { (value: $0, title: Text($0.title)) }, selection: Binding(get: { source }, set: { picked = $0 }))
+        CapsuleSwitcher(options: sources.map { (value: $0, title: Text($0.title)) }, selection: Binding(get: { source }, set: { select($0) }))
+    }
+
+    /// Стих с номером на белой карточке; внизу стрелки к соседним стихам и номер среди стихов главы
+    @ViewBuilder private var quoteCard: some View {
+        let q = store.verseText(module: moduleId, book: book, chapter: c, verse: v) ?? ""
+        VStack(alignment: .leading, spacing: 12) {
+            if !q.isEmpty {
+                (Text("\(v) ").font(.system(size: 13, weight: .bold)).foregroundColor(.accentColor).baselineOffset(6)
+                    + Text(q).font(.system(size: 18, design: .serif)))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                navButton("chevron.left", enabled: canPrev) { step(-1) }
+                Spacer()
+                Text(verbatim: "\(v) / \(counts[c] ?? v)")
+                    .font(.footnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                Spacer()
+                navButton("chevron.right", enabled: canNext) { step(1) }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func navButton(_ icon: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(enabled ? Color.accentColor : Color.secondary.opacity(0.4))
+                .frame(width: 40, height: 34)
+                .background(Color.accentColor.opacity(enabled ? 0.13 : 0.05), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(icon == "chevron.left" ? "Предыдущий стих" : "Следующий стих")
     }
 
     @ViewBuilder private var content: some View {
@@ -421,7 +515,7 @@ struct InterlinearSheet: View {
             } else {
                 Text("Оригинальный текст пока недоступен.").foregroundStyle(.secondary)
             }
-        } else if let raw = store.verseRaw(module: source.module, book: book, chapter: chapter, verse: verse) {
+        } else if let raw = store.verseRaw(module: source.module, book: book, chapter: c, verse: v) {
             FlowLayout(spacing: 10) {
                 if source == .vulg {
                     ForEach(Array(vulgWords(raw).enumerated()), id: \.offset) { _, w in vulgColumn(w) }
@@ -430,7 +524,6 @@ struct InterlinearSheet: View {
                     ForEach(Array(toks.enumerated()), id: \.offset) { i, t in column(t, i, toks) }
                 }
             }
-            .padding(.vertical, 6)
         } else {
             Text("В этом подстрочнике нет такого стиха.").foregroundStyle(.secondary)
         }
@@ -441,7 +534,7 @@ struct InterlinearSheet: View {
         switch source {
         case .vin: return "Подстрочный перевод Нового Завета А. Винокурова."
         case .syn: return "Синодальный перевод; под словами — оригинал, чтение и номер Стронга."
-        case .vulg: return "Латинская Вульгата; под словами — чтение, значение и начальная форма."
+        case .vulg: return "Латинская Вульгата; под словами — значение и начальная форма."
         }
     }
 
@@ -468,16 +561,14 @@ struct InterlinearSheet: View {
 
     /// Колонка слова: четыре строки одной высоты у всех слов — оригинал, чтение, перевод, номер (пустая строка
     /// остаётся пустой, но место держит: перевод у всех слов на одном уровне)
-    private func cell(_ top: String, _ reading: String, _ gloss: String, _ foot: String, pale: Bool = false) -> some View {
+    private func cell(_ top: String, _ reading: String?, _ gloss: String, _ foot: String) -> some View {
         VStack(spacing: 2) {
             Text(top.isEmpty ? " " : top).font(.system(size: 19, design: .serif)).foregroundStyle(.tint)
-            Text(reading.isEmpty ? " " : reading).font(.system(size: 13)).italic().foregroundStyle(.secondary)
-            if pale {
-                // значение по словарю — бледным: это не перевод данного места
-                Text(gloss.isEmpty ? " " : gloss).font(.system(size: 17)).italic().foregroundStyle(Color.accentColor.opacity(0.6))
-            } else {
-                Text(gloss.isEmpty ? " " : gloss).font(.system(size: 17, weight: .semibold))
+            // чтение русскими буквами — у греческого и еврейского; у латинского слова строки нет
+            if let reading {
+                Text(reading.isEmpty ? " " : reading).font(.system(size: 13)).italic().foregroundStyle(.secondary)
             }
+            Text(gloss.isEmpty ? " " : gloss).font(.system(size: 17, weight: .semibold))
             Text(foot.isEmpty ? " " : foot).font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 6)
@@ -485,9 +576,9 @@ struct InterlinearSheet: View {
         .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    /// Вульгата: слово, его чтение русскими буквами (у каждого слова), значение по словарю, начальная форма
+    /// Вульгата — в том же виде, что Винокуров: слово, значение по словарю, начальная форма
     private func vulgColumn(_ w: VulgWord) -> some View {
-        cell(w.form, Translit.latinToRu(w.form), w.gloss, w.lemma.isEmpty ? w.form.lowercased() : w.lemma, pale: true)
+        cell(w.form, nil, w.gloss, w.lemma.isEmpty ? w.form.lowercased() : w.lemma)
     }
 
     @ViewBuilder
@@ -507,11 +598,11 @@ struct InterlinearSheet: View {
                     if let o = t.orig, let n = t.strongs.first {
                         let key = Align.strongNum(n)
                         let occ = toks[..<index].filter { $0.strongs.first.map(Align.strongNum) == key }.count
-                        ow = OrigInfo(orig: o, morph: t.morph.first ?? Align.origMorph(store: store, book: book, chapter: chapter, verse: verse, num: n, occurrence: occ), num: key)
+                        ow = OrigInfo(orig: o, morph: t.morph.first ?? Align.origMorph(store: store, book: book, chapter: c, verse: v, num: n, occurrence: occ), num: key)
                     }
                     let title = words.isEmpty || words == "·" ? (t.orig ?? words) : words
                     req.openedAt = Date()
-                    req.open(.word(WordRequest(text: title, strongs: t.strongs, morph: t.morph, book: book, chapter: chapter, verse: verse, origWord: ow)))
+                    req.open(.word(WordRequest(text: title, strongs: t.strongs, morph: t.morph, book: book, chapter: c, verse: v, origWord: ow)))
                 }
         }
     }
