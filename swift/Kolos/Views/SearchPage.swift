@@ -266,6 +266,9 @@ struct SearchPage: View {
                                     // найденное — на скруглённых плашках
                                     PlateLabel(text: SearchEngine.highlightedNS(h.text, query: model.searched, wholeWord: whole))
                                 }
+                                // нажатие работает на всей строке, в том числе по тексту стиха, а не только по ссылке
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
                             // обычная строка списка: текст стиха — основным цветом (белым в тёмной теме), не цветом кнопки
                             .buttonStyle(.plain)
