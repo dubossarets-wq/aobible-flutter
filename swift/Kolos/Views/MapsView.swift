@@ -306,52 +306,71 @@ struct ZoomScrollImage: UIViewRepresentable {
     }
 }
 
-/// Подстрочник стиха: слова перевода, под каждым — слово оригинала и номер Стронга
+/// Подстрочник стиха: слова перевода, под каждым — слово оригинала и номер Стронга. Три источника: Винокуров
+/// (главный; Новый Завет), подстрочник на основе синодального перевода и Вульгата (значения по словарю)
 struct InterlinearSheet: View {
+    private enum Source: String {
+        case vin, syn, vulg
+
+        var module: String {
+            switch self {
+            case .vin: return "vin-interlinear"
+            case .syn: return "rst-interlinear"
+            case .vulg: return "vulg-interlinear"
+            }
+        }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .vin: return "Винокуров"
+            case .syn: return "Синодальный"
+            case .vulg: return "Вульгата"
+            }
+        }
+    }
+
+    private struct VulgWord {
+        let form: String
+        let lemma: String
+        let gloss: String
+    }
+
     @EnvironmentObject private var store: ModuleStore
     @Environment(\.dismiss) private var dismiss
     let book: String
     let chapter: Int
     let verse: Int
-    @State private var moduleId = ""
+    /// Выбор помнится; по умолчанию — Винокуров
+    @AppStorage("ilSource") private var sourceRaw = "vin"
     @State private var word: WordRequest?
+    /// Модуль подстрочника ставится при первом открытии вкладки
+    @State private var loading = false
+    @State private var failed = false
 
-    /// Все установленные подстрочники (Винокуров, синодальный) — переключатель сверху
-    private var modules: [InstalledModule] {
-        store.bibles.filter { $0.interlinear }
+    /// Винокуров переводит только Новый Завет
+    private var sources: [Source] {
+        Books.info(book)?.t == "NT" ? [.vin, .syn, .vulg] : [.syn, .vulg]
+    }
+
+    private var source: Source {
+        let s = Source(rawValue: sourceRaw) ?? .vin
+        return sources.contains(s) ? s : sources[0]
     }
 
     var body: some View {
         NavigationStack {
             List {
-                if modules.isEmpty {
-                    Section {
-                        Text("Установите подстрочник: «Ещё» → «Библиотека модулей» → «Переводы» → «Подстрочник».")
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    if modules.count > 1 {
-                        // переключатель — как в окне Стронга: сегменты прямо на фоне, без белой карточки вокруг
-                        Picker("Подстрочник", selection: $moduleId) {
-                            ForEach(modules) { m in Text(m.name).tag(m.id) }
-                        }
-                        .pickerStyle(.segmented)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                    }
-                    Section {
-                        let id = modules.contains { $0.id == moduleId } ? moduleId : (modules.first?.id ?? "")
-                        if let raw = store.verseRaw(module: id, book: book, chapter: chapter, verse: verse) {
-                            FlowLayout(spacing: 10) {
-                                ForEach(Array(Markup.parse(raw).enumerated()), id: \.offset) { _, t in
-                                    column(t)
-                                }
-                            }
-                            .padding(.vertical, 6)
-                        } else {
-                            Text("В этом подстрочнике нет такого стиха.").foregroundStyle(.secondary)
-                        }
-                    }
+                // переключатель — как в окне Стронга: сегменты прямо на фоне, без белой карточки вокруг
+                Picker("Подстрочник", selection: Binding(get: { source }, set: { sourceRaw = $0.rawValue })) {
+                    ForEach(sources, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                Section {
+                    content
+                } footer: {
+                    if !loading && !failed { Text(hint) }
                 }
             }
             .navigationTitle("\(Books.info(book)?.short ?? book) \(chapter):\(verse)")
@@ -360,21 +379,91 @@ struct InterlinearSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
             .sheet(item: $word) { WordSheet(req: $0) }
+            .task(id: source.module) { await ensure(source.module) }
         }
         .presentationDetents([.medium, .large])
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 
+    @ViewBuilder private var content: some View {
+        if loading {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Загрузка…").foregroundStyle(.secondary)
+            }
+        } else if failed {
+            if source == .vulg {
+                Text("Подстрочник к Вульгате пока недоступен.").foregroundStyle(.secondary)
+            } else {
+                Text("Оригинальный текст пока недоступен.").foregroundStyle(.secondary)
+            }
+        } else if let raw = store.verseRaw(module: source.module, book: book, chapter: chapter, verse: verse) {
+            FlowLayout(spacing: 10) {
+                if source == .vulg {
+                    ForEach(Array(vulgWords(raw).enumerated()), id: \.offset) { _, w in vulgColumn(w) }
+                } else {
+                    ForEach(Array(Markup.parse(raw).enumerated()), id: \.offset) { _, t in column(t) }
+                }
+            }
+            .padding(.vertical, 6)
+        } else {
+            Text("В этом подстрочнике нет такого стиха.").foregroundStyle(.secondary)
+        }
+    }
+
+    private var hint: LocalizedStringKey {
+        switch source {
+        case .vin: return "Подстрочник А. Винокурова — с разрешения автора. Под словом: чтение, перевод и номер Стронга."
+        case .syn: return "Под словом: чтение, перевод и номер Стронга; бледным — обычное значение. Нажмите на слово — откроется словарь."
+        case .vulg: return "Вульгата — латинская Библия бл. Иеронима (Климентинское издание). Под словом: начальная форма и значение. Значения — из Викисловаря (CC BY-SA 4.0), формы — по Collatinus."
+        }
+    }
+
+    /// Ставит модуль подстрочника, если его ещё нет (Вульгата не входит в стартовый набор)
+    private func ensure(_ id: String) async {
+        failed = false
+        guard store.module(id) == nil else { return }
+        loading = true
+        if store.catalog.isEmpty { await store.loadCatalog() }
+        if let e = store.catalog.first(where: { $0.id == id }), e.downloadable {
+            await store.install(e)
+        }
+        loading = false
+        failed = store.module(id) == nil
+    }
+
+    /// Слово Вульгаты в модуле: «форма|лемма|значение», пробелы в значении записаны «_»
+    private func vulgWords(_ raw: String) -> [VulgWord] {
+        raw.split(separator: " ").map { cell in
+            let p = cell.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+            return VulgWord(form: p[0], lemma: p.count > 1 ? p[1] : "", gloss: (p.count > 2 ? p[2] : "").replacingOccurrences(of: "_", with: " "))
+        }
+    }
+
+    private func vulgColumn(_ w: VulgWord) -> some View {
+        VStack(spacing: 2) {
+            Text(w.form).font(.system(size: 19, design: .serif))
+            Text(w.lemma.isEmpty ? " " : w.lemma).font(.caption).italic().foregroundStyle(.secondary)
+            // значение по словарю — бледным: это не перевод данного места
+            Text(w.gloss.isEmpty ? " " : w.gloss).font(.system(size: 15)).italic().foregroundStyle(Color.accentColor.opacity(0.6))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
     @ViewBuilder
     private func column(_ t: Token) -> some View {
         let words = t.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !words.isEmpty {
+        let tagged = t.orig != nil || !t.strongs.isEmpty
+        // знаки препинания между словами — не слова; «·» у Винокурова — слово оригинала без перевода
+        if tagged || words.rangeOfCharacter(from: .letters) != nil {
             VStack(spacing: 2) {
                 if let o = t.orig {
                     Text(o).font(.system(size: 19, design: .serif)).foregroundStyle(.tint)
                 }
-                Text(words).font(.system(size: 17, weight: .semibold))
+                Text(words == "·" || words.isEmpty ? " " : words).font(.system(size: 17, weight: .semibold))
                 if !t.strongs.isEmpty {
                     Text(t.strongs.joined(separator: " ")).font(.caption2).foregroundStyle(.secondary)
                 }

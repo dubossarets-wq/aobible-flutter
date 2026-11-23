@@ -46,6 +46,8 @@ struct InstalledModule: Identifiable, Hashable {
     var source: String = ""
     /// Подстрочник: у слов в тексте есть слово оригинала
     var interlinear: Bool = false
+    /// Служебный модуль для окон («Подстрочник к Вульгате»): в списках переводов его нет
+    var helper: Bool = false
     /// Версия из каталога, с которой модуль поставили (нет у импортированных из файла)
     var catalogVersion: String? = nil
     /// «Глава %d» и «Псалом %d» на языке перевода — из модуля; пусто — русские
@@ -149,7 +151,7 @@ final class ModuleStore: ObservableObject {
 
     /// Переводы Библии (в том числе читаемые по сети — главы приходят, когда их открывают)
     var bibles: [InstalledModule] {
-        installed.filter { $0.type == "bible" }
+        installed.filter { $0.type == "bible" && !$0.helper }
     }
 
     /// Сбросить открытую базу модуля — после записи в неё
@@ -198,15 +200,24 @@ final class ModuleStore: ObservableObject {
                 license: j["license"] as? String ?? "",
                 source: j["source"] as? String ?? "",
                 interlinear: ((j["features"] as? [String: Any])?["interlinear"] as? Bool) == true,
+                helper: ((j["features"] as? [String: Any])?["helper"] as? Bool) == true,
                 catalogVersion: j["catalogVersion"].map { "\($0)" },
                 chapterWord: j["chapterWord"] as? String ?? "",
                 psalmWord: j["psalmWord"] as? String ?? ""
             ))
         }
+        // подстрочники: Винокуров — главный, синодальный — вторым (по названию «Подстрочник» шёл бы первым)
+        func sortName(_ m: InstalledModule) -> String {
+            switch m.id {
+            case "vin-interlinear": return "Подстрочник 1"
+            case "rst-interlinear": return "Подстрочник 2"
+            default: return m.name
+            }
+        }
         allInstalled = list.sorted {
             let a = $0.language == "ru" ? 0 : 1
             let b = $1.language == "ru" ? 0 : 1
-            return a != b ? a < b : $0.name < $1.name
+            return a != b ? a < b : sortName($0) < sortName($1)
         }
     }
 
