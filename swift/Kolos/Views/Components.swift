@@ -57,3 +57,56 @@ struct CapsuleSwitcher<T: Hashable>: View {
         }
     }
 }
+
+/// «Возможно, вы искали»: карточка с исправленными запросами — значок, запрос, число найденного, стрелка «подставить»
+struct SuggestionCard: View {
+    let items: [(text: String, count: Int?)]
+    let onPick: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Возможно, вы искали", systemImage: "sparkle.magnifyingglass")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { i, it in
+                    Button { onPick(it.text) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 30, height: 30)
+                                .background(Color.accentColor.opacity(0.13), in: Circle())
+                            Text(it.text)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Spacer(minLength: 8)
+                            if let n = it.count {
+                                Text("\(n)")
+                                    .font(.footnote.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 3)
+                                    .background(Color.primary.opacity(0.07), in: Capsule())
+                            }
+                            Image(systemName: "arrow.up.left")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if i < items.count - 1 {
+                        Divider().padding(.leading, 56)
+                    }
+                }
+            }
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+}

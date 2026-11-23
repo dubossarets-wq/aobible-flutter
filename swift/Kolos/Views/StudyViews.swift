@@ -500,7 +500,14 @@ struct DictionaryView: View {
                             Button {
                                 query = w
                             } label: {
-                                Text(w).foregroundStyle(.primary)
+                                HStack(spacing: 12) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(Color.accentColor)
+                                        .frame(width: 30, height: 30)
+                                        .background(Color.accentColor.opacity(0.13), in: Circle())
+                                    Text(w).font(.body.weight(.medium)).foregroundStyle(.primary)
+                                }
                             }
                         }
                     }

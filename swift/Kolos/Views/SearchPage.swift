@@ -222,10 +222,21 @@ struct SearchPage: View {
                                 Button {
                                     query = s.query
                                 } label: {
-                                    HStack {
-                                        Text(s.query).foregroundStyle(.primary)
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "magnifyingglass")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.accentColor)
+                                            .frame(width: 30, height: 30)
+                                            .background(Color.accentColor.opacity(0.13), in: Circle())
+                                        Text(s.query).font(.body.weight(.medium)).foregroundStyle(.primary)
                                         Spacer()
-                                        Text("\(s.count)").foregroundStyle(.secondary)
+                                        Text("\(s.count)")
+                                            .font(.footnote.weight(.semibold))
+                                            .monospacedDigit()
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 3)
+                                            .background(Color.primary.opacity(0.07), in: Capsule())
                                     }
                                 }
                             }

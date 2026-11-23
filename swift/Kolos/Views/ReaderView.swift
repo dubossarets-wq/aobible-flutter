@@ -2638,22 +2638,19 @@ struct GotoSheet: View {
         } else if !textHits.isEmpty {
             textResults
         } else {
-            Text("Ничего не найдено.").foregroundStyle(.secondary)
+            Text("Ничего не найдено.").font(.subheadline).foregroundStyle(.secondary)
             let near = suggestions
-            if !textSuggestions.isEmpty || !near.isEmpty {
-                Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                ForEach(textSuggestions) { s in
-                    Button { link = s.query } label: {
-                        HStack {
-                            Text(s.query).foregroundStyle(.primary)
-                            Spacer()
-                            Text("\(s.count)").foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
+            if !textSuggestions.isEmpty {
+                SuggestionCard(items: textSuggestions.map { (text: $0.query, count: $0.count) }) { link = $0 }
+            }
+            if !near.isEmpty {
+                if textSuggestions.isEmpty {
+                    Label("Возможно, вы искали", systemImage: "sparkle.magnifyingglass")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
                 }
-                if !near.isEmpty { bookGrid(near) }
+                bookGrid(near)
             }
         }
     }
@@ -2901,21 +2898,10 @@ struct ScopedSearchResults: View {
             if done != query {
                 ProgressView().frame(maxWidth: .infinity).padding(.top, 24)
             } else if hits.isEmpty {
-                Text("Ничего не найдено.").foregroundStyle(.secondary)
+                Text("Ничего не найдено.").font(.subheadline).foregroundStyle(.secondary)
                 if !near.isEmpty {
-                    Text("Возможно, вы искали").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 14).padding(.bottom, 4)
-                    ForEach(near) { s in
-                        Button { onSuggestion(s.query) } label: {
-                            HStack {
-                                Text(s.query).foregroundStyle(.primary)
-                                Spacer()
-                                Text("\(s.count)").foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 8)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    SuggestionCard(items: near.map { (text: $0.query, count: $0.count) }, onPick: onSuggestion)
+                        .padding(.top, 14)
                 }
             } else {
                 Text("Найдено: \(hits.count)").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.bottom, 6)
