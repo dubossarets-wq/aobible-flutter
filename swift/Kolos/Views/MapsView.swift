@@ -308,7 +308,7 @@ struct ZoomScrollImage: UIViewRepresentable {
 
 /// Подстрочник стиха: слова перевода, под каждым — слово оригинала, его чтение и номер Стронга. Три источника: Винокуров
 /// (главный; Новый Завет), подстрочник на основе синодального перевода и Вульгата (значения по словарю).
-/// Над словами — стих из перевода, откуда открыли окно; стрелки и смахивание влево-вправо листают стихи
+/// Над словами закреплены переключатель переводов и стих; кнопки в шапке и смахивание влево-вправо листают стихи
 struct InterlinearSheet: View {
     private enum Source: String {
         case vin, syn, vulg
@@ -417,13 +417,19 @@ struct InterlinearSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    // переключатель — три капсулы в одну строку на всю ширину
+            VStack(spacing: 0) {
+                // сверху закреплено: переключатель переводов и стих — прокручиваются только слова под ними
+                VStack(spacing: 10) {
                     switcher
                     quoteCard
                         .id("\(c):\(v)")
                         .transition(.push(from: dir))
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .clipped()
+                ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         content
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -433,10 +439,12 @@ struct InterlinearSheet: View {
                     }
                     .id("\(c):\(v):\(source.rawValue)")
                     .transition(.push(from: dir))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipped()
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .clipped()
             }
             // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)
             .simultaneousGesture(
@@ -450,6 +458,17 @@ struct InterlinearSheet: View {
             .navigationTitle("\(Books.info(book)?.short ?? book) \(c):\(v)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // две круглые кнопки слева от заголовка — к предыдущему и следующему стиху
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                        .disabled(!canPrev)
+                        .accessibilityLabel("Предыдущий стих")
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { step(1) } label: { Image(systemName: "chevron.right") }
+                        .disabled(!canNext)
+                        .accessibilityLabel("Следующий стих")
+                }
                 ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
             }
             .background(StudySheets(req: req) { bb, cc, vv in
@@ -468,42 +487,25 @@ struct InterlinearSheet: View {
         CapsuleSwitcher(options: sources.map { (value: $0, title: Text($0.title)) }, selection: Binding(get: { source }, set: { select($0) }))
     }
 
-    /// Стих с номером на белой карточке; внизу стрелки к соседним стихам и номер среди стихов главы
+    /// Высота текста стиха — чтобы длинный стих прокручивался внутри карточки, а короткий не оставлял пустоты
+    @State private var quoteHeight: CGFloat = 0
+
+    /// Стих с номером на карточке: компактная (длинный стих прокручивается внутри, не отнимая место у слов)
     @ViewBuilder private var quoteCard: some View {
         let q = store.verseText(module: moduleId, book: book, chapter: c, verse: v) ?? ""
-        VStack(alignment: .leading, spacing: 12) {
-            if !q.isEmpty {
-                (Text("\(v) ").font(.system(size: 13, weight: .bold)).foregroundColor(.accentColor).baselineOffset(6)
-                    + Text(q).font(.system(size: 18, design: .serif)))
+        if !q.isEmpty {
+            ScrollView(showsIndicators: false) {
+                (Text("\(v) ").font(.system(size: 12, weight: .bold)).foregroundColor(.accentColor).baselineOffset(5)
+                    + Text(q).font(.system(size: 17, design: .serif)))
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { quoteHeight = $0 }
             }
-            HStack {
-                navButton("chevron.left", enabled: canPrev) { step(-1) }
-                Spacer()
-                Text(verbatim: "\(v) / \(counts[c] ?? v)")
-                    .font(.footnote.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                Spacer()
-                navButton("chevron.right", enabled: canNext) { step(1) }
-            }
+            .frame(height: quoteHeight > 0 ? min(quoteHeight, 132) : nil)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
-    private func navButton(_ icon: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(enabled ? Color.accentColor : Color.secondary.opacity(0.4))
-                .frame(width: 40, height: 34)
-                .background(Color.accentColor.opacity(enabled ? 0.13 : 0.05), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityLabel(icon == "chevron.left" ? "Предыдущий стих" : "Следующий стих")
     }
 
     @ViewBuilder private var content: some View {
