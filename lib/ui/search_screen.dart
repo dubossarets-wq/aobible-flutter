@@ -177,7 +177,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     prefs.setString('searchQuery', _q.text);
     // Запрос, по которому что-то нашлось, — в историю, даже если результат не открывали
     if (q.length > 1 && (_memo?.hits.isNotEmpty ?? false)) {
-      _save('searchHistory', [q, ..._load<List>('searchHistory', const []).where((x) => x != q)].take(15).toList());
+      _save('searchHistory', [q, ..._load<List>('searchHistory', const []).where((x) => x != q)].take(50).toList());
     }
     _q.dispose();
     _focus.dispose();
@@ -336,7 +336,7 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
 
   void _remember(String q) {
     if (q.isEmpty) return;
-    setState(() => _history = [q, ..._history.where((x) => x != q)].take(15).toList());
+    setState(() => _history = [q, ..._history.where((x) => x != q)].take(50).toList());
     _save('searchHistory', _history);
   }
 
@@ -744,44 +744,53 @@ class _SearchSheetState extends ConsumerState<SearchSheet> {
     );
   }
 
+  /// Сколько недавних запросов видно сразу; «Раскрыть все» — до 50
+  bool _historyOpen = false;
+
   List<Widget> _historyList(Palette pal) => iosUiNow
-      // стиль iPhone — как недавние книги в «Перейти»: значок истории и запросы маленькими капсулами в одну строку
-      // (не поместившиеся уходят за край с затуханием); долгое нажатие убирает запрос из истории
+      // стиль iPhone — как недавние книги в «Перейти»: значок истории и запросы маленькими капсулами; не поместившиеся
+      // переносятся на следующую строку; видно 20, «Раскрыть все» — до 50; долгое нажатие убирает запрос из истории
       ? [
-          SizedBox(
-            height: 30,
-            child: Row(children: [
-              Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: AIcon(ico(LucideIcons.history), size: 16, color: pal.muted))),
-              Expanded(
-                child: FadeRow(gap: 6, children: [
-                  for (final h in _history)
-                    Material(
-                      color: iosCardAt(pal, false),
-                      shape: const StadiumBorder(),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () {
-                          _setQuery(h);
-                          _remember(h);
-                        },
-                        onLongPress: () {
-                          HapticFeedback.selectionClick();
-                          _forget(h);
-                        },
-                        child: Container(
-                          height: 28,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Align(
-                            widthFactor: 1,
-                            child: Text(h, maxLines: 1, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: pal.text)),
-                          ),
-                        ),
-                      ),
+          Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            Padding(padding: const EdgeInsets.only(left: 2, right: 4), child: Tooltip(message: t('Недавние'), child: AIcon(ico(LucideIcons.history), size: 16, color: pal.muted))),
+            for (final h in _history.take(_historyOpen ? 50 : 20))
+              Material(
+                color: iosCardAt(pal, false),
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () {
+                    _setQuery(h);
+                    _remember(h);
+                  },
+                  onLongPress: () {
+                    HapticFeedback.selectionClick();
+                    _forget(h);
+                  },
+                  child: Container(
+                    height: 28,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Align(
+                      widthFactor: 1,
+                      child: Text(h, maxLines: 1, style: TextStyle(fontSize: 13.4, height: 1.2, leadingDistribution: TextLeadingDistribution.even, fontWeight: FontWeight.w600, color: pal.text)),
                     ),
+                  ),
+                ),
+              ),
+          ]),
+          if (_history.length > 20)
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => setState(() => _historyOpen = !_historyOpen),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(_historyOpen ? t('Свернуть') : '${t('Раскрыть все')} · ${_history.length > 50 ? 50 : _history.length}', style: TextStyle(fontSize: 14.1, fontWeight: FontWeight.w600, color: pal.accent)),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(turns: _historyOpen ? 0.5 : 0, duration: const Duration(milliseconds: 200), child: AIcon(ico(LucideIcons.chevronDown), size: 16, color: pal.accent)),
                 ]),
               ),
-            ]),
-          ),
+            ),
         ]
       : [
         GroupTitle(t('Недавние')),

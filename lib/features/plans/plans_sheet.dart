@@ -819,13 +819,12 @@ class _ActivePlanState extends State<_ActivePlan> {
     _day = d;
   }
 
-  /// Кружок дня в ленте (.pd): прочитанный — как обычный, только приглушён; пропущенный — оранжевый, сегодняшний —
-  /// в кольце акцента, выбранный — тёмный
+  /// Кружок дня в ленте (.pd): прочитанный — как обычный, только приглушён; пропущенный — пунктирное кольцо,
+  /// сегодняшний — в кольце акцента, выбранный — тёмный
   Widget _dayDot(Palette pal, Plan p, int i, int day, int today, List<int> behind) {
     final done = dayDone(p, i), on = i == day, missed = behind.contains(i);
-    final late = lateOf(pal);
-    final fg = on ? pal.panel : missed ? late : pal.text;
-    final fill = on ? pal.text : missed ? mix(late, 0.13, pal.panel) : pal.panel;
+    final fg = on ? pal.panel : pal.text;
+    final fill = on ? pal.text : pal.panel;
     final ring = on || missed ? null : i == today ? Border.all(color: pal.accent, width: 2) : Border.all(color: pal.line);
     return Semantics(
       button: true,
@@ -848,7 +847,10 @@ class _ActivePlanState extends State<_ActivePlan> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(shape: BoxShape.circle, color: fill, border: ring),
-                  child: Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
+                  child: Stack(alignment: Alignment.center, children: [
+                    if (missed && !on) Positioned.fill(child: CustomPaint(painter: _DashedCircle(pal.muted))),
+                    Text('${i + 1}', style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: fg, fontFeatures: const [FontFeature.tabularFigures()])),
+                  ]),
                 ),
               ),
             ),
@@ -995,7 +997,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                   child: Text.rich(
                     TextSpan(children: [
                       TextSpan(text: t('День {n}', {'n': '${day + 1}'})),
-                      if (day == today) TextSpan(text: ' · ${t('сегодня')}') else if (behind.contains(day)) TextSpan(text: ' · ${t('пропущен')}', style: TextStyle(color: lateOf(pal))),
+                      if (day == today) TextSpan(text: ' · ${t('сегодня')}') else if (behind.contains(day)) TextSpan(text: ' · ${t('пропущен')}', style: TextStyle(color: pal.muted)),
                     ]),
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: pal.text),
                   ),
@@ -1012,7 +1014,7 @@ class _ActivePlanState extends State<_ActivePlan> {
                   constraints: const BoxConstraints(minHeight: 36),
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Row(children: [
-                    Container(width: 7, height: 7, decoration: BoxDecoration(shape: BoxShape.circle, color: lateOf(pal))),
+                    SizedBox(width: 9, height: 9, child: CustomPaint(painter: _DashedCircle(pal.muted))),
                     const SizedBox(width: 8),
                     Expanded(child: Text(t('Пропущено дней: {n}', {'n': '${behind.length}'}), style: TextStyle(fontSize: 13.4, color: pal.muted))),
                     Text(t('Догнать'), style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.accent)),
@@ -1807,4 +1809,28 @@ class _DatesPickerState extends State<DatesPicker> {
         ),
     ]);
   }
+}
+
+/// Пунктирное кольцо — отметка пропущенного дня
+class _DashedCircle extends CustomPainter {
+  _DashedCircle(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final r = Rect.fromLTWH(0.75, 0.75, size.width - 1.5, size.height - 1.5);
+    final path = Path()..addOval(r);
+    for (final m in path.computeMetrics()) {
+      final dash = math.max(2.0, m.length / 18);
+      for (double d = 0; d < m.length; d += dash * 2) {
+        canvas.drawPath(m.extractPath(d, math.min(d + dash, m.length)), p);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedCircle o) => o.color != color;
 }
