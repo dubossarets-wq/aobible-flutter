@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SDK = path.resolve(ROOT, '..', 'flutter-sdk');
+// Flutter SDK — в G:/Kolos/tools/flutter-sdk (с 23.11.2026), прежнее место — рядом с проектом
+const SDK = [path.resolve(ROOT, '..', 'tools', 'flutter-sdk'), path.resolve(ROOT, '..', 'flutter-sdk')].find((p) => fs.existsSync(path.join(p, 'flutter', 'bin')));
 const T = path.join(ROOT, 'tool', '.reload');
 fs.writeFileSync(T, '');
 const env = {
