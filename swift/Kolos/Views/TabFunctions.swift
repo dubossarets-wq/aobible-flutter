@@ -195,6 +195,8 @@ struct TabBarSettings: View {
     @State private var dragCenter: CGFloat = 0
     @State private var grab: CGFloat = 0
     @State private var lastDrag = Date.distantPast
+    /// Общее пространство для стекла: кнопка поиска переливается в панель и обратно, как в системной
+    @Namespace private var glassNS
 
     private var visible: [String] { dOrder.filter { dSearch || $0 != "S" } }
 
@@ -263,6 +265,8 @@ struct TabBarSettings: View {
     // MARK: - Копия меню
 
     private var preview: some View {
+        // один контейнер на панель и кнопку поиска: близкие стеклянные формы сливаются и перетекают друг в друга («жидкое» стекло)
+        GlassEffectContainer(spacing: 8) {
         HStack(spacing: 8) {
             GeometryReader { geo in
                 let vis = visible
@@ -285,12 +289,14 @@ struct TabBarSettings: View {
                     .foregroundStyle(.primary)
                     .frame(width: 58, height: 58)
                     .glassEffect(.regular.interactive(), in: Circle())
+                    .glassEffectID("search", in: glassNS)
                     .contentShape(Circle())
                     .onTapGesture { openPop = "S" }
                     .popover(isPresented: popBinding("S")) { searchOptions.presentationCompactAdaptation(.popover) }
             }
         }
-        .animation(.snappy(duration: 0.3), value: dSearch)
+        }
+        .animation(.bouncy(duration: 0.45, extraBounce: 0.1), value: dSearch)
         .animation(.snappy(duration: 0.25), value: dOrder)
     }
 
@@ -300,8 +306,11 @@ struct TabBarSettings: View {
         let cur = vis.firstIndex(of: t) ?? 0
         content(t)
             .frame(width: itemW)
-            .scaleEffect(isDrag ? 1.1 : 1)
-            .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 8, y: 3)
+            // зажатый пункт превращается в увеличенную стеклянную линзу, как в системной панели: стекло рисуется до увеличения,
+            // поэтому растёт вместе со значком и подписью
+            .glassEffect(isDrag ? .regular : .identity, in: Capsule())
+            .scaleEffect(isDrag ? 1.22 : 1)
+            .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 10, y: 4)
             .onTapGesture { tapped(t) }
             // окно с вариантами привязано к самому пункту: сдвиг пункта — отступом слева, а не offset (offset окно не учитывает,
             // и стрелка показывала на первую ячейку вместо нажатого пункта)
@@ -309,7 +318,7 @@ struct TabBarSettings: View {
             .simultaneousGesture(dragGesture(t, itemW: itemW, vis: vis))
             .padding(.leading, isDrag ? dragCenter - itemW / 2 : CGFloat(cur) * itemW)
             .zIndex(isDrag ? 1 : 0)
-            .animation(.snappy(duration: 0.2), value: isDrag)
+            .animation(.bouncy(duration: 0.4, extraBounce: 0.2), value: isDrag)
     }
 
     @ViewBuilder private func content(_ t: String) -> some View {
@@ -340,8 +349,10 @@ struct TabBarSettings: View {
         .frame(maxWidth: .infinity)
         .frame(height: 50)
         .background {
-            // выбранный пункт — плашка заметнее прежней, как у настоящего меню
-            if active { Capsule().fill(Color.primary.opacity(0.11)) }
+            // выбранный пункт — стеклянная «линза», как в системной панели
+            if active {
+                Capsule().fill(.clear).glassEffect(.regular.tint(Color.primary.opacity(0.06)), in: Capsule())
+            }
         }
         .contentShape(Rectangle())
     }
@@ -372,9 +383,9 @@ struct TabBarSettings: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
                 // центр пункта — прямо по положению пальца в ряду; на каком он месте — по нему
-                // не дальше краёв копии: с запасом на увеличение пункта при перетаскивании (×1,1)
+                // не дальше краёв копии: с запасом на увеличение пункта при перетаскивании (×1,22)
                 let total = itemW * CGFloat(now.count)
-                let center = min(max(drag.location.x - grab, itemW * 0.55), total - itemW * 0.55)
+                let center = min(max(drag.location.x - grab, itemW * 0.62), total - itemW * 0.62)
                 dragCenter = center
                 let target = min(max(0, Int(floor(center / itemW))), max(0, now.count - 1))
                 if let cur = now.firstIndex(of: t), cur != target { move(t, to: target) }
