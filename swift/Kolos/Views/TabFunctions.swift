@@ -272,18 +272,18 @@ struct TabBarSettings: View {
                 ZStack(alignment: .topLeading) {
                     ForEach(vis, id: \.self) { t in cell(t, itemW: w, vis: vis) }
                 }
-                .frame(width: w * CGFloat(vis.count), height: 48, alignment: .topLeading)
+                .frame(width: w * CGFloat(vis.count), height: 50, alignment: .topLeading)
                 // жест считается в координатах ряда, а не самого пункта
                 .coordinateSpace(name: "tabbar")
                 .padding(4)
             }
-            .frame(height: 56)
+            .frame(height: 58)
             .glassEffect(.regular, in: Capsule())
             if !dSearch {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.primary)
-                    .frame(width: 56, height: 56)
+                    .frame(width: 58, height: 58)
                     .glassEffect(.regular.interactive(), in: Circle())
                     .contentShape(Circle())
                     .onTapGesture { openPop = "S" }
@@ -326,9 +326,11 @@ struct TabBarSettings: View {
     /// Пункт меню (как в настоящем: значок и подпись)
     private func item(_ title: LocalizedStringKey, _ symbol: String, active: Bool = false, empty: Bool = false) -> some View {
         VStack(spacing: 3) {
+            // как в настоящем меню: значок крупнее и закрашенный (TabView сам берёт вариант .fill), у «Ещё» и «Поиска» его нет
             Image(systemName: symbol)
-                .font(.system(size: 19, weight: .medium))
-                .frame(height: 24)
+                .symbolVariant(.fill)
+                .font(.system(size: 22, weight: .regular))
+                .frame(height: 26)
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .lineLimit(1)
@@ -336,9 +338,10 @@ struct TabBarSettings: View {
         }
         .foregroundStyle(active ? Color.accentColor : (empty ? Color.secondary : Color.primary))
         .frame(maxWidth: .infinity)
-        .frame(height: 48)
+        .frame(height: 50)
         .background {
-            if active { Capsule().fill(Color.primary.opacity(0.07)) }
+            // выбранный пункт — плашка заметнее прежней, как у настоящего меню
+            if active { Capsule().fill(Color.primary.opacity(0.11)) }
         }
         .contentShape(Rectangle())
     }
