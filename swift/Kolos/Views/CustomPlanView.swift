@@ -312,11 +312,12 @@ struct CustomPlanView: View {
         return have.sorted { (rank[$0.id] ?? 999) < (rank[$1.id] ?? 999) }
     }
 
-    /// Порядок как в изданиях с неканоническими книгами: историческая и учительная, затем Маккавеи и Ездры, дополнения;
-    /// после них — Енох, Юбилеи и Завещания двенадцати патриархов (по коленам)
-    private static let dcOrder = ["1Esd", "Tob", "Jdt", "Wis", "Sir", "EpJer", "Bar", "PrAzar", "Sus", "Bel", "1Macc", "2Macc", "3Macc",
-                                  "2Esd", "PrMan", "Ps151", "1En", "Jub", "TReu", "TSim", "TLevi", "TJud", "TIss", "TZeb", "TDan",
-                                  "TNaph", "TGad", "TAsh", "TJos", "TBenj"]
+    /// Порядок: сверху Енох, Юбилеи и Завещания двенадцати патриархов (колена — по старшинству сыновей Иакова: Рувим, Симеон,
+    /// Левий, Иуда, Дан, Неффалим, Гад, Асир, Иссахар, Завулон, Иосиф, Вениамин); затем 2-я Ездры и сразу 3-я, Товит, Иудифь,
+    /// Премудрость, Сирах, Послание Иеремии, Варух, дополнения к Даниилу, Маккавеи, Молитва Манассии, Псалом 151
+    private static let dcOrder = ["1En", "Jub", "TReu", "TSim", "TLevi", "TJud", "TDan", "TNaph", "TGad", "TAsh", "TIss",
+                                      "TZeb", "TJos", "TBenj", "1Esd", "2Esd", "Tob", "Jdt", "Wis", "Sir", "EpJer", "Bar",
+                                      "PrAzar", "Sus", "Bel", "1Macc", "2Macc", "3Macc", "PrMan", "Ps151"]
 
     private func toggleDC(_ id: String) {
         var s = dcSel
@@ -330,13 +331,23 @@ struct CustomPlanView: View {
         let all = dcBooks
         let picked = dcSel.intersection(all.map(\.id))
         let allOn = !all.isEmpty && picked.count == all.count
-        return VStack(alignment: .leading, spacing: 10) {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        // одна плитка: заголовок такой же, как у «Вся Библия», «Свои книги» (высота, значок, отступы), а книги раскрываются внутри неё
+        return VStack(spacing: 0) {
             Button {
-                withAnimation(.smooth(duration: 0.32)) { dcOpen.toggle() }
+                withAnimation(.smooth(duration: 0.38)) { dcOpen.toggle() }
             } label: {
                 HStack(spacing: 10) {
-                    Text("Неканонические книги").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                    Spacer(minLength: 8)
+                    Image(systemName: "books.vertical")
+                        .font(.title3)
+                        .foregroundStyle(picked.isEmpty ? Color.secondary : Color.accentColor)
+                        .frame(width: 26)
+                    Text("Неканонические книги")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                     if !picked.isEmpty {
                         Text(verbatim: "\(picked.count)")
                             .font(.footnote.weight(.bold))
@@ -350,74 +361,77 @@ struct CustomPlanView: View {
                         .rotationEffect(.degrees(dcOpen ? 180 : 0))
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(maxWidth: .infinity, minHeight: 56)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if dcOpen {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(spacing: 0) {
                     HStack {
-                        Text("Выберите книги").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                        Text("Выберите книги").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                         Spacer()
                         Button {
                             setDC(allOn ? [] : Set(all.map(\.id)))
                         } label: {
                             Text(allOn ? "Убрать все" : "Добавить все")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Color.accentColor)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
                                 .background(Color.accentColor.opacity(0.13), in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.bottom, 8)
                     ForEach(all) { b in
                         Divider().padding(.leading, 50)
                         let on = dcSel.contains(b.id)
                         Button { toggleDC(b.id) } label: {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                                     .font(.title3)
                                     .foregroundStyle(on ? Color.accentColor : Color.secondary.opacity(0.5))
-                                Text(b.name).foregroundStyle(.primary)
-                                Spacer()
+                                    .frame(width: 26)
+                                Text(b.name).font(.subheadline).foregroundStyle(.primary)
+                                Spacer(minLength: 0)
                             }
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
+                            .frame(minHeight: 44)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                     // Енох, Юбилеи и Завещания лежат в отдельном модуле — нет его, предлагаем скачать
                     if store.module("noncanon-ru") == nil, let e = store.catalogEntry("noncanon-ru") {
-                        Divider().padding(.leading, 14)
+                        Divider().padding(.leading, 50)
                         Button {
                             Task {
                                 await store.install(e)
                                 cache.d.removeAll() // главы Еноха и других теперь есть
                             }
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "arrow.down.circle").font(.title3).foregroundStyle(Color.accentColor)
-                                Text(store.busy[e.id] ?? "Скачать: Енох, Юбилеи, Завещания патриархов").foregroundStyle(.primary)
-                                Spacer()
+                            HStack(spacing: 10) {
+                                Image(systemName: "arrow.down.circle").font(.title3).foregroundStyle(Color.accentColor).frame(width: 26)
+                                Text(store.busy[e.id] ?? String(localized: "Скачать: Енох, Юбилеи, Завещания патриархов"))
+                                    .font(.subheadline).foregroundStyle(.primary)
+                                Spacer(minLength: 0)
                             }
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
+                            .frame(minHeight: 44)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(store.busy[e.id] != nil)
                     }
                 }
-                .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.bottom, 6)
+                // книги выезжают вниз из-под заголовка: плитка растёт, содержимое проявляется
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .background(cardColor, in: shape)
+        .clipShape(shape)
         .task(id: dcOpen) { if dcOpen, store.catalog.isEmpty { await store.loadCatalog() } }
     }
 

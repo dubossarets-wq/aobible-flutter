@@ -551,6 +551,7 @@ const _scopeIcons = {
   'ot': LucideIcons.scroll,
   'ps': LucideIcons.music,
   'own': LucideIcons.listChecks,
+  'dc': LucideIcons.library,
 };
 
 // Новый Завет — книга с крестом (рядом со свитком Ветхого Завета);
@@ -1759,88 +1760,94 @@ class _DcBlockState extends State<_DcBlock> {
     final all = planDcBooks();
     final sel = planDcSel().intersection(all.toSet());
     final allOn = all.isNotEmpty && sel.length == all.length;
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: plateEdge(pal), width: 1.5));
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Material(
-        color: pal.panel,
-        shape: shape,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
+    final edge = plateEdge(pal);
+    // одна плитка: заголовок — как у «Вся Библия», «Свои книги» (высота, значок, отступы, рамка), а книги раскрываются внутри неё
+    return Material(
+      color: pal.panel,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: edge, width: 1.5)),
+      clipBehavior: Clip.antiAlias,
+      animationDuration: Duration.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        InkWell(
           onTap: () => setState(() => _open = !_open),
           child: Container(
             constraints: const BoxConstraints(minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(children: [
-              Expanded(child: Text(t('Неканонические книги'), style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: pal.text))),
-              if (sel.isNotEmpty)
-                Container(
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(12)),
-                  child: Text('${sel.length}', style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w700, color: pal.onAccent)),
-                ),
-              AnimatedRotation(turns: _open ? 0.5 : 0, duration: const Duration(milliseconds: 240), child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: pal.muted)),
-            ]),
-          ),
-        ),
-      ),
-      // список раскрывается ПОД блоком
-      Reveal(
-        open: _open,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Material(
-            color: pal.panel,
-            shape: shape,
-            clipBehavior: Clip.antiAlias,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
-                child: Row(children: [
-                  Expanded(child: Text(t('Выберите книги'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted))),
-                  TextButton(
-                    onPressed: all.isEmpty ? null : () => _set(allOn ? {} : all.toSet()),
-                    child: Text(t(allOn ? 'Убрать все' : 'Добавить все'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.accent)),
-                  ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            alignment: Alignment.center,
+            child: Stack(alignment: Alignment.center, children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                _scopeIcon('dc', 17, sel.isEmpty ? pal.muted : accentOnTint(pal)),
+                const SizedBox(width: 7),
+                Flexible(child: Text(t('Неканонические книги'), textAlign: TextAlign.center, style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, height: 1.2, leadingDistribution: TextLeadingDistribution.even, color: pal.text))),
+              ]),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (sel.isNotEmpty)
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(11)),
+                      child: Text('${sel.length}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: pal.onAccent)),
+                    ),
+                  AnimatedRotation(turns: _open ? 0.5 : 0, duration: const Duration(milliseconds: 260), curve: Curves.fastOutSlowIn, child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: pal.muted)),
                 ]),
               ),
-              for (final id in all)
-                InkWell(
-                  onTap: () => _set(sel.contains(id) ? ({...sel}..remove(id)) : {...sel, id}),
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(border: Border(top: BorderSide(color: plateEdge(pal)))),
-                    child: Row(children: [
-                      Icon(sel.contains(id) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 22, color: sel.contains(id) ? pal.accent : pal.muted),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(Books.instance.meta(id).name, style: TextStyle(fontSize: 15, color: pal.text))),
-                    ]),
-                  ),
-                ),
-              if (_entry != null)
-                InkWell(
-                  onTap: _installing ? null : _install,
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 44),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(border: Border(top: BorderSide(color: plateEdge(pal)))),
-                    child: Row(children: [
-                      _installing
-                          ? SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: pal.accent))
-                          : Icon(Icons.download_rounded, size: 22, color: pal.accent),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(t('Скачать: Енох, Юбилеи, Завещания патриархов'), style: TextStyle(fontSize: 15, color: pal.text))),
-                    ]),
-                  ),
-                ),
             ]),
           ),
         ),
-      ),
-    ]);
+        // книги раскрываются вниз внутри плитки
+        Reveal(
+          open: _open,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: edge))),
+              padding: const EdgeInsets.fromLTRB(12, 6, 6, 2),
+              child: Row(children: [
+                Expanded(child: Text(t('Выберите книги'), style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.muted))),
+                TextButton(
+                  onPressed: all.isEmpty ? null : () => _set(allOn ? {} : all.toSet()),
+                  child: Text(t(allOn ? 'Убрать все' : 'Добавить все'), style: TextStyle(fontSize: 13.4, fontWeight: FontWeight.w600, color: pal.accent)),
+                ),
+              ]),
+            ),
+            for (final id in all)
+              InkWell(
+                onTap: () => _set(sel.contains(id) ? ({...sel}..remove(id)) : {...sel, id}),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: edge))),
+                  child: Row(children: [
+                    SizedBox(width: 17, child: Icon(sel.contains(id) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 19, color: sel.contains(id) ? pal.accent : pal.muted)),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text(Books.instance.meta(id).name, style: TextStyle(fontSize: 14.7, color: pal.text))),
+                  ]),
+                ),
+              ),
+            if (_entry != null)
+              InkWell(
+                onTap: _installing ? null : _install,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: edge))),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 17,
+                      child: _installing ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: pal.accent)) : Icon(Icons.download_rounded, size: 19, color: pal.accent),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text(t('Скачать: Енох, Юбилеи, Завещания патриархов'), style: TextStyle(fontSize: 14.7, color: pal.text))),
+                  ]),
+                ),
+              ),
+          ]),
+        ),
+      ]),
+    );
   }
 }
 
