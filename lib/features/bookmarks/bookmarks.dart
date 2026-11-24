@@ -1,11 +1,14 @@
 // Закладки, заметки, любимые, выделения, подборки; панель действий над выделенными стихами;
 // «Мои данные»; перенос данных из старого приложения. Подключение к читалке — через Hub.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/i18n.dart';
 import '../../ui/kit.dart' show LucideIcons;
 import '../hub.dart';
 import 'decor.dart';
 import 'gestures.dart';
+import 'account_sync.dart' show syncOnStart;
 import 'legacy.dart';
 import 'manager.dart';
 import 'mydata_page.dart';
@@ -22,7 +25,12 @@ void register() {
   Hub.afterStart
     ..remove(bootBackup)
     ..remove(migrateFromOldApp)
+    ..remove(_syncOnStart)
     ..add(bootBackup)
-    ..add(migrateFromOldApp);
+    ..add(migrateFromOldApp)
+    // аккаунт Колоса: свести данные с другими устройствами
+    ..add(_syncOnStart);
   Hub.moreItems.add(MoreItem(id: 'mydata', icon: LucideIcons.hardDrive, label: t('Мои данные'), order: 80, run: openMyData));
 }
+
+Future<void> _syncOnStart(WidgetRef ref) => syncOnStart();
