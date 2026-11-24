@@ -16,87 +16,6 @@ struct MyDataView: View {
     @State private var error: String?
     @State private var done: String?
     @State private var backups = UserData.backups()
-    @ObservedObject private var account = AccountSync.shared
-    @State private var accountError: String?
-    @State private var confirmDelete = false
-
-    private func errorText(_ e: String) -> String {
-        switch e {
-        case "not-configured": return String(localized: "Вход через Google скоро заработает.")
-        case "offline": return String(localized: "Нет связи с интернетом — данные сойдутся, когда она появится.")
-        case "auth": return String(localized: "Вход больше не действует — войдите снова.")
-        case "quota": return String(localized: "В аккаунте закончилось место.")
-        case "google": return String(localized: "Google не подтвердил вход. Попробуйте ещё раз.")
-        default: return String(localized: "Не удалось: \(e)")
-        }
-    }
-
-    /// Аккаунт: всё сохраняется в нём и появляется на других устройствах человека
-    @ViewBuilder private var accountSection: some View {
-        Section {
-            if account.signedIn {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(account.state.email ?? account.state.name ?? "").font(.body.weight(.semibold))
-                    if account.busy {
-                        Text("Синхронизация…").font(.footnote).foregroundStyle(.secondary)
-                    } else if let e = account.state.error {
-                        Text(errorText(e)).font(.footnote).foregroundStyle(.red)
-                    } else if let t = account.state.lastSync {
-                        Text("Синхронизировано: \(day(t))").font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-                Button {
-                    Task { await account.sync() }
-                } label: {
-                    Label("Синхронизировать", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .disabled(account.busy)
-                Button {
-                    Task { await account.signOut() }
-                } label: {
-                    Label("Выйти", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-                .disabled(account.busy)
-                Button(role: .destructive) { confirmDelete = true } label: {
-                    Label("Удалить аккаунт и данные на сервере", systemImage: "trash")
-                }
-            } else {
-                if account.state.error == "auth" {
-                    Text(errorText("auth")).font(.footnote).foregroundStyle(.red)
-                }
-                Button {
-                    accountError = nil
-                    Task {
-                        let e = await account.signIn()
-                        accountError = e == nil || e == "canceled" ? nil : errorText(e!)
-                        backups = UserData.backups()
-                    }
-                } label: {
-                    Label("Войти через Google", systemImage: "person.crop.circle.badge.checkmark")
-                }
-                .disabled(account.busy)
-            }
-            if let e = accountError {
-                Text(e).font(.footnote).foregroundStyle(.red)
-            }
-        } header: {
-            Text("Аккаунт")
-        } footer: {
-            Text(account.signedIn
-                 ? "Изменения сходятся при открытии приложения и когда вы из него выходите. При удалении аккаунта данные на этом телефоне останутся."
-                 : "Войдите через Google — закладки, заметки, выделения, проповеди, планы и настройки сохранятся в аккаунте и появятся на других ваших устройствах (iPhone, Android, сайт).")
-        }
-        .confirmationDialog("Удалить аккаунт и все данные на сервере?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) {
-                Task {
-                    let e = await account.deleteAccount()
-                    accountError = e.map { errorText($0) }
-                }
-            }
-            Button("Отмена", role: .cancel) {}
-        }
-    }
-
     private func day(_ ms: Double) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ru")
@@ -106,7 +25,6 @@ struct MyDataView: View {
 
     var body: some View {
         Form {
-            accountSection
             Section {
                 Text("Закладки, заметки, любимые стихи, выделения, планы, проповеди и настройки — в одном файле. Чтобы ничего не потерять при смене телефона. Файл открывается и в веб-версии, и в версии для Android.")
                     .font(.footnote)

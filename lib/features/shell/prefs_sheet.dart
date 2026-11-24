@@ -28,7 +28,7 @@ import 'sheet.dart';
 /// функция аудио): `audioSettingsExtras.add((context, ref) => …)` в своей register().
 final List<Widget Function(BuildContext context, WidgetRef ref)> audioSettingsExtras = [];
 
-Future<void> openPrefs(BuildContext context) => showAppSheet(context, (_) => PrefsSheet(opener: context));
+Future<void> openPrefs(BuildContext context, {String? page}) => showAppSheet(context, (_) => PrefsSheet(opener: context, page: page));
 
 
 /// Круглый флажок (Flag.jsx, .flag): рисунок из flags.dart, обрезка кругом, тонкая обводка (как в веб-версии).
@@ -75,14 +75,16 @@ Future<void> changeLanguage(WidgetRef ref, String code) async {
 }
 
 class PrefsSheet extends ConsumerStatefulWidget {
-  const PrefsSheet({super.key, required this.opener});
+  const PrefsSheet({super.key, required this.opener, this.page});
   final BuildContext opener;
+  /// Сразу открыть раздел (например, «menu» — что показывать в «Ещё»)
+  final String? page;
   @override
   ConsumerState<PrefsSheet> createState() => _PrefsSheetState();
 }
 
 class _PrefsSheetState extends ConsumerState<PrefsSheet> {
-  String? _page;
+  late String? _page = widget.page;
   bool _checking = false;
   bool _available = false;
 
@@ -163,6 +165,8 @@ class _PrefsSheetState extends ConsumerState<PrefsSheet> {
         body = [for (final b in audioSettingsExtras) b(context, ref)];
       default:
         final rows = <Widget Function(bool last)>[
+          // быстрые настройки — первой строкой: какие переключатели держать в «Ещё» под рукой
+          (last) => PrefRow(icon: LucideIcons.pin, title: t('Быстрые настройки в «Ещё»'), sub: t('Выберите, какие настройки держать под рукой'), onTap: () => setState(() => _page = 'menu'), last: last),
           // «Language» по-английски — чтобы найти строку, даже если случайно выбран незнакомый язык
           (last) => PrefRow(
                 icon: LucideIcons.globe,

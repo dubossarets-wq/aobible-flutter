@@ -14,6 +14,8 @@ import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/ios_style.dart';
 import '../../ui/kit.dart';
+import '../bookmarks/account_page.dart' show openAccount, accountMenuSub;
+import '../bookmarks/account_sync.dart' show accountState;
 import '../bookmarks/marks.dart' show marksProvider;
 import '../history/history_sheet.dart' show openHistory;
 import '../study/dictionary_search.dart' show openDictionarySearch;
@@ -76,6 +78,8 @@ class MoreSheet extends ConsumerWidget {
         };
 
     final entries = <_Entry>[
+      // «Аккаунт» — в самом верху, своей группой: вход и синхронизация данных между устройствами
+      _Entry(icon: LucideIcons.circleUserRound, label: accountState.value.signedIn ? t('Аккаунт') : t('Войти в аккаунт'), sub: accountMenuSub(), keep: true, order: -1, run: (c, r) => openAccount(c)),
       // «История» — первой строкой, своей группой: все места чтения по дням (features/history)
       _Entry(icon: LucideIcons.history, label: t('История'), keep: true, order: 0, run: (c, r) => openHistory(c, idx)),
       _Entry(
@@ -143,6 +147,8 @@ class MoreSheet extends ConsumerWidget {
       for (final q in quickToggles)
         if (menuFlag(s, 'q_${q.$1}'))
           _Entry(icon: q.$3, label: t(q.$2), extra: onOff(s.get<bool>(q.$1)), keep: true, order: 540, run: (_, r) => r.read(settingsProvider.notifier).set({q.$1: !s.get<bool>(q.$1)})),
+      // быстрые настройки: выбрать, какие переключатели держать здесь (то же, что Настройки → «Меню «Ещё»»)
+      _Entry(icon: LucideIcons.slidersHorizontal, label: t('Быстрые настройки'), extra: t('выбрать'), keep: true, order: 560, run: (c, r) => openPrefs(c, page: 'menu')),
       // Свои пункты — после остальных, отдельной группой
       // модули — сразу из «Ещё» (по просьбе владельца), а не только через «Настройки»
       _Entry(icon: LucideIcons.bookA, label: t('Словарь'), keep: true, order: 885, run: (c, r) => openDictionarySearch(c)),
@@ -166,7 +172,7 @@ class MoreSheet extends ConsumerWidget {
     for (final (k, e) in list.indexed) {
       final o = sepOther || (e.keep && e.order >= 500 && e.order < 900);
       final w = sepOwn || e.order >= 900;
-      final lastInGroup = k == list.length - 1 || e.order == 0 || startsGroup(list[k + 1], o, w);
+      final lastInGroup = k == list.length - 1 || e.order <= 0 || startsGroup(list[k + 1], o, w);
       // Линии между группами (как menu-sep в moreItems.jsx): перед переключателями и перед своими пунктами
       if (!sepOther && e.keep && e.order >= 500 && e.order < 900 && children.isNotEmpty) {
         children.add(const MenuSep(full: true));
@@ -191,8 +197,8 @@ class MoreSheet extends ConsumerWidget {
               )
             : _Row2(entry: e, onTap: () => e.run(context, ref)),
       ));
-      // «История» — отдельной карточкой сверху
-      if (e.order == 0 && k < list.length - 1) children.add(const MenuSep(full: true));
+      // «Аккаунт» и «История» — отдельными карточками сверху
+      if (e.order <= 0 && k < list.length - 1) children.add(const MenuSep(full: true));
     }
     // строки — от края до края окна (подсветка и линии), отступы — у содержимого строки
     return AppSheet(title: t('Ещё'), padding: const EdgeInsets.fromLTRB(0, 8, 0, 20), gap: 0, children: children);

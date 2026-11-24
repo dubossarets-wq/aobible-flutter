@@ -90,24 +90,62 @@ extension View {
 
 // MARK: - Раздел в «Ещё»
 
+/// Строка «Быстрые настройки в «Ещё»» — первой в «Настройках» и «Оформлении»: сколько выбрано, нажатие — выбор галочками
+struct QuickSettingsLink: View {
+    @AppStorage(QuickSettings.key) private var raw = ""
+
+    var body: some View {
+        let n = QuickSettings.ids(raw).compactMap(QuickSettings.find).count
+        Section {
+            NavigationLink {
+                QuickSettingsPicker()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.orange, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Быстрые настройки в «Ещё»")
+                        Text(n == 0 ? String(localized: "Выберите, какие настройки держать под рукой") : String(localized: "Выбрано: \(n)"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } footer: {
+            Text("Или проведите по любой настройке ниже вправо — «Вынести в «Ещё»».")
+        }
+    }
+}
+
 /// «Быстрые настройки» в «Ещё»: вынесенные настройки одной строкой каждая; проведите влево — убрать
 struct QuickSettingsSection: View {
     @AppStorage(QuickSettings.key) private var raw = ""
 
     var body: some View {
         let items = QuickSettings.ids(raw).compactMap(QuickSettings.find)
-        if !items.isEmpty {
-            Section {
-                ForEach(items) { s in
-                    QuickSettingRow(setting: s)
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { unpin(s.id) } label: {
-                                Label("Убрать", systemImage: "pin.slash.fill")
-                            }
+        Section {
+            ForEach(items) { s in
+                QuickSettingRow(setting: s)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { unpin(s.id) } label: {
+                            Label("Убрать", systemImage: "pin.slash.fill")
                         }
-                }
-            } header: {
-                Text("Быстрые настройки")
+                    }
+            }
+            // выбрать, какие настройки держать здесь, — галочками из полного списка
+            NavigationLink {
+                QuickSettingsPicker()
+            } label: {
+                Label(items.isEmpty ? "Добавить быстрые настройки" : "Выбрать настройки", systemImage: items.isEmpty ? "plus.circle" : "slider.horizontal.3")
+            }
+        } header: {
+            Text("Быстрые настройки")
+        } footer: {
+            if items.isEmpty {
+                Text("Нужные настройки — прямо здесь, без захода в «Настройки» и «Оформление».")
             }
         }
     }
@@ -217,5 +255,39 @@ struct ParallelToggle: View {
             }
         ))
         .disabled(panes.paneLimit < 2 && panes.panes.count < 2)
+    }
+}
+
+/// Выбор быстрых настроек: весь список, нажатие ставит или снимает галочку; отмеченные видны в «Ещё» в этом порядке
+struct QuickSettingsPicker: View {
+    @AppStorage(QuickSettings.key) private var raw = ""
+
+    var body: some View {
+        let on = QuickSettings.ids(raw)
+        List {
+            Section {
+                ForEach(QuickSettings.all) { s in
+                    Button {
+                        var list = QuickSettings.ids(raw)
+                        if let i = list.firstIndex(of: s.id) { list.remove(at: i) } else { list.append(s.id) }
+                        raw = list.joined(separator: ",")
+                    } label: {
+                        HStack {
+                            Text(LocalizedStringKey(s.title)).foregroundStyle(.primary)
+                            Spacer()
+                            if on.contains(s.id) {
+                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } footer: {
+                Text("Отмеченные появятся в «Ещё». Ещё можно провести по любой настройке вправо или зажать её в «Настройках» и «Оформлении».")
+            }
+        }
+        .navigationTitle("Быстрые настройки")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

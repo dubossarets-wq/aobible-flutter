@@ -40,6 +40,7 @@ struct AppearanceView: View {
     var body: some View {
         let pal = AppThemes.palette(current)
         Form {
+            QuickSettingsLink()
             Section("Тема") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 12)], spacing: 14) {
                     ForEach(AppThemes.all) { t in

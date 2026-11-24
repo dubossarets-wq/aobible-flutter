@@ -15,6 +15,10 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
+                // аккаунт — в самом верху: вход и синхронизация данных между устройствами
+                Section {
+                    NavigationLink { AccountView() } label: { AccountRow() }
+                }
                 // настройки, вынесенные сюда из «Настроек» и «Оформления»
                 QuickSettingsSection()
                 // «Планы» и «Закладки», убранные из нижнего меню, — здесь

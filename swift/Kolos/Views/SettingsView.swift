@@ -29,6 +29,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            QuickSettingsLink()
             TabBarSettings(dragging: $tabDragging)
             Section {
                 Picker("Язык", selection: $interfaceLanguage) {
