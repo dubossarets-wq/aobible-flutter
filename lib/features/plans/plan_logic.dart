@@ -10,6 +10,19 @@ import '../../core/settings.dart';
 
 typedef Plan = Map<String, dynamic>;
 
+/// Неканонические книги, добавленные в планы («Неканонические книги» в «Свой план»): по умолчанию их нет, как в веб-версии
+Set<String> planDcSel() {
+  final raw = prefs.getString('customPlanDc');
+  if (raw == null) return {};
+  try {
+    return {for (final x in jsonDecode(raw) as List) '$x'};
+  } catch (_) {
+    return {};
+  }
+}
+
+void setPlanDcSel(Set<String> ids) => prefs.setString('customPlanDc', jsonEncode(ids.toList()..sort()));
+
 /// Дата по местному времени «2026-10-15»
 String localDate([DateTime? d]) {
   final x = d ?? DateTime.now();
@@ -293,7 +306,7 @@ class PlanStream {
   final bool wide;
 
   List<String> books(List<String> own) => switch (key) {
-        'ot' => [for (final b in Books.instance.all) if (b.testament == 'OT' && !b.dc) b.id],
+        'ot' => [for (final b in Books.instance.all) if (b.testament == 'OT' && (!b.dc || planDcSel().contains(b.id))) b.id],
         'nt' => [for (final b in Books.instance.all) if (b.testament == 'NT') b.id],
         'ps' => ['Ps'],
         'prov' => ['Prov'],

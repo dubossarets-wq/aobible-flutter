@@ -75,10 +75,26 @@ class PlanScope {
   final List<String> Function() books;
 }
 
+/// Порядок как в изданиях с неканоническими книгами: историческая и учительная, Маккавеи и Ездры, дополнения; затем Енох, Юбилеи
+/// и Завещания двенадцати патриархов (по коленам)
+const _dcOrder = [
+  '1Esd', 'Tob', 'Jdt', 'Wis', 'Sir', 'EpJer', 'Bar', 'PrAzar', 'Sus', 'Bel', '1Macc', '2Macc', '3Macc', '2Esd', 'PrMan', 'Ps151', //
+  '1En', 'Jub', 'TReu', 'TSim', 'TLevi', 'TJud', 'TIss', 'TZeb', 'TDan', 'TNaph', 'TGad', 'TAsh', 'TJos', 'TBenj',
+];
+
+/// Неканонические книги, главы которых есть в установленных модулях, в правильном порядке
+List<String> planDcBooks() {
+  final have = [for (final b in Books.instance.all) if (b.dc && chapterList([b.id]).isNotEmpty) b.id];
+  int rank(String id) => _dcOrder.contains(id) ? _dcOrder.indexOf(id) : 999;
+  return have..sort((a, b) => rank(a).compareTo(rank(b)));
+}
+
+/// Книги в «Вся Библия» и «Ветхий Завет»: неканонические — только добавленные
+bool _inScope(BookInfo b, String testament) => b.testament == testament && (!b.dc || planDcSel().contains(b.id));
+
 final planScopes = <PlanScope>[
-  // без неканонических книг (как в веб-версии)
-  PlanScope('all', 'Вся Библия', () => [for (final b in Books.instance.all) if (b.testament != 'AP' && !b.dc) b.id]),
-  PlanScope('ot', 'Ветхий Завет', () => [for (final b in Books.instance.all) if (b.testament == 'OT' && !b.dc) b.id]),
+  PlanScope('all', 'Вся Библия', () => [for (final b in Books.instance.all) if ((b.testament == 'OT' || b.testament == 'NT') && (!b.dc || planDcSel().contains(b.id))) b.id]),
+  PlanScope('ot', 'Ветхий Завет', () => [for (final b in Books.instance.all) if (_inScope(b, 'OT')) b.id]),
   PlanScope('nt', 'Новый Завет', () => [for (final b in Books.instance.all) if (b.testament == 'NT') b.id]),
   PlanScope('gospels', 'Евангелия', () => ['Matt', 'Mark', 'Luke', 'John']),
   PlanScope('ps', 'Псалтирь', () => ['Ps']),
@@ -115,5 +131,15 @@ List<List<String>> makeCustomPlan(List<String> bookIds, int days) => splitChapte
 List<({String ref, int n})> chapterList(List<String> bookIds) {
   final mod = _planModule();
   if (mod == null) return [];
-  return [for (final id in bookIds) ..._bookChapters(mod, id)];
+  return [for (final id in bookIds) ..._bookChapters(_moduleWith(mod, id), id)];
+}
+
+/// В переводе плана книги нет (RST+ без неканонических) — берём другой установленный, где она есть: «Синодальный с
+/// неканоническими» первым, затем любой (Енох, Юбилеи и Завещания лежат только в модуле «Неканон»)
+InstalledModule _moduleWith(InstalledModule main, String book) {
+  bool has(InstalledModule m) => bookList(m.id).any((b) => b['id'] == book);
+  if (has(main)) return main;
+  final mods = ModuleStore.instance.bibles;
+  final alts = [...mods.where((m) => m.id == 'rst-dc'), ...mods.where((m) => m.id != main.id && m.id != 'rst-dc')];
+  return alts.where(has).firstOrNull ?? main;
 }

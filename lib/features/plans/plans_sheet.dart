@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
 import '../../core/i18n.dart';
+import '../../core/modules.dart' show CatalogEntry, ModuleStore;
 import '../../core/panes.dart';
 import '../../core/settings.dart';
 import 'loc.dart';
@@ -415,6 +416,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
               ),
           ]);
         }),
+        const SizedBox(height: 10),
+        _DcBlock(pal: pal, onChanged: () => setState(_recalc)),
         // свои книги раскрываются и сворачиваются плавно
         Reveal(open: _scope == 'own', child: Padding(padding: const EdgeInsets.only(top: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
         const SizedBox(height: 12),
@@ -465,6 +468,8 @@ class _PlansSheetState extends ConsumerState<PlansSheet> {
           ),
           const SizedBox(height: 8),
         ],
+        _DcBlock(pal: pal, onChanged: () => setState(_recalc)),
+        const SizedBox(height: 10),
         Reveal(open: _streams.containsKey('own'), child: Padding(padding: const EdgeInsets.only(bottom: 10), child: _BookPicker(pal: pal, value: _own, onToggle: _toggleBook))),
         // «За срок» ↔ «Глав в день»: срок и пояснение сменяют друг друга плавно
         Reveal(open: _parMode == 'period', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _daysBlock(pal, _periodDays, _periodCtl, _setPeriod, (v) => setState(() => _periodDays = int.tryParse(v) ?? 90), _parBooks))),
@@ -1696,6 +1701,149 @@ class _StreamRow extends StatelessWidget {
   }
 }
 
+/// «Неканонические книги»: блок со стрелкой, под ним — список книг (отметить, какие добавить в планы, или «Добавить все»).
+/// По умолчанию их в планах нет. Нет модуля «Неканон» (Енох, Юбилеи, Завещания) — внизу предложение скачать
+class _DcBlock extends StatefulWidget {
+  const _DcBlock({required this.pal, required this.onChanged});
+  final Palette pal;
+  final VoidCallback onChanged;
+  @override
+  State<_DcBlock> createState() => _DcBlockState();
+}
+
+class _DcBlockState extends State<_DcBlock> {
+  bool _open = false;
+  bool _installing = false;
+  CatalogEntry? _entry;
+
+  @override
+  void initState() {
+    super.initState();
+    _findEntry();
+  }
+
+  Future<void> _findEntry() async {
+    if (ModuleStore.instance.get('noncanon-ru') != null) return;
+    try {
+      final e = (await ModuleStore.instance.catalog()).where((x) => x.id == 'noncanon-ru').firstOrNull;
+      if (mounted) setState(() => _entry = e);
+    } catch (_) {}
+  }
+
+  Future<void> _install() async {
+    final e = _entry;
+    if (e == null || _installing) return;
+    setState(() => _installing = true);
+    try {
+      await ModuleStore.instance.install(e);
+    } catch (_) {
+      if (mounted) toast(context, t('Не удалось скачать'));
+    }
+    if (!mounted) return;
+    setState(() {
+      _installing = false;
+      _entry = ModuleStore.instance.get('noncanon-ru') == null ? e : null;
+    });
+    widget.onChanged();
+  }
+
+  void _set(Set<String> ids) {
+    setPlanDcSel(ids);
+    setState(() {});
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = widget.pal;
+    final all = planDcBooks();
+    final sel = planDcSel().intersection(all.toSet());
+    final allOn = all.isNotEmpty && sel.length == all.length;
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: plateEdge(pal), width: 1.5));
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Material(
+        color: pal.panel,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() => _open = !_open),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              Expanded(child: Text(t('Неканонические книги'), style: TextStyle(fontSize: 14.7, fontWeight: FontWeight.w600, color: pal.text))),
+              if (sel.isNotEmpty)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: pal.accent, borderRadius: BorderRadius.circular(12)),
+                  child: Text('${sel.length}', style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w700, color: pal.onAccent)),
+                ),
+              AnimatedRotation(turns: _open ? 0.5 : 0, duration: const Duration(milliseconds: 240), child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: pal.muted)),
+            ]),
+          ),
+        ),
+      ),
+      // список раскрывается ПОД блоком
+      Reveal(
+        open: _open,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Material(
+            color: pal.panel,
+            shape: shape,
+            clipBehavior: Clip.antiAlias,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
+                child: Row(children: [
+                  Expanded(child: Text(t('Выберите книги'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.muted))),
+                  TextButton(
+                    onPressed: all.isEmpty ? null : () => _set(allOn ? {} : all.toSet()),
+                    child: Text(t(allOn ? 'Убрать все' : 'Добавить все'), style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: pal.accent)),
+                  ),
+                ]),
+              ),
+              for (final id in all)
+                InkWell(
+                  onTap: () => _set(sel.contains(id) ? ({...sel}..remove(id)) : {...sel, id}),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: plateEdge(pal)))),
+                    child: Row(children: [
+                      Icon(sel.contains(id) ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 22, color: sel.contains(id) ? pal.accent : pal.muted),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(Books.instance.meta(id).name, style: TextStyle(fontSize: 15, color: pal.text))),
+                    ]),
+                  ),
+                ),
+              if (_entry != null)
+                InkWell(
+                  onTap: _installing ? null : _install,
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: plateEdge(pal)))),
+                    child: Row(children: [
+                      _installing
+                          ? SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2, color: pal.accent))
+                          : Icon(Icons.download_rounded, size: 22, color: pal.accent),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(t('Скачать: Енох, Юбилеи, Завещания патриархов'), style: TextStyle(fontSize: 15, color: pal.text))),
+                    ]),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
 /// Свои книги для плана: сетка коротких названий по Заветам, нажатие — выбрать или убрать (.cp-books)
 class _BookPicker extends StatelessWidget {
   const _BookPicker({required this.pal, required this.value, required this.onToggle});
@@ -1705,9 +1853,11 @@ class _BookPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inPlan = planBookIds(); // неканонические — только если они есть в переводе плана
+    final inPlan = planBookIds(); // канонические — только те, что есть в переводе плана
+    final dcSel = planDcSel(); // неканонические — только добавленные в блоке «Неканонические книги»
+    final groups = [('OT', 'Ветхий Завет'), ('NT', 'Новый Завет'), if (dcSel.isNotEmpty) ('DC', 'Неканонические')];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        for (final (i, g) in [('OT', 'Ветхий Завет'), ('NT', 'Новый Завет')].indexed) ...[
+        for (final (i, g) in groups.indexed) ...[
           if (i > 0) const SizedBox(height: 10),
           Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(t(g.$2), style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: pal.muted))),
           LayoutBuilder(builder: (_, c) {
@@ -1715,7 +1865,7 @@ class _BookPicker extends StatelessWidget {
             final cols = math.max(1, ((c.maxWidth + 6) / 60).floor());
             final w = (c.maxWidth - 6 * (cols - 1)) / cols;
             return Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final b in Books.instance.all.where((b) => b.testament == g.$1 && (inPlan.isEmpty || inPlan.contains(b.id))))
+              for (final b in Books.instance.all.where((b) => g.$1 == 'DC' ? b.dc && dcSel.contains(b.id) : b.testament == g.$1 && !b.dc && (inPlan.isEmpty || inPlan.contains(b.id))))
                 SizedBox(
                   width: w,
                   child: Tooltip(
