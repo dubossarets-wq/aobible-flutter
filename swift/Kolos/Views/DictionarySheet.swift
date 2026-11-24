@@ -60,6 +60,8 @@ struct DictionarySheet: View {
     @State private var orig: OrigInfo?
     @State private var path: [String] = []
     @State private var detent: PresentationDetent = .large
+    /// Место Писания, открытое по ссылке в статье, — окном поверх
+    @State private var linkItem: LinkItem?
 
     private var subtitle: String { shortRef(req.book, req.chapter, req.verse) }
 
@@ -74,12 +76,17 @@ struct DictionarySheet: View {
                         .padding(.bottom, 40)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // смахивание вбок — соседний словарь
+                .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded(swipe))
             }
             .background(Color(.systemGroupedBackground))
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { num in
-                ConcordanceView(num: num, lemma: lemmaFor(num), onOpenRef: onOpenRef)
+                ConcordanceView(num: num, lemma: lemmaFor(num), onOpenRef: showRef)
             }
+        }
+        .sheet(item: $linkItem) { it in
+            LinkSheet(start: it.link) { b, c, v in onOpenRef(b, c, v) }
         }
         .tint(pal.accent)
         // Непрозрачный фон — внутри окна, а не presentationBackground: со своим presentationBackground система в iOS 26 не растягивает окно плавно из «парящего» вида на всю ширину (поднимается, а ширина прибавляется рывком)
@@ -114,6 +121,26 @@ struct DictionarySheet: View {
             orig = OrigInfo(orig: ws[wi].orig, morph: ws[wi].origMorph, num: ws[wi].num)
         }
         res = r
+    }
+
+    /// Место из статьи — окном снизу поверх статьи (там «Читать» и «Толкования»); статья остаётся под ним
+    private func showRef(_ b: String, _ c: Int, _ v: Int) {
+        linkItem = LinkItem(link: .verse(book: b, chapter: c, verse: v, end: nil))
+    }
+
+    /// Смахнули влево — следующий словарь, вправо — предыдущий (когда открыта статья и словарей несколько)
+    private func swipe(_ g: DragGesture.Value) {
+        let dx = g.translation.width, dy = g.translation.height
+        guard stack.isEmpty, abs(dx) > 70, abs(dx) > abs(dy) * 2.5,
+              let list = res?.results, list.count > 1,
+              let i = list.firstIndex(where: { $0.module.id == selected }) else { return }
+        let j = dx < 0 ? i + 1 : i - 1
+        guard list.indices.contains(j) else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        withAnimation(.easeInOut(duration: 0.24)) {
+            selected = list[j].module.id
+            entryIdx = 0
+        }
     }
 
     private func lemmaFor(_ num: String) -> String? {
@@ -162,7 +189,7 @@ struct DictionarySheet: View {
             case .strong(let num, let results)?:
                 if let m = results.first {
                     StrongEntryView(num: num, entry: m.found[0].entry, module: m.module, mapping: nil, orig: nil,
-                                    onOpenStrong: openStrong, onOpenRef: onOpenRef, onOpenAll: { path.append(num) })
+                                    onOpenStrong: openStrong, onOpenRef: showRef, onOpenAll: { path.append(num) })
                         .id("\(m.module.id)|\(num)")
                 }
             case .word(let m, let f)?:
@@ -212,7 +239,7 @@ struct DictionarySheet: View {
             let f = current.found[min(entryIdx, current.found.count - 1)]
             if current.module.dictionaryKind == "strongs" {
                 StrongEntryView(num: f.key, entry: f.entry, module: current.module, mapping: mapping, orig: orig,
-                                onOpenStrong: openStrong, onOpenRef: onOpenRef, onOpenAll: { path.append(f.key) })
+                                onOpenStrong: openStrong, onOpenRef: showRef, onOpenAll: { path.append(f.key) })
                     .id("\(current.module.id)|\(f.key)")
             } else {
                 wordEntry(current.module, f)
@@ -256,14 +283,16 @@ struct DictionarySheet: View {
             Text(o).font(.system(size: 36.8)).foregroundStyle(pal.text)
         }
         let txt = (e["text"] as? String) ?? (e["definition"] as? String) ?? ""
-        Text(EntryLinks.attributed(txt, accent: pal.accent))
+        // места в тексте — ссылками, как в толкованиях: целиком и арабскими цифрами («Быт. XXXVIII, 6» → «Быт. 38:6»)
+        Text(CommentaryLinks.attributed(txt, book: req.book, chapter: req.chapter, see: true))
             .lineSpacing(5)
             .foregroundStyle(pal.text)
+            .tint(pal.accent)
             .environment(\.openURL, OpenURLAction { url in
-                if let r = EntryLinks.verse(from: url) {
-                    onOpenRef(r.0, r.1, r.2)
-                } else if let w = StrongLinks.refWord(from: url) {
+                if let w = StrongLinks.refWord(from: url) {
                     openSee(m, w)
+                } else if let l = CommLink(url: url) {
+                    if case .strong(let k) = l { openStrong(k) } else { linkItem = LinkItem(link: l) }
                 }
                 return .handled
             })
@@ -271,7 +300,9 @@ struct DictionarySheet: View {
             FlowRow {
                 ForEach(refs, id: \.self) { r in
                     if let p = OsisRef(r) {
-                        RefChip(label: osisLabel(p), icon: "link") { onOpenRef(p.book, p.chapter, p.verse) }
+                        RefChip(label: osisLabel(p), icon: "link") {
+                            linkItem = LinkItem(link: .verse(book: p.book, chapter: p.chapter, verse: p.verse, end: p.endChapter == nil || p.endChapter == p.chapter ? p.endVerse : nil))
+                        }
                     }
                 }
             }

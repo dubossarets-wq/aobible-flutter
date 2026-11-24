@@ -68,36 +68,57 @@ enum CommentaryLinks {
         Int(s) ?? roman(s)
     }
 
-    private static let verseList = #"\d+(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*\d+)?)*"#
+    private static let dash = #"[-\x{2010}-\x{2015}\x{2212}]"#
+    private static let verseList = #"\d+(?:\s*"# + dash + #"\s*\d+)?(?:\s*,\s*\d+(?:\s*"# + dash + #"\s*\d+)?)*"#
     private static let chap = #"(?:\d+|[IVXLC]+)"#
-    /// Книга (с номером впереди и, возможно, вторым словом: «Иис. Нав.»), глава (цифрами или римскими), стихи
+    /// Название книги: номер впереди — арабский или римский («1 Кор», «II Цар.»), возможно второе слово («Иис. Нав.»)
+    private static let bookName = #"((?:[1-4]\s?|(?:IV|III|II|I)\s)?[А-ЯЁ][а-яё]+\.?)(\s[А-ЯЁ][а-яё]+\.?)?"#
+    /// Книга, глава (цифрами или римскими), стихи: «Иез XVI:8», «Быт. XXXVIII, 6, 11» (после римской главы — и запятая)
     private static let bookRe = try! NSRegularExpression(
-        pattern: #"((?:[1-4]\s?)?[А-ЯЁ][а-яё]+\.?)(\s[А-ЯЁ][а-яё]+\.?)?\s*("# + chap + #")\s*[:.]\s*("# + verseList + #")"#)
+        pattern: bookName + #"\s*("# + chap + #")(\s*[:.]\s*|,\s*)("# + verseList + #")"#)
+    /// Книга и глава римскими без стихов: «(II Цар. XIII)»
+    private static let bookChapRe = try! NSRegularExpression(
+        pattern: bookName + #"\s+([IVXLC]+)\b(?!\s*[:.,]\s*\d)"#)
     /// Без книги — глава и стихи той же книги («IV:3-5»)
     private static let chapOnlyRe = try! NSRegularExpression(
         pattern: #"(?<![\p{L}\d])([IVXLC]+)\s*:\s*("# + verseList + #")"#)
     /// «ст. 13», «стт. 3-5»
     private static let verseOnlyRe = try! NSRegularExpression(
         pattern: #"(?<![\p{L}])стт?\.\s*("# + verseList + #")"#)
-    private static let partRe = try! NSRegularExpression(pattern: #"(\d+)(?:\s*[-\x{2010}-\x{2015}\x{2212}]\s*(\d+))?"#)
+    private static let partRe = try! NSRegularExpression(pattern: #"(\d+)(?:\s*"# + dash + #"\s*(\d+))?"#)
     private static let strongRe = try! NSRegularExpression(pattern: #"(?<![A-Za-z])[HG]\d+"#)
     private static let originalRe = try! NSRegularExpression(pattern: "[\u{0370}-\u{03FF}\u{1F00}-\u{1FFF}]{2,}|[\u{0590}-\u{05FF}]{2,}")
     /// Слово латиницей после «евр.» / «греч.» — транслитерация слова оригинала
     private static let translitRe = try! NSRegularExpression(pattern: #"(?:евр|греч|арам)\.\s*([A-Za-z][A-Za-z'’ʼ]{1,})"#)
+    /// «См. Законник» — статья этого слова в том же словаре (только в словарях)
+    private static let seeRe = try! NSRegularExpression(pattern: #"(?:См\.|см\.|Ср\.|ср\.)\s*([А-Яа-яЁё][А-Яа-яЁё\s,\-]*)"#)
+    private static let seeWordRe = try! NSRegularExpression(pattern: #"[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*"#)
+    private static let romanPrefixRe = try! NSRegularExpression(pattern: #"^(IV|III|II|I)\s"#)
 
-    /// Текст толкования со ссылками. Место ведёт целиком («Иез XVI:8» → ссылка «Иез 16:8»: римские главы заменены
-    /// арабскими); у номеров Стронга и слов оригинала текст прежний
+    /// «II Цар.» → «2 Цар.»
+    private static func arabicPrefix(_ s: String) -> String {
+        let ns = s as NSString
+        guard let m = romanPrefixRe.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)),
+              let n = roman(ns.substring(with: m.range(at: 1))) else { return s }
+        return "\(n) " + ns.substring(from: m.range.length)
+    }
+
+    /// Текст толкования (или статьи словаря) со ссылками. Место ведёт целиком («Иез XVI:8» → ссылка «Иез 16:8»:
+    /// римские главы и номера книг заменены арабскими); у номеров Стронга и слов оригинала текст прежний.
+    /// see — ещё и «См. слово» (статья словаря)
     @MainActor
-    static func attributed(_ s: String, book: String, chapter: Int) -> AttributedString {
+    static func attributed(_ s: String, book: String, chapter: Int, see: Bool = false) -> AttributedString {
         let ns = s as NSString
         let all = NSRange(location: 0, length: ns.length)
         // что показываем вместо куска исходного текста и куда он ведёт
-        var spans: [(r: NSRange, text: String, link: CommLink, lead: Bool)] = []
+        var spans: [(r: NSRange, text: String, url: URL?, lead: Bool)] = []
+        /// места с книгой по порядку: «ст. 7» после «(Быт. XXXVIII, 6)» — это Быт 38:7
+        var places: [(at: Int, book: String, chapter: Int)] = []
 
         func free(_ r: NSRange) -> Bool { !spans.contains { NSIntersectionRange($0.r, r).length > 0 } }
         // lead — перед местом нужен пробел, если оно приклеено к слову («путьИн 14:6» → «путь Ин 14:6»)
-        func put(_ r: NSRange, _ text: String, _ link: CommLink, lead: Bool = false) {
-            if free(r) { spans.append((r, text, link, lead)) }
+        func put(_ r: NSRange, _ text: String, _ url: URL?, lead: Bool = false) {
+            if free(r) { spans.append((r, text, url, lead)) }
         }
 
         /// Место целиком: от начала («Иез 16:») до первого стиха — одна ссылка; «25-26», «6, 9» — у остальных частей своя
@@ -107,36 +128,49 @@ enum CommentaryLinks {
                 guard let v = Int(ns.substring(with: m.range(at: 1))) else { continue }
                 let e = m.range(at: 2).location == NSNotFound ? nil : Int(ns.substring(with: m.range(at: 2)))
                 let part = ns.substring(with: m.range)
-                let link = CommLink.verse(book: b, chapter: c, verse: v, end: e)
+                let url = CommLink.verse(book: b, chapter: c, verse: v, end: e).url
                 if first {
-                    put(NSRange(location: start, length: m.range.location + m.range.length - start), label + part, link, lead: true)
+                    let r = NSRange(location: start, length: m.range.location + m.range.length - start)
+                    if free(r) { places.append((start, b, c)) }
+                    put(r, label + part, url, lead: true)
                     first = false
                 } else {
-                    put(m.range, part, link)
+                    put(m.range, part, url)
                 }
             }
         }
 
+        /// Книга по первому и второму слову названия: «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
+        func findBook(_ m: NSTextCheckingResult) -> (book: String, from: Int)? {
+            let first = arabicPrefix(ns.substring(with: m.range(at: 1)))
+            let second = m.range(at: 2).location != NSNotFound ? ns.substring(with: m.range(at: 2)) : nil
+            if let second, let x = RefParser.findBook(first + second) { return (x, m.range(at: 1).location) }
+            if let second, let x = RefParser.findBook(second) { return (x, m.range(at: 2).location + 1) }
+            if let x = RefParser.findBook(first) { return (x, m.range(at: 1).location) }
+            return nil
+        }
+
         // 1. С названием книги
         for m in bookRe.matches(in: s, range: all) {
-            let first = ns.substring(with: m.range(at: 1))
-            let hasSecond = m.range(at: 2).location != NSNotFound
-            let second = hasSecond ? ns.substring(with: m.range(at: 2)) : nil
-            // «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
-            var b: String?
-            var from = m.range(at: 1).location
-            if let second, let x = RefParser.findBook(first + second) {
-                b = x
-            } else if let second, let x = RefParser.findBook(second) {
-                b = x
-                from = m.range(at: 2).location + 1
-            } else {
-                b = RefParser.findBook(first)
-            }
+            guard let found = findBook(m) else { continue }
+            let b = found.book, from = found.from
+            let chapText = ns.substring(with: m.range(at: 3))
+            // запятая между главой и стихом — только после римской главы («XXXVIII, 6»); «Быт 1, 2» — не место
+            if ns.substring(with: m.range(at: 4)).contains(","), Int(chapText) != nil { continue }
+            guard let c = number(chapText), c >= 1 else { continue }
             let chapRange = m.range(at: 3)
-            guard let b, let c = number(ns.substring(with: chapRange)), c >= 1 else { continue }
-            let name = ns.substring(with: NSRange(location: from, length: chapRange.location - from)).trimmingCharacters(in: .whitespaces)
-            putPlace(from: from, label: "\(name) \(c):", list: m.range(at: 4), book: b, chapter: c)
+            let name = arabicPrefix(ns.substring(with: NSRange(location: from, length: chapRange.location - from)).trimmingCharacters(in: .whitespaces))
+            putPlace(from: from, label: "\(name) \(c):", list: m.range(at: 5), book: b, chapter: c)
+        }
+        // 1а. Книга и глава без стихов («II Цар. XIII») — ведёт к началу главы
+        for m in bookChapRe.matches(in: s, range: all) {
+            guard let found = findBook(m), let c = roman(ns.substring(with: m.range(at: 3))) else { continue }
+            let b = found.book, from = found.from
+            let r = NSRange(location: from, length: m.range.location + m.range.length - from)
+            guard free(r) else { continue }
+            let name = arabicPrefix(ns.substring(with: NSRange(location: from, length: m.range(at: 3).location - from)).trimmingCharacters(in: .whitespaces))
+            places.append((from, b, c))
+            put(r, "\(name) \(c)", CommLink.verse(book: b, chapter: c, verse: 1, end: nil).url, lead: true)
         }
         // 2. Глава римскими без книги — книга толкования («IV:10» → «4:10»)
         for m in chapOnlyRe.matches(in: s, range: all) {
@@ -144,25 +178,36 @@ enum CommentaryLinks {
             if !free(m.range) { continue }
             putPlace(from: m.range.location, label: "\(c):", list: m.range(at: 2), book: book, chapter: c)
         }
-        // 3. «ст. 13» — стих этой же главы
+        // 3. «ст. 13» — стих той главы, о которой речь шла последней (нет такой — главы толкования)
         for m in verseOnlyRe.matches(in: s, range: all) {
             let list = m.range(at: 1)
             let label = ns.substring(with: NSRange(location: m.range.location, length: list.location - m.range.location))
-            putPlace(from: m.range.location, label: label, list: list, book: book, chapter: chapter)
+            let ctx = places.filter { $0.at < m.range.location }.max { $0.at < $1.at }
+            putPlace(from: m.range.location, label: label, list: list, book: ctx?.book ?? book, chapter: ctx?.chapter ?? chapter)
         }
         // 4. Номера Стронга
         for m in strongRe.matches(in: s, range: all) {
             let t = ns.substring(with: m.range)
-            put(m.range, t, .strong(Lexicon.strongKey(t)))
+            put(m.range, t, CommLink.strong(Lexicon.strongKey(t)).url)
         }
         // 5. Слова на греческом и иврите
         for m in originalRe.matches(in: s, range: all) {
             let t = ns.substring(with: m.range)
-            put(m.range, t, .word(t))
+            put(m.range, t, CommLink.word(t).url)
         }
         for m in translitRe.matches(in: s, range: all) {
             let t = ns.substring(with: m.range(at: 1))
-            put(m.range(at: 1), t, .word(t))
+            put(m.range(at: 1), t, CommLink.word(t).url)
+        }
+        // 6. Словарь: «См. слово»
+        if see {
+            for m in seeRe.matches(in: s, range: all) {
+                for w in seeWordRe.matches(in: s, range: m.range(at: 1)) {
+                    let word = ns.substring(with: w.range)
+                    guard word.count > 2, let enc = word.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { continue }
+                    put(w.range, word, URL(string: "aobref:" + enc))
+                }
+            }
         }
 
         // сборка: нетронутый текст — как есть, ссылки — с новым текстом
@@ -178,7 +223,7 @@ enum CommentaryLinks {
                 out += AttributedString(" ")
             }
             var piece = AttributedString(sp.text)
-            piece.link = sp.link.url
+            piece.link = sp.url
             out += piece
             at = sp.r.location + sp.r.length
         }
@@ -378,5 +423,61 @@ struct CommentaryVersePage: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Ссылка, открытая окном поверх (sheet(item:))
+struct LinkItem: Identifiable {
+    let id = UUID()
+    let link: CommLink
+}
+
+/// Окно снизу поверх статьи или текста: место Писания (стих, «Читать», «Толкования»), статья Стронга, слово оригинала.
+/// Ссылки внутри открываются страницами в этом же окне — «назад» возвращает
+struct LinkSheet: View {
+    let start: CommLink
+    /// «Читать»: окно закрывается, место открывается в читалке
+    let onRead: (String, Int, Int) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var path: [CommLink] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            page(start)
+                .navigationDestination(for: CommLink.self) { page($0) }
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let l = CommLink(url: url) else { return .systemAction }
+            path.append(l)
+            return .handled
+        })
+        .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder private func page(_ l: CommLink) -> some View {
+        Group {
+            switch l {
+            case .verse(let b, let c, let v, let e):
+                CommentaryVersePage(book: b, chapter: c, verse: v, end: e, onRead: { b, c, v in
+                    dismiss()
+                    onRead(b, c, v)
+                }, onComment: { b, c, v in
+                    path.append(.comment(book: b, chapter: c, verse: v))
+                })
+            case .strong(let k):
+                CommentaryStrongPage(key: k) { path.append(.strong($0)) }
+            case .word(let w):
+                OriginalWordPage(word: w)
+            case .comment(let b, let c, let v):
+                CommentaryBody(book: b, chapter: c, verse: v, path: $path)
+                    .navigationTitle("Толкования")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Готово") { dismiss() }
+            }
+        }
     }
 }

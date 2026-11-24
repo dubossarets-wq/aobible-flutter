@@ -1,6 +1,7 @@
 // Ссылки в толкованиях: места целиком (римские главы — арабскими), «ст. N», номера Стронга, слова оригинала.
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:kolos/core/bible.dart';
 import 'package:kolos/core/books.dart';
 import 'package:kolos/features/study/commentary_links.dart';
 
@@ -49,5 +50,23 @@ void main() {
       final links = [for (final (t, l) in parts('(См. Флп 2:6${dash}7)')) if (l) t];
       expect(links, ['Флп 2:6${dash}7'], reason: 'тире U+${dash.codeUnitAt(0).toRadixString(16)}');
     }
+  });
+
+  test('словарь: римская глава через запятую, римский номер книги', () {
+    List<String> links(String s) => [for (final (t, l) in parts(s)) if (l) t];
+    expect(links('а) (Быт. XXXVIII, 6, 11, 13, 24) невестка'), ['Быт. 38:6', '11', '13', '24']);
+    expect(links('Христа (Мф. I, 3).'), ['Мф. 1:3']);
+    expect(links('б) (II Цар. XIII, 1) дочь'), ['2 Цар. 13:1']);
+    expect(links('см. (II Цар. XIII).'), ['2 Цар. 13']);
+    expect(links('По Иосифу Флавию (Древ. VII, 8, 1), матерью'), <String>[]);
+    expect(links('Быт 1, 2 и далее'), <String>[]);
+  });
+
+  test('«ст. N» — к последнему названному месту', () {
+    VerseRef? got;
+    final p = commentaryParts('(Быт. XXXVIII, 6) не угодил Господу (ст. 7).', book: 'Rut', chapter: 1, onVerse: (r, _) => got = r, onStrong: (_) {}, onWord: (_) {});
+    final st = p.firstWhere((x) => x.$1 == 'ст. 7');
+    st.$2!();
+    expect(got, VerseRef('Gen', 38, 7));
   });
 }

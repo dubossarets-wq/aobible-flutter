@@ -2,6 +2,7 @@
 // выбранного словаря. Статья Стронга: лемма, транслитерация, произношение, значение, происхождение со ссылками
 // на другие номера, грамматическая форма слова в этом стихе, «Как переведено», «Все места».
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/books.dart';
@@ -11,6 +12,7 @@ import '../../core/panes.dart';
 import '../../core/settings.dart';
 import '../../ui/kit.dart';
 import '../hub.dart';
+import 'commentary_links.dart' show CommentaryText, CommentaryVerseSheet;
 import 'concordance_sheet.dart';
 import 'interlinear.dart';
 import 'lexicon.dart';
@@ -153,7 +155,8 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
     }
   }
 
-  void _openRef(VerseRef r) => openRefInOther(context, ref, req.pane, r);
+  // место из статьи — окном снизу поверх статьи («Читать», «Толкования»); статья остаётся под ним
+  void _openRef(VerseRef r) => showSheet(context, CommentaryVerseSheet(pane: req.pane, at: r));
 
   void _openAll(String num, String? lemma) => openConcordance(context, num: num, lemma: lemma, onOpen: _openRef);
 
@@ -262,7 +265,23 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
       subtitle: fmtRef(req.ref),
       onBack: back,
       onClose: req.closeToParent ? () => Navigator.pop(context) : null,
-      body: SheetList(children: children),
+      // смахивание вбок по статье — соседний словарь
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (top != null || current == null || results.length < 2 || v.abs() < 300) return;
+          final i = results.indexWhere((r) => r.module.id == current.module.id);
+          final j = v < 0 ? i + 1 : i - 1;
+          if (j < 0 || j >= results.length) return;
+          HapticFeedback.selectionClick();
+          setState(() {
+            _selected = results[j].module.id;
+            _entryIdx = 0;
+          });
+        },
+        child: SheetList(children: children),
+      ),
     );
   }
 
@@ -279,7 +298,8 @@ class _DictionarySheetState extends ConsumerState<DictionarySheet> {
       if (f.match == 'stem') WarnBox(icon: false, child: Text(t('Найдено по основе «{word}» — возможно, это другое слово.', {'word': req.text}))),
       if (f.match == 'root') WarnBox(icon: false, child: Text(t('Найдено по корню «{word}».', {'word': req.text}))),
       if (e['original'] != null) Text(e['original'].toString(), style: const TextStyle(fontSize: 36.8, height: 1.25)),
-      LinkedText(text: (e['text'] ?? e['definition'] ?? '').toString(), onOpen: _openRef, onWord: _openWord, style: const TextStyle(height: 1.55)),
+      // места в тексте — ссылками, как в толкованиях: целиком и арабскими цифрами («Быт. XXXVIII, 6» → «Быт. 38:6»)
+      CommentaryText(text: (e['text'] ?? e['definition'] ?? '').toString(), pane: req.pane, at: req.ref, book: req.ref.book, chapter: req.ref.chapter, onSee: _openWord, style: const TextStyle(height: 1.55)),
       if (refs.isNotEmpty)
         ChipWrap([
           for (final r in refs)

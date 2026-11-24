@@ -44,6 +44,7 @@ enum QuickSettings {
         QuickSetting(id: "headingColor", title: "Цвет заголовков", kind: .choice(def: HeadingStyle.defaultColor, options: HeadingStyle.colors.map { ($0.0, $0.1) })),
         QuickSetting(id: "headingSize", title: "Размер заголовков", kind: .slider(def: HeadingStyle.defaultSize, range: 0.7...1.3, step: 0.05)),
         QuickSetting(id: "continuousVerses", title: "Сплошной текст", kind: .toggle(def: false)),
+        QuickSetting(id: "continuousComments", title: "Толкования значком после стиха", kind: .toggle(def: true)),
         QuickSetting(id: "commentView", title: "Комментарии в тексте", kind: .choice(def: "tag", options: [("below", "Под стихом"), ("tag", "Меткой после стиха")])),
         QuickSetting(id: "commentaryFontSize", title: "Размер комментариев", kind: .slider(def: 19, range: 14...32, step: 1)),
     ]

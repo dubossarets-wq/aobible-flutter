@@ -95,6 +95,8 @@ struct PlaceDetail: View {
     @State private var satellite = false
     /// Книга, места которой показаны в «Где упомянуто» (нет выбора — первая)
     @State private var bookFilter: String?
+    /// Карта раскрыта вниз — на всю высоту окна
+    @State private var mapOpen = false
 
     /// Масштаб по виду места: область — крупно, хребет, долина, река, водоём, пустыня — средне, остальное — город с окрестностями
     private var span: Double {
@@ -128,7 +130,22 @@ struct PlaceDetail: View {
                     Marker(place.name, coordinate: coord)
                 }
                 .mapStyle(satellite ? .hybrid : .standard)
-                .frame(height: 280)
+                // раскрытая — до нижнего края окна (над меню), свёрнутая — 280
+                .containerRelativeFrame(.vertical) { h, _ in mapOpen ? max(280, h - 150) : 280 }
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        withAnimation(.snappy(duration: 0.35)) { mapOpen.toggle() }
+                    } label: {
+                        Image(systemName: mapOpen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(10)
+                    .accessibilityLabel(mapOpen ? "Свернуть карту" : "Раскрыть карту")
+                }
                 .listRowInsets(EdgeInsets())
                 CapsuleSwitcher(options: [(false, String(localized: "Обычная карта")), (true, String(localized: "Спутник"))], selection: $satellite)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))

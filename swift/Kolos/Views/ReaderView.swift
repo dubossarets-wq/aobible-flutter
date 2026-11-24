@@ -833,6 +833,8 @@ struct ChapterText: View {
     @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
     @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
+    /// Сплошной текст: толкования к стиху — значком с числом после стиха (как параллельные места)
+    @AppStorage("continuousComments") private var continuousComments = true
     @AppStorage("textMargin") private var textMargin = 14.0
     @AppStorage("ilGloss") private var ilGloss = true
     @AppStorage("ilOrig") private var ilOrig = true
@@ -1056,7 +1058,8 @@ struct ChapterText: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeight = $0 }
         // книга — один экран на всю книгу (смена главы его не пересоздаёт); при нескольких панелях — экран на главу
-        .id(book1 ? "\(module.id)|\(book)" : "\(module.id)|\(book)|\(chapter)")
+        // смена «сплошного текста» перестраивает экран целиком (иначе часть строк оставалась в прежнем виде до перезапуска)
+        .id(book1 ? "\(module.id)|\(book)|\(continuous)" : "\(module.id)|\(book)|\(chapter)|\(continuous)")
         }
         }
         // два пальца: размер букв (в режиме «Страницы»; при прокрутке — через ReaderGestures)
@@ -1711,7 +1714,7 @@ struct ChapterText: View {
     private func chapterCache(_ c: Int) -> ChapterCache {
         let favs = favNums(c)
         let comm = expandedComm.filter { $0.hasPrefix("\(c)|") }.sorted()
-        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)|\(c == chapter && !flashWords.isEmpty ? "\(flashVerse):\(flashWords):\(flashWhole):\(flashStage)" : "")"
+        let key = "\(favs.sorted())|\(partKey(c))|\(module.id)|\(book)|\(c)|\(fontSize)|\(lineHeight)|\(fontFamily)|\(fontWeight)|\(showNumbers)|\(showStrongs)|\(verseNumPos)|\(showXrefs)|\(showIllus)|\(theme)|\(store.installed.count)|\(inlineRaw)|\(commentView)|\(commentaryFontSize)|\(comm)|\(onlineTick)|\(continuous)|\(continuousComments)|\(c == chapter && !flashWords.isEmpty ? "\(flashVerse):\(flashWords):\(flashWhole):\(flashStage)" : "")"
         if let x = cacheBox.chapters[c], x.key == key { return x }
         let verses = store.verses(module: module.id, book: book, chapter: c)
         let heads = store.headings(module: module.id, book: book, chapter: c)
@@ -1825,7 +1828,7 @@ struct ChapterText: View {
     /// Куда ставить стих при переходе: не вплотную к верхнему меню, а на ~10 пт ниже. Точка привязки задаётся долей
     /// высоты окна (одной и той же для стиха и для окна), поэтому доля считается из высоты окна и типичной высоты стиха
     private var jumpAnchor: UnitPoint {
-        UnitPoint(x: 0, y: min(0.05, 10 / max(200, paneHeight - 90)))
+        UnitPoint(x: 0.5, y: min(0.05, 10 / max(200, paneHeight - 90)))
     }
 
     private func scroll(_ proxy: ScrollViewProxy, initial: Bool, animated: Bool = true) {
@@ -2143,6 +2146,24 @@ struct ChapterText: View {
                 out.append(a)
             }
             add("\u{2009}\(illus)", [.font: small, .foregroundColor: UIColor(pal.accent), .aobURL: url])
+        }
+        if continuous && continuousComments && !module.interlinear {
+            // сплошной текст: толкования к стиху — значком «книга» с числом, как параллельные места; нажатие открывает их
+            let n = inlineComments(v.num, ch).count
+            if n > 0 {
+                let url = URL(string: "aobcomm:\(v.num)")!
+                let small = UIFont.systemFont(ofSize: fontSize * 0.62, weight: .medium)
+                add(" ", [.font: small, .aobURL: url])
+                let cfg = UIImage.SymbolConfiguration(pointSize: fontSize * 0.6, weight: .semibold)
+                if let img = UIImage(systemName: "text.book.closed", withConfiguration: cfg)?.withTintColor(UIColor(pal.accent), renderingMode: .alwaysOriginal) {
+                    let att = NSTextAttachment(image: img)
+                    att.bounds = CGRect(x: 0, y: (small.capHeight - img.size.height) / 2, width: img.size.width, height: img.size.height)
+                    let a = NSMutableAttributedString(attachment: att)
+                    a.addAttributes([.aobURL: url, .aobVerse: v.num], range: NSRange(location: 0, length: a.length))
+                    out.append(a)
+                }
+                add("\u{2009}\(n)", [.font: small, .foregroundColor: UIColor(pal.accent), .aobURL: url])
+            }
         }
         let mainLength = out.length
         // пришли из поиска: найденные слова в этом стихе — плашками цвета акцента (на пять секунд)

@@ -16,6 +16,7 @@ struct AppearanceView: View {
     @AppStorage("headingColor") private var headingColor = HeadingStyle.defaultColor
     @AppStorage("headingSize") private var headingSize = HeadingStyle.defaultSize
     @AppStorage("continuousVerses") private var continuous = false
+    @AppStorage("continuousComments") private var continuousComments = true
     @AppStorage("textMargin") private var textMargin = 14.0
     @AppStorage("hideOnScroll") private var hideOnScroll = true
     @AppStorage("readingStyle") private var readingStyle = "scroll"
@@ -91,6 +92,10 @@ struct AppearanceView: View {
                     row("Размер заголовков: \(Int((headingSize * 100).rounded()))%", value: $headingSize, range: 0.7...1.3, step: 0.05, def: HeadingStyle.defaultSize).pinnable("headingSize")
                 }
                 Toggle("Сплошной текст (без разрывов между стихами)", isOn: $continuous).pinnable("continuousVerses")
+                if continuous {
+                    // в сплошном тексте толкования не встают под стихом — только значком после стиха
+                    Toggle("Толкования значком после стиха", isOn: $continuousComments).pinnable("continuousComments")
+                }
             }
             Section {
                 PhotosPicker(selection: $photo, matching: .images) {

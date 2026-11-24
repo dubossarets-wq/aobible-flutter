@@ -16,20 +16,29 @@ import 'greek_nfd.dart';
 import 'sheet.dart';
 import 'study_data.dart';
 
-const _verseList = r'\d+(?:\s*[-\u2010-\u2015\u2212]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-\u2010-\u2015\u2212]\s*\d+)?)*';
+const _dash = r'[-\u2010-\u2015\u2212]';
+const _verseList = '\\d+(?:\\s*$_dash\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*$_dash\\s*\\d+)?)*';
 const _chap = r'(?:\d+|[IVXLC]+)';
+/// Название книги: номер впереди — арабский или римский («1 Кор», «II Цар.»), возможно второе слово («Иис. Нав.»)
+const _bookName = r'((?:[1-4]\s?|(?:IV|III|II|I)\s)?[А-ЯЁ][а-яё]+\.?)(\s[А-ЯЁ][а-яё]+\.?)?';
 
-/// Книга (с номером впереди и, возможно, вторым словом: «Иис. Нав.»), глава (цифрами или римскими), стихи
-final _bookRe = RegExp('((?:[1-4]\\s?)?[А-ЯЁ][а-яё]+\\.?)(\\s[А-ЯЁ][а-яё]+\\.?)?\\s*($_chap)\\s*[:.]\\s*($_verseList)');
+/// Книга, глава (цифрами или римскими), стихи: «Иез XVI:8», «Быт. XXXVIII, 6, 11» (после римской главы — и запятая)
+final _bookRe = RegExp('$_bookName\\s*($_chap)(\\s*[:.]\\s*|,\\s*)($_verseList)');
+/// Книга и глава римскими без стихов: «(II Цар. XIII)»
+final _bookChapRe = RegExp('$_bookName\\s+([IVXLC]+)\\b(?!\\s*[:.,]\\s*\\d)');
 /// Без книги — глава и стихи той же книги («IV:3-5»)
 final _chapOnlyRe = RegExp('(?<![\\p{L}\\d])([IVXLC]+)\\s*:\\s*($_verseList)', unicode: true);
 /// «ст. 13», «стт. 3-5»
 final _verseOnlyRe = RegExp('(?<!\\p{L})стт?\\.\\s*($_verseList)', unicode: true);
-final _partRe = RegExp(r'(\d+)(?:\s*[-\u2010-\u2015\u2212]\s*(\d+))?');
+final _partRe = RegExp('(\\d+)(?:\\s*$_dash\\s*(\\d+))?');
 final _strongRe = RegExp(r'(?<![A-Za-z])[HG]\d+');
 final _originalRe = RegExp('[Ͱ-Ͽἀ-῿]{2,}|[֐-׿]{2,}');
 /// Слово латиницей после «евр.» / «греч.» — транслитерация слова оригинала
 final _translitRe = RegExp("(?:евр|греч|арам)\\.\\s*([A-Za-z][A-Za-z'’ʼ]{1,})");
+final _romanPrefixRe = RegExp(r'^(IV|III|II|I)\s');
+/// «См. Законник» — статья этого слова в том же словаре (только в словарях)
+final _seeRe = RegExp(r'(?:См\.|см\.|Ср\.|ср\.)\s*([А-Яа-яЁё][А-Яа-яЁё\s,\-]*)');
+final _seeWordRe = RegExp(r'[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)*');
 
 /// «XVI» → 16; не римское число — null
 int? romanToInt(String s) {
@@ -46,8 +55,15 @@ int? romanToInt(String s) {
 
 int? _num(String s) => int.tryParse(s) ?? romanToInt(s);
 
+/// «II Цар.» → «2 Цар.»
+String _arabicPrefix(String s) {
+  final m = _romanPrefixRe.firstMatch(s);
+  final n = m == null ? null : romanToInt(m.group(1)!);
+  return n == null ? s : '$n ${s.substring(m!.end)}';
+}
+
 /// Текст толкования → куски; у кусков-ссылок есть действие. Место ведёт целиком («Иез XVI:8» → ссылка «Иез 16:8»:
-/// римские главы заменены арабскими); у номеров Стронга и слов оригинала текст прежний
+/// римские главы и номера книг заменены арабскими); у номеров Стронга и слов оригинала текст прежний
 List<(String, VoidCallback?)> commentaryParts(
   String s, {
   required String book,
@@ -55,9 +71,12 @@ List<(String, VoidCallback?)> commentaryParts(
   required void Function(VerseRef at, int? end) onVerse,
   required void Function(String strong) onStrong,
   required void Function(String word) onWord,
+  void Function(String word)? onSee,
 }) {
   // что показываем вместо куска исходного текста и что при нажатии
   final spans = <({int a, int b, String text, VoidCallback f, bool lead})>[];
+  // места с книгой по порядку: «ст. 7» после «(Быт. XXXVIII, 6)» — это Быт 38:7
+  final places = <({int at, String book, int chapter})>[];
   bool free(int a, int b) => !spans.any((x) => x.a < b && a < x.b);
   // lead — перед местом нужен пробел, если оно приклеено к слову («путьИн 14:6» → «путь Ин 14:6»)
   void put(int a, int b, String text, VoidCallback f, {bool lead = false}) {
@@ -73,6 +92,7 @@ List<(String, VoidCallback?)> commentaryParts(
       final part = m.group(0)!;
       void open() => onVerse(VerseRef(bk, ch, v), e);
       if (first) {
+        if (free(start, listStart + m.end)) places.add((at: start, book: bk, chapter: ch));
         put(start, listStart + m.end, label + part, open, lead: true);
         first = false;
       } else {
@@ -81,29 +101,40 @@ List<(String, VoidCallback?)> commentaryParts(
     }
   }
 
+  /// Книга по названию: «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
+  ({String book, int from})? findBook(RegExpMatch m) {
+    final first = _arabicPrefix(m.group(1)!);
+    final second = m.group(2);
+    final b = Books.instance;
+    if (second != null && b.findBookId(first + second) != null) return (book: b.findBookId(first + second)!, from: m.start);
+    if (second != null && b.findBookId(second) != null) return (book: b.findBookId(second)!, from: m.start + m.group(1)!.length + 1);
+    final id = b.findBookId(first);
+    return id == null ? null : (book: id, from: m.start);
+  }
+
   // 1. С названием книги
   for (final m in _bookRe.allMatches(s)) {
-    final first = m.group(1)!;
-    final second = m.group(2);
-    // «Иис. Нав.» целиком; нет — второе слово («Ср. Иез» → Иез); нет — первое
-    String? b;
-    var from = m.start;
-    if (second != null && Books.instance.findBookId(first + second) != null) {
-      b = Books.instance.findBookId(first + second);
-    } else if (second != null && Books.instance.findBookId(second) != null) {
-      b = Books.instance.findBookId(second);
-      from = m.start + first.length + 1;
-    } else {
-      b = Books.instance.findBookId(first);
-    }
-    final c = _num(m.group(3)!);
-    if (b == null || c == null || c < 1) continue;
-    final list = m.group(4)!;
+    final found = findBook(m);
+    if (found == null) continue;
+    final chapText = m.group(3)!;
+    // запятая между главой и стихом — только после римской главы («XXXVIII, 6»); «Быт 1, 2» — не место
+    if (m.group(4)!.contains(',') && int.tryParse(chapText) != null) continue;
+    final c = _num(chapText);
+    if (c == null || c < 1) continue;
+    final list = m.group(5)!;
     final listStart = m.end - list.length;
-    final sep = RegExp(r'\s*[:.]\s*$').firstMatch(s.substring(0, listStart));
-    final chapStart = (sep?.start ?? listStart) - m.group(3)!.length;
-    final name = s.substring(from, chapStart).trim();
-    putPlace(from, '$name $c:', listStart, list, b, c);
+    final chapStart = listStart - m.group(4)!.length - chapText.length;
+    final name = _arabicPrefix(s.substring(found.from, chapStart).trim());
+    putPlace(found.from, '$name $c:', listStart, list, found.book, c);
+  }
+  // 1а. Книга и глава без стихов («II Цар. XIII») — ведёт к началу главы
+  for (final m in _bookChapRe.allMatches(s)) {
+    final found = findBook(m);
+    final c = romanToInt(m.group(3)!);
+    if (found == null || c == null || !free(found.from, m.end)) continue;
+    final name = _arabicPrefix(s.substring(found.from, m.end - m.group(3)!.length).trim());
+    places.add((at: found.from, book: found.book, chapter: c));
+    put(found.from, m.end, '$name $c', () => onVerse(VerseRef(found.book, c, 1), null), lead: true);
   }
   // 2. Глава римскими без книги — книга толкования («IV:10» → «4:10»)
   for (final m in _chapOnlyRe.allMatches(s)) {
@@ -112,11 +143,15 @@ List<(String, VoidCallback?)> commentaryParts(
     final list = m.group(2)!;
     putPlace(m.start, '$c:', m.end - list.length, list, book, c);
   }
-  // 3. «ст. 13» — стих этой же главы
+  // 3. «ст. 13» — стих той главы, о которой речь шла последней (нет такой — главы толкования)
   for (final m in _verseOnlyRe.allMatches(s)) {
     final list = m.group(1)!;
     final listStart = m.end - list.length;
-    putPlace(m.start, s.substring(m.start, listStart), listStart, list, book, chapter);
+    ({int at, String book, int chapter})? ctx;
+    for (final p in places) {
+      if (p.at < m.start && (ctx == null || p.at > ctx.at)) ctx = p;
+    }
+    putPlace(m.start, s.substring(m.start, listStart), listStart, list, ctx?.book ?? book, ctx?.chapter ?? chapter);
   }
   // 4. Номера Стронга
   for (final m in _strongRe.allMatches(s)) {
@@ -131,6 +166,17 @@ List<(String, VoidCallback?)> commentaryParts(
   for (final m in _translitRe.allMatches(s)) {
     final w = m.group(1)!;
     put(m.end - w.length, m.end, w, () => onWord(w));
+  }
+  // 6. Словарь: «См. слово»
+  if (onSee != null) {
+    for (final m in _seeRe.allMatches(s)) {
+      final g = m.group(1)!;
+      final gs = m.end - g.length;
+      for (final w in _seeWordRe.allMatches(g)) {
+        final word = w.group(0)!;
+        if (word.length > 2) put(gs + w.start, gs + w.end, word, () => onSee(word));
+      }
+    }
   }
 
   spans.sort((x, y) => x.a.compareTo(y.a));
@@ -230,8 +276,10 @@ class OriginalWords {
 
 /// Текст толкования со ссылками. [pane] и [at] — откуда открыли окно (для окон Стронга и стиха)
 class CommentaryText extends ConsumerWidget {
-  const CommentaryText({super.key, required this.text, required this.pane, required this.at, required this.book, required this.chapter, this.style});
+  const CommentaryText({super.key, required this.text, required this.pane, required this.at, required this.book, required this.chapter, this.style, this.onSee});
   final String text;
+  /// Словарь: «См. слово» — статья этого слова
+  final void Function(String word)? onSee;
   final int pane;
   final VerseRef at;
   final String book;
@@ -256,6 +304,7 @@ class CommentaryText extends ConsumerWidget {
           onVerse: (r, end) => showSheet(context, CommentaryVerseSheet(pane: pane, at: r, end: end)),
           onStrong: (n) => Hub.openStrong?.call(context, ref, pane, at, n),
           onWord: (w) => _word(context, ref, w),
+          onSee: onSee,
         ),
         style: style,
       );
