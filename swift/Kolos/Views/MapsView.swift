@@ -466,14 +466,18 @@ struct InterlinearSheet: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 4)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 24 + bottomInset)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .id("\(c):\(v):\(source.rawValue)")
                     .transition(.push(from: dir))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // слова прокручиваются до самого низа окна (под полосой «домой»), а не обрезаются по краю безопасной
+                // зоны; отступ снизу у содержимого — та же полоса, чтобы последние слова можно было докрутить
+                .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomInset = $0 }
                 .clipped()
+                .ignoresSafeArea(.container, edges: .bottom)
             }
             // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)
             .simultaneousGesture(
@@ -515,6 +519,9 @@ struct InterlinearSheet: View {
     private var switcher: some View {
         CapsuleSwitcher(options: sources.map { (value: $0, title: $0.title) }, selection: Binding(get: { source }, set: { select($0) }))
     }
+
+    /// Высота полосы «домой» под словами — столько добавляем снизу к прокрутке
+    @State private var bottomInset: CGFloat = 0
 
     /// Высота текста стиха — чтобы длинный стих прокручивался внутри карточки, а короткий не оставлял пустоты
     @State private var quoteHeight: CGFloat = 0
