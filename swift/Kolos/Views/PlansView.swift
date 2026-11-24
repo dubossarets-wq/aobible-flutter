@@ -167,7 +167,34 @@ struct VerseOfDayCard: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Стих дня")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.white.opacity(0.85))
+            if let v = verse {
+                Text(v.text).bidi(v.text)
+                    .font(.system(size: 24, weight: .semibold, design: .serif))
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(.white)
+                    .shadow(radius: 4)
+                Rectangle().fill(.white.opacity(0.7)).frame(width: 40, height: 2)
+                Text(label)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            } else {
+                Text("Скачайте перевод Библии, чтобы увидеть стих дня.")
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(EdgeInsets(top: 20, leading: 20, bottom: 30, trailing: 20)) // снизу на 10 больше: место под ссылкой на стих
+        // размер карточки и положение текста задаёт только рамка; фото лежит в фоне и размер не меняет: раньше фото с заливкой
+        // раздувало слой шире карточки, и при прокрутке текст «ездил» и перестраивался
+        .frame(maxWidth: .infinity, minHeight: height == nil ? 240 : nil, alignment: .bottomLeading)
+        .frame(height: height, alignment: .bottomLeading)
+        .background {
+            LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+        }
+        .background {
             if let photo {
                 AsyncImage(url: photo) { img in
                     img.resizable().scaledToFill()
@@ -177,30 +204,7 @@ struct VerseOfDayCard: View {
             } else {
                 LinearGradient(colors: [.indigo, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
             }
-            LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Стих дня")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.85))
-                if let v = verse {
-                    Text(v.text).bidi(v.text)
-                        .font(.system(size: 24, weight: .semibold, design: .serif))
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(.white)
-                        .shadow(radius: 4)
-                    Rectangle().fill(.white.opacity(0.7)).frame(width: 40, height: 2)
-                    Text(label)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                } else {
-                    Text("Скачайте перевод Библии, чтобы увидеть стих дня.")
-                        .foregroundStyle(.white)
-                }
-            }
-            .padding(20)
         }
-        .frame(maxWidth: .infinity, minHeight: height == nil ? 240 : nil)
-        .frame(height: height)
         .clipped()
         // «Отправить» — сверху справа, с ровными отступами от краёв карточки
         .overlay(alignment: .topTrailing) {
