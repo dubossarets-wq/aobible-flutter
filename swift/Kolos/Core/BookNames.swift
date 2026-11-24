@@ -269,7 +269,7 @@ enum BookLocale {
     static func chapterTitle(book: String, chapter: Int, module m: InstalledModule) -> String {
         let psalm = book == "Ps"
         let fmt = psalm ? m.psalmWord : m.chapterWord
-        if !fmt.isEmpty { return String(format: fmt, chapter) }
+        if !fmt.isEmpty { return fmt.replacingOccurrences(of: "%d", with: "\(chapter)") } // слово из чужого модуля: не String(format:), там %@ роняет
         if russianModule(m.language) { return psalm ? "Псалом \(chapter)" : "Глава \(chapter)" }
         return psalm ? "Psalm \(chapter)" : "Chapter \(chapter)"
     }

@@ -185,6 +185,9 @@ extension ModuleStore {
         let db = try SQLiteDB(path: path, readOnly: false)
         try db.exec("CREATE TABLE IF NOT EXISTS online(book TEXT, chapter INTEGER, at INTEGER, n INTEGER, PRIMARY KEY(book, chapter))")
         try db.exec("BEGIN")
+        // два окна одной главы грузят её одновременно — прежнюю копию убираем, иначе стихи задваиваются
+        try db.exec("DELETE FROM verses WHERE book = '\(book)' AND chapter = \(chapter)")
+        try db.exec("DELETE FROM headings WHERE book = '\(book)' AND chapter = \(chapter)")
         var id = db.query("SELECT MAX(id) FROM verses", [], { $0.int(0) }).first ?? 0
         var rows: [[Any]] = []
         for (i, text) in verses.enumerated() where !text.isEmpty {

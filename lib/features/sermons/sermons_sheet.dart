@@ -485,7 +485,6 @@ class _EditorState extends ConsumerState<_Editor> {
     // Свежая версия проповеди из хранилища (редактор живёт, пока открыт)
     final sermon = ref.watch(sermonsProvider).where((s) => s['id'] == widget.sermon['id']).firstOrNull ?? widget.sermon;
     final blocks = blocksOf(sermon);
-    final verses = blocks.where(isVerse).length;
     if (_title.text != '${sermon['title']}') _title.text = '${sermon['title']}'; // «Отменить»/«Повторить» меняют название
     if (_subtitle.text != '${sermon['subtitle'] ?? ''}') _subtitle.text = '${sermon['subtitle'] ?? ''}';
     _keys.removeWhere((id, _) => !blocks.any((b) => b['id'] == id)); // ключи удалённых блоков не копим

@@ -105,7 +105,11 @@ class Books {
         add(n, b.id);
       }
     }
-    _extraAliases.forEach((id, keys) => keys.forEach((k) => add(k, id)));
+    for (final e in _extraAliases.entries) {
+      for (final k in e.value) {
+        add(k, e.key);
+      }
+    }
     books._generated();
     return instance = books;
   }

@@ -18,6 +18,8 @@ final class SQLiteDB {
             sqlite3_close(handle)
             throw DBError.open
         }
+        // база занята соседним чтением/записью (перестройка индекса в фоне) — ждём, а не отдаём пустой ответ
+        sqlite3_busy_timeout(handle, readOnly ? 1000 : 5000)
     }
 
     deinit {

@@ -258,7 +258,7 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
               duration: const Duration(milliseconds: 280),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeOutCubic,
-              layoutBuilder: (cur, prev) => Stack(fit: StackFit.expand, children: [...prev, if (cur != null) cur]),
+              layoutBuilder: (cur, prev) => Stack(fit: StackFit.expand, children: [...prev, ?cur]),
               transitionBuilder: (child, anim) {
                 final incoming = child.key == key;
                 final from = Offset(incoming ? _dir.toDouble() : -_dir.toDouble(), 0);

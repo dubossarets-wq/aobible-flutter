@@ -702,12 +702,6 @@ class _ReaderPaneState extends ConsumerState<ReaderPane> with SingleTickerProvid
   // ---- жесты ----
   bool get _animations => ref.read(settingsProvider).get<bool>('animations');
 
-  bool _busy() {
-    if (ModalRoute.of(context)?.isCurrent == false) return true; // открыто окно
-    if (ref.read(selectionProvider)[widget.index]?.isNotEmpty ?? false) return true;
-    return partSelection.value != null;
-  }
-
   void _down(PointerDownEvent e) {
     // касание текста прячет клавиатуру, если она осталась от поля ввода (на iPhone её иначе не закрыть)
     if (FocusManager.instance.primaryFocus?.context != null && ModalRoute.of(context)?.isCurrent != false) FocusManager.instance.primaryFocus?.unfocus();

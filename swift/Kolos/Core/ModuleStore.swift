@@ -300,10 +300,11 @@ final class ModuleStore: ObservableObject {
     func importFile(_ url: URL) async -> String? {
         let ok = url.startAccessingSecurityScopedResource()
         defer { if ok { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return "Не удалось прочитать файл." }
         let dir = self.dir
         let fileName = url.lastPathComponent
+        // файл читается не на главном потоке: большой модуль иначе подвешивал бы экран
         let result: String? = await Task.detached(priority: .userInitiated) { () -> String? in
+            guard let data = try? Data(contentsOf: url) else { return "Не удалось прочитать файл." }
             do {
                 var raw = (data.count > 2 && data[0] == 0x1f && data[1] == 0x8b) ? try Gzip.decode(data) : data
                 let any = try JSONSerialization.jsonObject(with: raw)
@@ -469,6 +470,7 @@ final class ModuleStore: ObservableObject {
     }
 
     func install(_ e: CatalogEntry) async {
+        guard busy[e.id] == nil else { return } // уже ставится (старт и «Скачать» вместе) — второй раз не нужно
         busy[e.id] = "Загрузка…"
         defer { busy[e.id] = nil }
         do {

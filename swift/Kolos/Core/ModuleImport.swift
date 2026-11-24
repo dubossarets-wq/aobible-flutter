@@ -131,7 +131,7 @@ enum ModuleImport {
                 guard let v = any as? [String: Any],
                       let id = resolveBook(v["book"] ?? v["book_id"] ?? v["bookId"] ?? v["book_name"], index: nil),
                       let ch = (v["chapter"] as? Int) ?? Int("\(v["chapter"] ?? "")"), let vs = (v["verse"] as? Int) ?? Int("\(v["verse"] ?? "")"),
-                      ch > 0, vs > 0 else { continue }
+                      ch > 0, vs > 0, ch <= 200, vs <= 500 else { continue } // чужой файл с главой в миллиард не должен съесть память
                 var chs = map[id] ?? []
                 while chs.count < ch { chs.append([]) }
                 while chs[ch - 1].count < vs { chs[ch - 1].append("") }

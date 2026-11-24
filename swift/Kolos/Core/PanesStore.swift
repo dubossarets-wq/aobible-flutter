@@ -240,6 +240,7 @@ final class PanesStore: ObservableObject {
 
     func go(_ id: UUID, _ book: String, _ chapter: Int, _ verse: Int, record: Bool = true) {
         guard let i = index(id) else { return }
+        liveTask?.cancel() // отложенная запись прежнего места не должна лечь в историю поверх нового
         if record && verse > 0 && verse < 9999 {
             lastJump = Jump(id: id, at: Date(), words: pendingWords?.query, whole: pendingWords?.whole ?? false)
             jumpSeq += 1
@@ -300,6 +301,7 @@ final class PanesStore: ObservableObject {
 
     func back(_ id: UUID) {
         guard let i = index(id), panes[i].hIndex > 0 else { return }
+        liveTask?.cancel()
         panes[i].hIndex -= 1
         let p = panes[i].history[panes[i].hIndex]
         live.verse[id] = nil
@@ -313,6 +315,7 @@ final class PanesStore: ObservableObject {
 
     func forward(_ id: UUID) {
         guard let i = index(id), panes[i].hIndex < panes[i].history.count - 1 else { return }
+        liveTask?.cancel()
         panes[i].hIndex += 1
         let p = panes[i].history[panes[i].hIndex]
         live.verse[id] = nil

@@ -261,8 +261,10 @@ final class AccountSync: ObservableObject {
                     guard let k = it["key"] as? String else { continue }
                     applyRemote(k, (it["deleted"] as? Bool) == true ? nil : it["value"] as? String)
                 }
-                since = (r["rev"] as? NSNumber)?.intValue ?? since
-                if (r["more"] as? Bool) != true { break }
+                let next = (r["rev"] as? NSNumber)?.intValue ?? since
+                let more = (r["more"] as? Bool) == true && next != since // rev не растёт — не крутимся вечно
+                since = next
+                if !more { break }
             }
             st.rev = since
             store()
@@ -411,7 +413,7 @@ final class GoogleAuth: NSObject, ASWebAuthenticationPresentationContextProvidin
             }
             s.presentationContextProvider = self
             session = s
-            s.start()
+            if !s.start() { cont.resume(throwing: Failure.google) } // окна-якоря нет — иначе вход завис бы навсегда
         }
         guard let code = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else {
             throw Failure.google

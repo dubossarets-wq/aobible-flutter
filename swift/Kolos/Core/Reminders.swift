@@ -207,7 +207,7 @@ enum Reminders {
             if lines.isEmpty && !plans.isEmpty { continue }
             let body = lines.isEmpty ? String(localized: "Время читать Библию") : lines.joined(separator: "\n")
             for m in byMinute.keys.sorted() {
-                guard let at = cal.date(byAdding: .minute, value: m, to: day), at.timeIntervalSince(now) >= 60 else { continue }
+                guard let at = cal.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: day), at.timeIntervalSince(now) >= 60 else { continue }
                 moments.append(Moment(date: at, alarm: byMinute[m] == true, body: body))
             }
         }

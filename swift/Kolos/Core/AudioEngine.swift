@@ -425,6 +425,7 @@ final class AudioEngine: ObservableObject {
         current = nil
         sleepTask?.cancel()
         sleepLeft = nil
+        sleepAtChapterEnd = false
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 

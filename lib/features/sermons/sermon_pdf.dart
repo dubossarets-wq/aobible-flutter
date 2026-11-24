@@ -61,28 +61,31 @@ Future<List<int>> sermonPdf(Sermon s) async {
   final out = <pw.Widget>[];
   final series = '${s['series'] ?? ''}'.trim(), subtitle = '${s['subtitle'] ?? ''}'.trim();
   final date = DateTime.tryParse('${s['date'] ?? ''}');
-  if (series.isNotEmpty)
+  if (series.isNotEmpty) {
     out.add(
       pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 4),
         child: pw.Text(series.toUpperCase(), style: ui(9.5, bold: true, color: _accent).copyWith(letterSpacing: 0.6)),
       ),
     );
+  }
   out.add(pw.Text('${s['title']}', style: ui(22, bold: true)));
-  if (subtitle.isNotEmpty)
+  if (subtitle.isNotEmpty) {
     out.add(
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 4),
         child: pw.Text(subtitle, style: const pw.TextStyle(fontSize: 13, color: PdfColor.fromInt(0xff444444))),
       ),
     );
-  if (date != null)
+  }
+  if (date != null) {
     out.add(
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 4),
         child: pw.Text(fmtDay(date, full: true, year: true), style: ui(10, color: _muted)),
       ),
     );
+  }
   out.add(pw.SizedBox(height: 14));
 
   for (final b in blocksOf(s)) {
