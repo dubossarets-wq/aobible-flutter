@@ -178,8 +178,10 @@ Future<bool> _sync(SyncState st) async {
       for (final it in (r['items'] as List? ?? const []).cast<Map>()) {
         if (_applyRemote(st, '${it['key']}', it['deleted'] == true ? null : it['value'] as String?)) changed = true;
       }
-      since = (r['rev'] as num?)?.toInt() ?? since;
-      if (r['more'] != true) break;
+      final next = (r['rev'] as num?)?.toInt() ?? since;
+      final more = r['more'] == true && next != since; // rev не растёт — не крутимся вечно
+      since = next;
+      if (!more) break;
     }
     st.rev = since;
 
@@ -230,8 +232,12 @@ Future<bool> _sync(SyncState st) async {
   } catch (e) {
     st.error = e is SocketException || e is TimeoutException ? 'offline' : '$e';
   } finally {
-    st.save();
-    accountState.value = SyncState.load();
+    // пока шла синхронизация, вышли из аккаунта — старое состояние (с токеном) поверх не пишем: вход «воскреснет»
+    final signedOutMeanwhile = st.token != null && !accountState.value.signedIn;
+    if (!signedOutMeanwhile) {
+      st.save();
+      accountState.value = SyncState.load();
+    }
     syncBusy.value = false;
   }
   return changed;

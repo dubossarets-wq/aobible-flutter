@@ -50,6 +50,10 @@ struct MoreView: View {
                             // закладка на текущее место (верхний видимый стих): повторное нажатие снимает её
                             let v = max(1, here.verse)
                             marks.toggleBookmark(p.book, p.chapter, v, text: String((store.verseText(module: p.moduleId, book: p.book, chapter: p.chapter, verse: v) ?? "").prefix(160)))
+                            let name = Books.info(p.book)?.name ?? p.book
+                            bookmarkedMessage = marks.isBookmarked(p.book, p.chapter, v)
+                                ? "Закладка поставлена: \(name) \(p.chapter):\(v)"
+                                : "Закладка снята: \(name) \(p.chapter):\(v)"
                         }
                     } label: {
                         IconLabel(title: "Закладка на это место", symbol: "bookmark.fill", color: .orange)

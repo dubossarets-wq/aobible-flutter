@@ -589,6 +589,7 @@ struct InterlinearSheet: View {
             await store.install(e)
         }
         loading = false
+        guard source.module == id else { return } // пока ставили, перешли на другой подстрочник — ошибку ему не приписываем
         failed = store.module(id) == nil
     }
 

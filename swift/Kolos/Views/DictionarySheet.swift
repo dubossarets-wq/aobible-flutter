@@ -976,7 +976,7 @@ struct ConcordanceView: View {
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 12)
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     ForEach(Array(filtered.prefix(shown).enumerated()), id: \.element.id) { i, r in
                         if i > 0 { Rectangle().fill(Color(.separator)).frame(height: 0.5).padding(.leading, 16) }
                         Button { onOpenRef(r.book, r.chapter, r.verse) } label: {

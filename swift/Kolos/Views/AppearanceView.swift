@@ -201,7 +201,7 @@ struct AppearanceView: View {
     }
 
     private func reset() {
-        inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19
+        inlineRaw = ""; commentView = "tag"; commentaryFontSize = 19; continuousComments = true
         theme = "system"; fontFamily = "system"; fontSize = 19; fontWeight = 400; lineHeight = 1.45
         verseSpacing = 0.55; showNumbers = true; verseNumPos = "sup"; showHeadings = true; headingColor = HeadingStyle.defaultColor; headingSize = HeadingStyle.defaultSize; continuous = false; textMargin = 14; hideOnScroll = true; readingStyle = "scroll"
         ReaderBackground.remove()

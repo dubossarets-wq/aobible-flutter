@@ -182,7 +182,7 @@ enum ReminderText {
         if s.isEmpty || s.count == 7 { return "Каждый день" }
         if s == [1, 2, 3, 4, 5] { return "По будням" }
         if s == [6, 7] { return "По выходным" }
-        return r.days.sorted().map { weekdays[$0 - 1] }.joined(separator: ", ")
+        return r.days.filter { (1...7).contains($0) }.sorted().map { weekdays[$0 - 1] }.joined(separator: ", ") // дни из синхронизации: чужая нумерация не должна ронять
     }
 
     static func summary(_ r: ReminderItem) -> String {

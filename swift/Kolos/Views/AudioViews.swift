@@ -288,7 +288,7 @@ struct AudioFullView: View {
                     ForEach(verses) { v in
                         let on = v.num == c.verse
                         // номер стиха — маленьким приподнятым числом перед текстом, как в чтении
-                        (Text("\\(v.num)")
+                        (Text("\(v.num)")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.6))
                             .baselineOffset(12)
