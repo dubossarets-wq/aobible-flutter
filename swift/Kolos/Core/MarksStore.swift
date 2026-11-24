@@ -164,6 +164,7 @@ final class MarksStore: ObservableObject {
             m.highlightLabels = dec("highlightLabels", [String: String].self) ?? [:]
             m.collections = dec("collections", [VerseCollection].self) ?? []
             data = m
+            keepBrokenCopy(url) // файл был, но не разобрался — копия .bak, пока не записали поверх
         }
         reindex()
     }
@@ -366,13 +367,17 @@ final class MarksStore: ObservableObject {
             guard let s = d[key], let x = s.data(using: .utf8) else { return nil }
             return try? JSONDecoder().decode(type, from: x)
         }
+        // ключа нет — пусто; ключ есть, но не разобрался (иной вид полей) — остаётся своё, а не пустота
+        func pick<T: Decodable>(_ key: String, _ type: T.Type, _ empty: T, _ cur: T) -> T {
+            d[key] == nil ? empty : (dec(key, type) ?? cur)
+        }
         var m = MarksData()
-        m.bookmarks = dec("bookmarks", [MarkItem].self) ?? []
-        m.favorites = dec("favorites", [MarkItem].self) ?? []
-        m.notes = dec("notes", [String: NoteEntry].self) ?? [:]
-        m.highlights = dec("highlights", [String: String].self) ?? [:]
-        m.highlightLabels = dec("highlightLabels", [String: String].self) ?? [:]
-        m.collections = dec("collections", [VerseCollection].self) ?? []
+        m.bookmarks = pick("bookmarks", [MarkItem].self, [], data.bookmarks)
+        m.favorites = pick("favorites", [MarkItem].self, [], data.favorites)
+        m.notes = pick("notes", [String: NoteEntry].self, [:], data.notes)
+        m.highlights = pick("highlights", [String: String].self, [:], data.highlights)
+        m.highlightLabels = pick("highlightLabels", [String: String].self, [:], data.highlightLabels)
+        m.collections = pick("collections", [VerseCollection].self, [], data.collections)
         data = m
         save()
     }

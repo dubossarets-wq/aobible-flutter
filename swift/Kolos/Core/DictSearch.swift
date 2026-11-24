@@ -99,6 +99,9 @@ extension ModuleStore {
     }
 }
 
+/// Разобранная часть словаря — переходит между потоками (после разбора её никто не меняет)
+private struct PartBox: @unchecked Sendable { let v: [String: Any] }
+
 /// Словари с сайта по частям (modules/dict-idx, собирает scripts/dict-index.mjs веб-версии): статьи из словарей,
 /// которые ещё не скачаны. Каждая часть — маленький сжатый файл с ключами на одно начало
 @MainActor
@@ -154,9 +157,14 @@ final class RemoteDicts {
     private func part(_ d: Dict, _ i: Int, words: Bool) async -> [String: Any] {
         let name = "\(d.id)/\(words ? "w" : "")\(i)"
         if let p = parts[name] { return p }
-        guard let data = await fetch("modules/dict-idx/\(name).json.gz"),
-              let raw = try? Gzip.decode(data),
-              let j = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any] else { return [:] }
+        guard let data = await fetch("modules/dict-idx/\(name).json.gz") else { return [:] }
+        // распаковка и разбор части — вне главного потока: за один поиск их до шести подряд на каждый словарь
+        let box: PartBox? = await Task.detached(priority: .userInitiated) {
+            guard let raw = try? Gzip.decode(data),
+                  let j = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any] else { return nil }
+            return PartBox(v: j)
+        }.value
+        guard let j = box?.v else { return [:] }
         if parts.count > 80 { parts = [:] }
         parts[name] = j
         return j

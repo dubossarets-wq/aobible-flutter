@@ -66,6 +66,8 @@ final class PlansStore: ObservableObject {
                   let d = s.data(using: .utf8),
                   let p = try? JSONDecoder().decode([Plan].self, from: d) {
             plans = p
+        } else {
+            keepBrokenCopy(plansURL)
         }
         if let d = try? Data(contentsOf: logURL), let l = try? JSONDecoder().decode(ReadLogData.self, from: d) {
             log = l
@@ -96,13 +98,14 @@ final class PlansStore: ObservableObject {
     }
 
     func importEntries(_ d: [String: String]) {
-        if let s = d["plans"], let x = s.data(using: .utf8), let p = try? JSONDecoder().decode([Plan].self, from: x) {
-            plans = PlanLogic.applyNewYear(p)
+        // ключа нет — пусто; ключ есть, но не разобрался (иной вид полей) — остаются свои данные, а не пустота
+        if let s = d["plans"] {
+            if let x = s.data(using: .utf8), let p = try? JSONDecoder().decode([Plan].self, from: x) { plans = PlanLogic.applyNewYear(p) }
         } else {
             plans = []
         }
-        if let s = d["readLog"], let x = s.data(using: .utf8), let l = try? JSONDecoder().decode(ReadLogData.self, from: x) {
-            log = l
+        if let s = d["readLog"] {
+            if let x = s.data(using: .utf8), let l = try? JSONDecoder().decode(ReadLogData.self, from: x) { log = l }
         } else {
             log = ReadLogData()
         }

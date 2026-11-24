@@ -70,6 +70,18 @@ final class SearchIndex: @unchecked Sendable {
     private static let lock = NSLock()
     private static var cache: [String: SearchIndex] = [:]
     private static var building: Set<String> = []
+    /// Порядок обращений (последний — самый свежий): держим в памяти не больше maxCached индексов (каждый — десятки МБ)
+    private static var order: [String] = []
+    private static let maxCached = 6
+    /// Нехватка памяти — лишние индексы отпускаем (соберутся заново по первому запросу)
+    private static let memoryObserver: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: Notification.Name("UIApplicationDidReceiveMemoryWarningNotification"), object: nil, queue: nil
+    ) { _ in
+        lock.lock()
+        cache.removeAll()
+        order.removeAll()
+        lock.unlock()
+    }
 
     /// Подготовка заранее (в фоне): к первому запросу индекс уже готов
     static func warm(path: String) {
@@ -84,13 +96,21 @@ final class SearchIndex: @unchecked Sendable {
     }
 
     static func index(path: String) -> SearchIndex? {
+        _ = memoryObserver
         lock.lock()
         if let hit = cache[path] {
+            order.removeAll { $0 == path }
+            order.append(path)
             lock.unlock()
             return hit
         }
         lock.unlock()
-        guard let db = try? SQLiteDB(path: path, readOnly: true) else { return nil }
+        guard let db = try? SQLiteDB(path: path, readOnly: true) else {
+            lock.lock()
+            building.remove(path) // иначе «подготовка заранее» для этого пути больше не запустится
+            lock.unlock()
+            return nil
+        }
         let rows = db.query("SELECT id, book, chapter, verse, text FROM verses ORDER BY id") { r -> Row in
             let raw = r.text(4)
             let plain = Markup.plain(raw)
@@ -100,6 +120,9 @@ final class SearchIndex: @unchecked Sendable {
         lock.lock()
         cache[path] = idx
         building.remove(path)
+        order.removeAll { $0 == path }
+        order.append(path)
+        while order.count > maxCached { cache.removeValue(forKey: order.removeFirst()) }
         lock.unlock()
         return idx
     }
@@ -107,6 +130,7 @@ final class SearchIndex: @unchecked Sendable {
     static func forget(path: String) {
         lock.lock()
         cache.removeValue(forKey: path)
+        order.removeAll { $0 == path }
         lock.unlock()
     }
 

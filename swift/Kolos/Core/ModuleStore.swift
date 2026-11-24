@@ -370,6 +370,7 @@ final class ModuleStore: ObservableObject {
         opened[id] = nil
         if let m = allInstalled.first(where: { $0.id == id }) {
             try? FileManager.default.removeItem(atPath: m.path)
+            SearchIndex.forget(path: m.path) // индекс удалённого перевода больше не держим в памяти
         }
         if disabled.remove(id) != nil { saveDisabled() }
         if UserDefaults.standard.string(forKey: "primaryModule") == id { UserDefaults.standard.removeObject(forKey: "primaryModule") }
@@ -497,6 +498,7 @@ final class ModuleStore: ObservableObject {
                 try ModuleConverter.convert(json: raw, to: target, catalogVersion: version)
             }.value
             if disabled.remove(id) != nil { saveDisabled() } // поставили заново — включён
+            SearchIndex.forget(path: target.path) // заменили файл — поиск не должен идти по старой копии
             scan()
         } catch {
             catalogError = "Не удалось установить «\(e.name)»."

@@ -191,9 +191,14 @@ final class AccountSync: ObservableObject {
         guard var local = collect() else { return false }
         busy = true
         var st = state
+        let startToken = st.token
         var changed = false
         /// ключи, взятые с сервера как есть (после записи в хранилища их отпечаток — как их выгружает этот телефон)
         var taken = Set<String>()
+        /// ключи, которые изменила синхронизация, и снимок на начало: правки пользователя, сделанные, пока шла сеть,
+        /// не должны затираться устаревшим снимком
+        var touched = Set<String>()
+        var snap = local
 
         /// Запись с сервера (nil — удалена там)
         func applyRemote(_ key: String, _ remote: String?) {
@@ -207,6 +212,7 @@ final class AccountSync: ObservableObject {
                     st.prints[key] = Self.fp(remote)
                     if mine != remote {
                         local[key] = remote
+                        touched.insert(key)
                         taken.insert(key)
                         changed = true
                     }
@@ -214,6 +220,7 @@ final class AccountSync: ObservableObject {
                     st.prints.removeValue(forKey: key)
                     if mine != nil {
                         local.removeValue(forKey: key)
+                        touched.insert(key)
                         changed = true
                     }
                 }
@@ -228,6 +235,7 @@ final class AccountSync: ObservableObject {
                 // здесь удалили, там изменили — ничего не теряем: берём изменённое
                 st.prints[key] = Self.fp(remote)
                 local[key] = remote
+                touched.insert(key)
                 taken.insert(key)
                 changed = true
                 return
@@ -237,6 +245,7 @@ final class AccountSync: ObservableObject {
             st.prints[key] = Self.fp(remote)
             if merged != mine {
                 local[key] = merged
+                touched.insert(key)
                 changed = true
             }
         }
@@ -244,11 +253,20 @@ final class AccountSync: ObservableObject {
         /// Записать пришедшее в хранилища; у взятых как есть отпечаток — как их теперь выгружает телефон
         func store() {
             guard changed else { return }
-            applyAll(local)
+            // пишем то, что изменила синхронизация, поверх ТЕКУЩИХ данных, а не поверх снимка начала: закладка, поставленная
+            // за время ожидания сети, остаётся; ключ, изменённый и там и здесь, объединяется
+            var out = collect() ?? local
+            for k in touched {
+                guard let v = local[k] else { out.removeValue(forKey: k); continue }
+                if let c = out[k], let s0 = snap[k], c != s0 { out[k] = Self.mergeValues(c, v) } else { out[k] = v }
+            }
+            applyAll(out)
             if let now = collect() {
                 for k in taken { if let v = now[k] { st.prints[k] = Self.fp(v) } }
                 local = now
             }
+            snap = local
+            touched.removeAll()
             taken.removeAll()
         }
 
@@ -308,6 +326,11 @@ final class AccountSync: ObservableObject {
             st.error = "auth"
         } catch {
             st.error = Self.errorCode(error)
+        }
+        // пока шла синхронизация, вышли из аккаунта — старое состояние (с токеном) поверх не пишем: иначе вход «воскреснет»
+        if startToken != nil, state.token == nil {
+            busy = false
+            return changed
         }
         save(st)
         busy = false

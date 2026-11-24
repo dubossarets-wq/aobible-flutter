@@ -2,6 +2,16 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Файл данных есть, но не разобрался (другая версия, сбой записи): сохраняем его копию рядом (.bak), пока приложение
+/// не записало поверх пустое состояние
+func keepBrokenCopy(_ url: URL) {
+    let fm = FileManager.default
+    guard let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? Int, size > 2 else { return }
+    let bak = url.appendingPathExtension("bak")
+    try? fm.removeItem(at: bak)
+    try? fm.copyItem(at: url, to: bak)
+}
+
 /// Файл «Мои данные» — тот же формат, что у веб-версии и Flutter-версии:
 /// {format: "aob-userdata", version: 1, exportedAt, data: {ключ: строка JSON}}.
 /// Модули (переводы, словари) в файл не входят

@@ -131,6 +131,8 @@ final class SermonStore: ObservableObject {
                   let d = s.data(using: .utf8),
                   let list = try? JSONDecoder().decode([Sermon].self, from: d) {
             sermons = list
+        } else {
+            keepBrokenCopy(url)
         }
     }
 
@@ -143,7 +145,9 @@ final class SermonStore: ObservableObject {
     }
 
     func importEntry(_ s: String?) {
-        if let s, let d = s.data(using: .utf8), let list = try? JSONDecoder().decode([Sermon].self, from: d) {
+        if let s {
+            // не разобралось (иной вид полей) — свои проповеди остаются, а не стираются
+            guard let d = s.data(using: .utf8), let list = try? JSONDecoder().decode([Sermon].self, from: d) else { return }
             sermons = list
         } else {
             sermons = []

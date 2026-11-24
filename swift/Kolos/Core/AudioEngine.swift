@@ -41,6 +41,8 @@ final class AudioPack: @unchecked Sendable {
     let translation: String?
     let language: String
     let chapters: [String: AudioChapter]
+    /// Адреса файлов по книгам — посчитаны один раз (список книг спрашивает их на каждое обновление загрузки)
+    private let urlsByBook: [String: [String]]
 
     init(id: String, name: String, title: String, translation: String?, language: String, chapters: [String: AudioChapter]) {
         self.id = id
@@ -49,6 +51,13 @@ final class AudioPack: @unchecked Sendable {
         self.translation = translation
         self.language = language
         self.chapters = chapters
+        var seen = Set<String>()
+        var byBook: [String: [String]] = [:]
+        for (k, c) in chapters {
+            guard let b = k.split(separator: ".").first.map(String.init), seen.insert(b + "|" + c.url).inserted else { continue }
+            byBook[b, default: []].append(c.url)
+        }
+        self.urlsByBook = byBook
     }
 
     static func parse(_ raw: String) -> AudioPack? {
@@ -80,14 +89,7 @@ final class AudioPack: @unchecked Sendable {
     func has(_ book: String, _ chapter: Int) -> Bool { chapters["\(book).\(chapter)"] != nil }
 
     /// Адреса файлов всех глав книги (без повторов: на несколько глав бывает один файл)
-    func urls(of book: String) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
-        for (k, c) in chapters where k.split(separator: ".").first.map(String.init) == book {
-            if seen.insert(c.url).inserted { out.append(c.url) }
-        }
-        return out
-    }
+    func urls(of book: String) -> [String] { urlsByBook[book] ?? [] }
 
     func books() -> [String] {
         var set = Set<String>()
@@ -107,13 +109,15 @@ func audioFits(_ translation: String?, _ bibleId: String) -> Bool {
 /// Книги без интернета: записи глав скачиваются в папку приложения audio/; проигрыватель сначала ищет файл там.
 /// Имена файлов — те же, что у Flutter-версии (FNV-1a по адресу), скачанное ею подхватывается
 enum OfflineAudio {
-    static func dir() -> URL {
+    private static let folder: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let d = base.appendingPathComponent("audio", isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
-    }
+    }()
+
+    static func dir() -> URL { folder }
 
     static func fileName(_ url: String) -> String {
         var h1: UInt64 = 0x811c9dc5
