@@ -300,14 +300,16 @@ struct TabBarSettings: View {
         let cur = vis.firstIndex(of: t) ?? 0
         content(t)
             .frame(width: itemW)
-            .offset(x: isDrag ? dragCenter - itemW / 2 : CGFloat(cur) * itemW)
             .scaleEffect(isDrag ? 1.1 : 1)
             .shadow(color: .black.opacity(isDrag ? 0.22 : 0), radius: 8, y: 3)
-            .zIndex(isDrag ? 1 : 0)
-            .animation(.snappy(duration: 0.2), value: isDrag)
             .onTapGesture { tapped(t) }
+            // окно с вариантами привязано к самому пункту: сдвиг пункта — отступом слева, а не offset (offset окно не учитывает,
+            // и стрелка показывала на первую ячейку вместо нажатого пункта)
             .popover(isPresented: popBinding(t)) { options(t).presentationCompactAdaptation(.popover) }
             .simultaneousGesture(dragGesture(t, itemW: itemW, vis: vis))
+            .padding(.leading, isDrag ? dragCenter - itemW / 2 : CGFloat(cur) * itemW)
+            .zIndex(isDrag ? 1 : 0)
+            .animation(.snappy(duration: 0.2), value: isDrag)
     }
 
     @ViewBuilder private func content(_ t: String) -> some View {
