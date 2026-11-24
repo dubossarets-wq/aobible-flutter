@@ -899,7 +899,7 @@ struct ChapterText: View {
             case .began:
                 pinchBase = fontSize
             case .changed:
-                fontSize = min(40, max(13, (pinchBase ?? fontSize) * Double(scale)))
+                fontSize = (min(40, max(13, (pinchBase ?? fontSize) * Double(scale))) * 2).rounded() / 2 // шаг 0,5: не каждый кадр жеста
             default:
                 pinchBase = nil
             }
@@ -1072,7 +1072,7 @@ struct ChapterText: View {
                         // страницы растягиваются картинкой — мгновенно; размер букв запишем, когда отпустят пальцы
                         zoomBox.host?.setZoom(min(40 / base, max(13 / base, g.magnification)))
                     } else {
-                        fontSize = min(40, max(13, base * g.magnification))
+                        fontSize = (min(40, max(13, base * g.magnification)) * 2).rounded() / 2
                     }
                 }
                 .onEnded { g in
@@ -1094,7 +1094,7 @@ struct ChapterText: View {
         .sheet(isPresented: Binding(get: { noteVerse != nil }, set: { if !$0 { noteVerse = nil } })) {
             noteEditor
         }
-        .onChange(of: chapter) { _, _ in
+        .onChange(of: "\(book)|\(chapter)") { _, _ in // и смена книги с тем же номером главы (Ин 3 → Быт 3) сбрасывает выделение
             selected = []
             endPart()
             // нажали в главе, которая ещё не была текущей, — теперь она текущая, выполняем само нажатие
@@ -1947,7 +1947,8 @@ struct ChapterText: View {
 
     private func partKey(_ c: Int) -> String {
         let fp = marks.data.favorites.filter { $0.book == book && $0.chapter == c }.compactMap { f in f.part.map { "\(f.verse):\($0.from)-\($0.to)" } }
-        let sel = c == chapter ? "\(partVerse ?? 0):\(partFrom ?? -1):\(partTo ?? -1)" : ""
+        // пока часть стиха не выбрана — ключ пуст: иначе при каждой смене главы перестраивались бы обе (старая и новая)
+        let sel = (c == chapter && partVerse != nil) ? "\(partVerse ?? 0):\(partFrom ?? -1):\(partTo ?? -1)" : ""
         return "\(sel)|\(fp.sorted())"
     }
 
@@ -2186,8 +2187,10 @@ struct ChapterText: View {
             try await store.loadOnlineChapter(module.id, book, chapter)
             onlineTick += 1
         } catch let e as OnlineError {
+            if Task.isCancelled { return }
             onlineErr = e.message
         } catch {
+            if Task.isCancelled { return } // быстро листаем: прежняя загрузка отменена — это не «нет сети»
             onlineErr = OnlineError.net.message
         }
     }

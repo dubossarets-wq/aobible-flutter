@@ -41,6 +41,7 @@ struct KolosApp: App {
                 // открыли приложение — звонящий будильник замолкает; вернулись или ушли — данные сходятся
                 .onChange(of: phase) { _, p in
                     if p == .active { Reminders.stopRinging() }
+                    if p != .active { panes.flush() } // место чтения — на диск сразу, не через секунду покоя
                     if p == .active || p == .background { AccountSync.shared.onPhase(active: p == .active) }
                 }
         }

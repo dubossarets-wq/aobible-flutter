@@ -102,12 +102,25 @@ final class PanesStore: ObservableObject {
         // прокрутке это были десятки записей и перестроек в секунду
         let book = panes[i].book
         liveTask?.cancel()
+        pendingRecord = (book, c, verse)
         liveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled else { return }
+            pendingRecord = nil
             if verse > 0 { log.record(book, c, verse) }
             save()
         }
+    }
+
+    /// Место, ещё не записанное из-за паузы в секунду
+    private var pendingRecord: (String, Int, Int)?
+
+    /// Приложение уходит с экрана: не ждём паузу — место чтения и история пишутся сразу (iOS может выгрузить приложение)
+    func flush() {
+        liveTask?.cancel()
+        if let r = pendingRecord, r.2 > 0 { log.record(r.0, r.1, r.2) }
+        pendingRecord = nil
+        save()
     }
 
     /// Где сейчас читает панель: верхний видимый стих, иначе записанное место
@@ -138,6 +151,11 @@ final class PanesStore: ObservableObject {
         if panes.isEmpty {
             let p = Place(book: "Gen", chapter: 1, verse: 1)
             panes = [PaneState(moduleId: first.id, book: p.book, chapter: p.chapter, verse: 0, history: [p])]
+        }
+        // основной перевод удалили — звёздочка больше ни на что не указывает
+        if !explicitPrimary.isEmpty, store.module(explicitPrimary) == nil {
+            explicitPrimary = ""
+            UserDefaults.standard.removeObject(forKey: "primaryModule")
         }
         var changed = false
         for i in panes.indices where store.module(panes[i].moduleId) == nil || store.module(panes[i].moduleId)?.type != "bible" {
@@ -241,6 +259,7 @@ final class PanesStore: ObservableObject {
     func go(_ id: UUID, _ book: String, _ chapter: Int, _ verse: Int, record: Bool = true) {
         guard let i = index(id) else { return }
         liveTask?.cancel() // отложенная запись прежнего места не должна лечь в историю поверх нового
+        pendingRecord = nil
         if record && verse > 0 && verse < 9999 {
             lastJump = Jump(id: id, at: Date(), words: pendingWords?.query, whole: pendingWords?.whole ?? false)
             jumpSeq += 1
