@@ -73,8 +73,11 @@ struct CustomPlanView: View {
             if let c = cache.d[m.id + b] { return c }
             var c = store.chapterList(module: m, books: [b])
             // в основном переводе книги нет (RST+ без неканонических) — главы считаем по другому, где она есть
-            if c.isEmpty, let alt = store.module("rst-dc") ?? store.bibles.first(where: { $0.id != m.id && $0.books.contains { $0.id == b } }) {
-                c = store.chapterList(module: alt, books: [b])
+            if c.isEmpty {
+                // в основном переводе книги нет — берём другой, где она есть: «Синодальный с неканоническими» первым, затем любой
+                // (Енох, Юбилеи и Завещания лежат только в модуле «Неканонические книги»)
+                let alts = [store.module("rst-dc")].compactMap { $0 } + store.bibles.filter { $0.id != m.id && $0.id != "rst-dc" }
+                if let alt = alts.first(where: { $0.books.contains { $0.id == b } }) { c = store.chapterList(module: alt, books: [b]) }
             }
             cache.d[m.id + b] = c
             return c
@@ -304,8 +307,16 @@ struct CustomPlanView: View {
     /// Неканонические книги, которые есть в тексте (в основном переводе их нет — главы берутся из «Синодального
     /// с неканоническими»)
     private var dcBooks: [BookInfo] {
-        Books.all.filter { $0.dc == true && !chapters([$0.id]).isEmpty }
+        let have = Books.all.filter { $0.dc == true && !chapters([$0.id]).isEmpty }
+        let rank = Dictionary(uniqueKeysWithValues: Self.dcOrder.enumerated().map { ($1, $0) })
+        return have.sorted { (rank[$0.id] ?? 999) < (rank[$1.id] ?? 999) }
     }
+
+    /// Порядок как в изданиях с неканоническими книгами: историческая и учительная, затем Маккавеи и Ездры, дополнения;
+    /// после них — Енох, Юбилеи и Завещания двенадцати патриархов (по коленам)
+    private static let dcOrder = ["1Esd", "Tob", "Jdt", "Wis", "Sir", "EpJer", "Bar", "PrAzar", "Sus", "Bel", "1Macc", "2Macc", "3Macc",
+                                  "2Esd", "PrMan", "Ps151", "1En", "Jub", "TReu", "TSim", "TLevi", "TJud", "TIss", "TZeb", "TDan",
+                                  "TNaph", "TGad", "TAsh", "TJos", "TBenj"]
 
     private func toggleDC(_ id: String) {
         var s = dcSel
@@ -313,13 +324,38 @@ struct CustomPlanView: View {
         setDC(s)
     }
 
-    /// Неканонические книги: по умолчанию в планы не входят. Нажатие на блок раскрывает НАД ним список книг —
+    /// Неканонические книги: по умолчанию в планы не входят. Нажатие на блок раскрывает ПОД ним список книг —
     /// отметить, какие добавить в план, или «Добавить все»
     private var dcToggle: some View {
         let all = dcBooks
         let picked = dcSel.intersection(all.map(\.id))
         let allOn = !all.isEmpty && picked.count == all.count
         return VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.smooth(duration: 0.32)) { dcOpen.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Text("Неканонические книги").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    if !picked.isEmpty {
+                        Text(verbatim: "\(picked.count)")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 24, minHeight: 24)
+                            .background(Color.accentColor, in: Capsule())
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(dcOpen ? 180 : 0))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             if dcOpen {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
@@ -356,41 +392,33 @@ struct CustomPlanView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    // Енох, Юбилеи и Завещания лежат в отдельном модуле — нет его, предлагаем скачать
+                    if store.module("noncanon-ru") == nil, let e = store.catalogEntry("noncanon-ru") {
+                        Divider().padding(.leading, 14)
+                        Button {
+                            Task {
+                                await store.install(e)
+                                cache.d.removeAll() // главы Еноха и других теперь есть
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "arrow.down.circle").font(.title3).foregroundStyle(Color.accentColor)
+                                Text(store.busy[e.id] ?? "Скачать: Енох, Юбилеи, Завещания патриархов").foregroundStyle(.primary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.busy[e.id] != nil)
+                    }
                 }
                 .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            Button {
-                withAnimation(.smooth(duration: 0.32)) { dcOpen.toggle() }
-            } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Неканонические книги").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        Text("Товит, Иудифь, Маккавеи, Премудрость, Сирах и другие — добавить в «Ветхий Завет» и в выбор своих книг")
-                            .font(.footnote).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 8)
-                    if !picked.isEmpty {
-                        Text(verbatim: "\(picked.count)")
-                            .font(.footnote.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(minWidth: 24, minHeight: 24)
-                            .background(Color.accentColor, in: Capsule())
-                    }
-                    Image(systemName: "chevron.up")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(dcOpen ? 180 : 0))
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(cardColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
         }
+        .task(id: dcOpen) { if dcOpen, store.catalog.isEmpty { await store.loadCatalog() } }
     }
 
     private func setPer(_ key: String, _ v: Int) {
