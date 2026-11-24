@@ -141,6 +141,11 @@ struct AppearanceView: View {
             }
             Section {
                 Button("Сбросить оформление", role: .destructive) { confirmReset = true }
+                    // окно привязано к самой кнопке, а не к экрану: иначе всплывало у верхней карточки
+                    .confirmationDialog("Вернуть оформление по умолчанию?", isPresented: $confirmReset, titleVisibility: .visible) {
+                        Button("Сбросить", role: .destructive) { reset() }
+                        Button("Отмена", role: .cancel) {}
+                    }
             } footer: {
                 Text("Любую настройку можно вынести в «Ещё»: проведите по ней пальцем вправо или зажмите.")
             }
@@ -171,10 +176,6 @@ struct AppearanceView: View {
                 }
                 photo = nil
             }
-        }
-        .confirmationDialog("Вернуть оформление по умолчанию?", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("Сбросить", role: .destructive) { reset() }
-            Button("Отмена", role: .cancel) {}
         }
     }
 

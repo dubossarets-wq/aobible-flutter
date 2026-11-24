@@ -46,6 +46,15 @@ struct AccountView: View {
                 Button(role: .destructive) { confirmDelete = true } label: {
                     Label("Удалить аккаунт и данные на сервере", systemImage: "trash")
                 }
+                .confirmationDialog("Удалить аккаунт и все данные на сервере?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                    Button("Удалить", role: .destructive) {
+                        Task {
+                            let e = await account.deleteAccount()
+                            accountError = e.map { errorText($0) }
+                        }
+                    }
+                    Button("Отмена", role: .cancel) {}
+                }
             } else {
                 if account.state.error == "auth" {
                     Text(errorText("auth")).font(.footnote).foregroundStyle(.red)
@@ -70,15 +79,6 @@ struct AccountView: View {
             Text(account.signedIn
                  ? "Изменения сходятся при открытии приложения и когда вы из него выходите. При удалении аккаунта данные на этом телефоне останутся."
                  : "Войдите через Google — закладки, заметки, выделения, проповеди, планы и настройки сохранятся в аккаунте и появятся на других ваших устройствах (iPhone, Android, сайт).")
-        }
-        .confirmationDialog("Удалить аккаунт и все данные на сервере?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) {
-                Task {
-                    let e = await account.deleteAccount()
-                    accountError = e.map { errorText($0) }
-                }
-            }
-            Button("Отмена", role: .cancel) {}
         }
     }
 

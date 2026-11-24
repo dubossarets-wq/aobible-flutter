@@ -167,17 +167,6 @@ struct ModulesList: View {
                 Task { importError = await store.importFile(url) }
             }
         }
-        .confirmationDialog(
-            deleting?.name ?? "",
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Удалить", role: .destructive) {
-                if let m = deleting { store.remove(m.id) }
-                deleting = nil
-            }
-            Button("Отмена", role: .cancel) { deleting = nil }
-        }
         .alert("Установка из файла", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK") {}
         } message: {
@@ -239,6 +228,18 @@ struct ModulesList: View {
             }
         }
         .opacity(isBible || on ? 1 : 0.5)
+        // окно подтверждения у самой строки, а не у всего списка
+        .confirmationDialog(
+            m.name,
+            isPresented: Binding(get: { deleting?.id == m.id }, set: { if !$0, deleting?.id == m.id { deleting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                store.remove(m.id)
+                deleting = nil
+            }
+            Button("Отмена", role: .cancel) { deleting = nil }
+        }
         .swipeActions {
             Button("Удалить", role: .destructive) { deleting = m }
         }

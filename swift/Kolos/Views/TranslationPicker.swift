@@ -80,22 +80,6 @@ struct TranslationPicker: View {
         .animation(.snappy(duration: 0.3), value: panes.favorites)
         .animation(.snappy(duration: 0.3), value: lang)
         .sensoryFeedback(.selection, trigger: panes.favorites)
-        .confirmationDialog(
-            deleting.map { "Удалить «\($0.name)»?" } ?? "",
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Удалить", role: .destructive) {
-                if let m = deleting {
-                    if panes.isFavorite(m.id) { panes.toggleFavorite(m.id) }
-                    store.remove(m.id)
-                }
-                deleting = nil
-            }
-            Button("Отмена", role: .cancel) { deleting = nil }
-        } message: {
-            Text("Перевод можно будет снова скачать в библиотеке.")
-        }
     }
 
     private func row(_ m: InstalledModule) -> some View {
@@ -133,6 +117,21 @@ struct TranslationPicker: View {
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(fav ? "Убрать из избранного" : "В избранное")
+        }
+        // окно подтверждения у самой строки, а не у всего списка
+        .confirmationDialog(
+            "Удалить «\(m.name)»?",
+            isPresented: Binding(get: { deleting?.id == m.id }, set: { if !$0, deleting?.id == m.id { deleting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                if panes.isFavorite(m.id) { panes.toggleFavorite(m.id) }
+                store.remove(m.id)
+                deleting = nil
+            }
+            Button("Отмена", role: .cancel) { deleting = nil }
+        } message: {
+            Text("Перевод можно будет снова скачать в библиотеке.")
         }
         // выбранный перевод — как в библиотеке модулей: название цветом акцента, без плашки
         .contextMenu {

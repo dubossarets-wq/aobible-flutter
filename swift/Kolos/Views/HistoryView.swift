@@ -159,12 +159,12 @@ private struct HistoryList: View {
             if !log.items.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) { confirmClear = true } label: { Image(systemName: "trash") }
+                        .confirmationDialog(clearQuestion, isPresented: $confirmClear, titleVisibility: .visible) {
+                            Button(clearButton, role: .destructive) { clearShown() }
+                            Button("Отмена", role: .cancel) {}
+                        }
                 }
             }
-        }
-        .confirmationDialog(clearQuestion, isPresented: $confirmClear, titleVisibility: .visible) {
-            Button(clearButton, role: .destructive) { clearShown() }
-            Button("Отмена", role: .cancel) {}
         }
         .overlay(alignment: .bottom) { undoBar }
         .animation(.default, value: undo?.count)

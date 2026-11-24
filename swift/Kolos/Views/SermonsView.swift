@@ -185,6 +185,13 @@ struct SermonEditor: View {
                     }
                     // и значок красный, не только надпись
                     .foregroundStyle(.red)
+                    .confirmationDialog("Удалить проповедь?", isPresented: $askDelete, titleVisibility: .visible) {
+                        Button("Удалить проповедь", role: .destructive) {
+                            sermons.remove(id)
+                            dismiss()
+                        }
+                        Button("Отмена", role: .cancel) {}
+                    }
                 }
             }
             .dynamicTypeSize(typeSize)
@@ -233,13 +240,6 @@ struct SermonEditor: View {
                 }
             }
             .navigationDestination(item: $copyId) { SermonEditor(id: $0) }
-            .confirmationDialog("Удалить проповедь?", isPresented: $askDelete, titleVisibility: .visible) {
-                Button("Удалить проповедь", role: .destructive) {
-                    sermons.remove(id)
-                    dismiss()
-                }
-                Button("Отмена", role: .cancel) {}
-            }
         } else {
             ContentUnavailableView("Проповедь удалена", systemImage: "scroll")
         }
