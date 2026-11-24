@@ -33,9 +33,15 @@ struct KolosApp: App {
                 .environmentObject(panes)
                 .environmentObject(sermons)
                 .environmentObject(audio)
-                // открыли приложение — звонящий будильник замолкает
+                // аккаунт Колоса: данные сходятся с другими устройствами при запуске
+                .task {
+                    AccountSync.shared.attach(marks: marks, plans: plans, sermons: sermons)
+                    await AccountSync.shared.sync()
+                }
+                // открыли приложение — звонящий будильник замолкает; вернулись или ушли — данные сходятся
                 .onChange(of: phase) { _, p in
                     if p == .active { Reminders.stopRinging() }
+                    if p == .active || p == .background { AccountSync.shared.onPhase(active: p == .active) }
                 }
         }
     }
