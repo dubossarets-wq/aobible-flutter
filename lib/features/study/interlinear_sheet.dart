@@ -211,12 +211,14 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
                   : t('Синодальный перевод; под словами — оригинал, чтение и номер Стронга.');
 
   Widget _okBody(Palette pal) {
-    final bottom = MediaQuery.paddingOf(context).bottom;
     final rtl = _shownHebrew;
     final key = ValueKey('${_ref.chapter}:${_ref.verse}:$_shownCur');
-    final content = SingleChildScrollView(
+    // отступ снизу — из тела окна (там к нему прибавлены вкладки, лежащие поверх окна): иначе последние слова
+    // уходили под нижнее меню и были видны, только пока тянешь
+    final content = Builder(
       key: key,
-      padding: EdgeInsets.fromLTRB(16, 6, 16, 24 + bottom),
+      builder: (inner) => SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(16, 6, 16, 24 + MediaQuery.paddingOf(inner).bottom),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (_words.isEmpty) Text(t('В оригинале этого стиха нет.'), style: TextStyle(color: pal.muted)),
         if ((_shownCur == 'lxx' || _shownCur == 'vulg') && _words.isNotEmpty)
@@ -228,6 +230,7 @@ class _InterlinearSheetState extends ConsumerState<InterlinearSheet> {
         const SizedBox(height: 12),
         Text(_hint, style: TextStyle(color: pal.muted, fontSize: 13.6)), // .sheet-hint
       ]),
+    ),
     );
     return GestureDetector(
       behavior: HitTestBehavior.translucent,

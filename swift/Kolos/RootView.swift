@@ -135,7 +135,6 @@ struct RootView: View {
     @EnvironmentObject private var plans: PlansStore
     @EnvironmentObject private var sermons: SermonStore
     @State private var debugView: String? = UserDefaults.standard.string(forKey: "debugView")
-    @AppStorage("welcomeSeen") private var welcomeSeen = false
     /// первая установка основного перевода уже была — экран «Готовлю перевод…» больше не нужен
     @AppStorage("bootstrapped") private var bootstrapped = false
     @AppStorage("lastBuild") private var lastBuild = ""
@@ -253,9 +252,7 @@ struct RootView: View {
                 showSearch = true
             }
         }
-        .sheet(isPresented: Binding(get: { !welcomeSeen }, set: { if !$0 { welcomeSeen = true } })) {
-            WelcomeSheet()
-        }
+        // при запуске — сразу Библия, без приветствия (по просьбе владельца, 24.11.2026)
         // родные названия книг у ранее установленных переводов helloao — из источника, в фоне
         .task { await store.backfillNativeNames() }
         .task {

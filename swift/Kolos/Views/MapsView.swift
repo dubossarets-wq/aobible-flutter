@@ -473,7 +473,6 @@ struct InterlinearSheet: View {
                     .transition(.push(from: dir))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.container, edges: .bottom)
                 .clipped()
             }
             // смахивание влево — следующий стих, вправо — предыдущий (перевод переключают плашки сверху)

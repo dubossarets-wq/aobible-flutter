@@ -4,11 +4,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:in_app_update/in_app_update.dart';
 
 import '../../core/i18n.dart';
-import '../../core/modules.dart';
 import '../../core/settings.dart';
 import '../hub.dart';
 import 'library_sheet.dart';
@@ -18,9 +16,7 @@ import 'news_sheet.dart';
 import 'plural.dart';
 import 'prefs_sheet.dart';
 import 'report.dart';
-import 'sheet.dart';
 import 'starter.dart';
-import 'welcome_sheet.dart';
 
 export 'about_sheet.dart' show openAbout, appVersion;
 export 'appearance_sheet.dart' show openAppearance;
@@ -57,27 +53,11 @@ void register() {
 }
 
 /// Приветствие новому человеку, «Что нового» — после обновления. Когда приложение готово (есть перевод) и не открыто другое окно.
+/// При запуске — сразу Библия, без окон: приветствие и «Что нового» сами не открываются (по просьбе владельца,
+/// 24.11.2026). «Что нового» и инструкция остаются в «Ещё»; новости помечаются прочитанными, чтобы не всплыли потом
 Future<void> _showStartup() async {
-  final store = ModuleStore.instance;
-  for (var i = 0; store.bibles.isEmpty; i++) {
-    if (i > 1200) return;
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-  }
-  await Future<void>.delayed(const Duration(milliseconds: 1200));
-  for (var i = 0; i < 20; i++) {
-    final ctx = appContext();
-    if (ctx != null && !Navigator.of(ctx).canPop()) {
-      if (prefs.getBool('welcomePending') == true) {
-        markNewsSeen();
-        await openWelcome(ctx);
-      } else {
-        final items = pendingNews();
-        if (items.isNotEmpty) await openNews(ctx, items: items);
-      }
-      return;
-    }
-    await Future<void>.delayed(const Duration(seconds: 2));
-  }
+  if (prefs.getBool('welcomePending') == true) await prefs.setBool('welcomePending', false);
+  markNewsSeen();
 }
 
 /// Приложение из Google Play: о новой версии сообщаем один раз (по данным самого Google Play)
